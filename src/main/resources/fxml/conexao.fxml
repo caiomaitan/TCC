@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Tela "Conexão com o banco" (3.3): Enter salva, Esc sai. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.ConexaoController"
+      fx:id="formulario" styleClass="tela-conexao" spacing="16">
+    <padding><Insets top="28" right="32" bottom="24" left="32"/></padding>
+
+    <Label text="Conexão com o banco" styleClass="titulo"/>
+    <Label text="Não foi possível conectar ao banco de dados. Confira os dados abaixo, teste e salve."
+           wrapText="true" styleClass="subtitulo"/>
+
+    <GridPane hgap="12" vgap="10">
+        <columnConstraints>
+            <ColumnConstraints minWidth="90"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="Endereço *" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoUrl" promptText="jdbc:postgresql://localhost:5432/varesync"
+                   GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <Label text="Usuário *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoUsuario" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+        <Label text="Senha" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <PasswordField fx:id="campoSenha" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <Label fx:id="mensagem" wrapText="true" minHeight="40" styleClass="mensagem"/>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Sair" cancelButton="true" onAction="#sair"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="botaoTestar" text="Testar" onAction="#testar"/>
+        <Button fx:id="botaoSalvar" text="Salvar" defaultButton="true" onAction="#salvar" styleClass="botao-primario"/>
+    </HBox>
+</VBox>

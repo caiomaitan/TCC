@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Janela principal (8.1): menu lateral à esquerda, conteúdo à direita, barra de status embaixo. -->
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="br.com.varesync.controller.PrincipalController"
+            styleClass="janela-principal">
+
+    <left>
+        <VBox styleClass="menu-lateral" prefWidth="220">
+            <Label text="VareSync" styleClass="marca"/>
+            <!-- Itens do menu entram na Fase 1, conforme as permissões do usuário. -->
+            <VBox fx:id="menu" styleClass="menu-itens" spacing="2" VBox.vgrow="ALWAYS"/>
+        </VBox>
+    </left>
+
+    <center>
+        <StackPane fx:id="conteudo" styleClass="conteudo">
+            <VBox alignment="CENTER" spacing="8">
+                <Label text="Bem-vindo ao VareSync" styleClass="titulo"/>
+                <Label text="Banco de dados conectado e atualizado." styleClass="subtitulo"/>
+            </VBox>
+        </StackPane>
+    </center>
+
+    <bottom>
+        <HBox styleClass="barra-status" spacing="12" alignment="CENTER_LEFT">
+            <padding><Insets top="4" right="12" bottom="4" left="12"/></padding>
+            <Label fx:id="statusUsuario"/>
+            <Separator orientation="VERTICAL"/>
+            <Label fx:id="statusTerminal"/>
+            <Separator orientation="VERTICAL"/>
+            <Label fx:id="statusCaixa"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="statusConexao"/>
+            <Separator orientation="VERTICAL"/>
+            <Label fx:id="statusDataHora"/>
+        </HBox>
+    </bottom>
+</BorderPane>

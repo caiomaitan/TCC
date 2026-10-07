@@ -1,0 +1,81 @@
+/* VareSync — tema claro, uma cor de destaque (8.1). */
+
+.root {
+    -vs-destaque: #1565c0;
+    -vs-destaque-escuro: #0d47a1;
+    -vs-fundo: #f5f7fa;
+    -vs-superficie: #ffffff;
+    -vs-borda: #d5dbe3;
+    -vs-texto: #1f2933;
+    -vs-texto-suave: #5f6b7a;
+    -vs-erro: #c62828;
+    -vs-sucesso: #2e7d32;
+
+    -fx-font-family: "System";
+    -fx-font-size: 13.5px;
+    -fx-text-fill: -vs-texto;
+    -fx-background-color: -vs-fundo;
+    -fx-accent: -vs-destaque;
+    -fx-focus-color: -vs-destaque;
+}
+
+.titulo {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.subtitulo {
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.mensagem-erro {
+    -fx-text-fill: -vs-erro;
+}
+
+.mensagem-sucesso {
+    -fx-text-fill: -vs-sucesso;
+}
+
+.botao-primario {
+    -fx-background-color: -vs-destaque;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.botao-primario:hover {
+    -fx-background-color: -vs-destaque-escuro;
+}
+
+/* Tela de conexão */
+.tela-conexao {
+    -fx-background-color: -vs-superficie;
+}
+
+/* Janela principal */
+.menu-lateral {
+    -fx-background-color: #1f2a37;
+    -fx-padding: 16 0 16 0;
+}
+
+.menu-lateral .marca {
+    -fx-text-fill: white;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 20 16 20;
+}
+
+.conteudo {
+    -fx-background-color: -vs-fundo;
+    -fx-padding: 24;
+}
+
+.barra-status {
+    -fx-background-color: -vs-superficie;
+    -fx-border-color: -vs-borda transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.barra-status .label {
+    -fx-text-fill: -vs-texto-suave;
+    -fx-font-size: 12.5px;
+}

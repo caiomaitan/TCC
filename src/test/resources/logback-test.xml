@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Nos testes o log vai só para o console (não escreve em ~/.varesync). -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="br.com.varesync" level="INFO"/>
+    <!-- BancoTest provoca falhas de conexão de propósito: não poluir a saída com o stack trace esperado. -->
+    <logger name="br.com.varesync.config.Banco" level="ERROR"/>
+
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
