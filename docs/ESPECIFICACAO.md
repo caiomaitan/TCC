@@ -163,6 +163,7 @@ CREATE DATABASE varesync_test OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 
 ### 3.5 Armadilhas conhecidas
 - **JavaFX sem `module-info`**: rodar pela classe `Launcher` (que não estende `Application`) evita "JavaFX runtime components are missing".
+- **Qual JDK**: Maven, testes e `mvn javafx:run` usam o JDK de `JAVA_HOME` (o plugin do JavaFX procura toolchain, depois `JAVA_HOME`, depois o PATH). No Windows o PATH pode começar com um Java 8 da Oracle (`...\Oracle\Java\javapath`); não dependa do `java` do PATH e confira o ambiente com `mvn -v`.
 - **Flyway 10+** sem `flyway-database-postgresql` falha com "No database found to handle jdbc:postgresql".
 - **JasperReports 7**: a exportação PDF virou módulo próprio (`jasperreports-pdf`) e JRXML no formato da versão 6 não carrega. Antes de criar vários relatórios, faça **um** JRXML mínimo, compile-o num teste automatizado e só então replique o padrão. Se a compilação de JRXML acusar falta de compilador, acrescente `jasperreports-jdt`. Use a fonte DejaVu Sans (artefato `jasperreports-fonts`) para acentos no PDF. Para visualizar: exportar para PDF temporário e abrir com `getHostServices().showDocument(...)` (o JasperViewer é Swing).
 - **Fuso horário**: o driver usa o fuso da JVM na sessão. Grave e leia TIMESTAMPTZ como `OffsetDateTime` (`setObject` / `getObject(coluna, OffsetDateTime.class)`) e converta para `ZoneId.systemDefault()` antes de exibir (o driver devolve em UTC).
@@ -565,7 +566,8 @@ R01 a R05 são obrigatórios (são os do diagrama de casos de uso do TCC). Os de
 Validadores de GTIN, CPF e CNPJ; `Dinheiro` (arredondamento e leitura pt-BR); rateio; custo médio; preço sugerido; margem e markup; curva ABC; leitura de etiqueta de balança; leitura da entrada do PDV (`3*789...`); cálculo do carrinho (totais, limite de desconto, troco). **Todos os vetores do Apêndice A são obrigatórios.**
 
 ### 9.2 Integração (banco `varesync_test`)
-- Antes da suíte: `flyway.clean()` + `migrate()`. Configuração por `src/test/resources/teste.properties` ou variáveis de ambiente.
+- Antes da suíte: `flyway.clean()` + `migrate()`.
+- Conexão: `jdbc:postgresql://localhost:5432/varesync_test` (pode ser trocada por `VARESYNC_DB_TESTE_URL`), usuário em `VARESYNC_DB_USUARIO` (padrão `varesync`) e senha em `VARESYNC_DB_SENHA`. Sem a senha, os testes de integração falham com uma mensagem dizendo qual variável definir. Nunca gravar senha em arquivo do repositório.
 - `IntegridadeBancoIT` executa `scripts/teste_integridade_banco.sql`.
 - Por service: login e bloqueio; produto com estoque inicial; venda completa (saldo, movimentos, pagamentos, totais); cancelamento de venda; inventário com movimento depois da contagem; entrada com custo médio; fechamento de caixa; permissão negada no service.
 - Ao fim de cada teste de integração: `vw_estoque_inconsistente` vazia.
@@ -599,7 +601,7 @@ Tabela RF/RNF → telas e classes → testes automatizados → casos do roteiro 
 ## 10. Plano de fases
 
 ### Fase 0 — Fundação
-**Entregas**: `pom.xml`; estrutura de pacotes; `Launcher` e `App`; `AppConfig` + tela de conexão; `Banco` (HikariCP); `Migracao` (Flyway usando as V1/V2 do repositório); `AppContext`; `Transacao`; `TradutorErros` e `MensagensBanco`; `Dinheiro`, `Formatos`, `Textos`; `logback.xml`; janela principal com menu lateral vazio e barra de status; README (pré-requisitos, criação do banco, como rodar); `docs/PROGRESSO.md`, `RASTREABILIDADE.md`, `ROTEIRO_TESTES.md`; `IntegridadeBancoIT`; testes unitários de `Dinheiro` e `Textos`.
+**Entregas**: `pom.xml`; `.gitignore` (Java, Maven e IDEs); estrutura de pacotes; `Launcher` e `App`; `AppConfig` + tela de conexão; `Banco` (HikariCP); `Migracao` (Flyway usando as V1/V2 do repositório); `AppContext`; `Transacao`; `TradutorErros` e `MensagensBanco`; `Dinheiro`, `Formatos`, `Textos`; `logback.xml`; janela principal com menu lateral vazio e barra de status; README (pré-requisitos, criação do banco, como rodar); `docs/PROGRESSO.md`, `RASTREABILIDADE.md`, `ROTEIRO_TESTES.md`; `IntegridadeBancoIT`; testes unitários de `Dinheiro` e `Textos`.
 **Aceite**: `mvn -q verify` passa; `mvn javafx:run` abre o sistema; com banco vazio as migrations rodam; sem banco aparece a tela de conexão; `IntegridadeBancoIT` verde.
 
 ### Fase 1 — Acesso e usuários (RF12, RF13, RNF04)
