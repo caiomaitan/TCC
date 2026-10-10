@@ -2,6 +2,7 @@ package br.com.varesync.config;
 
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,10 @@ public final class Migracao {
                 .locations(LOCAL_MIGRATIONS)
                 .load();
         MigrateResult resultado = flyway.migrate();
+        // targetSchemaVersion fica nulo quando não há o que aplicar; a versão atual vem do histórico.
+        MigrationInfo atual = flyway.info().current();
         log.info("Migrations aplicadas: {}; versão do banco: {}",
-                resultado.migrationsExecuted, resultado.targetSchemaVersion);
+                resultado.migrationsExecuted, atual == null ? "—" : atual.getVersion());
         return resultado.migrationsExecuted;
     }
 }

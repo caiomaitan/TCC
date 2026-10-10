@@ -5,7 +5,10 @@ import br.com.varesync.config.AppContext;
 import br.com.varesync.config.Banco;
 import br.com.varesync.config.FalhaConexaoException;
 import br.com.varesync.controller.ConexaoController;
+import br.com.varesync.controller.LoginController;
+import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrincipalController;
+import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -29,20 +32,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Inicialização e troca de telas.
- * Sequência: lê/cria a config → testa a conexão (senão, tela de conexão) → Flyway migrate → janela principal.
+ * Inicialização e troca de telas (3.4): lê/cria a config → testa a conexão (senão, tela de conexão)
+ * → Flyway migrate → nenhum usuário? assistente de primeiro acesso → login → troca de senha obrigatória,
+ * se marcada → janela principal.
  */
-public class App extends Application {
+public class App extends Application implements Navegacao {
 
     private static final Logger log = LoggerFactory.getLogger(App.class);
 
     static final double LARGURA_MINIMA = 1280;
     static final double ALTURA_MINIMA = 720;
-    private static final String CSS = "/css/app.css";
 
     private Stage palco;
     private AppContext contexto;
     private PrincipalController principal;
+    /** Usuário logado; nulo fora da janela principal e da troca de senha. */
+    private Sessao sessao;
 
     public static void main(String[] args) {
         launch(args);
@@ -60,8 +65,9 @@ public class App extends Application {
 
     @Override
     public void stop() {
-        if (principal != null) {
-            principal.encerrar();
+        encerrarPrincipal();
+        if (sessao != null && contexto != null) {
+            registrarLogout();
         }
         if (contexto != null) {
             contexto.close();
@@ -69,7 +75,44 @@ public class App extends Application {
         log.info("VareSync encerrado");
     }
 
-    /** Conecta e migra em segundo plano; a tela mostra o progresso enquanto isso. */
+    // ---- Navegacao ----
+
+    @Override
+    public void mostrarLogin(String loginSugerido) {
+        encerrarPrincipal();
+        sessao = null;
+        LoginController controller = (LoginController) mostrar("/fxml/login.fxml", 440, 380, false);
+        controller.sugerirLogin(loginSugerido);
+    }
+
+    @Override
+    public void entrar(Sessao novaSessao) {
+        sessao = novaSessao;
+        log.info("Login de {} no terminal {}", novaSessao.usuario().login(), novaSessao.terminal());
+        if (novaSessao.deveTrocarSenha()) {
+            mostrar("/fxml/troca-senha.fxml", 520, 440, false);
+        } else {
+            principal = (PrincipalController) mostrar("/fxml/principal.fxml", LARGURA_MINIMA, ALTURA_MINIMA, true);
+        }
+    }
+
+    @Override
+    public void logoff() {
+        String login = sessao == null ? "" : sessao.usuario().login();
+        if (sessao != null) {
+            registrarLogout();
+        }
+        mostrarLogin(login);
+    }
+
+    @Override
+    public void sair() {
+        Platform.exit();
+    }
+
+    // ---- Inicialização ----
+
+    /** Conecta, migra e decide entre primeiro acesso e login, em segundo plano. */
     private void iniciar() {
         Label situacao = mostrarCarregando("Conectando ao banco de dados…");
         AppConfig config;
@@ -84,21 +127,27 @@ public class App extends Application {
         }
         log.info("Configuração: {}", config);
 
-        Task<AppContext> tarefa = new Task<>() {
+        Task<Boolean> tarefa = new Task<>() {
             @Override
-            protected AppContext call() {
+            protected Boolean call() {
                 Banco.testarConexao(config);
                 updateMessage("Atualizando o banco de dados…");
-                return AppContext.iniciar(config);
+                contexto = AppContext.iniciar(config);
+                return contexto.acessoService().precisaPrimeiroAcesso();
             }
         };
         tarefa.messageProperty().addListener((obs, anterior, atual) -> situacao.setText(atual));
         tarefa.setOnSucceeded(e -> {
-            contexto = tarefa.getValue();
-            mostrarPrincipal();
+            if (tarefa.getValue()) {
+                log.info("Nenhum usuário cadastrado: assistente de primeiro acesso");
+                mostrar("/fxml/primeiro-acesso.fxml", 560, 560, false);
+            } else {
+                mostrarLogin("");
+            }
         });
         tarefa.setOnFailed(e -> {
             Throwable erro = tarefa.getException();
+            fecharContexto();
             if (erro instanceof FalhaConexaoException) {
                 mostrarConexao(config, erro.getMessage());
             } else {
@@ -109,6 +158,32 @@ public class App extends Application {
         });
         Tarefas.executar("inicializacao", tarefa);
     }
+
+    private void registrarLogout() {
+        try {
+            contexto.acessoService().sair(sessao);
+        } catch (RuntimeException e) {
+            // Não impede o log off nem o encerramento; fica no log.
+            log.error("Falha ao registrar o logout de {}", sessao.usuario().login(), e);
+        }
+        sessao = null;
+    }
+
+    private void fecharContexto() {
+        if (contexto != null) {
+            contexto.close();
+            contexto = null;
+        }
+    }
+
+    private void encerrarPrincipal() {
+        if (principal != null) {
+            principal.encerrar();
+            principal = null;
+        }
+    }
+
+    // ---- Telas ----
 
     private Label mostrarCarregando(String mensagem) {
         ProgressIndicator progresso = new ProgressIndicator();
@@ -129,15 +204,18 @@ public class App extends Application {
         trocarCena(raiz, 560, 440, false);
     }
 
-    private void mostrarPrincipal() {
-        Parent raiz = carregar("/fxml/principal.fxml", tipo -> {
-            Object controller = contexto.criarController(tipo);
-            if (controller instanceof PrincipalController p) {
-                principal = p;
+    /** Carrega a tela com os controllers do {@link AppContext} e devolve o controller da raiz. */
+    private Object mostrar(String fxml, double largura, double altura, boolean janelaPrincipal) {
+        Object[] raizController = new Object[1];
+        Parent raiz = carregar(fxml, tipo -> {
+            Object controller = contexto.criarController(tipo, this, sessao);
+            if (raizController[0] == null) {
+                raizController[0] = controller;
             }
             return controller;
         });
-        trocarCena(raiz, LARGURA_MINIMA, ALTURA_MINIMA, true);
+        trocarCena(raiz, largura, altura, janelaPrincipal);
+        return raizController[0];
     }
 
     private Parent carregar(String fxml, Callback<Class<?>, Object> fabrica) {
@@ -153,7 +231,7 @@ public class App extends Application {
 
     private void trocarCena(Parent raiz, double largura, double altura, boolean janelaPrincipal) {
         Scene cena = new Scene(raiz, largura, altura);
-        cena.getStylesheets().add(App.class.getResource(CSS).toExternalForm());
+        cena.getStylesheets().add(App.class.getResource(Dialogos.CSS).toExternalForm());
         palco.setMinWidth(janelaPrincipal ? LARGURA_MINIMA : 0);
         palco.setMinHeight(janelaPrincipal ? ALTURA_MINIMA : 0);
         palco.setResizable(janelaPrincipal);

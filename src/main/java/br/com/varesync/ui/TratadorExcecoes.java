@@ -35,6 +35,20 @@ public final class TratadorExcecoes {
         }
     }
 
+    /**
+     * Mensagem para mostrar junto do formulário, em vez de um alerta.
+     * Erro que não é de regra de negócio vai para o log com stack trace.
+     */
+    public static String mensagem(Throwable erro) {
+        RuntimeException traduzida = TradutorErros.traduzir(erro);
+        if (traduzida instanceof NegocioException) {
+            log.info("Regra de negócio: {}", traduzida.getMessage());
+        } else {
+            log.error("Erro inesperado", erro);
+        }
+        return traduzida.getMessage();
+    }
+
     private static void exibir(Alert.AlertType tipo, String mensagem) {
         try {
             // Sempre via runLater: showAndWait não pode rodar durante animação ou layout.

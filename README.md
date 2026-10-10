@@ -62,6 +62,11 @@ Se não conseguir conectar, abre a tela **Conexão com o banco** (endereço, usu
 salvar, o sistema conecta e aplica as migrations (`src/main/resources/db/migration`). `terminal.id` identifica o
 computador no controle de caixa e deve ser único por máquina.
 
+Primeiro acesso: com a tabela `usuario` vazia, o sistema abre um assistente que pede o nome da loja e cria o
+supervisor (nome, login e senha). Não existe usuário nem senha padrão. Depois disso abre a tela de login. Os demais
+usuários são cadastrados pelo supervisor em **Usuários**, com senha provisória que é trocada no primeiro login.
+Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes.
+
 Logs: `~/.varesync/logs/varesync.log` (um arquivo por dia, mantidos 30 dias).
 
 ## Testes

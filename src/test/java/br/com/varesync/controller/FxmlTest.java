@@ -24,7 +24,11 @@ class FxmlTest {
     @ParameterizedTest
     @CsvSource({
             "/fxml/conexao.fxml, br.com.varesync.controller.ConexaoController",
-            "/fxml/principal.fxml, br.com.varesync.controller.PrincipalController"
+            "/fxml/principal.fxml, br.com.varesync.controller.PrincipalController",
+            "/fxml/primeiro-acesso.fxml, br.com.varesync.controller.PrimeiroAcessoController",
+            "/fxml/login.fxml, br.com.varesync.controller.LoginController",
+            "/fxml/troca-senha.fxml, br.com.varesync.controller.TrocaSenhaController",
+            "/fxml/usuarios.fxml, br.com.varesync.controller.UsuariosController"
     })
     void fxmlCasaComOController(String recurso, String controller) throws Exception {
         String fxml;
@@ -41,9 +45,7 @@ class FxmlTest {
         Matcher ids = FX_ID.matcher(fxml);
         while (ids.find()) {
             String id = ids.group(1);
-            if (!id.equals("conteudo")) { // área de conteúdo: usada pela navegação a partir da Fase 1
-                assertThat(campos).as("campo @FXML %s em %s", id, controller).contains(id);
-            }
+            assertThat(campos).as("campo @FXML %s em %s", id, controller).contains(id);
         }
         Matcher acoes = ACAO.matcher(fxml);
         while (acoes.find()) {

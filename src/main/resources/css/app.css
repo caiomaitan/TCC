@@ -79,3 +79,54 @@
     -fx-text-fill: -vs-texto-suave;
     -fx-font-size: 12.5px;
 }
+
+/* Telas de acesso: primeiro acesso, login e troca de senha */
+.tela-acesso {
+    -fx-background-color: -vs-superficie;
+}
+
+/* Menu lateral: itens por permissão e rodapé (Alterar senha, Log off, Sair) */
+.menu-lateral .loja {
+    -fx-text-fill: #aab4c3;
+    -fx-padding: 0 20 16 20;
+    -fx-font-size: 12.5px;
+}
+
+.menu-lateral .item-menu {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-text-fill: #d8dee8;
+    -fx-alignment: center-left;
+    -fx-padding: 9 20 9 20;
+    -fx-cursor: hand;
+}
+
+.menu-lateral .item-menu:hover,
+.menu-lateral .item-menu:focused {
+    -fx-background-color: #2c3a4b;
+}
+
+.menu-lateral .item-menu.selecionado {
+    -fx-background-color: -vs-destaque;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.menu-rodape {
+    -fx-border-color: #34445a transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 0 0 0;
+}
+
+/* Cadastros: lista + formulário */
+.painel-formulario {
+    -fx-background-color: -vs-superficie;
+    -fx-border-color: -vs-borda;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.titulo-secao {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}

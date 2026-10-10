@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Login (Fig. 14 revisada): Enter entra, Esc sai; mensagem de erro abaixo dos campos. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.LoginController"
+      fx:id="formulario" styleClass="tela-acesso" spacing="14">
+    <padding><Insets top="28" right="32" bottom="24" left="32"/></padding>
+
+    <Label text="VareSync" styleClass="titulo"/>
+    <Label fx:id="nomeLoja" styleClass="subtitulo"/>
+
+    <GridPane hgap="12" vgap="10">
+        <columnConstraints>
+            <ColumnConstraints minWidth="70"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="Usuário" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoLogin" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <Label text="Senha" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <PasswordField fx:id="campoSenha" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <Label fx:id="mensagem" wrapText="true" minHeight="40" styleClass="mensagem"/>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Sair" cancelButton="true" onAction="#sair"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Entrar" defaultButton="true" onAction="#entrar" styleClass="botao-primario"/>
+    </HBox>
+</VBox>

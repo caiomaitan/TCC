@@ -18,6 +18,7 @@ public final class Formatos {
 
     private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy", PT_BR);
     private static final DateTimeFormatter DATA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", PT_BR);
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm", PT_BR);
     private static final DateTimeFormatter DATA_HORA_SEGUNDOS = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", PT_BR);
 
     private Formatos() {
@@ -66,6 +67,11 @@ public final class Formatos {
     /** Converte para o fuso do computador antes de formatar (o driver devolve TIMESTAMPTZ em UTC). */
     public static String dataHora(OffsetDateTime dataHora) {
         return dataHora == null ? SEM_VALOR : DATA_HORA.format(dataHora.atZoneSameInstant(ZoneId.systemDefault()));
+    }
+
+    /** {@code HH:mm} no fuso do computador. */
+    public static String hora(OffsetDateTime dataHora) {
+        return dataHora == null ? SEM_VALOR : HORA.format(dataHora.atZoneSameInstant(ZoneId.systemDefault()));
     }
 
     public static String dataHoraComSegundos(OffsetDateTime dataHora) {

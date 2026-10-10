@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Assistente de primeiro acesso (6.1): Enter cria o supervisor, Esc sai. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.PrimeiroAcessoController"
+      fx:id="formulario" styleClass="tela-acesso" spacing="14">
+    <padding><Insets top="28" right="32" bottom="24" left="32"/></padding>
+
+    <Label text="Bem-vindo ao VareSync" styleClass="titulo"/>
+    <Label text="Este é o primeiro acesso. Informe o nome da loja e crie o usuário supervisor, que tem acesso a todas as rotinas e cadastra os demais usuários."
+           wrapText="true" styleClass="subtitulo"/>
+
+    <GridPane hgap="12" vgap="10">
+        <columnConstraints>
+            <ColumnConstraints minWidth="130"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="Nome da loja *" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoLoja" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <Label text="Seu nome *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoNome" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+        <Label text="Login *" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoLogin" promptText="ex.: joao" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+        <Label text="Senha *" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <PasswordField fx:id="campoSenha" promptText="ao menos 6 caracteres"
+                       GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+        <Label text="Confirmação *" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+        <PasswordField fx:id="campoConfirmacao" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <Label fx:id="mensagem" wrapText="true" minHeight="40" styleClass="mensagem"/>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Sair" cancelButton="true" onAction="#sair"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Criar supervisor" defaultButton="true" onAction="#criar" styleClass="botao-primario"/>
+    </HBox>
+</VBox>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Usuários e permissões (Fig. 16 revisada): lista + formulário. Enter salva. -->
+<HBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.UsuariosController"
+      spacing="20" styleClass="tela-cadastro">
+
+    <VBox spacing="10" HBox.hgrow="ALWAYS">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Usuários" styleClass="titulo"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Novo usuário" onAction="#novo"/>
+        </HBox>
+        <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
+            <columns>
+                <TableColumn fx:id="colunaLogin" text="Login" prefWidth="110"/>
+                <TableColumn fx:id="colunaNome" text="Nome" prefWidth="190"/>
+                <TableColumn fx:id="colunaPerfil" text="Perfil" prefWidth="95"/>
+                <TableColumn fx:id="colunaSituacao" text="Situação" prefWidth="170"/>
+                <TableColumn fx:id="colunaUltimoLogin" text="Último login" prefWidth="130"/>
+            </columns>
+            <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+        </TableView>
+    </VBox>
+
+    <VBox spacing="12" prefWidth="430" minWidth="430" styleClass="painel-formulario">
+        <padding><Insets top="16" right="18" bottom="16" left="18"/></padding>
+        <Label fx:id="tituloFormulario" styleClass="titulo-secao"/>
+
+        <GridPane hgap="12" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints minWidth="70"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+            <Label text="Login *" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <TextField fx:id="campoLogin" promptText="ex.: maria" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+            <Label text="Nome *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <TextField fx:id="campoNome" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        </GridPane>
+
+        <CheckBox fx:id="campoSupervisor" text="Supervisor (acesso total, inclusive usuários e configurações)"/>
+        <Label fx:id="avisoSupervisor" text="Supervisor tem acesso a todas as rotinas." styleClass="subtitulo"
+               visible="false"/>
+
+        <Label text="Rotinas liberadas" styleClass="titulo-secao"/>
+        <FlowPane fx:id="painelPermissoes" hgap="8" vgap="8"/>
+
+        <GridPane fx:id="painelSenha" hgap="12" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints minWidth="130"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+            <Label text="Senha provisória *" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <PasswordField fx:id="campoSenha" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+            <Label text="Confirmação *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <PasswordField fx:id="campoConfirmacao" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        </GridPane>
+
+        <Label fx:id="situacao" styleClass="subtitulo"/>
+        <Label fx:id="mensagem" wrapText="true" minHeight="36" styleClass="mensagem"/>
+
+        <Region VBox.vgrow="ALWAYS"/>
+
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Button fx:id="botaoRedefinirSenha" text="Redefinir senha" onAction="#redefinirSenha"/>
+            <Button fx:id="botaoDesbloquear" text="Desbloquear" onAction="#desbloquear"/>
+            <Button fx:id="botaoSituacao" text="Inativar" onAction="#alternarSituacao"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Salvar" defaultButton="true" onAction="#salvar" styleClass="botao-primario"/>
+        </HBox>
+    </VBox>
+</HBox>
