@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Busca de produtos (Fig. 21 revisada). Enter no campo busca; duplo clique ou Enter na lista abre o produto. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.ProdutosController"
+      spacing="10" styleClass="tela-cadastro">
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Produtos" styleClass="titulo"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Categorias…" onAction="#abrirCategorias"/>
+        <Button text="Novo produto (Ctrl+N)" onAction="#novo" styleClass="botao-primario"/>
+    </HBox>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <TextField fx:id="campoBusca" promptText="Nome, código ou código de barras" HBox.hgrow="ALWAYS"
+                   onAction="#pesquisar"/>
+        <Label text="Categoria"/>
+        <ComboBox fx:id="filtroCategoria" prefWidth="190"/>
+        <Label text="Situação"/>
+        <ComboBox fx:id="filtroSituacao" prefWidth="110"/>
+        <Button text="Buscar" onAction="#pesquisar"/>
+    </HBox>
+
+    <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
+        <placeholder><Label text="Nenhum produto encontrado."/></placeholder>
+        <columns>
+            <TableColumn fx:id="colunaCodigo" text="Código" prefWidth="80" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaNome" text="Nome" prefWidth="320"/>
+            <TableColumn fx:id="colunaCategoria" text="Categoria" prefWidth="160"/>
+            <TableColumn fx:id="colunaPreco" text="Preço" prefWidth="100" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaEstoque" text="Estoque" prefWidth="110" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaAlteracao" text="Última alteração" prefWidth="210"/>
+        </columns>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+    </TableView>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label fx:id="resumo" styleClass="subtitulo"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label text="Duplo clique ou Enter abre o produto." styleClass="subtitulo"/>
+    </HBox>
+</VBox>

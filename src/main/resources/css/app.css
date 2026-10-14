@@ -130,3 +130,25 @@
     -fx-font-size: 15px;
     -fx-font-weight: bold;
 }
+
+/* Produtos: números à direita, negativos em vermelho, inativos esmaecidos (8.1) */
+.coluna-numero {
+    -fx-alignment: center-right;
+}
+
+.campo-numero {
+    -fx-alignment: center-right;
+}
+
+.negativo {
+    -fx-text-fill: -vs-erro;
+}
+
+.table-row-cell.inativo .table-cell {
+    -fx-text-fill: -vs-texto-suave;
+    -fx-font-style: italic;
+}
+
+.tela-cadastro {
+    -fx-background-color: -vs-fundo;
+}

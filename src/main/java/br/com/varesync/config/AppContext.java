@@ -1,16 +1,26 @@
 package br.com.varesync.config;
 
+import br.com.varesync.controller.CategoriasController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrimeiroAcessoController;
 import br.com.varesync.controller.PrincipalController;
+import br.com.varesync.controller.ProdutoController;
+import br.com.varesync.controller.ProdutosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
 import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.MovimentoEstoqueDAO;
+import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
+import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.Transacao;
@@ -31,6 +41,8 @@ public final class AppContext implements AutoCloseable {
     private final Transacao transacao;
     private final AcessoService acessoService;
     private final UsuarioService usuarioService;
+    private final CategoriaService categoriaService;
+    private final ProdutoService produtoService;
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -44,7 +56,14 @@ public final class AppContext implements AutoCloseable {
         AuditoriaService auditoriaService = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
         this.acessoService = new AcessoService(transacao, usuarioDAO, configuracaoDAO, auditoriaService, senhas,
                 clock, config.terminalId());
-        this.usuarioService = new UsuarioService(transacao, usuarioDAO, auditoriaService, senhas);
+        this.usuarioService = new UsuarioService(transacao, usuarioDAO, auditoriaService, senhas, clock);
+
+        ProdutoDAO produtoDAO = new ProdutoDAO();
+        CategoriaDAO categoriaDAO = new CategoriaDAO();
+        EstoqueService estoqueService = new EstoqueService(produtoDAO, new MovimentoEstoqueDAO(), clock);
+        this.categoriaService = new CategoriaService(transacao, categoriaDAO);
+        this.produtoService = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
+                configuracaoDAO, estoqueService, auditoriaService, clock);
     }
 
     /** Abre o pool e aplica as migrations pendentes. */
@@ -80,6 +99,16 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == UsuariosController.class) {
             return new UsuariosController(usuarioService, sessao, clock);
+        }
+        if (tipo == ProdutosController.class) {
+            return new ProdutosController(produtoService, categoriaService, sessao,
+                    t -> criarController(t, navegacao, sessao));
+        }
+        if (tipo == ProdutoController.class) {
+            return new ProdutoController(produtoService, categoriaService, sessao);
+        }
+        if (tipo == CategoriasController.class) {
+            return new CategoriasController(categoriaService, sessao);
         }
         throw new IllegalArgumentException("Controller não registrado no AppContext: " + tipo.getName());
     }

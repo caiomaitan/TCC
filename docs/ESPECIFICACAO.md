@@ -129,7 +129,7 @@ varesync/
     │   ├── ui/                componentes reutilizáveis (campo de moeda, diálogos, liberação de supervisor, tabela genérica)
     │   └── util/              Dinheiro, Formatos, Textos, validadores (GTIN, CPF, CNPJ)
     ├── main/resources/
-    │   ├── db/migration/      V1 e V2 prontas; futuras V3...
+    │   ├── db/migration/      V1 e V2 prontas; V3 (horários da aplicação); futuras V4...
     │   ├── fxml/ css/ reports/ img/
     │   └── logback.xml
     └── test/java/br/com/varesync/   unitários e integração
@@ -167,7 +167,8 @@ CREATE DATABASE varesync_test OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 - **Flyway 10+** sem `flyway-database-postgresql` falha com "No database found to handle jdbc:postgresql".
 - **JasperReports 7**: a exportação PDF virou módulo próprio (`jasperreports-pdf`) e JRXML no formato da versão 6 não carrega. Antes de criar vários relatórios, faça **um** JRXML mínimo, compile-o num teste automatizado e só então replique o padrão. Se a compilação de JRXML acusar falta de compilador, acrescente `jasperreports-jdt`. Use a fonte DejaVu Sans (artefato `jasperreports-fonts`) para acentos no PDF. Para visualizar: exportar para PDF temporário e abrir com `getHostServices().showDocument(...)` (o JasperViewer é Swing).
 - **Fuso horário**: o driver usa o fuso da JVM na sessão. Grave e leia TIMESTAMPTZ como `OffsetDateTime` (`setObject` / `getObject(coluna, OffsetDateTime.class)`) e converta para `ZoneId.systemDefault()` antes de exibir (o driver devolve em UTC).
-- **Colunas que o Java não escreve**: ids (identity `GENERATED ALWAYS`, use `RETURNING id`), `produto.nome_busca`, `inventario_item.diferenca`, `caixa_sessao.diferenca` (geradas), `movimento_estoque.saldo_anterior/saldo_posterior` (preenchidas por trigger), `atualizado_em` (trigger).
+- **Colunas que o Java não escreve**: ids (identity `GENERATED ALWAYS`, use `RETURNING id`), `produto.nome_busca`, `inventario_item.diferenca`, `caixa_sessao.diferenca` (geradas), `movimento_estoque.saldo_anterior/saldo_posterior` (preenchidas por trigger) e `produto_estoque` inteira (trigger).
+- **Horários vêm da aplicação** (V3): o Java envia pelo `Clock` o `criado_em` / `data_hora` de todo INSERT (inclusive auditoria e movimento) e o `atualizado_em` de todo UPDATE (usuário, produto, fornecedor). Sem isso, o `DEFAULT now()` e os triggers gravariam a hora do servidor e os testes com data fixa e os dados de demonstração no passado ficariam com datas erradas. O trigger `fn_set_atualizado_em` só usa `now()` quando o UPDATE não mudou `atualizado_em` (alteração feita fora do sistema, ex.: DBeaver); por isso, dois UPDATEs da mesma linha no mesmo instante do `Clock` fazem o segundo receber `now()`. O saldo em `produto_estoque.atualizado_em` recebe o `criado_em` do movimento (ou do produto, no saldo inicial), e o histórico de preço usa o `atualizado_em` do produto.
 - **Testes de integração** limpam o banco com `flyway.clean()`; habilite `cleanDisabled(false)` **somente** na configuração de teste.
 
 ---
@@ -255,7 +256,7 @@ SLF4J com Logback. Nunca registrar senha, hash ou senha do banco. Erro técnico 
 
 ## 5. Banco de dados
 
-O esquema está em `V1__schema_inicial.sql` (24 tabelas, 4 views, 6 funções de trigger) e os dados de referência em `V2__dados_iniciais.sql`. Ambos foram executados num PostgreSQL 16 junto com `scripts/teste_integridade_banco.sql` (15 cenários) e com teste de concorrência e de backup/restauração.
+O esquema está em `V1__schema_inicial.sql` (24 tabelas, 4 views, 6 funções de trigger) e os dados de referência em `V2__dados_iniciais.sql`. `V3__horario_da_aplicacao.sql` (Fase 2) substitui três funções de trigger para que os horários venham da aplicação (3.5). Ambos foram executados num PostgreSQL 16 junto com `scripts/teste_integridade_banco.sql` (15 cenários) e com teste de concorrência e de backup/restauração.
 
 ### 5.1 Correções em relação ao modelo do TCC (DER/MER)
 
@@ -304,9 +305,10 @@ Domínios fixos (iguais aos enums Java):
 | Saldo muda só por movimento, com bloqueio da linha (seguro com vários caixas) | trigger `trg_movimento_aplica_saldo` | inserir em `movimento_estoque` via `EstoqueService.movimentar`; nunca escrever em `produto_estoque` (o banco recusa) |
 | `saldo_anterior`/`saldo_posterior` e custo do movimento | mesmo trigger | não informar saldos; informar custo só em entrada de compra e inventário (senão vale o custo atual do produto) |
 | Kardex imutável | `trg_movimento_imutavel` | correção = novo movimento de ajuste |
-| Produto nasce com saldo 0 | `trg_produto_cria_estoque` | não inserir em `produto_estoque` |
-| Histórico de preço e custo | `trg_produto_historico_preco` | sempre preencher `atualizado_por` no UPDATE de produto |
-| `atualizado_em` | `fn_set_atualizado_em` (usuário, produto, fornecedor) | não preencher |
+| Produto nasce com saldo 0 (com `atualizado_em` = `criado_em` do produto, V3) | `trg_produto_cria_estoque` | não inserir em `produto_estoque`; enviar `criado_em` pelo `Clock` |
+| Histórico de preço e custo (data = `criado_em` no cadastro, `atualizado_em` na alteração) | `trg_produto_historico_preco` | sempre preencher `atualizado_por` e `atualizado_em` (pelo `Clock`) no UPDATE de produto |
+| `atualizado_em` | `fn_set_atualizado_em` (usuário, produto, fornecedor); desde a V3 só usa `now()` se o UPDATE não mudou o valor | enviar `atualizado_em = OffsetDateTime.now(clock)` em todo UPDATE dessas tabelas |
+| Saldo e horário do saldo | `trg_movimento_aplica_saldo` (V3: `produto_estoque.atualizado_em` = `criado_em` do movimento) | enviar `criado_em` do movimento pelo `Clock` |
 | Sinal × tipo; origem × tipo; motivo obrigatório em ajuste e perda | `ck_me_sinal`, `ck_me_origem` | validar antes para dar mensagem boa; o banco é a última barreira |
 | Uma sessão de caixa aberta por terminal | `ux_caixa_aberto_por_terminal` | tratar 23505 com mensagem clara |
 | Item de venda não baixa nem estorna duas vezes; item de inventário/entrada não aplica duas vezes | `ux_me_venda_item`, `ux_me_inventario_item`, `ux_me_entrada_item` | — |

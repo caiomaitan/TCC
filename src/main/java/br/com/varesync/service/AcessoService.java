@@ -94,7 +94,7 @@ public class AcessoService {
                 throw new NegocioException("O primeiro acesso já foi feito. Entre com o seu usuário.");
             }
             configuracaoDAO.atualizar(con, CHAVE_EMPRESA_NOME, nomeLoja);
-            long id = usuarioDAO.inserir(con, login, nome, hash, true, false);
+            long id = usuarioDAO.inserir(con, login, nome, hash, true, false, OffsetDateTime.now(clock));
             auditoria.registrar(con, id, AcaoAuditoria.USUARIO_CRIADO, AuditoriaService.ENTIDADE_USUARIO, id,
                     "Primeiro acesso: supervisor " + nome + " (" + login + ") criado; loja \"" + nomeLoja + "\"");
             return id;
@@ -145,7 +145,7 @@ public class AcessoService {
             if (!senhas.confere(senhaAtual, credencial.senhaHash())) {
                 throw new NegocioException("A senha atual está incorreta.");
             }
-            usuarioDAO.alterarSenha(con, sessao.usuarioId(), hash, false);
+            usuarioDAO.alterarSenha(con, sessao.usuarioId(), hash, false, OffsetDateTime.now(clock));
             auditoria.registrar(con, sessao, AcaoAuditoria.SENHA_REDEFINIDA, AuditoriaService.ENTIDADE_USUARIO,
                     sessao.usuarioId(), "Senha trocada pelo próprio usuário");
             return recarregar(con, sessao.usuarioId());
@@ -213,13 +213,13 @@ public class AcessoService {
             int tentativas = usuario.tentativasFalhas() + 1;
             if (tentativas >= MAXIMO_TENTATIVAS) {
                 OffsetDateTime bloqueio = agora.plus(TEMPO_BLOQUEIO);
-                usuarioDAO.registrarFalha(con, id, 0, bloqueio);
+                usuarioDAO.registrarFalha(con, id, 0, bloqueio, agora);
                 auditoria.registrar(con, id, AcaoAuditoria.LOGIN_FALHOU, AuditoriaService.ENTIDADE_USUARIO, id,
                         contexto + ": senha incorreta pela " + MAXIMO_TENTATIVAS + "ª vez seguida; bloqueado até "
                                 + hora(bloqueio));
                 return Conferencia.recusada(mensagemBloqueio(bloqueio));
             }
-            usuarioDAO.registrarFalha(con, id, tentativas, null);
+            usuarioDAO.registrarFalha(con, id, tentativas, null, agora);
             auditoria.registrar(con, id, AcaoAuditoria.LOGIN_FALHOU, AuditoriaService.ENTIDADE_USUARIO, id,
                     contexto + ": senha incorreta (tentativa " + tentativas + " de " + MAXIMO_TENTATIVAS + ")");
             return Conferencia.recusada(FALHA_LOGIN);

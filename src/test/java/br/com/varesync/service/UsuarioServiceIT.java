@@ -7,6 +7,12 @@ import br.com.varesync.IntegracaoBase;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Usuario;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -189,5 +195,31 @@ class UsuarioServiceIT extends IntegracaoBase {
         assertThatThrownBy(() -> usuarios.desbloquear(admin, 999_999))
                 .isInstanceOf(NegocioException.class)
                 .hasMessage("Usuário não encontrado.");
+    }
+
+    /** V3: criado_em e atualizado_em do usuário vêm do Clock (inclusive no passado). */
+    @Test
+    void horariosDoUsuarioVemDoClock() throws Exception {
+        Instant cadastro = Instant.parse("2026-07-01T10:00:00Z");
+        Instant alteracao = Instant.parse("2026-07-20T18:45:00Z");
+        t.relogio.avancar(Duration.between(t.relogio.instant(), cadastro));
+        long id = criarOperador("maria", Permissao.PDV);
+        assertThat(horarios(id)).containsExactly(cadastro, cadastro);
+
+        t.relogio.avancar(Duration.between(cadastro, alteracao));
+        usuarios.alterar(admin, id, "Maria Souza", false, EnumSet.of(Permissao.PDV));
+        assertThat(horarios(id)).containsExactly(cadastro, alteracao);
+    }
+
+    private Instant[] horarios(long id) throws Exception {
+        try (Connection con = dataSource.getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT criado_em, atualizado_em FROM usuario WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return new Instant[] {rs.getObject(1, OffsetDateTime.class).toInstant(),
+                        rs.getObject(2, OffsetDateTime.class).toInstant()};
+            }
+        }
     }
 }

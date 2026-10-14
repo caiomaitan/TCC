@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 public class AuditoriaService {
 
     public static final String ENTIDADE_USUARIO = "usuario";
+    public static final String ENTIDADE_PRODUTO = "produto";
 
     private final AuditoriaDAO dao;
     private final Clock clock;

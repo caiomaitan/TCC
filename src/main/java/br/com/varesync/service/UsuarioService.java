@@ -6,6 +6,8 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Usuario;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -24,12 +26,15 @@ public class UsuarioService {
     private final UsuarioDAO usuarioDAO;
     private final AuditoriaService auditoria;
     private final Senhas senhas;
+    private final Clock clock;
 
-    public UsuarioService(Transacao transacao, UsuarioDAO usuarioDAO, AuditoriaService auditoria, Senhas senhas) {
+    public UsuarioService(Transacao transacao, UsuarioDAO usuarioDAO, AuditoriaService auditoria, Senhas senhas,
+                          Clock clock) {
         this.transacao = transacao;
         this.usuarioDAO = usuarioDAO;
         this.auditoria = auditoria;
         this.senhas = senhas;
+        this.clock = clock;
     }
 
     public List<Usuario> listar(Sessao sessao) {
@@ -51,7 +56,7 @@ public class UsuarioService {
         String hash = senhas.gerarHash(senhaProvisoria);
 
         return transacao.executar(con -> {
-            long id = usuarioDAO.inserir(con, login, nome, hash, supervisor, true);
+            long id = usuarioDAO.inserir(con, login, nome, hash, supervisor, true, OffsetDateTime.now(clock));
             usuarioDAO.definirPermissoes(con, id, permissoes);
             auditoria.registrar(con, sessao, AcaoAuditoria.USUARIO_CRIADO, AuditoriaService.ENTIDADE_USUARIO, id,
                     "Usuário " + nome + " (" + login + ") criado como " + perfil(supervisor)
@@ -76,7 +81,7 @@ public class UsuarioService {
                     throw new NegocioException(SEM_SUPERVISOR);
                 }
             }
-            usuarioDAO.alterarCadastro(con, id, nome, supervisor);
+            usuarioDAO.alterarCadastro(con, id, nome, supervisor, OffsetDateTime.now(clock));
             usuarioDAO.definirPermissoes(con, id, permissoes);
 
             List<String> mudancas = new ArrayList<>();
@@ -114,7 +119,7 @@ public class UsuarioService {
             if (!ativo && atual.supervisor() && supervisoresAtivos.size() <= 1) {
                 throw new NegocioException(SEM_SUPERVISOR);
             }
-            usuarioDAO.alterarSituacao(con, id, ativo);
+            usuarioDAO.alterarSituacao(con, id, ativo, OffsetDateTime.now(clock));
             auditoria.registrar(con, sessao, AcaoAuditoria.USUARIO_ALTERADO, AuditoriaService.ENTIDADE_USUARIO, id,
                     "Usuário " + atual.login() + (ativo ? " reativado" : " inativado"));
             return null;
@@ -130,7 +135,7 @@ public class UsuarioService {
 
         transacao.executar(con -> {
             Usuario atual = buscar(con, id);
-            usuarioDAO.alterarSenha(con, id, hash, true);
+            usuarioDAO.alterarSenha(con, id, hash, true, OffsetDateTime.now(clock));
             auditoria.registrar(con, sessao, AcaoAuditoria.SENHA_REDEFINIDA, AuditoriaService.ENTIDADE_USUARIO, id,
                     "Senha provisória definida para " + atual.login() + " pelo supervisor");
             return null;
@@ -142,7 +147,7 @@ public class UsuarioService {
         sessao.exigirSupervisor();
         transacao.executar(con -> {
             Usuario atual = buscar(con, id);
-            usuarioDAO.desbloquear(con, id);
+            usuarioDAO.desbloquear(con, id, OffsetDateTime.now(clock));
             auditoria.registrar(con, sessao, AcaoAuditoria.USUARIO_DESBLOQUEADO, AuditoriaService.ENTIDADE_USUARIO,
                     id, "Usuário " + atual.login() + " desbloqueado");
             return null;

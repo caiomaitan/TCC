@@ -108,10 +108,10 @@ public class UsuarioDAO {
     }
 
     public long inserir(Connection con, String login, String nome, String senhaHash, boolean supervisor,
-                        boolean deveTrocarSenha) throws SQLException {
+                        boolean deveTrocarSenha, OffsetDateTime agora) throws SQLException {
         String sql = """
-                INSERT INTO usuario (login, nome, senha_hash, supervisor, deve_trocar_senha)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO usuario (login, nome, senha_hash, supervisor, deve_trocar_senha, criado_em, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -120,6 +120,8 @@ public class UsuarioDAO {
             ps.setString(3, senhaHash);
             ps.setBoolean(4, supervisor);
             ps.setBoolean(5, deveTrocarSenha);
+            ps.setObject(6, agora);
+            ps.setObject(7, agora);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -127,24 +129,28 @@ public class UsuarioDAO {
         }
     }
 
-    public void alterarCadastro(Connection con, long id, String nome, boolean supervisor) throws SQLException {
+    public void alterarCadastro(Connection con, long id, String nome, boolean supervisor, OffsetDateTime agora)
+            throws SQLException {
         String sql = """
                 UPDATE usuario
-                   SET nome = ?, supervisor = ?
+                   SET nome = ?, supervisor = ?, atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, nome);
             ps.setBoolean(2, supervisor);
-            ps.setLong(3, id);
+            ps.setObject(3, agora);
+            ps.setLong(4, id);
             ps.executeUpdate();
         }
     }
 
-    public void alterarSituacao(Connection con, long id, boolean ativo) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement("UPDATE usuario SET ativo = ? WHERE id = ?")) {
+    public void alterarSituacao(Connection con, long id, boolean ativo, OffsetDateTime agora) throws SQLException {
+        String sql = "UPDATE usuario SET ativo = ?, atualizado_em = ? WHERE id = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setBoolean(1, ativo);
-            ps.setLong(2, id);
+            ps.setObject(2, agora);
+            ps.setLong(3, id);
             ps.executeUpdate();
         }
     }
@@ -173,31 +179,35 @@ public class UsuarioDAO {
     }
 
     /** Grava o novo hash e zera tentativas e bloqueio. */
-    public void alterarSenha(Connection con, long id, String senhaHash, boolean deveTrocarSenha) throws SQLException {
+    public void alterarSenha(Connection con, long id, String senhaHash, boolean deveTrocarSenha, OffsetDateTime agora)
+            throws SQLException {
         String sql = """
                 UPDATE usuario
-                   SET senha_hash = ?, deve_trocar_senha = ?, tentativas_falhas = 0, bloqueado_ate = NULL
+                   SET senha_hash = ?, deve_trocar_senha = ?, tentativas_falhas = 0, bloqueado_ate = NULL,
+                       atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, senhaHash);
             ps.setBoolean(2, deveTrocarSenha);
-            ps.setLong(3, id);
+            ps.setObject(3, agora);
+            ps.setLong(4, id);
             ps.executeUpdate();
         }
     }
 
-    public void registrarFalha(Connection con, long id, int tentativas, OffsetDateTime bloqueadoAte)
-            throws SQLException {
+    public void registrarFalha(Connection con, long id, int tentativas, OffsetDateTime bloqueadoAte,
+                              OffsetDateTime agora) throws SQLException {
         String sql = """
                 UPDATE usuario
-                   SET tentativas_falhas = ?, bloqueado_ate = ?
+                   SET tentativas_falhas = ?, bloqueado_ate = ?, atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, tentativas);
             ps.setObject(2, bloqueadoAte);
-            ps.setLong(3, id);
+            ps.setObject(3, agora);
+            ps.setLong(4, id);
             ps.executeUpdate();
         }
     }
@@ -205,24 +215,26 @@ public class UsuarioDAO {
     public void registrarLogin(Connection con, long id, OffsetDateTime quando) throws SQLException {
         String sql = """
                 UPDATE usuario
-                   SET tentativas_falhas = 0, bloqueado_ate = NULL, ultimo_login_em = ?
+                   SET tentativas_falhas = 0, bloqueado_ate = NULL, ultimo_login_em = ?, atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setObject(1, quando);
-            ps.setLong(2, id);
+            ps.setObject(2, quando);
+            ps.setLong(3, id);
             ps.executeUpdate();
         }
     }
 
-    public void desbloquear(Connection con, long id) throws SQLException {
+    public void desbloquear(Connection con, long id, OffsetDateTime agora) throws SQLException {
         String sql = """
                 UPDATE usuario
-                   SET tentativas_falhas = 0, bloqueado_ate = NULL
+                   SET tentativas_falhas = 0, bloqueado_ate = NULL, atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setLong(1, id);
+            ps.setObject(1, agora);
+            ps.setLong(2, id);
             ps.executeUpdate();
         }
     }

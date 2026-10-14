@@ -3,7 +3,11 @@ package br.com.varesync.service;
 import br.com.varesync.BancoTeste;
 import br.com.varesync.RelogioTeste;
 import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.MovimentoEstoqueDAO;
+import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import java.sql.Connection;
@@ -24,11 +28,16 @@ final class AcessoTeste {
 
     static final String TERMINAL = "CAIXA-TESTE";
     static final int CUSTO_BCRYPT_TESTE = 4;
+    private static final String CATEGORIAS_V2 = "'Mercearia', 'Bebidas', 'Hortifruti', 'Frios e laticínios', "
+            + "'Açougue', 'Padaria', 'Limpeza', 'Higiene e perfumaria', 'Outros'";
 
     final RelogioTeste relogio = new RelogioTeste(Instant.parse("2026-10-06T13:00:00Z"));
     final Senhas senhas = new Senhas(CUSTO_BCRYPT_TESTE);
     final AcessoService acesso;
     final UsuarioService usuarios;
+    final EstoqueService estoque;
+    final CategoriaService categorias;
+    final ProdutoService produtos;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -37,16 +46,27 @@ final class AcessoTeste {
         UsuarioDAO usuarioDAO = new UsuarioDAO();
         AuditoriaService auditoria = new AuditoriaService(new AuditoriaDAO(), relogio, TERMINAL);
         acesso = new AcessoService(transacao, usuarioDAO, new ConfiguracaoDAO(), auditoria, senhas, relogio, TERMINAL);
-        usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas);
+        usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas, relogio);
+        ProdutoDAO produtoDAO = new ProdutoDAO();
+        CategoriaDAO categoriaDAO = new CategoriaDAO();
+        estoque = new EstoqueService(produtoDAO, new MovimentoEstoqueDAO(), relogio);
+        categorias = new CategoriaService(transacao, categoriaDAO);
+        produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
+                new ConfiguracaoDAO(), estoque, auditoria, relogio);
     }
 
-    /** Tabelas de acesso vazias (estado de primeiro acesso) e nome da loja padrão da V2. */
+    /**
+     * Volta ao estado de primeiro acesso: sem usuários nem nada que dependa deles (produtos, kardex, auditoria),
+     * só as categorias da V2 (todas ativas) e a configuração padrão. Usa TRUNCATE porque o kardex é imutável:
+     * o trigger recusa DELETE em {@code movimento_estoque}, mas não age no TRUNCATE.
+     */
     void limpar() throws SQLException {
         try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
-            st.executeUpdate("DELETE FROM auditoria");
-            st.executeUpdate("DELETE FROM usuario_permissao");
-            st.executeUpdate("DELETE FROM usuario");
+            st.executeUpdate("TRUNCATE usuario CASCADE");
+            st.executeUpdate("DELETE FROM categoria WHERE nome NOT IN (" + CATEGORIAS_V2 + ")");
+            st.executeUpdate("UPDATE categoria SET ativa = TRUE WHERE NOT ativa");
             st.executeUpdate("UPDATE configuracao SET valor = 'Minha Loja' WHERE chave = 'empresa.nome'");
+            st.executeUpdate("UPDATE configuracao SET valor = 'false' WHERE chave = 'balanca.ativo'");
         }
     }
 
