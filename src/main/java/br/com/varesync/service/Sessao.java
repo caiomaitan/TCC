@@ -9,7 +9,8 @@ import java.util.Set;
 /**
  * Usuário logado neste terminal e o que ele pode fazer (4.6). Imutável: troca de senha gera uma nova sessão.
  * Os services validam com {@link #exigir(Permissao)}; a interface só esconde o que não pode.
- * A sessão de caixa aberta entra na Fase 4.
+ * A sessão de caixa não fica aqui: ela é do terminal e pode ser aberta ou fechada por outro login no mesmo
+ * computador, então o {@code CaixaService} a lê do banco pelo {@link #terminal()}.
  */
 public final class Sessao {
 

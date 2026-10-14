@@ -11,7 +11,7 @@ import java.util.List;
  */
 public enum ItemMenu {
     PAINEL("Painel", null, false, null),
-    PDV("PDV", Permissao.PDV, false, null),
+    PDV("PDV", Permissao.PDV, false, "/fxml/caixa.fxml"),
     PRODUTOS("Produtos", Permissao.PRODUTOS, false, "/fxml/produtos.fxml"),
     ESTOQUE("Estoque", Permissao.ESTOQUE, false, "/fxml/estoque.fxml"),
     INVENTARIO("Inventário", Permissao.INVENTARIO, false, null),

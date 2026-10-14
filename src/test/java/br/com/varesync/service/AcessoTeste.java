@@ -3,6 +3,7 @@ package br.com.varesync.service;
 import br.com.varesync.BancoTeste;
 import br.com.varesync.RelogioTeste;
 import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
@@ -39,6 +40,7 @@ final class AcessoTeste {
     final EstoqueService estoque;
     final CategoriaService categorias;
     final ProdutoService produtos;
+    final CaixaService caixa;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -55,6 +57,7 @@ final class AcessoTeste {
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
+        caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
     }
 
     /**

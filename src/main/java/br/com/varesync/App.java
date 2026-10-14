@@ -59,6 +59,12 @@ public class App extends Application implements Navegacao {
         log.info("Iniciando o VareSync (Java {})", System.getProperty("java.version"));
         palco = stage;
         palco.setTitle(Dialogos.TITULO);
+        // Fechar a janela principal vale como Sair: pede confirmação e avisa se há caixa aberto (6.1).
+        palco.setOnCloseRequest(e -> {
+            if (principal != null && !principal.confirmarSaida()) {
+                e.consume();
+            }
+        });
         iniciar();
         palco.show();
     }

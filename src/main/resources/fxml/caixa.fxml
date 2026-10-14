@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Caixa do terminal (6.5), aberto pelo menu PDV: situação, abertura com fundo de troco,
+     sangria/suprimento (F8) e fechamento às cegas (F12). O valor esperado nunca aparece com o caixa aberto. -->
+<VBox fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.CaixaController"
+      spacing="10" styleClass="tela-cadastro">
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Caixa" styleClass="titulo"/>
+        <Label fx:id="situacao" styleClass="titulo-secao"/>
+    </HBox>
+
+    <VBox spacing="10" styleClass="painel-formulario">
+        <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+        <GridPane hgap="12" vgap="6">
+            <Label text="Sessão nº" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <Label fx:id="numero" styleClass="valor-destaque" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+            <Label text="Aberto por" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <Label fx:id="abertoPor" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+            <Label text="Aberto em" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <Label fx:id="abertoEm" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+            <Label text="Fundo de troco" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+            <Label fx:id="fundoTroco" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+        </GridPane>
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Button fx:id="botaoAbrir" text="Abrir caixa…" onAction="#abrir" styleClass="botao-primario"/>
+            <Button fx:id="botaoMovimento" text="Sangria / suprimento… (F8)" onAction="#movimentar"/>
+            <Button fx:id="botaoFechar" text="Fechar caixa… (F12)" onAction="#fechar"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="botaoUltimoFechamento" text="Ver último fechamento" onAction="#verUltimoFechamento"/>
+        </HBox>
+        <Label fx:id="mensagem" wrapText="true"/>
+    </VBox>
+
+    <Label text="Sangrias e suprimentos da sessão" styleClass="titulo-secao"/>
+    <TableView fx:id="tabelaMovimentos" VBox.vgrow="ALWAYS">
+        <placeholder><Label text="Nenhuma sangria ou suprimento nesta sessão."/></placeholder>
+        <columns>
+            <TableColumn fx:id="colunaHora" text="Data/hora" prefWidth="140"/>
+            <TableColumn fx:id="colunaTipo" text="Tipo" prefWidth="110"/>
+            <TableColumn fx:id="colunaValor" text="Valor" prefWidth="120" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaMotivo" text="Motivo" prefWidth="320"/>
+            <TableColumn fx:id="colunaUsuario" text="Usuário" prefWidth="160"/>
+        </columns>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+    </TableView>
+
+    <Label styleClass="subtitulo"
+           text="F8 sangria ou suprimento · F12 fechar caixa (às cegas: o valor esperado só aparece depois do fechamento)"/>
+</VBox>

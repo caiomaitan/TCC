@@ -183,7 +183,7 @@ public class AcessoService {
             throw new NegocioException("Este usuário não tem permissão para liberar esta ação ("
                     + permissao.rotulo() + ").");
         }
-        return new Liberacao(autorizador.id(), autorizador.login(), autorizador.nome());
+        return new Liberacao(autorizador.id(), autorizador.login(), autorizador.nome(), permissao);
     }
 
     /**

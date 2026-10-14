@@ -1,5 +1,6 @@
 package br.com.varesync.config;
 
+import br.com.varesync.controller.CaixaController;
 import br.com.varesync.controller.CategoriasController;
 import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
@@ -12,6 +13,7 @@ import br.com.varesync.controller.ProdutosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
 import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
@@ -21,6 +23,7 @@ import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
+import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.ProdutoService;
@@ -47,6 +50,7 @@ public final class AppContext implements AutoCloseable {
     private final CategoriaService categoriaService;
     private final ProdutoService produtoService;
     private final EstoqueService estoqueService;
+    private final CaixaService caixaService;
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -69,6 +73,7 @@ public final class AppContext implements AutoCloseable {
         this.categoriaService = new CategoriaService(transacao, categoriaDAO);
         this.produtoService = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 configuracaoDAO, estoqueService, auditoriaService, clock);
+        this.caixaService = new CaixaService(transacao, new CaixaDAO(), auditoriaService, clock);
     }
 
     /** Abre o pool e aplica as migrations pendentes. */
@@ -99,7 +104,8 @@ public final class AppContext implements AutoCloseable {
             return new TrocaSenhaController(acessoService, navegacao, sessao);
         }
         if (tipo == PrincipalController.class) {
-            return new PrincipalController(config, clock, acessoService, estoqueService, navegacao, sessao,
+            return new PrincipalController(config, clock, acessoService, estoqueService, caixaService, navegacao,
+                    sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == UsuariosController.class) {
@@ -117,6 +123,9 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == EstoqueController.class) {
             return new EstoqueController(estoqueService, sessao);
+        }
+        if (tipo == CaixaController.class) {
+            return new CaixaController(caixaService, acessoService, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(estoqueService, sessao);

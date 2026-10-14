@@ -1,8 +1,10 @@
 package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
+import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.service.AcessoService;
+import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
@@ -16,6 +18,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Optional;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -47,6 +50,7 @@ public class PrincipalController {
     private final Clock clock;
     private final AcessoService acessoService;
     private final EstoqueService estoqueService;
+    private final CaixaService caixaService;
     private final Navegacao navegacao;
     private final Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
@@ -63,12 +67,13 @@ public class PrincipalController {
     @FXML private Label statusConexao;
 
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
-                               EstoqueService estoqueService, Navegacao navegacao, Sessao sessao,
-                               Callback<Class<?>, Object> fabricaControllers) {
+                               EstoqueService estoqueService, CaixaService caixaService, Navegacao navegacao,
+                               Sessao sessao, Callback<Class<?>, Object> fabricaControllers) {
         this.config = config;
         this.clock = clock;
         this.acessoService = acessoService;
         this.estoqueService = estoqueService;
+        this.caixaService = caixaService;
         this.navegacao = navegacao;
         this.sessao = sessao;
         this.fabricaControllers = fabricaControllers;
@@ -88,7 +93,7 @@ public class PrincipalController {
 
         statusUsuario.setText("Usuário: " + sessao.usuario().descricao());
         statusTerminal.setText("Terminal: " + config.terminalId());
-        statusCaixa.setText("Caixa: " + SEM_INFORMACAO);
+        atualizarCaixa();
         statusConexao.setText("Banco: conectado (" + descreverBanco(config.url()) + ")");
         atualizarDataHora();
         relogio = new Timeline(new KeyFrame(Duration.seconds(1), e -> atualizarDataHora()));
@@ -118,7 +123,11 @@ public class PrincipalController {
         } else if (item.fxml() == null) {
             tela = aviso(item.rotulo(), "Esta rotina ainda está em construção.");
         } else {
-            tela = carregar(item.fxml()).getRoot();
+            FXMLLoader loader = carregar(item.fxml());
+            if (loader.getController() instanceof CaixaController caixa) {
+                caixa.aoMudar(this::atualizarCaixa);
+            }
+            tela = loader.getRoot();
         }
         conteudo.getChildren().setAll(tela);
     }
@@ -199,9 +208,41 @@ public class PrincipalController {
 
     @FXML
     private void sair() {
-        // O aviso de caixa aberto neste terminal entra com o caixa (Fase 4).
-        if (Dialogos.confirmar("Deseja sair do VareSync?")) {
+        if (confirmarSaida()) {
             navegacao.sair();
+        }
+    }
+
+    /**
+     * Confirmação de Sair (botão ou fechar a janela). Com caixa aberto neste terminal, avisa antes (6.1); o caixa
+     * continua aberto e quem entrar depois neste computador continua nele.
+     */
+    public boolean confirmarSaida() {
+        Optional<CaixaSessao> aberto;
+        try {
+            aberto = caixaService.caixaAberto(sessao);
+        } catch (RuntimeException e) {
+            aberto = Optional.empty(); // sem banco, a saída não fica presa; o erro vai para o log
+            TratadorExcecoes.mensagem(e);
+        }
+        if (aberto.isEmpty()) {
+            return Dialogos.confirmar("Deseja sair do VareSync?");
+        }
+        CaixaSessao caixa = aberto.get();
+        return Dialogos.confirmar("O caixa nº " + caixa.id() + " deste terminal está aberto (aberto por "
+                + caixa.abertoPorNome() + " em " + Formatos.dataHora(caixa.abertoEm()) + "). Se o expediente "
+                + "acabou, feche o caixa antes de sair (menu PDV › Fechar caixa).\n\nSair mesmo assim?");
+    }
+
+    /** Barra de status: situação do caixa deste terminal (7.5). */
+    private void atualizarCaixa() {
+        try {
+            statusCaixa.setText(caixaService.caixaAberto(sessao)
+                    .map(c -> "Caixa: aberto (nº " + c.id() + ")")
+                    .orElse("Caixa: fechado"));
+        } catch (RuntimeException e) {
+            statusCaixa.setText("Caixa: " + SEM_INFORMACAO);
+            TratadorExcecoes.mensagem(e);
         }
     }
 
