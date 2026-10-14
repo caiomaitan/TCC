@@ -152,3 +152,37 @@
 .tela-cadastro {
     -fx-background-color: -vs-fundo;
 }
+
+/* Estoque: saldo abaixo do mínimo em destaque (âmbar), negativo em vermelho (6.4) */
+/* -fx-background (e não -fx-background-color) para o texto continuar legível na linha selecionada */
+.table-row-cell.abaixo-minimo {
+    -fx-background: #fff4d6;
+}
+
+.table-row-cell.abaixo-minimo:selected {
+    -fx-background: -fx-selection-bar-non-focused;
+}
+
+.table-view:focused .table-row-cell.abaixo-minimo:selected {
+    -fx-background: -fx-selection-bar;
+}
+
+.label.abaixo-minimo {
+    -fx-text-fill: #b26a00;
+}
+
+.valor-destaque {
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+.valor-destaque.negativo {
+    -fx-text-fill: -vs-erro;
+}
+
+/* Painel: alerta clicável */
+.alerta-painel {
+    -fx-text-fill: #b26a00;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent;
+}

@@ -365,7 +365,7 @@ public class ProdutoDAO {
     }
 
     /** Código interno, se os dígitos cabem num BIGINT; senão -1 (nenhum produto). */
-    private static long idOuNenhum(String digitos) {
+    static long idOuNenhum(String digitos) {
         if (digitos.length() > 18) {
             return -1;
         }

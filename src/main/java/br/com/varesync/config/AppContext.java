@@ -1,6 +1,8 @@
 package br.com.varesync.config;
 
 import br.com.varesync.controller.CategoriasController;
+import br.com.varesync.controller.ConfiguracoesController;
+import br.com.varesync.controller.EstoqueController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrimeiroAcessoController;
@@ -12,6 +14,7 @@ import br.com.varesync.controller.UsuariosController;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
@@ -43,6 +46,7 @@ public final class AppContext implements AutoCloseable {
     private final UsuarioService usuarioService;
     private final CategoriaService categoriaService;
     private final ProdutoService produtoService;
+    private final EstoqueService estoqueService;
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -60,7 +64,8 @@ public final class AppContext implements AutoCloseable {
 
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
-        EstoqueService estoqueService = new EstoqueService(produtoDAO, new MovimentoEstoqueDAO(), clock);
+        this.estoqueService = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(),
+                auditoriaService, clock);
         this.categoriaService = new CategoriaService(transacao, categoriaDAO);
         this.produtoService = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 configuracaoDAO, estoqueService, auditoriaService, clock);
@@ -94,7 +99,7 @@ public final class AppContext implements AutoCloseable {
             return new TrocaSenhaController(acessoService, navegacao, sessao);
         }
         if (tipo == PrincipalController.class) {
-            return new PrincipalController(config, clock, acessoService, navegacao, sessao,
+            return new PrincipalController(config, clock, acessoService, estoqueService, navegacao, sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == UsuariosController.class) {
@@ -109,6 +114,12 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == CategoriasController.class) {
             return new CategoriasController(categoriaService, sessao);
+        }
+        if (tipo == EstoqueController.class) {
+            return new EstoqueController(estoqueService, sessao);
+        }
+        if (tipo == ConfiguracoesController.class) {
+            return new ConfiguracoesController(estoqueService, sessao);
         }
         throw new IllegalArgumentException("Controller não registrado no AppContext: " + tipo.getName());
     }

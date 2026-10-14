@@ -5,6 +5,7 @@ import br.com.varesync.RelogioTeste;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
@@ -49,7 +50,8 @@ final class AcessoTeste {
         usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas, relogio);
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
-        estoque = new EstoqueService(produtoDAO, new MovimentoEstoqueDAO(), relogio);
+        estoque = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(), auditoria,
+                relogio);
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);

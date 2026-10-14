@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Configurações (6.13, só supervisor). Nesta versão: diagnóstico do estoque (6.4).
+     As demais seções (loja, venda, balança, backup, formas de pagamento…) entram nas fases seguintes. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.ConfiguracoesController"
+      spacing="10" styleClass="tela-cadastro">
+
+    <Label text="Configurações" styleClass="titulo"/>
+
+    <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+        <Tab text="Diagnóstico do estoque">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque. O esperado é não haver nenhuma diferença: o saldo só muda por movimento."/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button fx:id="botaoVerificar" text="Verificar agora" onAction="#verificar"
+                            styleClass="botao-primario"/>
+                    <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
+                    <Label fx:id="resultado" wrapText="true"/>
+                </HBox>
+                <TableView fx:id="tabelaInconsistencias" VBox.vgrow="ALWAYS">
+                    <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaProduto" text="Produto" prefWidth="320"/>
+                        <TableColumn fx:id="colunaRegistrado" text="Saldo registrado" prefWidth="140"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaMovimentos" text="Soma dos movimentos" prefWidth="160"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaDiferenca" text="Diferença" prefWidth="120"
+                                     styleClass="coluna-numero"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+            </VBox>
+        </Tab>
+    </TabPane>
+</VBox>
