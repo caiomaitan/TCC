@@ -53,6 +53,15 @@ class ItemMenuTest {
     }
 
     @Test
+    void inventarioAbreASuaTelaComAPermissaoInventario() {
+        Sessao conferente = sessao(false, EnumSet.of(Permissao.INVENTARIO));
+
+        assertThat(ItemMenu.visiveis(conferente)).containsExactly(ItemMenu.PAINEL, ItemMenu.INVENTARIO);
+        assertThat(ItemMenu.INVENTARIO.fxml()).isEqualTo("/fxml/inventario.fxml");
+        assertThat(ItemMenu.INVENTARIO.janelaPropria()).isFalse();
+    }
+
+    @Test
     void usuariosEConfiguracoesSoParaSupervisor() {
         Sessao quaseTudo = sessao(false, EnumSet.allOf(Permissao.class));
         assertThat(ItemMenu.visiveis(quaseTudo)).doesNotContain(ItemMenu.USUARIOS, ItemMenu.CONFIGURACOES);

@@ -4,6 +4,7 @@ import br.com.varesync.controller.CaixaController;
 import br.com.varesync.controller.CategoriasController;
 import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
+import br.com.varesync.controller.InventarioController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PdvController;
@@ -20,6 +21,7 @@ import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
@@ -30,6 +32,7 @@ import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.PrecoService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.Senhas;
@@ -58,6 +61,7 @@ public final class AppContext implements AutoCloseable {
     private final EstoqueService estoqueService;
     private final CaixaService caixaService;
     private final VendaService vendaService;
+    private final InventarioService inventarioService;
     private final ComprovantePdf comprovantePdf = new ComprovantePdf();
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
@@ -85,6 +89,8 @@ public final class AppContext implements AutoCloseable {
         this.vendaService = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 configuracaoDAO, new EstoqueDAO(), estoqueService, caixaService, new PrecoService(),
                 auditoriaService, clock);
+        this.inventarioService = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO,
+                new EstoqueDAO(), estoqueService, auditoriaService, clock);
     }
 
     /** Abre o pool e aplica as migrations pendentes. */
@@ -134,6 +140,9 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == EstoqueController.class) {
             return new EstoqueController(estoqueService, sessao);
+        }
+        if (tipo == InventarioController.class) {
+            return new InventarioController(inventarioService, sessao);
         }
         if (tipo == CaixaController.class) {
             return new CaixaController(caixaService, acessoService, sessao);

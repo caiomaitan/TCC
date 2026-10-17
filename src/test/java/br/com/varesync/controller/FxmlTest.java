@@ -33,6 +33,7 @@ class FxmlTest {
             "/fxml/produto.fxml, br.com.varesync.controller.ProdutoController",
             "/fxml/categorias.fxml, br.com.varesync.controller.CategoriasController",
             "/fxml/estoque.fxml, br.com.varesync.controller.EstoqueController",
+            "/fxml/inventario.fxml, br.com.varesync.controller.InventarioController",
             "/fxml/configuracoes.fxml, br.com.varesync.controller.ConfiguracoesController",
             "/fxml/caixa.fxml, br.com.varesync.controller.CaixaController",
             "/fxml/fechamento-caixa.fxml, br.com.varesync.controller.FechamentoCaixaController",

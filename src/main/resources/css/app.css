@@ -155,6 +155,20 @@
     -fx-text-fill: white;
 }
 
+/* Inventário: item ainda não contado esmaecido (6.7) */
+.table-row-cell.nao-contado .table-cell {
+    -fx-text-fill: -vs-texto-suave;
+    -fx-font-style: italic;
+}
+
+.table-row-cell.nao-contado:selected .table-cell {
+    -fx-text-fill: white;
+}
+
+.produto-contagem {
+    -fx-font-weight: bold;
+}
+
 .tela-cadastro {
     -fx-background-color: -vs-fundo;
 }

@@ -9,19 +9,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import javafx.application.Platform;
-import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
 
 /**
@@ -112,85 +105,13 @@ public final class DialogosPdv {
     }
 
     /**
-     * Busca de produto (F2): texto → nome (sem acento), dígitos → código; Enter pesquisa, ↓ vai para a lista,
-     * Enter ou duplo clique escolhe.
+     * Busca de produto (F2), com a coluna de estoque; ver {@link BuscaProdutoDialogo}.
      *
      * @return o produto escolhido, ou vazio se cancelado
      */
     public static Optional<ProdutoResumo> buscarProduto(String textoInicial,
                                                         Function<String, List<ProdutoResumo>> pesquisa) {
-        Dialog<ProdutoResumo> dialogo = new Dialog<>();
-        dialogo.setTitle(Dialogos.TITULO);
-        dialogo.setHeaderText("Buscar produto (F2)");
-        ButtonType incluir = new ButtonType("Incluir na venda", ButtonBar.ButtonData.OK_DONE);
-        dialogo.getDialogPane().getButtonTypes().addAll(incluir,
-                new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE));
-
-        TextField termo = new TextField(textoInicial == null ? "" : textoInicial);
-        termo.setPromptText("Nome, código ou código de barras");
-        Label mensagem = new Label();
-        mensagem.getStyleClass().add("mensagem-erro");
-        TableView<ProdutoResumo> tabela = new TableView<>();
-        tabela.setPlaceholder(new Label("Digite o nome e tecle Enter."));
-        tabela.setPrefSize(720, 360);
-        tabela.getColumns().add(coluna("Código", 80, p -> String.valueOf(p.id()), true));
-        tabela.getColumns().add(coluna("Produto", 330, ProdutoResumo::nome, false));
-        tabela.getColumns().add(coluna("Unidade", 70, ProdutoResumo::unidade, false));
-        tabela.getColumns().add(coluna("Preço", 100, p -> Formatos.moeda(p.precoVenda()), true));
-        tabela.getColumns().add(coluna("Estoque", 100,
-                p -> Formatos.quantidade(p.estoque(), p.unidadeFracionada()), true));
-        tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-
-        Runnable pesquisar = () -> {
-            try {
-                List<ProdutoResumo> encontrados = pesquisa.apply(termo.getText());
-                tabela.getItems().setAll(encontrados);
-                mensagem.setText(encontrados.isEmpty() ? "Nenhum produto encontrado." : "");
-                if (!encontrados.isEmpty()) {
-                    tabela.getSelectionModel().selectFirst();
-                }
-            } catch (NegocioException erro) {
-                mensagem.setText(erro.getMessage());
-            }
-        };
-        termo.setOnAction(e -> {
-            e.consume(); // Enter no campo pesquisa; não aciona "Incluir"
-            pesquisar.run();
-            if (!tabela.getItems().isEmpty()) {
-                tabela.requestFocus();
-            }
-        });
-        termo.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.DOWN && !tabela.getItems().isEmpty()) {
-                e.consume();
-                tabela.requestFocus();
-            }
-        });
-        tabela.setOnMouseClicked(e -> {
-            if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2
-                    && tabela.getSelectionModel().getSelectedItem() != null) {
-                dialogo.setResult(tabela.getSelectionModel().getSelectedItem());
-                dialogo.close();
-            }
-        });
-        Button botaoIncluir = (Button) dialogo.getDialogPane().lookupButton(incluir);
-        botaoIncluir.disableProperty().bind(tabela.getSelectionModel().selectedItemProperty().isNull());
-        dialogo.setResultConverter(tipo -> tipo == incluir ? tabela.getSelectionModel().getSelectedItem() : null);
-
-        dialogo.getDialogPane().setContent(new VBox(10, termo, tabela, mensagem));
-        Dialogos.estilizar(dialogo.getDialogPane());
-        if (!termo.getText().isBlank()) {
-            pesquisar.run();
-        }
-        Platform.runLater(() -> {
-            if (tabela.getItems().isEmpty()) {
-                termo.requestFocus();
-                termo.end();
-            } else {
-                tabela.requestFocus();
-            }
-        });
-        return dialogo.showAndWait();
+        return BuscaProdutoDialogo.buscar("Buscar produto (F2)", "Incluir na venda", true, textoInicial, pesquisa);
     }
 
     /**
@@ -215,17 +136,6 @@ public final class DialogosPdv {
         dialogo.setResultConverter(tipo -> tipo == comprovante);
         Dialogos.estilizar(dialogo.getDialogPane());
         return dialogo.showAndWait().orElse(false);
-    }
-
-    private static TableColumn<ProdutoResumo, String> coluna(String titulo, double largura,
-                                                            Function<ProdutoResumo, String> valor, boolean numero) {
-        TableColumn<ProdutoResumo, String> coluna = new TableColumn<>(titulo);
-        coluna.setPrefWidth(largura);
-        coluna.setCellValueFactory(c -> new ReadOnlyStringWrapper(valor.apply(c.getValue())));
-        if (numero) {
-            coluna.getStyleClass().add("coluna-numero");
-        }
-        return coluna;
     }
 
     private static TextField campoNumero(String exemplo) {
