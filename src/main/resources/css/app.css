@@ -149,6 +149,12 @@
     -fx-font-style: italic;
 }
 
+/* Na linha selecionada (fundo azul), o texto esmaecido some: volta ao branco */
+.table-row-cell.inativo:selected .table-cell,
+.table-row-cell.item-cancelado:selected .table-cell {
+    -fx-text-fill: white;
+}
+
 .tela-cadastro {
     -fx-background-color: -vs-fundo;
 }
@@ -185,4 +191,148 @@
     -fx-text-fill: #b26a00;
     -fx-font-weight: bold;
     -fx-border-color: transparent;
+}
+
+/* PDV (6.6, 8.1): fonte grande, alto contraste, total ≥ 40 px */
+.pdv {
+    -fx-background-color: -vs-fundo;
+    -fx-font-size: 15px;
+}
+
+.pdv-cabecalho {
+    -fx-background-color: #1f2a37;
+}
+
+.pdv-cabecalho .label {
+    -fx-text-fill: #d8dee8;
+}
+
+.pdv-cabecalho .pdv-marca {
+    -fx-text-fill: white;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.pdv-cabecalho .pdv-loja {
+    -fx-font-size: 17px;
+}
+
+.pdv-info {
+    -fx-font-size: 14px;
+}
+
+.pdv-itens {
+    -fx-font-size: 16px;
+}
+
+/* Item cancelado durante a venda: riscado e esmaecido */
+.table-row-cell.item-cancelado .text {
+    -fx-strikethrough: true;
+}
+
+.table-row-cell.item-cancelado .table-cell {
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.pdv-painel {
+    -fx-background-color: #1f2a37;
+    -fx-background-radius: 4;
+}
+
+.pdv-painel .label {
+    -fx-text-fill: white;
+}
+
+.pdv-rotulo {
+    -fx-font-size: 14px;
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.pdv-painel .pdv-rotulo {
+    -fx-text-fill: #aab4c3;
+}
+
+.pdv-ultimo {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.pdv-ultimo-detalhe {
+    -fx-font-size: 17px;
+}
+
+.pdv-valor {
+    -fx-font-size: 18px;
+}
+
+.pdv-painel .pdv-total {
+    -fx-font-size: 52px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffd54f;
+}
+
+.pdv-painel .pdv-proxima {
+    -fx-font-size: 16px;
+    -fx-text-fill: #ffd54f;
+}
+
+.pdv-painel .pdv-mensagem {
+    -fx-font-size: 15px;
+}
+
+.pdv-painel .pdv-mensagem.mensagem-erro {
+    -fx-text-fill: #ff8a80;
+}
+
+.pdv-painel .pdv-mensagem.mensagem-sucesso {
+    -fx-text-fill: #a5d6a7;
+}
+
+.pdv-entrada {
+    -fx-font-size: 24px;
+    -fx-padding: 8 12 8 12;
+}
+
+/* Leitura recusada: borda e fundo vermelhos por um instante */
+.pdv-entrada.entrada-erro {
+    -fx-background-color: #ffebee;
+    -fx-border-color: -vs-erro;
+    -fx-border-width: 2;
+}
+
+.pdv-atalhos {
+    -fx-font-size: 13px;
+    -fx-text-fill: -vs-texto-suave;
+}
+
+/* Pagamento (F10) e troco */
+.pagamento-total {
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+}
+
+.pagamento-valor {
+    -fx-font-size: 22px;
+}
+
+.pagamento-troco {
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -vs-sucesso;
+}
+
+.troco-destaque {
+    -fx-font-size: 48px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -vs-sucesso;
+}
+
+.consulta-preco {
+    -fx-font-size: 18px;
+}
+
+/* Comprovante em tela: fonte monoespaçada (texto de largura fixa) */
+.comprovante {
+    -fx-font-family: "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
+    -fx-font-size: 13px;
 }

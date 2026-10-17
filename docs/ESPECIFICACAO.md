@@ -541,7 +541,7 @@ R01 a R05 são obrigatórios (são os do diagrama de casos de uso do TCC). Os de
 ## 8. Interface
 
 ### 8.1 Diretrizes
-- Janela principal com menu lateral (Painel, PDV, Produtos, Estoque, Inventário, Compras, Fornecedores, Relatórios, Usuários, Configurações), exibindo só o permitido; conteúdo à direita. O PDV abre em janela própria, maximizada.
+- Janela principal com menu lateral (Painel, PDV, Caixa, Produtos, Estoque, Inventário, Compras, Fornecedores, Relatórios, Usuários, Configurações), exibindo só o permitido; conteúdo à direita. O PDV abre em janela própria, maximizada; sem caixa aberto no terminal, pede a abertura antes de vender. O item **Caixa** mostra a situação do caixa do terminal (abertura, sangria/suprimento, fechamento às cegas e último fechamento), com os mesmos diálogos do F8 e do F12 do PDV. PDV e Caixa aparecem para quem tem a permissão PDV.
 - Teclado: Enter confirma, Esc cancela/fecha, Tab em ordem lógica, foco inicial no primeiro campo, atalhos documentados no rodapé ou na ajuda (F1).
 - Formulários: rótulos claros, obrigatórios com *, validação ao salvar com a mensagem junto do campo; máscaras de moeda, quantidade, CPF/CNPJ e telefone.
 - Feedback: notificação discreta para sucesso; diálogo só para confirmação e erro; ações destrutivas sempre confirmadas.
