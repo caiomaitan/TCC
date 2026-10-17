@@ -25,7 +25,7 @@ class ItemMenuTest {
     void operadorSemProdutosNaoVeOMenuProdutos() {
         Sessao caixa = sessao(false, EnumSet.of(Permissao.PDV, Permissao.SANGRIA_SUPRIMENTO));
 
-        assertThat(ItemMenu.visiveis(caixa)).containsExactly(ItemMenu.PAINEL, ItemMenu.PDV);
+        assertThat(ItemMenu.visiveis(caixa)).containsExactly(ItemMenu.PAINEL, ItemMenu.PDV, ItemMenu.CAIXA);
         assertThat(ItemMenu.PRODUTOS.visivelPara(caixa)).isFalse();
     }
 
@@ -38,6 +38,18 @@ class ItemMenuTest {
         Sessao comprador = sessao(false, EnumSet.of(Permissao.COMPRAS, Permissao.FORNECEDORES, Permissao.RELATORIOS));
         assertThat(ItemMenu.visiveis(comprador))
                 .containsExactly(ItemMenu.PAINEL, ItemMenu.COMPRAS, ItemMenu.FORNECEDORES, ItemMenu.RELATORIOS);
+    }
+
+    @Test
+    void pdvECaixaAparecemComAPermissaoPdvESoOPdvAbreEmJanelaPropria() {
+        Sessao semPdv = sessao(false, EnumSet.of(Permissao.SANGRIA_SUPRIMENTO, Permissao.CANCELAR_VENDA));
+        assertThat(ItemMenu.visiveis(semPdv)).containsExactly(ItemMenu.PAINEL);
+
+        assertThat(ItemMenu.PDV.rotulo()).isEqualTo("PDV");
+        assertThat(ItemMenu.CAIXA.rotulo()).isEqualTo("Caixa");
+        assertThat(ItemMenu.PDV.fxml()).isEqualTo("/fxml/pdv.fxml");
+        assertThat(ItemMenu.CAIXA.fxml()).isEqualTo("/fxml/caixa.fxml");
+        assertThat(ItemMenu.values()).filteredOn(ItemMenu::janelaPropria).containsExactly(ItemMenu.PDV);
     }
 
     @Test

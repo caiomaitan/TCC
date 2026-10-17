@@ -4,6 +4,7 @@ import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoResumo;
+import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.SituacaoProduto;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -151,6 +152,48 @@ public class ProdutoDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(rs.getBoolean(1)) : Optional.empty();
             }
+        }
+    }
+
+    private static final String SELECT_VENDA = """
+            SELECT p.id, p.nome, p.unidade, u.fracionada, p.preco_venda, p.custo, p.ativo, pe.quantidade AS saldo,
+                   (SELECT b.codigo FROM produto_codigo_barras b
+                     WHERE b.produto_id = p.id AND b.principal) AS codigo_principal
+              FROM produto p
+              JOIN unidade_medida u   ON u.sigla = p.unidade
+              JOIN produto_estoque pe ON pe.produto_id = p.id
+            """;
+
+    /** Produto como o PDV o usa (preço, custo atual, situação, saldo), pelo código interno. */
+    public Optional<ProdutoVenda> buscarParaVenda(Connection con, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(SELECT_VENDA + " WHERE p.id = ?")) {
+            ps.setLong(1, id);
+            return produtoVenda(ps, null);
+        }
+    }
+
+    /** Produto como o PDV o usa, pelo código de barras exato; o código lido fica como código do item. */
+    public Optional<ProdutoVenda> buscarParaVendaPorCodigo(Connection con, String codigoBarras) throws SQLException {
+        String sql = SELECT_VENDA + """
+                 WHERE p.id = (SELECT b.produto_id FROM produto_codigo_barras b WHERE b.codigo = ?)
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, codigoBarras);
+            return produtoVenda(ps, codigoBarras);
+        }
+    }
+
+    private static Optional<ProdutoVenda> produtoVenda(PreparedStatement ps, String codigoLido) throws SQLException {
+        try (ResultSet rs = ps.executeQuery()) {
+            if (!rs.next()) {
+                return Optional.empty();
+            }
+            String principal = rs.getString("codigo_principal");
+            String codigo = codigoLido != null ? codigoLido
+                    : principal != null ? principal : String.valueOf(rs.getLong("id"));
+            return Optional.of(new ProdutoVenda(rs.getLong("id"), codigo, rs.getString("nome"),
+                    rs.getString("unidade"), rs.getBoolean("fracionada"), rs.getBigDecimal("preco_venda"),
+                    rs.getBigDecimal("custo"), rs.getBoolean("ativo"), rs.getBigDecimal("saldo")));
         }
     }
 
@@ -365,7 +408,7 @@ public class ProdutoDAO {
     }
 
     /** Código interno, se os dígitos cabem num BIGINT; senão -1 (nenhum produto). */
-    static long idOuNenhum(String digitos) {
+    public static long idOuNenhum(String digitos) {
         if (digitos.length() > 18) {
             return -1;
         }

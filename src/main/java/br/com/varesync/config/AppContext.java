@@ -6,7 +6,9 @@ import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
+import br.com.varesync.controller.PdvController;
 import br.com.varesync.controller.PrimeiroAcessoController;
+import br.com.varesync.report.ComprovantePdf;
 import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
@@ -17,20 +19,24 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
+import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.PrecoService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.Transacao;
 import br.com.varesync.service.UsuarioService;
+import br.com.varesync.service.VendaService;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.Clock;
 import javax.sql.DataSource;
@@ -51,6 +57,8 @@ public final class AppContext implements AutoCloseable {
     private final ProdutoService produtoService;
     private final EstoqueService estoqueService;
     private final CaixaService caixaService;
+    private final VendaService vendaService;
+    private final ComprovantePdf comprovantePdf = new ComprovantePdf();
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -74,6 +82,9 @@ public final class AppContext implements AutoCloseable {
         this.produtoService = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 configuracaoDAO, estoqueService, auditoriaService, clock);
         this.caixaService = new CaixaService(transacao, new CaixaDAO(), auditoriaService, clock);
+        this.vendaService = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
+                configuracaoDAO, new EstoqueDAO(), estoqueService, caixaService, new PrecoService(),
+                auditoriaService, clock);
     }
 
     /** Abre o pool e aplica as migrations pendentes. */
@@ -126,6 +137,9 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == CaixaController.class) {
             return new CaixaController(caixaService, acessoService, sessao);
+        }
+        if (tipo == PdvController.class) {
+            return new PdvController(vendaService, caixaService, acessoService, comprovantePdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(estoqueService, sessao);

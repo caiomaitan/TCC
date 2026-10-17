@@ -54,6 +54,11 @@ public class CaixaService {
         return transacao.executar(con -> caixaDAO.buscarAberta(con, sessao.terminal()));
     }
 
+    /** Sessão aberta neste terminal, na transação de quem chama (vendas da sessão, no PDV). */
+    public Optional<CaixaSessao> caixaAberto(Connection con, Sessao sessao) throws SQLException {
+        return caixaDAO.buscarAberta(con, sessao.terminal());
+    }
+
     /**
      * Abre o caixa do terminal com o fundo de troco (≥ 0).
      *
@@ -89,7 +94,7 @@ public class CaixaService {
     public long registrarMovimento(Sessao sessao, TipoCaixaMovimento tipo, BigDecimal valor, String motivo,
                                    Liberacao liberacao) {
         sessao.exigir(Permissao.PDV);
-        exigirOuLiberado(sessao, Permissao.SANGRIA_SUPRIMENTO, liberacao);
+        Liberacao liberou = sessao.exigirOuLiberado(Permissao.SANGRIA_SUPRIMENTO, liberacao);
         if (tipo == null) {
             throw new NegocioException("Escolha o tipo: sangria ou suprimento.");
         }
@@ -117,7 +122,7 @@ public class CaixaService {
             auditoria.registrar(con, sessao, tipo.acaoAuditoria(), ENTIDADE_CAIXA, caixa.id(),
                     tipo.descricao() + " de " + Formatos.moeda(quantia) + " no caixa nº " + caixa.id()
                             + ". Motivo: " + motivoFinal
-                            + (liberacao == null ? "" : " (" + liberacao.descricao() + ")"));
+                            + (liberou == null ? "" : " (" + liberou.descricao() + ")"));
             return id;
         });
     }
@@ -205,19 +210,6 @@ public class CaixaService {
             throw new NegocioException(nome + " está acima do limite permitido.");
         }
         return Dinheiro.dinheiro(valor);
-    }
-
-    /** Sem a permissão, vale a liberação dada para ela (6.2). */
-    private static void exigirOuLiberado(Sessao sessao, Permissao permissao, Liberacao liberacao) {
-        if (sessao.pode(permissao)) {
-            return;
-        }
-        if (liberacao == null) {
-            sessao.exigir(permissao); // lança com a mensagem padrão
-        }
-        if (liberacao.permissao() != permissao) {
-            throw new PermissaoNegadaException("A liberação recebida não vale para " + permissao.rotulo() + ".");
-        }
     }
 
     private CaixaSessao travar(Connection con, Sessao sessao) throws SQLException {

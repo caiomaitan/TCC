@@ -63,6 +63,26 @@ public final class Sessao {
         }
     }
 
+    /**
+     * Ação que exige a permissão ou a liberação de quem a tem (6.2): sangria, cancelamento, desconto acima do limite.
+     *
+     * @param liberacao nula quando o próprio usuário tem a permissão
+     * @return a liberação que valeu, ou nula se o próprio usuário tem a permissão
+     * @throws PermissaoNegadaException sem a permissão e sem liberação, ou com liberação dada para outra permissão
+     */
+    public Liberacao exigirOuLiberado(Permissao permissao, Liberacao liberacao) {
+        if (pode(permissao)) {
+            return null;
+        }
+        if (liberacao == null) {
+            exigir(permissao);
+        }
+        if (liberacao.permissao() != permissao) {
+            throw new PermissaoNegadaException("A liberação recebida não vale para " + permissao.rotulo() + ".");
+        }
+        return liberacao;
+    }
+
     /** Usuários, configurações, formas de pagamento, backup, auditoria, diagnóstico e dados de demonstração (6.2). */
     public void exigirSupervisor() {
         if (!supervisor()) {

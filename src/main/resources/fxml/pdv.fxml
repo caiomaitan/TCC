@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- PDV (6.6, Fig. 19 revisada), em janela própria maximizada: total em fonte grande, itens (cancelados riscados),
+     último item em destaque, subtotal/descontos/total, operador, terminal e nº da sessão, barra de atalhos.
+     O campo de leitura fica sempre focado; o leitor de código de barras funciona como teclado + Enter. -->
+<BorderPane fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="br.com.varesync.controller.PdvController" styleClass="pdv">
+
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="16" styleClass="pdv-cabecalho">
+            <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
+            <Label text="PDV" styleClass="pdv-marca"/>
+            <Label fx:id="loja" styleClass="pdv-loja"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="caixaInfo" styleClass="pdv-info"/>
+            <Label fx:id="terminalInfo" styleClass="pdv-info"/>
+            <Label fx:id="operadorInfo" styleClass="pdv-info"/>
+        </HBox>
+    </top>
+
+    <center>
+        <HBox spacing="12">
+            <padding><Insets top="12" right="12" bottom="0" left="12"/></padding>
+            <TableView fx:id="tabelaItens" HBox.hgrow="ALWAYS" styleClass="pdv-itens" focusTraversable="false">
+                <placeholder><Label text="Leia o código de barras ou digite o código do produto."/></placeholder>
+                <columns>
+                    <TableColumn fx:id="colunaSequencia" text="Seq." prefWidth="55" styleClass="coluna-numero" sortable="false"/>
+                    <TableColumn fx:id="colunaCodigo" text="Código" prefWidth="150" sortable="false"/>
+                    <TableColumn fx:id="colunaDescricao" text="Descrição" prefWidth="360" sortable="false"/>
+                    <TableColumn fx:id="colunaQuantidade" text="Quantidade" prefWidth="120" styleClass="coluna-numero" sortable="false"/>
+                    <TableColumn fx:id="colunaUnitario" text="Unitário" prefWidth="110" styleClass="coluna-numero" sortable="false"/>
+                    <TableColumn fx:id="colunaDesconto" text="Desconto" prefWidth="110" styleClass="coluna-numero" sortable="false"/>
+                    <TableColumn fx:id="colunaTotal" text="Total" prefWidth="120" styleClass="coluna-numero" sortable="false"/>
+                </columns>
+                <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+            </TableView>
+
+            <VBox spacing="12" minWidth="380" maxWidth="420" styleClass="pdv-painel">
+                <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                <Label text="Último item" styleClass="pdv-rotulo"/>
+                <Label fx:id="ultimoDescricao" styleClass="pdv-ultimo" wrapText="true"/>
+                <Label fx:id="ultimoDetalhe" styleClass="pdv-ultimo-detalhe"/>
+                <Separator/>
+                <GridPane hgap="12" vgap="6">
+                    <Label text="Itens" styleClass="pdv-rotulo" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <Label fx:id="quantidadeItens" styleClass="pdv-valor" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                    <Label text="Subtotal" styleClass="pdv-rotulo" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <Label fx:id="subtotal" styleClass="pdv-valor" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                    <Label text="Descontos" styleClass="pdv-rotulo" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <Label fx:id="descontos" styleClass="pdv-valor" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                </GridPane>
+                <Separator/>
+                <Label text="TOTAL" styleClass="pdv-rotulo"/>
+                <Label fx:id="total" styleClass="pdv-total"/>
+                <Region VBox.vgrow="ALWAYS"/>
+                <Label fx:id="proximaQuantidade" styleClass="pdv-proxima" wrapText="true"/>
+                <Label fx:id="mensagem" wrapText="true" styleClass="pdv-mensagem"/>
+            </VBox>
+        </HBox>
+    </center>
+
+    <bottom>
+        <VBox spacing="8">
+            <padding><Insets top="12" right="12" bottom="10" left="12"/></padding>
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Label text="Código" styleClass="pdv-rotulo"/>
+                <TextField fx:id="entrada" HBox.hgrow="ALWAYS" styleClass="pdv-entrada" onAction="#registrar"
+                           promptText="Código de barras, código, quantidade*código (3*789…) ou nome do produto"/>
+            </HBox>
+            <Label styleClass="pdv-atalhos" wrapText="true"
+                   text="F1 ajuda · F2 buscar · F3 quantidade · F4 desconto no item · F5 desconto na venda · F6 cancelar item · F7 consultar preço · F8 sangria/suprimento · F9 vendas da sessão · F10 pagamento · F12 fechar caixa · Esc abandonar venda / sair"/>
+        </VBox>
+    </bottom>
+</BorderPane>

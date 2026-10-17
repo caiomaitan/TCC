@@ -1,0 +1,109 @@
+package br.com.varesync.service;
+
+import br.com.varesync.model.FormaPagamento;
+import br.com.varesync.util.Dinheiro;
+import br.com.varesync.util.Formatos;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Pagamento da venda (F10, 6.6): combina várias formas e mostra total, pago, falta e troco. Só dinheiro pode passar
+ * do que falta (gera troco); as demais formas ficam limitadas ao que falta. Quitado quando pago ≥ total.
+ */
+public final class Recebimento {
+
+    /** Valor entregue numa forma de pagamento. */
+    public record Parcela(FormaPagamento forma, BigDecimal valor) {
+    }
+
+    private final BigDecimal total;
+    private final List<Parcela> parcelas = new ArrayList<>();
+
+    public Recebimento(BigDecimal total) {
+        this.total = Dinheiro.dinheiro(total);
+    }
+
+    /**
+     * Registra o valor entregue na forma escolhida.
+     *
+     * @throws NegocioException valor inválido, venda já paga ou forma que não aceita troco passando do que falta
+     */
+    public void adicionar(FormaPagamento forma, BigDecimal valor) {
+        if (forma == null) {
+            throw new NegocioException("Escolha a forma de pagamento.");
+        }
+        BigDecimal quantia = CaixaService.valor(valor, "o valor", false);
+        if (quitado()) {
+            throw new NegocioException("A venda já está paga. Finalize a venda.");
+        }
+        if (!forma.dinheiro() && quantia.compareTo(falta()) > 0) {
+            throw new NegocioException("Só o pagamento em dinheiro pode passar do que falta. Em " + forma.descricao()
+                    + ", informe até " + Formatos.moeda(falta()) + ".");
+        }
+        parcelas.add(new Parcela(forma, quantia));
+    }
+
+    public void remover(int indice) {
+        parcelas.remove(indice);
+    }
+
+    public List<Parcela> parcelas() {
+        return Collections.unmodifiableList(parcelas);
+    }
+
+    public BigDecimal total() {
+        return total;
+    }
+
+    public BigDecimal pago() {
+        return parcelas.stream().map(Parcela::valor).reduce(Dinheiro.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal falta() {
+        BigDecimal falta = total.subtract(pago());
+        return falta.signum() > 0 ? falta : Dinheiro.ZERO;
+    }
+
+    public BigDecimal troco() {
+        BigDecimal troco = pago().subtract(total);
+        return troco.signum() > 0 ? troco : Dinheiro.ZERO;
+    }
+
+    /** Pago ≥ total (total zero dispensa pagamento). */
+    public boolean quitado() {
+        return pago().compareTo(total) >= 0;
+    }
+
+    /**
+     * O que vai para {@code venda_pagamento}: uma linha por forma, com o valor abatido da venda. No dinheiro,
+     * recebido − troco (6.6). A soma é igual ao total.
+     */
+    public List<Parcela> valoresAbatidos() {
+        Map<Integer, Parcela> porForma = new LinkedHashMap<>();
+        for (Parcela p : parcelas) {
+            porForma.merge(p.forma().id(), p, (a, b) -> new Parcela(a.forma(), a.valor().add(b.valor())));
+        }
+        List<Parcela> abatidos = new ArrayList<>(porForma.values());
+        BigDecimal troco = troco();
+        // O troco só existe porque o dinheiro passou do que faltava: sai das formas em dinheiro, da última para trás.
+        for (int i = abatidos.size() - 1; i >= 0 && troco.signum() > 0; i--) {
+            Parcela p = abatidos.get(i);
+            if (!p.forma().dinheiro()) {
+                continue;
+            }
+            BigDecimal descontado = p.valor().min(troco);
+            troco = troco.subtract(descontado);
+            BigDecimal restante = p.valor().subtract(descontado);
+            if (restante.signum() == 0) {
+                abatidos.remove(i);
+            } else {
+                abatidos.set(i, new Parcela(p.forma(), restante));
+            }
+        }
+        return abatidos;
+    }
+}

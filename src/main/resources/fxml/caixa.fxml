@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<!-- Caixa do terminal (6.5), aberto pelo menu PDV: situação, abertura com fundo de troco,
+<!-- Caixa do terminal (6.5), aberto pelo menu Caixa: situação, abertura com fundo de troco,
      sangria/suprimento (F8) e fechamento às cegas (F12). O valor esperado nunca aparece com o caixa aberto. -->
 <VBox fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.CaixaController"

@@ -7,10 +7,12 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
+import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -41,6 +43,7 @@ final class AcessoTeste {
     final CategoriaService categorias;
     final ProdutoService produtos;
     final CaixaService caixa;
+    final VendaService vendas;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -58,6 +61,8 @@ final class AcessoTeste {
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
         caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
+        vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
+                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(), auditoria, relogio);
     }
 
     /**

@@ -28,12 +28,15 @@ import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.Duration;
 
@@ -45,6 +48,8 @@ public class PrincipalController {
 
     private static final String SEM_INFORMACAO = "—";
     private static final String ITEM_SELECIONADO = "selecionado";
+    private static final double LARGURA_MINIMA_PDV = 1280;
+    private static final double ALTURA_MINIMA_PDV = 720;
 
     private final AppConfig config;
     private final Clock clock;
@@ -110,6 +115,10 @@ public class PrincipalController {
     }
 
     private void abrir(ItemMenu item) {
+        if (item.janelaPropria()) {
+            abrirPdv();
+            return;
+        }
         botoes.values().forEach(b -> b.getStyleClass().remove(ITEM_SELECIONADO));
         Button botao = botoes.get(item);
         if (botao != null) {
@@ -130,6 +139,38 @@ public class PrincipalController {
             tela = loader.getRoot();
         }
         conteudo.getChildren().setAll(tela);
+    }
+
+    /**
+     * PDV em janela própria, maximizada e modal sobre a principal (8.1). Sem caixa aberto no terminal, pede a abertura
+     * antes de vender (6.5); se a pessoa desistir, o PDV não abre.
+     */
+    private void abrirPdv() {
+        try {
+            if (caixaService.caixaAberto(sessao).isEmpty()) {
+                Optional<CaixaSessao> aberto = new AcoesCaixa(caixaService, acessoService, sessao).abrir();
+                atualizarCaixa();
+                if (aberto.isEmpty()) {
+                    return;
+                }
+            }
+            FXMLLoader loader = carregar(ItemMenu.PDV.fxml());
+            Stage janela = new Stage();
+            janela.initOwner(menu.getScene().getWindow());
+            janela.initModality(Modality.WINDOW_MODAL);
+            janela.setTitle(Dialogos.TITULO + " — PDV");
+            Scene cena = new Scene(loader.getRoot());
+            cena.getStylesheets().add(PrincipalController.class.getResource(Dialogos.CSS).toExternalForm());
+            janela.setScene(cena);
+            janela.setMinWidth(LARGURA_MINIMA_PDV);
+            janela.setMinHeight(ALTURA_MINIMA_PDV);
+            janela.setMaximized(true);
+            loader.<PdvController>getController().preparar(janela);
+            janela.showAndWait();
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mostrar(e);
+        }
+        atualizarCaixa();
     }
 
     private FXMLLoader carregar(String fxml) {
@@ -231,7 +272,7 @@ public class PrincipalController {
         CaixaSessao caixa = aberto.get();
         return Dialogos.confirmar("O caixa nº " + caixa.id() + " deste terminal está aberto (aberto por "
                 + caixa.abertoPorNome() + " em " + Formatos.dataHora(caixa.abertoEm()) + "). Se o expediente "
-                + "acabou, feche o caixa antes de sair (menu PDV › Fechar caixa).\n\nSair mesmo assim?");
+                + "acabou, feche o caixa antes de sair (menu Caixa › Fechar caixa).\n\nSair mesmo assim?");
     }
 
     /** Barra de status: situação do caixa deste terminal (7.5). */
