@@ -164,3 +164,30 @@ ordem do Tab e os atalhos pelo teclado (CT-F5-12) ficam para a pessoa.
 | CT-F5-10 | Inventário "Bebidas" aberto, sem nenhuma contagem | 1. Aplicar… | "Nenhum item foi contado. Conte ao menos um item antes de aplicar, ou cancele o inventário." (sem pergunta) | |
 | CT-F5-11 | Usuários `caixa1` e `conferente` | 1. Entrar como `caixa1` 2. Entrar como `conferente`, contar um item do inventário "Bebidas" e Aplicar | 1. O menu não mostra Inventário 2. Aplica (a permissão Inventário basta) | |
 | CT-F5-12 | Tela Inventário | Só com o teclado: 1. Ctrl+N, Esc 2. Tab até a lista de itens, setas, **Enter** 3. Digitar o contado; Enter 4. Tab até Aplicar…, Espaço, Esc | 1. O diálogo abre e fecha sem o mouse 2. Enter na lista leva o foco para **Contado** do item selecionado 3. Grava e volta o foco para Contar 4. A confirmação fecha sem aplicar | |
+
+## Fase 6 — Relatórios e dados de demonstração (parte 1: gerador, infraestrutura, R01 a R05)
+
+Caso de uso do TCC: Gerar relatórios (RF10) e calcular lucro e margem (RF11). Pré-condição comum: um banco de
+demonstração **vazio** (`varesync_demo`, README › "Banco de demonstração") com o sistema apontado para ele e o
+supervisor `admin` criado pelo primeiro acesso.
+
+Em 2026-10-17, os casos marcados "OK (roteiro)" foram executados por um roteiro descartável (removido depois) que abriu
+as telas reais (JavaFX) sobre o banco `varesync_test`, com as janelas fora da tela, acionando os componentes por eventos
+(`Button.fire`, valores nos campos, "Sim" pelo próprio `DialogPane`) e conferindo por capturas (`snapshot`); os PDFs
+foram desenhados como imagem e os CSV abertos como texto. A escolha do arquivo (janela "Salvar como" do sistema) e a
+abertura no Excel e no leitor de PDF não foram exercitadas: ficam para a pessoa (CT-F6-07 e CT-F6-08).
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F6-01 | Banco vazio; logado como `admin` | 1. Menu **Configurações** › aba **Dados de demonstração** 2. **Gerar dados de demonstração…** 3. **Sim** | 1. Texto explicando o que será criado 2. Confirmação "Gerar os dados de demonstração neste banco? …" 3. Barra de progresso com "Dia N de 60 (dd/MM/aaaa): venda X de Y"; em poucos minutos "Dados de demonstração gerados: 80 produtos e … vendas de … a (ontem)" e a lista dos usuários `maria`, `jose` e `carlos` com as senhas provisórias | OK (roteiro): 80 produtos, 1.974 vendas de 18/08/2026 a 16/10/2026 em 8 s (banco de teste, BCrypt de custo 4); senhas mostradas. Conferir o tempo com BCrypt 12 |
+| CT-F6-02 | CT-F6-01 feito | 1. Gerar dados de demonstração… de novo | "Este banco já tem N venda(s). Os dados de demonstração só podem ser gerados num banco sem vendas: crie um banco separado (ex.: varesync_demo, veja o README)…", sem pergunta | OK (roteiro) |
+| CT-F6-03 | CT-F6-01 feito | 1. Log off; entrar como `carlos` com a senha mostrada 2. Trocar a senha 3. Ver o menu | 1–2. Troca obrigatória 3. Menu com PDV, Caixa, Produtos, Estoque, Inventário e Relatórios; sem Usuários e Configurações | |
+| CT-F6-04 | CT-F6-01 feito; `admin` | 1. Menu **Relatórios**; R01; período = os 60 dias; **Gerar** 2. Clicar no título "Lucro" 3. Marcar **Detalhar por venda**; Gerar 4. Operador "Maria Oliveira"; Gerar | 1. Uma linha por dia (60), colunas Dia, Vendas, Receita, Descontos, CMV, Lucro, Margem %, Ticket médio; linha **Total** com a margem do período (Σ lucro ÷ Σ receita) e "60 linhas · gerado em x s" (< 3 s) 2. Ordena pelo valor 3. Uma linha por venda (Venda nº, Data/hora, Operador) 4. Só as vendas da Maria | OK (roteiro) passos 1 e 3: total R$ 104.942,70, lucro R$ 31.408,84, margem 29,93%; 1.950 vendas (as 24 canceladas fora) |
+| CT-F6-05 | CT-F6-04 feito | 1. R05; mesmo período; Gerar 2. Comparar com o total do R01 | 1. Produtos do maior para o menor lucro, com margem, markup e situação (OK, Baixa — ex.: margarina — e Negativa — leite UHT e fralda, vendidos abaixo do custo) 2. Receita, lucro e margem do total iguais aos do R01 | OK (roteiro): R$ 104.942,70, R$ 31.408,84 e 29,93% nos dois |
+| CT-F6-06 | CT-F6-01 feito | 1. R02; critério Lucro; "10" primeiros; Gerar 2. R03; **Só abaixo do mínimo**; Gerar 3. R04; produto = código de barras `7896543000019`; Gerar 4. R04; Tipo "Perda"; produto vazio; Gerar | 1. 10 produtos numerados por lucro, com % da receita 2. Só os produtos com saldo abaixo do mínimo; total do valor em estoque 3. Kardex do arroz no período com saldo após, custo, usuário e "Venda nº X"; totais de quantidade, entradas e saídas a custo 4. Só as perdas, com o motivo | OK (roteiro) passos 1 a 3 (10, 3 e 186 linhas) |
+| CT-F6-07 | Relatório gerado | 1. **Exportar CSV…**; salvar 2. Abrir no Excel (duplo clique) | 1. "CSV salvo em …" 2. Acentos certos, uma coluna por campo, valores como número (soma funciona), última linha "Total" | OK (roteiro) no texto: BOM UTF-8, `;`, vírgula decimal; falta abrir no Excel |
+| CT-F6-08 | Relatório gerado | 1. **Exportar PDF…**; salvar 2. Abrir o PDF | Cabeçalho com a loja, o título e os filtros em todas as páginas; tabela; totais no fim; rodapé "Emitido por … em …" e "Página x de y"; R04 e R05 em página deitada | OK (roteiro) no desenho das páginas (R01 por venda com 38 páginas); falta abrir no leitor de PDF |
+| CT-F6-09 | Tela Relatórios | 1. Data inicial depois da final; Gerar 2. R04 com produto "999999"; Gerar 3. Durante a geração | 1. "A data inicial é depois da final." 2. "Produto não encontrado (código 999999)." 3. Gerar e a escolha do relatório desabilitados, indicador girando | OK (roteiro) passo 1 |
+| CT-F6-10 | Usuário `maria` (só PDV) | 1. Entrar como `maria` | O menu não mostra Relatórios | |
+| CT-F6-11 | CT-F6-01 feito | 1. Menu Estoque (alerta do Painel) 2. Configurações › Diagnóstico do estoque › Verificar agora | 1. Alguns produtos abaixo do mínimo 2. "Tudo certo: o saldo de todos os produtos confere com a soma dos movimentos." | |
+| CT-F6-12 | Tela Relatórios | Só com o teclado: Tab até o relatório, setas, Tab pelos filtros, **Enter** (Gerar) | Gera sem o mouse (Gerar é o botão padrão) | |

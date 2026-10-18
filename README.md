@@ -69,6 +69,46 @@ Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor p
 
 Logs: `~/.varesync/logs/varesync.log` (um arquivo por dia, mantidos 30 dias).
 
+## Banco de demonstração (`varesync_demo`)
+
+O gerador de dados de demonstração (**Configurações › Dados de demonstração**, só para o supervisor) preenche um banco
+com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80 produtos, 3 usuários, um caixa por dia
+com vendas, sangrias e fechamento, descontos, cancelamentos, perdas, reajustes de preço e um inventário. Ele **recusa**
+um banco que já tenha vendas — como o `varesync` usado nos seus testes. Use um banco separado:
+
+1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
+
+   ```sql
+   CREATE DATABASE varesync_demo OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
+   ```
+
+2. Com o sistema fechado, edite `~/.varesync/config.properties` (no Windows,
+   `C:\Users\<você>\.varesync\config.properties`) e troque o nome do banco no fim da URL:
+
+   ```properties
+   db.url=jdbc:postgresql://localhost:5432/varesync_demo
+   ```
+
+   (Se a senha ainda não estiver no arquivo, a tela **Conexão com o banco** abre e pede; ela só fica nesse arquivo,
+   fora do repositório.)
+
+3. Abra o sistema (`mvn javafx:run`). As tabelas são criadas, e o assistente de primeiro acesso cria a loja e o
+   supervisor.
+4. Entre como supervisor, abra **Configurações › Dados de demonstração** e clique em **Gerar dados de
+   demonstração…**. No fim aparecem os usuários criados — `maria` e `jose` (operadores de caixa) e `carlos` (gerente) —
+   com as senhas provisórias: **anote**, elas não são mostradas de novo. Cada um troca a senha no primeiro login.
+5. Para voltar ao banco normal, feche o sistema e devolva `db.url` para `.../varesync`.
+
+Para recomeçar a demonstração do zero (ou se a geração for interrompida no meio, o que deixa dados pela metade), com o
+sistema fechado:
+
+```sql
+DROP DATABASE varesync_demo;
+CREATE DATABASE varesync_demo OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
+```
+
+A semente é fixa: gerado no mesmo dia, o resultado é sempre o mesmo. As datas acompanham o dia em que você gera.
+
 ## Testes
 
 ```bash

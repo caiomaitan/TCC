@@ -22,7 +22,7 @@
     <Label text="Relatórios" styleClass="titulo"/>
 
     <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="Relatório:"/>
+        <Label text="Relatório:" minWidth="-Infinity"/>
         <ComboBox fx:id="escolhaRelatorio" prefWidth="340"/>
         <Label fx:id="descricao" wrapText="true" styleClass="subtitulo" HBox.hgrow="ALWAYS"/>
     </HBox>
@@ -74,7 +74,7 @@
 
     <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
         <placeholder><Label fx:id="semDados" text="Escolha os filtros e clique em Gerar."/></placeholder>
-        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS"/></columnResizePolicy>
     </TableView>
     <HBox fx:id="linhaTotais" styleClass="linha-totais"/>
 </VBox>

@@ -274,10 +274,12 @@ public class RelatoriosController {
         ResultadoRelatorio<Object> r = (ResultadoRelatorio<Object>) gerado;
         semDados.setText("Nenhum registro para os filtros escolhidos.");
         List<String> totais = r.temTotais() ? r.totais() : List.of();
+        List<TableColumn<Object, ?>> colunas = new ArrayList<>();
         for (int i = 0; i < r.colunas().size(); i++) {
             Coluna<Object> coluna = r.colunas().get(i);
             TableColumn<Object, Object> tc = new TableColumn<>(coluna.titulo());
             tc.setPrefWidth(coluna.largura() * PIXELS_POR_LARGURA);
+            tc.setMinWidth(coluna.largura() * PIXELS_POR_LARGURA * 0.6);
             tc.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(coluna.valorDe(c.getValue())));
             tc.setComparator(coluna.comparador());
             tc.setCellFactory(t -> celula(coluna));
@@ -286,10 +288,11 @@ public class RelatoriosController {
                 case CENTRO -> tc.getStyleClass().add("coluna-centro");
                 case ESQUERDA -> { }
             }
-            tabela.getColumns().add(tc);
+            colunas.add(tc);
 
             if (!totais.isEmpty()) {
-                Label total = new Label(totais.get(i));
+                // Na tela, só "Total": a quantidade de linhas já está na mensagem e a coluna pode ser estreita.
+                Label total = new Label(totais.get(i).startsWith("Total (") ? "Total" : totais.get(i));
                 total.getStyleClass().add("total-relatorio");
                 total.setMaxWidth(Double.MAX_VALUE);
                 total.prefWidthProperty().bind(tc.widthProperty());
@@ -305,6 +308,7 @@ public class RelatoriosController {
                 linhaTotais.getChildren().add(total);
             }
         }
+        tabela.getColumns().setAll(colunas);
         tabela.getItems().setAll(r.linhas());
         botaoCsv.setDisable(false);
         botaoPdf.setDisable(false);

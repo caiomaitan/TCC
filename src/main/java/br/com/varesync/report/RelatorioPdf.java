@@ -39,6 +39,15 @@ public class RelatorioPdf {
 
     /** @return o PDF em bytes */
     public <T> byte[] gerar(ResultadoRelatorio<T> resultado) {
+        try {
+            return JasperExportManager.exportReportToPdf(preencher(resultado));
+        } catch (JRException e) {
+            throw new ErroInesperadoException(e);
+        }
+    }
+
+    /** O relatório preenchido, antes de virar PDF (os testes o desenham como imagem para conferir o layout). */
+    <T> JasperPrint preencher(ResultadoRelatorio<T> resultado) throws JRException {
         List<Coluna<T>> colunas = resultado.colunas();
         Map<String, Object> parametros = new HashMap<>();
         parametros.put("LOJA", resultado.loja());
@@ -58,13 +67,8 @@ public class RelatorioPdf {
             }
             linhas.add(campos);
         }
-        try {
-            JasperPrint impressao = JasperFillManager.fillReport(compilar(jrxml(colunas)), parametros,
-                    new JRMapCollectionDataSource(linhas));
-            return JasperExportManager.exportReportToPdf(impressao);
-        } catch (JRException e) {
-            throw new ErroInesperadoException(e);
-        }
+        return JasperFillManager.fillReport(compilar(jrxml(colunas)), parametros,
+                new JRMapCollectionDataSource(linhas));
     }
 
     public <T> void salvar(ResultadoRelatorio<T> resultado, Path destino) {
