@@ -18,7 +18,7 @@ public enum ItemMenu {
     INVENTARIO("Inventário", Permissao.INVENTARIO, false, "/fxml/inventario.fxml", false),
     COMPRAS("Compras", Permissao.COMPRAS, false, null, false),
     FORNECEDORES("Fornecedores", Permissao.FORNECEDORES, false, null, false),
-    RELATORIOS("Relatórios", Permissao.RELATORIOS, false, null, false),
+    RELATORIOS("Relatórios", Permissao.RELATORIOS, false, "/fxml/relatorios.fxml", false),
     USUARIOS("Usuários", null, true, "/fxml/usuarios.fxml", false),
     CONFIGURACOES("Configurações", null, true, "/fxml/configuracoes.fxml", false);
 

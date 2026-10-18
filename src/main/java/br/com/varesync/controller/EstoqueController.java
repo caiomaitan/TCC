@@ -8,6 +8,7 @@ import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.DialogosEstoque;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.Dinheiro;
@@ -15,8 +16,6 @@ import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.function.Function;
@@ -47,7 +46,6 @@ public class EstoqueController {
 
     private static final String NEGATIVO = "negativo";
     private static final String ABAIXO_DO_MINIMO = "abaixo-minimo";
-    private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy", Formatos.PT_BR);
 
     private final EstoqueService estoqueService;
     private final Sessao sessao;
@@ -384,23 +382,6 @@ public class EstoqueController {
 
     /** dd/MM/aaaa, independentemente do idioma do computador. */
     private static StringConverter<LocalDate> conversorData() {
-        return new StringConverter<>() {
-            @Override
-            public String toString(LocalDate data) {
-                return data == null ? "" : DATA.format(data);
-            }
-
-            @Override
-            public LocalDate fromString(String texto) {
-                if (Textos.vazio(texto)) {
-                    return null;
-                }
-                try {
-                    return LocalDate.parse(texto.strip(), DATA);
-                } catch (DateTimeParseException e) {
-                    return null;
-                }
-            }
-        };
+        return new ConversorData();
     }
 }

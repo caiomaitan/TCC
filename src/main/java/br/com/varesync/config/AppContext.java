@@ -9,43 +9,25 @@ import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PdvController;
 import br.com.varesync.controller.PrimeiroAcessoController;
-import br.com.varesync.report.ComprovantePdf;
 import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
+import br.com.varesync.controller.RelatoriosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
-import br.com.varesync.dao.AuditoriaDAO;
-import br.com.varesync.dao.CaixaDAO;
-import br.com.varesync.dao.CategoriaDAO;
-import br.com.varesync.dao.ConfiguracaoDAO;
-import br.com.varesync.dao.EstoqueDAO;
-import br.com.varesync.dao.FormaPagamentoDAO;
-import br.com.varesync.dao.InventarioDAO;
-import br.com.varesync.dao.MovimentoEstoqueDAO;
-import br.com.varesync.dao.ProdutoDAO;
-import br.com.varesync.dao.UnidadeMedidaDAO;
-import br.com.varesync.dao.UsuarioDAO;
-import br.com.varesync.dao.VendaDAO;
+import br.com.varesync.report.ComprovantePdf;
+import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.service.AcessoService;
-import br.com.varesync.service.AuditoriaService;
-import br.com.varesync.service.CaixaService;
-import br.com.varesync.service.CategoriaService;
-import br.com.varesync.service.EstoqueService;
-import br.com.varesync.service.InventarioService;
-import br.com.varesync.service.PrecoService;
-import br.com.varesync.service.ProdutoService;
+import br.com.varesync.service.GeradorDemo;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.Transacao;
-import br.com.varesync.service.UsuarioService;
-import br.com.varesync.service.VendaService;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.Clock;
 import javax.sql.DataSource;
 
 /**
- * Composition root: cria DataSource, Clock, DAOs e services (injeção pelo construtor)
+ * Composition root: cria DataSource, Clock, DAOs e services (injeção pelo construtor, em {@link Servicos})
  * e entrega os controllers ao {@code FXMLLoader} por {@link #criarController(Class, Navegacao, Sessao)}.
  */
 public final class AppContext implements AutoCloseable {
@@ -53,44 +35,18 @@ public final class AppContext implements AutoCloseable {
     private final AppConfig config;
     private final HikariDataSource dataSource;
     private final Clock clock;
-    private final Transacao transacao;
-    private final AcessoService acessoService;
-    private final UsuarioService usuarioService;
-    private final CategoriaService categoriaService;
-    private final ProdutoService produtoService;
-    private final EstoqueService estoqueService;
-    private final CaixaService caixaService;
-    private final VendaService vendaService;
-    private final InventarioService inventarioService;
+    private final Servicos s;
+    private final GeradorDemo geradorDemo;
     private final ComprovantePdf comprovantePdf = new ComprovantePdf();
+    private final RelatorioPdf relatorioPdf = new RelatorioPdf();
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
         this.dataSource = dataSource;
         this.clock = clock;
-        this.transacao = new Transacao(dataSource);
-
-        UsuarioDAO usuarioDAO = new UsuarioDAO();
-        ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
         Senhas senhas = new Senhas();
-        AuditoriaService auditoriaService = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
-        this.acessoService = new AcessoService(transacao, usuarioDAO, configuracaoDAO, auditoriaService, senhas,
-                clock, config.terminalId());
-        this.usuarioService = new UsuarioService(transacao, usuarioDAO, auditoriaService, senhas, clock);
-
-        ProdutoDAO produtoDAO = new ProdutoDAO();
-        CategoriaDAO categoriaDAO = new CategoriaDAO();
-        this.estoqueService = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(),
-                auditoriaService, clock);
-        this.categoriaService = new CategoriaService(transacao, categoriaDAO);
-        this.produtoService = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
-                configuracaoDAO, estoqueService, auditoriaService, clock);
-        this.caixaService = new CaixaService(transacao, new CaixaDAO(), auditoriaService, clock);
-        this.vendaService = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
-                configuracaoDAO, new EstoqueDAO(), estoqueService, caixaService, new PrecoService(),
-                auditoriaService, clock);
-        this.inventarioService = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO,
-                new EstoqueDAO(), estoqueService, auditoriaService, clock);
+        this.s = Servicos.montar(dataSource, clock, config.terminalId(), senhas);
+        this.geradorDemo = Servicos.geradorDemo(dataSource, clock, config.terminalId(), senhas);
     }
 
     /** Abre o pool e aplica as migrations pendentes. */
@@ -112,46 +68,48 @@ public final class AppContext implements AutoCloseable {
      */
     public Object criarController(Class<?> tipo, Navegacao navegacao, Sessao sessao) {
         if (tipo == PrimeiroAcessoController.class) {
-            return new PrimeiroAcessoController(acessoService, navegacao);
+            return new PrimeiroAcessoController(s.acesso(), navegacao);
         }
         if (tipo == LoginController.class) {
-            return new LoginController(acessoService, navegacao);
+            return new LoginController(s.acesso(), navegacao);
         }
         if (tipo == TrocaSenhaController.class) {
-            return new TrocaSenhaController(acessoService, navegacao, sessao);
+            return new TrocaSenhaController(s.acesso(), navegacao, sessao);
         }
         if (tipo == PrincipalController.class) {
-            return new PrincipalController(config, clock, acessoService, estoqueService, caixaService, navegacao,
-                    sessao,
+            return new PrincipalController(config, clock, s.acesso(), s.estoque(), s.caixa(), navegacao, sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == UsuariosController.class) {
-            return new UsuariosController(usuarioService, sessao, clock);
+            return new UsuariosController(s.usuarios(), sessao, clock);
         }
         if (tipo == ProdutosController.class) {
-            return new ProdutosController(produtoService, categoriaService, sessao,
+            return new ProdutosController(s.produtos(), s.categorias(), sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == ProdutoController.class) {
-            return new ProdutoController(produtoService, categoriaService, sessao);
+            return new ProdutoController(s.produtos(), s.categorias(), sessao);
         }
         if (tipo == CategoriasController.class) {
-            return new CategoriasController(categoriaService, sessao);
+            return new CategoriasController(s.categorias(), sessao);
         }
         if (tipo == EstoqueController.class) {
-            return new EstoqueController(estoqueService, sessao);
+            return new EstoqueController(s.estoque(), sessao);
         }
         if (tipo == InventarioController.class) {
-            return new InventarioController(inventarioService, sessao);
+            return new InventarioController(s.inventarios(), sessao);
         }
         if (tipo == CaixaController.class) {
-            return new CaixaController(caixaService, acessoService, sessao);
+            return new CaixaController(s.caixa(), s.acesso(), sessao);
         }
         if (tipo == PdvController.class) {
-            return new PdvController(vendaService, caixaService, acessoService, comprovantePdf, sessao);
+            return new PdvController(s.vendas(), s.caixa(), s.acesso(), comprovantePdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
-            return new ConfiguracoesController(estoqueService, sessao);
+            return new ConfiguracoesController(s.estoque(), geradorDemo, sessao);
+        }
+        if (tipo == RelatoriosController.class) {
+            return new RelatoriosController(s.relatorios(), relatorioPdf, sessao);
         }
         throw new IllegalArgumentException("Controller não registrado no AppContext: " + tipo.getName());
     }
@@ -169,11 +127,11 @@ public final class AppContext implements AutoCloseable {
     }
 
     public Transacao transacao() {
-        return transacao;
+        return s.transacao();
     }
 
     public AcessoService acessoService() {
-        return acessoService;
+        return s.acesso();
     }
 
     @Override

@@ -40,7 +40,8 @@ class FxmlTest {
             "/fxml/pdv.fxml, br.com.varesync.controller.PdvController",
             "/fxml/pagamento.fxml, br.com.varesync.controller.PagamentoController",
             "/fxml/vendas-sessao.fxml, br.com.varesync.controller.VendasSessaoController",
-            "/fxml/comprovante.fxml, br.com.varesync.controller.ComprovanteController"
+            "/fxml/comprovante.fxml, br.com.varesync.controller.ComprovanteController",
+            "/fxml/relatorios.fxml, br.com.varesync.controller.RelatoriosController"
     })
     void fxmlCasaComOController(String recurso, String controller) throws Exception {
         String fxml;

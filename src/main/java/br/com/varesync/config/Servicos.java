@@ -1,0 +1,83 @@
+package br.com.varesync.config;
+
+import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.dao.CaixaDAO;
+import br.com.varesync.dao.CategoriaDAO;
+import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.DemoDAO;
+import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.InventarioDAO;
+import br.com.varesync.dao.MovimentoEstoqueDAO;
+import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.UnidadeMedidaDAO;
+import br.com.varesync.dao.UsuarioDAO;
+import br.com.varesync.dao.VendaDAO;
+import br.com.varesync.service.AcessoService;
+import br.com.varesync.service.AuditoriaService;
+import br.com.varesync.service.CaixaService;
+import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.GeradorDemo;
+import br.com.varesync.service.InventarioService;
+import br.com.varesync.service.PrecoService;
+import br.com.varesync.service.ProdutoService;
+import br.com.varesync.service.RelatorioService;
+import br.com.varesync.service.Senhas;
+import br.com.varesync.service.Transacao;
+import br.com.varesync.service.UsuarioService;
+import br.com.varesync.service.VendaService;
+import br.com.varesync.util.RelogioAjustavel;
+import java.time.Clock;
+import javax.sql.DataSource;
+
+/**
+ * Os services do sistema montados sobre um {@link Clock}. O {@link AppContext} monta um conjunto com o relógio do
+ * computador e outro com o relógio ajustável do gerador de dados de demonstração (6.14), que grava no passado.
+ */
+public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, UsuarioService usuarios,
+                       CategoriaService categorias, ProdutoService produtos, EstoqueService estoque,
+                       CaixaService caixa, VendaService vendas, InventarioService inventarios,
+                       RelatorioService relatorios) {
+
+    public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
+        Transacao transacao = new Transacao(dataSource);
+        UsuarioDAO usuarioDAO = new UsuarioDAO();
+        ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
+        AuditoriaService auditoria = new AuditoriaService(new AuditoriaDAO(), clock, terminalId);
+        AcessoService acesso = new AcessoService(transacao, usuarioDAO, configuracaoDAO, auditoria, senhas, clock,
+                terminalId);
+        UsuarioService usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas, clock);
+
+        ProdutoDAO produtoDAO = new ProdutoDAO();
+        CategoriaDAO categoriaDAO = new CategoriaDAO();
+        EstoqueDAO estoqueDAO = new EstoqueDAO();
+        EstoqueService estoque = new EstoqueService(transacao, produtoDAO, estoqueDAO, new MovimentoEstoqueDAO(),
+                auditoria, clock);
+        CategoriaService categorias = new CategoriaService(transacao, categoriaDAO);
+        ProdutoService produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
+                configuracaoDAO, estoque, auditoria, clock);
+        CaixaService caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, clock);
+        VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
+                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(), auditoria, clock);
+        InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
+                categoriaDAO, estoqueDAO, estoque, auditoria, clock);
+        RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
+                usuarioDAO, clock);
+        return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
+                inventarios, relatorios);
+    }
+
+    /**
+     * Gerador de dados de demonstração (6.14) com um conjunto próprio de services sobre um relógio ajustável, que ele
+     * posiciona no passado; {@code relogioReal} dá o "hoje" (os 60 dias terminam ontem).
+     */
+    public static GeradorDemo geradorDemo(DataSource dataSource, Clock relogioReal, String terminalId,
+                                          Senhas senhas) {
+        RelogioAjustavel relogio = new RelogioAjustavel(relogioReal.instant(), relogioReal.getZone());
+        Servicos s = montar(dataSource, relogio, terminalId, senhas);
+        return new GeradorDemo(relogio, relogioReal, s.transacao(), s.acesso(), s.usuarios(), s.categorias(),
+                s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), new DemoDAO(), new CaixaDAO(),
+                new ConfiguracaoDAO(), new AuditoriaService(new AuditoriaDAO(), relogio, terminalId));
+    }
+}

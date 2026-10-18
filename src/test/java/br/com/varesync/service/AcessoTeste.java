@@ -46,6 +46,7 @@ final class AcessoTeste {
     final CaixaService caixa;
     final VendaService vendas;
     final InventarioService inventarios;
+    final RelatorioService relatorios;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -67,6 +68,8 @@ final class AcessoTeste {
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(), auditoria, relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
+        relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
+                relogio);
     }
 
     /**

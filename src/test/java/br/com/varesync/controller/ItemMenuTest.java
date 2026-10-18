@@ -62,6 +62,15 @@ class ItemMenuTest {
     }
 
     @Test
+    void relatoriosAbreATelaGenericaComAPermissaoRelatorios() {
+        Sessao gerente = sessao(false, EnumSet.of(Permissao.RELATORIOS));
+
+        assertThat(ItemMenu.visiveis(gerente)).containsExactly(ItemMenu.PAINEL, ItemMenu.RELATORIOS);
+        assertThat(ItemMenu.RELATORIOS.fxml()).isEqualTo("/fxml/relatorios.fxml");
+        assertThat(ItemMenu.RELATORIOS.janelaPropria()).isFalse();
+    }
+
+    @Test
     void usuariosEConfiguracoesSoParaSupervisor() {
         Sessao quaseTudo = sessao(false, EnumSet.allOf(Permissao.class));
         assertThat(ItemMenu.visiveis(quaseTudo)).doesNotContain(ItemMenu.USUARIOS, ItemMenu.CONFIGURACOES);

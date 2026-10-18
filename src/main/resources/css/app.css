@@ -350,3 +350,18 @@
     -fx-font-family: "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
     -fx-font-size: 13px;
 }
+
+/* Relatórios (7.4): datas centralizadas e a linha de totais alinhada às colunas da tabela */
+.coluna-centro {
+    -fx-alignment: center;
+}
+
+.linha-totais {
+    -fx-padding: 4 0 4 0;
+    -fx-border-color: -vs-texto-suave transparent transparent transparent;
+}
+
+.total-relatorio {
+    -fx-font-weight: bold;
+    -fx-padding: 0 6 0 6;
+}
