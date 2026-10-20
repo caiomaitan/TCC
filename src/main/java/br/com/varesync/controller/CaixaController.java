@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.CaixaMovimento;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.RelatorioFechamento;
+import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Sessao;
@@ -51,9 +52,10 @@ public class CaixaController {
     @FXML private TableColumn<CaixaMovimento, String> colunaMotivo;
     @FXML private TableColumn<CaixaMovimento, String> colunaUsuario;
 
-    public CaixaController(CaixaService caixaService, AcessoService acessoService, Sessao sessao) {
+    public CaixaController(CaixaService caixaService, AcessoService acessoService, FechamentoCaixaPdf fechamentoPdf,
+                           Sessao sessao) {
         this.caixaService = caixaService;
-        this.acoes = new AcoesCaixa(caixaService, acessoService, sessao);
+        this.acoes = new AcoesCaixa(caixaService, acessoService, fechamentoPdf, sessao);
         this.sessao = sessao;
     }
 

@@ -2,14 +2,12 @@ package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
 import br.com.varesync.model.CaixaSessao;
-import br.com.varesync.model.Permissao;
+import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
-import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogoSenha;
-import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Formatos;
 import java.io.IOException;
@@ -22,7 +20,6 @@ import java.util.Optional;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
-import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
@@ -31,7 +28,6 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -54,12 +50,13 @@ public class PrincipalController {
     private final AppConfig config;
     private final Clock clock;
     private final AcessoService acessoService;
-    private final EstoqueService estoqueService;
     private final CaixaService caixaService;
+    private final FechamentoCaixaPdf fechamentoPdf;
     private final Navegacao navegacao;
     private final Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
     private final Map<ItemMenu, Button> botoes = new EnumMap<>(ItemMenu.class);
+    private ItemMenu itemAtual;
     private Timeline relogio;
 
     @FXML private Label nomeLoja;
@@ -72,13 +69,13 @@ public class PrincipalController {
     @FXML private Label statusConexao;
 
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
-                               EstoqueService estoqueService, CaixaService caixaService, Navegacao navegacao,
+                               CaixaService caixaService, FechamentoCaixaPdf fechamentoPdf, Navegacao navegacao,
                                Sessao sessao, Callback<Class<?>, Object> fabricaControllers) {
         this.config = config;
         this.clock = clock;
         this.acessoService = acessoService;
-        this.estoqueService = estoqueService;
         this.caixaService = caixaService;
+        this.fechamentoPdf = fechamentoPdf;
         this.navegacao = navegacao;
         this.sessao = sessao;
         this.fabricaControllers = fabricaControllers;
@@ -124,11 +121,12 @@ public class PrincipalController {
         if (botao != null) {
             botao.getStyleClass().add(ITEM_SELECIONADO);
         }
+        itemAtual = item;
         Node tela;
         if (item == ItemMenu.PAINEL) {
-            VBox painel = aviso("Olá, " + sessao.usuario().nome() + "!", "Use o menu ao lado para acessar as rotinas.");
-            carregarAlertas(painel);
-            tela = painel;
+            FXMLLoader loader = carregar("/fxml/painel.fxml");
+            loader.<PainelController>getController().preparar(navegacaoPainel());
+            tela = loader.getRoot();
         } else if (item.fxml() == null) {
             tela = aviso(item.rotulo(), "Esta rotina ainda está em construção.");
         } else {
@@ -148,7 +146,8 @@ public class PrincipalController {
     private void abrirPdv() {
         try {
             if (caixaService.caixaAberto(sessao).isEmpty()) {
-                Optional<CaixaSessao> aberto = new AcoesCaixa(caixaService, acessoService, sessao).abrir();
+                Optional<CaixaSessao> aberto =
+                        new AcoesCaixa(caixaService, acessoService, fechamentoPdf, sessao).abrir();
                 atualizarCaixa();
                 if (aberto.isEmpty()) {
                     return;
@@ -171,6 +170,9 @@ public class PrincipalController {
             TratadorExcecoes.mostrar(e);
         }
         atualizarCaixa();
+        if (itemAtual == ItemMenu.PAINEL) {
+            abrir(ItemMenu.PAINEL); // o alerta de caixa aberto pode ter mudado
+        }
     }
 
     private FXMLLoader carregar(String fxml) {
@@ -194,43 +196,38 @@ public class PrincipalController {
         return caixa;
     }
 
-    /**
-     * Alerta de reposição (6.4): produtos abaixo do mínimo, para quem tem a rotina Estoque. Clicar abre o Estoque
-     * já filtrado. A contagem roda em {@link Task}; os demais alertas e indicadores do painel são da Fase 6.
-     */
-    private void carregarAlertas(VBox painel) {
-        if (!sessao.pode(Permissao.ESTOQUE)) {
-            return;
-        }
-        Task<Integer> tarefa = new Task<>() {
+    /** Alertas e atalhos do Painel (7.5): abrem a rotina, já filtrada quando o alerta pede. */
+    private NavegacaoPainel navegacaoPainel() {
+        return new NavegacaoPainel() {
             @Override
-            protected Integer call() {
-                return estoqueService.contarAbaixoDoMinimo(sessao);
+            public void abrir(ItemMenu item) {
+                PrincipalController.this.abrir(item);
+            }
+
+            @Override
+            public void abrirEstoqueAbaixoDoMinimo() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.ESTOQUE);
+                loader.<EstoqueController>getController().mostrarAbaixoDoMinimo();
+            }
+
+            @Override
+            public void abrirProdutosAbaixoDoCusto() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.PRODUTOS);
+                loader.<ProdutosController>getController().mostrarAbaixoDoCusto();
             }
         };
-        tarefa.setOnSucceeded(e -> {
-            int abaixo = tarefa.getValue();
-            if (abaixo > 0) {
-                Hyperlink alerta = new Hyperlink((abaixo == 1 ? "1 produto está" : abaixo + " produtos estão")
-                        + " abaixo do estoque mínimo — ver no Estoque");
-                alerta.getStyleClass().add("alerta-painel");
-                alerta.setOnAction(a -> abrirEstoqueAbaixoDoMinimo());
-                painel.getChildren().add(alerta);
-            }
-        });
-        tarefa.setOnFailed(e -> TratadorExcecoes.mensagem(tarefa.getException()));
-        Tarefas.executar("alertas-painel", tarefa);
     }
 
-    private void abrirEstoqueAbaixoDoMinimo() {
+    private FXMLLoader abrirFiltrado(ItemMenu item) {
+        itemAtual = item;
         botoes.values().forEach(b -> b.getStyleClass().remove(ITEM_SELECIONADO));
-        Button botao = botoes.get(ItemMenu.ESTOQUE);
+        Button botao = botoes.get(item);
         if (botao != null) {
             botao.getStyleClass().add(ITEM_SELECIONADO);
         }
-        FXMLLoader loader = carregar(ItemMenu.ESTOQUE.fxml());
-        loader.<EstoqueController>getController().mostrarAbaixoDoMinimo();
+        FXMLLoader loader = carregar(item.fxml());
         conteudo.getChildren().setAll(loader.<Parent>getRoot());
+        return loader;
     }
 
     @FXML

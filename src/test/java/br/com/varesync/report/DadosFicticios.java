@@ -1,6 +1,10 @@
 package br.com.varesync.report;
 
+import br.com.varesync.model.InventarioResumo;
+import br.com.varesync.model.ItemDivergencia;
 import br.com.varesync.model.Periodo;
+import br.com.varesync.model.ResultadoInventario;
+import br.com.varesync.model.StatusInventario;
 import br.com.varesync.model.TipoMovimento;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -83,7 +87,103 @@ final class DadosFicticios {
                 EMISSAO);
     }
 
+    private static <T> ResultadoRelatorio<T> resultado(Relatorio<T> r, Filtros f, List<T> linhas) {
+        return new ResultadoRelatorio<>(r, f, r.colunas(f), linhas, "Mercado Bom Preço", "Ana Admin", EMISSAO);
+    }
+
+    static ResultadoRelatorio<RelRentabilidadeCategoria.Linha> r06() {
+        return resultado(new RelRentabilidadeCategoria(), FILTROS, RelRentabilidadeCategoria.comPercentual(List.of(
+                new RelRentabilidadeCategoria.Linha("Bebidas", d("1000.00"), d("700.00"), d("300.00"), null),
+                new RelRentabilidadeCategoria.Linha("Mercearia", d("500.00"), d("400.00"), d("100.00"), null),
+                new RelRentabilidadeCategoria.Linha(RelRentabilidadeCategoria.SEM_CATEGORIA, d("20.00"),
+                        d("20.00"), d("0.00"), null))));
+    }
+
+    /** A.9: receitas 500 · 300 · 100 · 60 · 40. */
+    static ResultadoRelatorio<RelCurvaAbc.Linha> r07() {
+        return resultado(new RelCurvaAbc(), FILTROS.comCriterio(Criterio.RECEITA), RelCurvaAbc.classificar(List.of(
+                new RelCurvaAbc.Valor(4, "Produto D", d("60.00")),
+                new RelCurvaAbc.Valor(1, "Produto A", d("500.00")),
+                new RelCurvaAbc.Valor(5, "Produto E", d("40.00")),
+                new RelCurvaAbc.Valor(2, "Produto B", d("300.00")),
+                new RelCurvaAbc.Valor(3, "Produto C", d("100.00")))));
+    }
+
+    /** 10 vendas no período; a venda paga em dinheiro e PIX conta nas duas formas. */
+    static ResultadoRelatorio<RelFormasPagamento.Linha> r08() {
+        return resultado(new RelFormasPagamento(), FILTROS, RelFormasPagamento.comPercentual(List.of(
+                new RelFormasPagamento.Linha("Dinheiro", 6, d("300.00"), null, 10),
+                new RelFormasPagamento.Linha("PIX", 5, d("100.00"), null, 10))));
+    }
+
+    static ResultadoRelatorio<RelVendasOperador.Linha> r09() {
+        return resultado(new RelVendasOperador(), FILTROS, List.of(
+                new RelVendasOperador.Linha("Maria Oliveira", 3, d("90.00"), d("4.50"), 1, 2),
+                new RelVendasOperador.Linha("José Santos", 1, d("10.00"), d("0.00"), 0, 0)));
+    }
+
+    static ResultadoRelatorio<RelVendasHoraDia.Linha> r10(Criterio criterio) {
+        ZoneOffset fuso = ZoneOffset.ofHours(-3);
+        // 01/09/2026 é terça-feira.
+        List<RelVendasHoraDia.Venda> vendas = List.of(
+                new RelVendasHoraDia.Venda(OffsetDateTime.of(2026, 9, 1, 11, 10, 0, 0, fuso), d("10.00")),
+                new RelVendasHoraDia.Venda(OffsetDateTime.of(2026, 9, 1, 11, 50, 0, 0, fuso), d("5.50")),
+                new RelVendasHoraDia.Venda(OffsetDateTime.of(2026, 9, 6, 13, 0, 0, 0, fuso), d("20.00")));
+        return resultado(new RelVendasHoraDia(), FILTROS.comCriterio(criterio), RelVendasHoraDia.grade(vendas, fuso));
+    }
+
+    static ResultadoRelatorio<RelSemGiro.Linha> r12() {
+        return resultado(new RelSemGiro(), FILTROS.comDias(30), List.of(
+                new RelSemGiro.Linha(7, "Vinho tinto seco 750 ml", "Bebidas", "UN", false, d("12"), d("358.80"),
+                        EMISSAO.minusDays(45), 45L),
+                new RelSemGiro.Linha(8, "Fermento químico 100 g", "Mercearia", "UN", false, d("30"), d("54.00"),
+                        null, null)));
+    }
+
+    static ResultadoRelatorio<RelPerdasAjustes.Linha> r14() {
+        return resultado(new RelPerdasAjustes(), FILTROS, RelPerdasAjustes.agrupar(List.of(
+                new RelPerdasAjustes.Movimento(TipoMovimento.PERDA, "Vencimento", 1, "Iogurte morango", "UN", false,
+                        d("-3"), d("2.1000")),
+                new RelPerdasAjustes.Movimento(TipoMovimento.PERDA, "Vencimento", 1, "Iogurte morango", "UN", false,
+                        d("-2"), d("2.1000")),
+                new RelPerdasAjustes.Movimento(TipoMovimento.INVENTARIO, "Inventário nº 4", 2, "Banana prata", "KG",
+                        true, d("1.250"), d("3.4000")))));
+    }
+
+    static ResultadoRelatorio<RelAlteracoesPreco.Linha> r15() {
+        return resultado(new RelAlteracoesPreco(), FILTROS, List.of(
+                new RelAlteracoesPreco.Linha(EMISSAO.minusDays(5), 1, "7891000315507", "Refrigerante cola 2 L",
+                        d("5.49"), d("5.99"), "Ana Admin"),
+                new RelAlteracoesPreco.Linha(EMISSAO.minusDays(2), 2, null, "Pão francês", d("0.00"), d("15.90"),
+                        "Ana Admin")));
+    }
+
+    static ResultadoRelatorio<RelCancelamentos.Linha> r16() {
+        return resultado(new RelCancelamentos(), FILTROS, List.of(
+                new RelCancelamentos.Linha(EMISSAO.minusDays(1), RelCancelamentos.ITEM, 7,
+                        "Item 2: 1 UN x Leite UHT 1 L", d("4.79"), "Maria Oliveira", RelCancelamentos.MOTIVO_ITEM,
+                        "Maria Oliveira", "Carlos Pereira (carlos)"),
+                new RelCancelamentos.Linha(EMISSAO, RelCancelamentos.VENDA, 9, "Venda inteira (2 itens)",
+                        d("20.00"), "Maria Oliveira", "Cliente desistiu", "Maria Oliveira",
+                        "Carlos Pereira (carlos)")));
+    }
+
+    /** Inventário nº 4 aplicado: sobra de 1 (R$ 3,60), falta de 2,5 kg (R$ 8,50) e um item não contado. */
+    static ResultadoRelatorio<ItemDivergencia> r13() {
+        OffsetDateTime contado = EMISSAO.minusHours(2);
+        InventarioResumo inventario = new InventarioResumo(4, "Mercearia", StatusInventario.APLICADO,
+                EMISSAO.minusDays(1), "Ana Admin", EMISSAO.minusHours(1), "Ana Admin", 3, 2);
+        ResultadoInventario resultado = new ResultadoInventario(inventario, List.of(
+                new ItemDivergencia(1, 1, "Açúcar refinado 1 kg", "UN", false, d("10"), d("11"), d("1"),
+                        d("3.6000"), contado, "Ana Admin"),
+                new ItemDivergencia(2, 2, "Banana prata", "KG", true, d("5.000"), d("2.500"), d("-2.500"),
+                        d("3.4000"), contado, "Ana Admin"),
+                new ItemDivergencia(3, 3, "Café 500 g", "UN", false, null, null, null, null, null, null)));
+        return RelResultadoInventario.exportacao(resultado, new Emissao("Mercado Bom Preço", "Ana Admin", EMISSAO));
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
-        return List.of(r01(false), r01(true), r02(), r03(), r04(), r05());
+        return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
+                r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16());
     }
 }

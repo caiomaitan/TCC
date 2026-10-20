@@ -11,6 +11,7 @@ import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.ParametrosRelatorio;
 import br.com.varesync.report.Relatorio;
+import br.com.varesync.report.RelSemGiro;
 import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.report.TipoFiltro;
@@ -33,6 +34,8 @@ public class RelatorioService {
 
     static final String CHAVE_MARGEM_MINIMA = "relatorio.margem_minima_pct";
     static final BigDecimal MARGEM_MINIMA_PADRAO = BigDecimal.valueOf(15);
+    static final String CHAVE_DIAS_SEM_GIRO = "relatorio.dias_sem_giro";
+    static final int DIAS_SEM_GIRO_PADRAO = 30;
     static final String CHAVE_EMPRESA = "empresa.nome";
     static final int TOP_N_MAXIMO = 1000;
 
@@ -95,16 +98,28 @@ public class RelatorioService {
         }).orElseThrow(() -> new NegocioException("Produto não encontrado (código " + codigo + ")."));
     }
 
-    /** Gera o relatório. Pode demorar com muitos dados: a tela chama em {@code Task}. */
+    /** Dias do filtro do R12 ao abrir a tela: {@code relatorio.dias_sem_giro} (30 se faltar ou for inválido). */
+    public int diasSemGiroPadrao(Sessao sessao) {
+        sessao.exigir(Permissao.RELATORIOS);
+        return transacao.executar(this::diasSemGiro);
+    }
+
+    /**
+     * Gera o relatório. Pode demorar com muitos dados: a tela chama em {@code Task}. Sem dias informados, o R12 usa
+     * {@code relatorio.dias_sem_giro}.
+     */
     public <T> ResultadoRelatorio<T> gerar(Sessao sessao, Relatorio<T> relatorio, Filtros filtros) {
         sessao.exigir(Permissao.RELATORIOS);
         conferir(relatorio, filtros);
         OffsetDateTime agora = OffsetDateTime.now(clock);
         return transacao.executar(con -> {
-            ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(), margemMinima(con));
-            List<T> linhas = relatorio.consultar(con, filtros, parametros);
+            ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(), margemMinima(con),
+                    agora.atZoneSameInstant(clock.getZone()).toLocalDate());
+            Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
+                    ? filtros.comDias(diasSemGiro(con)) : filtros;
+            List<T> linhas = relatorio.consultar(con, usados, parametros);
             String loja = configuracaoDAO.buscar(con, CHAVE_EMPRESA).filter(n -> !n.isBlank()).orElse("VareSync");
-            return new ResultadoRelatorio<>(relatorio, filtros, relatorio.colunas(filtros), linhas, loja,
+            return new ResultadoRelatorio<>(relatorio, usados, relatorio.colunas(usados), linhas, loja,
                     sessao.usuario().nome(), agora);
         });
     }
@@ -123,6 +138,30 @@ public class RelatorioService {
                 && (filtros.topN() < 1 || filtros.topN() > TOP_N_MAXIMO)) {
             throw new NegocioException("A quantidade de produtos do ranking deve estar entre 1 e " + TOP_N_MAXIMO
                     + ".");
+        }
+        if (relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() != null
+                && (filtros.dias() < 1 || filtros.dias() > RelSemGiro.DIAS_MAXIMO)) {
+            throw new NegocioException("Os dias sem venda devem estar entre 1 e " + RelSemGiro.DIAS_MAXIMO + ".");
+        }
+        if (relatorio.filtros().contains(TipoFiltro.CRITERIO) && filtros.criterio() != null
+                && !relatorio.criterios().contains(filtros.criterio())) {
+            throw new NegocioException("Critério " + filtros.criterio().rotulo().toLowerCase()
+                    + " não se aplica a este relatório.");
+        }
+        if (relatorio.filtros().contains(TipoFiltro.TIPO_MOVIMENTO) && filtros.tipo() != null
+                && !relatorio.tiposMovimento().contains(filtros.tipo())) {
+            throw new NegocioException("O tipo " + filtros.tipo().descricao().toLowerCase()
+                    + " não se aplica a este relatório.");
+        }
+    }
+
+    /** {@code relatorio.dias_sem_giro}; o valor da V2 (30) se faltar ou for inválido. */
+    private int diasSemGiro(Connection con) throws SQLException {
+        try {
+            int dias = Integer.parseInt(configuracaoDAO.buscar(con, CHAVE_DIAS_SEM_GIRO).orElse("").strip());
+            return dias >= 1 && dias <= RelSemGiro.DIAS_MAXIMO ? dias : DIAS_SEM_GIRO_PADRAO;
+        } catch (NumberFormatException e) {
+            return DIAS_SEM_GIRO_PADRAO;
         }
     }
 

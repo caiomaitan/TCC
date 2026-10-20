@@ -154,6 +154,12 @@ public class ProdutosController {
                 : filtroCategoria.getItems().stream().filter(c -> c.id() == escolhida.id()).findFirst().orElse(TODAS));
     }
 
+    /** Aberta pelo alerta do Painel: só os produtos ativos com preço abaixo do custo. */
+    public void mostrarAbaixoDoCusto() {
+        filtroSituacao.setValue(SituacaoProduto.ABAIXO_DO_CUSTO);
+        pesquisar();
+    }
+
     @FXML
     private void pesquisar() {
         Categoria categoria = filtroCategoria.getValue();

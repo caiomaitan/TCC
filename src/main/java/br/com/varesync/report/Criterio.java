@@ -1,10 +1,11 @@
 package br.com.varesync.report;
 
-/** Critério de ordenação do ranking de produtos (R02). */
+/** Critério de ordenação ou valor mostrado: ranking de produtos (R02), curva ABC (R07), grade hora × dia (R10). */
 public enum Criterio {
     QUANTIDADE("Quantidade"),
     RECEITA("Receita"),
-    LUCRO("Lucro");
+    LUCRO("Lucro"),
+    VENDAS("Nº de vendas");
 
     private final String rotulo;
 

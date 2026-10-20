@@ -7,6 +7,7 @@ import br.com.varesync.controller.EstoqueController;
 import br.com.varesync.controller.InventarioController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
+import br.com.varesync.controller.PainelController;
 import br.com.varesync.controller.PdvController;
 import br.com.varesync.controller.PrimeiroAcessoController;
 import br.com.varesync.controller.PrincipalController;
@@ -16,6 +17,7 @@ import br.com.varesync.controller.RelatoriosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
 import br.com.varesync.report.ComprovantePdf;
+import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.GeradorDemo;
@@ -39,6 +41,7 @@ public final class AppContext implements AutoCloseable {
     private final GeradorDemo geradorDemo;
     private final ComprovantePdf comprovantePdf = new ComprovantePdf();
     private final RelatorioPdf relatorioPdf = new RelatorioPdf();
+    private final FechamentoCaixaPdf fechamentoPdf = new FechamentoCaixaPdf();
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -77,7 +80,7 @@ public final class AppContext implements AutoCloseable {
             return new TrocaSenhaController(s.acesso(), navegacao, sessao);
         }
         if (tipo == PrincipalController.class) {
-            return new PrincipalController(config, clock, s.acesso(), s.estoque(), s.caixa(), navegacao, sessao,
+            return new PrincipalController(config, clock, s.acesso(), s.caixa(), fechamentoPdf, navegacao, sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == UsuariosController.class) {
@@ -97,16 +100,19 @@ public final class AppContext implements AutoCloseable {
             return new EstoqueController(s.estoque(), sessao);
         }
         if (tipo == InventarioController.class) {
-            return new InventarioController(s.inventarios(), sessao);
+            return new InventarioController(s.inventarios(), s.acesso(), relatorioPdf, sessao);
         }
         if (tipo == CaixaController.class) {
-            return new CaixaController(s.caixa(), s.acesso(), sessao);
+            return new CaixaController(s.caixa(), s.acesso(), fechamentoPdf, sessao);
         }
         if (tipo == PdvController.class) {
-            return new PdvController(s.vendas(), s.caixa(), s.acesso(), comprovantePdf, sessao);
+            return new PdvController(s.vendas(), s.caixa(), s.acesso(), comprovantePdf, fechamentoPdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.estoque(), geradorDemo, sessao);
+        }
+        if (tipo == PainelController.class) {
+            return new PainelController(s.painel(), sessao);
         }
         if (tipo == RelatoriosController.class) {
             return new RelatoriosController(s.relatorios(), relatorioPdf, sessao);

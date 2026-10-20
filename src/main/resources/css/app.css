@@ -207,6 +207,53 @@
     -fx-border-color: transparent;
 }
 
+/* Painel (7.5): cartões do dia, gráfico e atalhos */
+.painel-rolagem,
+.painel-rolagem > .viewport {
+    -fx-background-color: -vs-fundo;
+}
+
+.cartao-painel {
+    -fx-background-color: -vs-superficie;
+    -fx-border-color: -vs-borda;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 10 12 10 12;
+    -fx-min-width: 150;
+}
+
+.cartao-rotulo {
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.cartao-valor {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.cartao-variacao {
+    -fx-font-weight: bold;
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.cartao-variacao.positivo {
+    -fx-text-fill: -vs-sucesso;
+}
+
+.cartao-variacao.negativo {
+    -fx-text-fill: -vs-erro;
+}
+
+.cartao-base {
+    -fx-font-size: 12px;
+    -fx-text-fill: -vs-texto-suave;
+}
+
+.atalho-painel {
+    -fx-min-width: 120;
+    -fx-pref-height: 34;
+}
+
 /* PDV (6.6, 8.1): fonte grande, alto contraste, total ≥ 40 px */
 .pdv {
     -fx-background-color: -vs-fundo;

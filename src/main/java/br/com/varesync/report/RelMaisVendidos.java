@@ -78,7 +78,7 @@ public final class RelMaisVendidos implements Relatorio<RelMaisVendidos.Linha> {
     static List<Linha> ranquear(List<Linha> produtos, Criterio criterio, Integer topN) {
         Function<Linha, BigDecimal> chave = switch (criterio) {
             case QUANTIDADE -> Linha::quantidade;
-            case RECEITA -> Linha::receita;
+            case RECEITA, VENDAS -> Linha::receita;
             case LUCRO -> Linha::lucro;
         };
         BigDecimal receitaTotal = Coluna.soma(produtos, Linha::receita);

@@ -28,7 +28,7 @@
         <Label text="Categoria"/>
         <ComboBox fx:id="filtroCategoria" prefWidth="190"/>
         <Label text="Situação"/>
-        <ComboBox fx:id="filtroSituacao" prefWidth="110"/>
+        <ComboBox fx:id="filtroSituacao" prefWidth="190"/>
         <Button text="Buscar" onAction="#pesquisar"/>
     </HBox>
 

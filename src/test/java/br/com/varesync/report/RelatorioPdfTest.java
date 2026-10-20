@@ -49,6 +49,14 @@ class RelatorioPdfTest {
     }
 
     @Test
+    void rotuloDoTotalOcupaAsColunasSemTotalQueVemDepois() {
+        // R13: Código, Produto, Un., Sistema, Contado, Diferença, Custo sem total; o rótulo vai de Código a Custo.
+        String jrxml = RelatorioPdf.jrxml(DadosFicticios.r13().colunas());
+        assertThat(RelatorioPdf.rotuloDoTotal(DadosFicticios.r13().colunas())).isZero();
+        assertThat(jrxml).contains("$P{T0}").doesNotContain("$P{T1}").contains("$P{T7}").contains("$P{T8}");
+    }
+
+    @Test
     void salvaOArquivo() throws Exception {
         Path destino = Files.createTempFile("relatorio", ".pdf");
         try {

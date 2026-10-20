@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fechamento de caixa (R11, 6.5), layout próprio (7.4), A4 em pé. Cada linha vem de
+     FechamentoCaixaExportacao.linhas(): estilo (SECAO, PAR, CABECALHO, LINHA, TOTAL, TEXTO) e as colunas c0 a c4,
+     já formatadas. Cabeçalho com a loja e o título; rodapé com quem emitiu, quando e "Página x de y".
+     Formato JRXML do JasperReports 7. -->
+<jasperReport name="fechamento_caixa" language="java" pageWidth="595" pageHeight="842" columnWidth="539"
+              leftMargin="28" rightMargin="28" topMargin="28" bottomMargin="28" whenNoDataType="AllSectionsNoDetail"
+              uuid="3d2b8f4e-7c1a-4e5b-8d6f-1a2b3c4d5e6f">
+    <style name="Base" default="true" fontName="DejaVu Sans" fontSize="9"/>
+    <parameter name="LOJA" class="java.lang.String"/>
+    <parameter name="TITULO" class="java.lang.String"/>
+    <parameter name="EMISSAO" class="java.lang.String"/>
+    <field name="estilo" class="java.lang.String"/>
+    <field name="c0" class="java.lang.String"/>
+    <field name="c1" class="java.lang.String"/>
+    <field name="c2" class="java.lang.String"/>
+    <field name="c3" class="java.lang.String"/>
+    <field name="c4" class="java.lang.String"/>
+    <pageHeader height="42">
+            <element kind="textField" x="0" y="0" width="539" height="14" fontSize="10" bold="true">
+                <expression><![CDATA[$P{LOJA}]]></expression>
+            </element>
+            <element kind="textField" x="0" y="14" width="539" height="22" fontSize="14" bold="true">
+                <expression><![CDATA[$P{TITULO}]]></expression>
+            </element>
+            <element kind="line" x="0" y="39" width="539" height="1"><pen lineWidth="0.5"/></element>
+    </pageHeader>
+    <detail>
+        <band height="26">
+            <printWhenExpression><![CDATA["SECAO".equals($F{estilo})]]></printWhenExpression>
+            <element kind="textField" x="0" y="8" width="539" height="15" fontSize="11" bold="true">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+            <element kind="line" x="0" y="24" width="539" height="1"><pen lineWidth="0.5"/></element>
+        </band>
+        <band height="15">
+            <printWhenExpression><![CDATA["PAR".equals($F{estilo})]]></printWhenExpression>
+            <element kind="textField" x="0" y="1" width="220" height="13" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+            <element kind="textField" x="230" y="1" width="309" height="13" bold="true" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c1}]]></expression>
+            </element>
+        </band>
+        <band height="15">
+            <printWhenExpression><![CDATA["TEXTO".equals($F{estilo})]]></printWhenExpression>
+            <element kind="textField" x="0" y="1" width="539" height="13" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+        </band>
+        <band height="16">
+            <printWhenExpression><![CDATA["CABECALHO".equals($F{estilo})]]></printWhenExpression>
+            <element kind="rectangle" x="0" y="0" width="539" height="16" mode="Opaque" backcolor="#E8ECF2">
+                <pen lineWidth="0"/>
+            </element>
+            <element kind="textField" x="2" y="2" width="126" height="13" bold="true">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+            <element kind="textField" x="132" y="2" width="86" height="13" hTextAlign="Center" bold="true">
+                <expression><![CDATA[$F{c1}]]></expression>
+            </element>
+            <element kind="textField" x="222" y="2" width="86" height="13" hTextAlign="Right" bold="true">
+                <expression><![CDATA[$F{c2}]]></expression>
+            </element>
+            <element kind="textField" x="318" y="2" width="129" height="13" bold="true">
+                <expression><![CDATA[$F{c3}]]></expression>
+            </element>
+            <element kind="textField" x="451" y="2" width="86" height="13" bold="true">
+                <expression><![CDATA[$F{c4}]]></expression>
+            </element>
+        </band>
+        <band height="15">
+            <printWhenExpression><![CDATA["LINHA".equals($F{estilo})]]></printWhenExpression>
+            <element kind="textField" x="2" y="1" width="126" height="13" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+            <element kind="textField" x="132" y="1" width="86" height="13" hTextAlign="Center">
+                <expression><![CDATA[$F{c1}]]></expression>
+            </element>
+            <element kind="textField" x="222" y="1" width="86" height="13" hTextAlign="Right">
+                <expression><![CDATA[$F{c2}]]></expression>
+            </element>
+            <element kind="textField" x="318" y="1" width="129" height="13" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c3}]]></expression>
+            </element>
+            <element kind="textField" x="451" y="1" width="86" height="13" textAdjust="StretchHeight">
+                <expression><![CDATA[$F{c4}]]></expression>
+            </element>
+        </band>
+        <band height="17">
+            <printWhenExpression><![CDATA["TOTAL".equals($F{estilo})]]></printWhenExpression>
+            <element kind="line" x="0" y="1" width="539" height="1"><pen lineWidth="0.5"/></element>
+            <element kind="textField" x="2" y="3" width="126" height="13" bold="true">
+                <expression><![CDATA[$F{c0}]]></expression>
+            </element>
+            <element kind="textField" x="132" y="3" width="86" height="13" hTextAlign="Center" bold="true">
+                <expression><![CDATA[$F{c1}]]></expression>
+            </element>
+            <element kind="textField" x="222" y="3" width="86" height="13" hTextAlign="Right" bold="true">
+                <expression><![CDATA[$F{c2}]]></expression>
+            </element>
+        </band>
+    </detail>
+    <pageFooter height="18">
+            <element kind="line" x="0" y="2" width="539" height="1"><pen lineWidth="0.5"/></element>
+            <element kind="textField" x="0" y="5" width="419" height="12" fontSize="7">
+                <expression><![CDATA[$P{EMISSAO}]]></expression>
+            </element>
+            <element kind="textField" x="419" y="5" width="90" height="12" fontSize="7" hTextAlign="Right">
+                <expression><![CDATA["Página " + $V{PAGE_NUMBER} + " de"]]></expression>
+            </element>
+            <element kind="textField" x="509" y="5" width="30" height="12" fontSize="7" evaluationTime="Report">
+                <expression><![CDATA[" " + $V{PAGE_NUMBER}]]></expression>
+            </element>
+    </pageFooter>
+</jasperReport>

@@ -1,5 +1,6 @@
 package br.com.varesync.report;
 
+import br.com.varesync.model.TipoMovimento;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -28,6 +29,21 @@ public interface Relatorio<T> {
 
     /** As colunas podem depender dos filtros (ex.: R01 por dia ou por venda). */
     List<Coluna<T>> colunas(Filtros filtros);
+
+    /** Opções do filtro {@link TipoFiltro#CRITERIO}, a primeira é a padrão. */
+    default List<Criterio> criterios() {
+        return List.of(Criterio.QUANTIDADE, Criterio.RECEITA, Criterio.LUCRO);
+    }
+
+    /** Opções do filtro {@link TipoFiltro#TIPO_MOVIMENTO} (além de "Todos"). */
+    default List<TipoMovimento> tiposMovimento() {
+        return List.of(TipoMovimento.values());
+    }
+
+    /** Linha de filtros do cabeçalho do PDF. */
+    default String descreverFiltros(Filtros filtros) {
+        return filtros.descrever(filtros());
+    }
 
     /** "R01 — Vendas por período". */
     default String titulo() {

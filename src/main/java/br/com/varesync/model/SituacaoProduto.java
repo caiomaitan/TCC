@@ -4,7 +4,9 @@ package br.com.varesync.model;
 public enum SituacaoProduto {
     ATIVOS("Ativos"),
     INATIVOS("Inativos"),
-    TODOS("Todos");
+    TODOS("Todos"),
+    /** Ativos com preço de venda menor que o custo (alerta do painel, 7.5). */
+    ABAIXO_DO_CUSTO("Preço abaixo do custo");
 
     private final String rotulo;
 

@@ -12,53 +12,63 @@ import java.util.Set;
  * demais são ignorados. Nulo = "todos".
  *
  * @param topN quantos produtos no ranking (R02); nulo = todos
+ * @param dias dias sem venda para o produto ser "sem giro" (R12); nulo = {@code relatorio.dias_sem_giro}
  */
 public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer topN, Criterio criterio,
                       boolean soAbaixoDoMinimo, boolean incluirInativos, Opcao produto, TipoMovimento tipo,
-                      boolean detalharVendas) {
+                      boolean detalharVendas, Integer dias) {
 
     public static Filtros vazios() {
-        return new Filtros(null, null, null, null, null, false, false, null, null, false);
+        return new Filtros(null, null, null, null, null, false, false, null, null, false, null);
     }
 
     public Filtros comPeriodo(Periodo novo) {
         return new Filtros(novo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas);
+                tipo, detalharVendas, dias);
     }
 
     public Filtros comOperador(Opcao novo) {
         return new Filtros(periodo, novo, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas);
+                tipo, detalharVendas, dias);
     }
 
     public Filtros comCategoria(Opcao nova) {
         return new Filtros(periodo, operador, nova, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas);
+                tipo, detalharVendas, dias);
     }
 
     public Filtros comRanking(Integer novoTopN, Criterio novoCriterio) {
         return new Filtros(periodo, operador, categoria, novoTopN, novoCriterio, soAbaixoDoMinimo, incluirInativos,
-                produto, tipo, detalharVendas);
+                produto, tipo, detalharVendas, dias);
+    }
+
+    public Filtros comCriterio(Criterio novo) {
+        return comRanking(topN, novo);
     }
 
     public Filtros comEstoque(boolean soAbaixo, boolean inativos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixo, inativos, produto, tipo,
-                detalharVendas);
+                detalharVendas, dias);
     }
 
     public Filtros comProduto(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, novo,
-                tipo, detalharVendas);
+                tipo, detalharVendas, dias);
     }
 
     public Filtros comTipo(TipoMovimento novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                novo, detalharVendas);
+                novo, detalharVendas, dias);
     }
 
     public Filtros comDetalhe(boolean detalhar) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalhar);
+                tipo, detalhar, dias);
+    }
+
+    public Filtros comDias(Integer novos) {
+        return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
+                tipo, detalharVendas, novos);
     }
 
     public Criterio criterioOuPadrao() {
@@ -100,6 +110,9 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         }
         if (usados.contains(TipoFiltro.TOP_N)) {
             partes.add(topN == null ? "Todos os produtos" : "Top " + topN);
+        }
+        if (usados.contains(TipoFiltro.DIAS) && dias != null) {
+            partes.add("Sem venda há " + dias + (dias == 1 ? " dia" : " dias") + " ou mais");
         }
         if (usados.contains(TipoFiltro.SO_ABAIXO_MINIMO) && soAbaixoDoMinimo) {
             partes.add("Só abaixo do mínimo");

@@ -9,6 +9,7 @@ import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
+import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
@@ -20,6 +21,7 @@ import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.GeradorDemo;
 import br.com.varesync.service.InventarioService;
+import br.com.varesync.service.PainelService;
 import br.com.varesync.service.PrecoService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.RelatorioService;
@@ -38,7 +40,7 @@ import javax.sql.DataSource;
 public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, UsuarioService usuarios,
                        CategoriaService categorias, ProdutoService produtos, EstoqueService estoque,
                        CaixaService caixa, VendaService vendas, InventarioService inventarios,
-                       RelatorioService relatorios) {
+                       RelatorioService relatorios, PainelService painel) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -64,8 +66,9 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, clock);
+        PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, clock);
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
-                inventarios, relatorios);
+                inventarios, relatorios, painel);
     }
 
     /**

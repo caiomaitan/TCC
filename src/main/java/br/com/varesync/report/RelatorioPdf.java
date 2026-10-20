@@ -127,11 +127,12 @@ public class RelatorioPdf {
             s.append("    <field name=\"c").append(i).append("\" class=\"java.lang.String\"/>\n");
         }
 
-        s.append("    <pageHeader height=\"58\">\n");
+        s.append("    <pageHeader height=\"62\">\n");
         texto(s, 0, 0, util, 14, "Left", "fontSize=\"10\" bold=\"true\"", "$P{LOJA}", false);
         texto(s, 0, 14, util, 20, "Left", "fontSize=\"13\" bold=\"true\"", "$P{TITULO}", false);
-        texto(s, 0, 36, util, 18, "Left", "", "$P{FILTROS}", false);
-        linha(s, 0, 56, util);
+        // Até duas linhas de filtros (o R13 descreve o inventário, a situação e os não contados).
+        texto(s, 0, 35, util, 23, "Left", "", "$P{FILTROS}", false);
+        linha(s, 0, 60, util);
         s.append("    </pageHeader>\n");
 
         s.append("    <columnHeader height=\"18\">\n");
@@ -163,13 +164,35 @@ public class RelatorioPdf {
 
         s.append("    <summary height=\"18\">\n");
         linha(s, 0, 1, util);
+        // "Total (n linhas)" ocupa as colunas sem total que vêm em seguida, para não quebrar numa coluna estreita.
+        int rotulo = rotuloDoTotal(colunas);
         for (int i = 0; i < colunas.size(); i++) {
-            texto(s, x[i] + RESPIRO, 4, w[i] - 2 * RESPIRO, 12, alinhamento(colunas.get(i)), "bold=\"true\"",
-                    "$P{T" + i + "}", true);
+            if (i == rotulo) {
+                int fim = i + 1;
+                while (fim < colunas.size() && !colunas.get(fim).totalizavel()) {
+                    fim++;
+                }
+                texto(s, x[i] + RESPIRO, 4, x[fim - 1] + w[fim - 1] - x[i] - 2 * RESPIRO, 12, "Left",
+                        "bold=\"true\"", "$P{T" + i + "}", true);
+                i = fim - 1;
+            } else {
+                texto(s, x[i] + RESPIRO, 4, w[i] - 2 * RESPIRO, 12, alinhamento(colunas.get(i)), "bold=\"true\"",
+                        "$P{T" + i + "}", true);
+            }
         }
         s.append("    </summary>\n");
         s.append("</jasperReport>\n");
         return s.toString();
+    }
+
+    /** Coluna que recebe "Total (n linhas)": a primeira sem total, como em {@link ResultadoRelatorio#totais()}. */
+    static <T> int rotuloDoTotal(List<Coluna<T>> colunas) {
+        for (int i = 0; i < colunas.size(); i++) {
+            if (!colunas.get(i).totalizavel()) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static void parametro(StringBuilder s, String nome) {

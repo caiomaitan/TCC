@@ -4,6 +4,7 @@ import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.RelatorioFechamento;
 import br.com.varesync.model.TipoCaixaMovimento;
+import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Liberacao;
@@ -28,11 +29,14 @@ public class AcoesCaixa {
 
     private final CaixaService caixaService;
     private final AcessoService acessoService;
+    private final FechamentoCaixaPdf fechamentoPdf;
     private final Sessao sessao;
 
-    public AcoesCaixa(CaixaService caixaService, AcessoService acessoService, Sessao sessao) {
+    public AcoesCaixa(CaixaService caixaService, AcessoService acessoService, FechamentoCaixaPdf fechamentoPdf,
+                      Sessao sessao) {
         this.caixaService = caixaService;
         this.acessoService = acessoService;
+        this.fechamentoPdf = fechamentoPdf;
         this.sessao = sessao;
     }
 
@@ -83,10 +87,11 @@ public class AcoesCaixa {
         });
     }
 
-    /** Relatório de fechamento (R11) numa janela modal. */
+    /** Relatório de fechamento (R11) numa janela modal, com a exportação em CSV e PDF. */
     public void mostrarRelatorio(Window dona, RelatorioFechamento relatorio) {
         Janelas.abrirModal(dona, "/fxml/fechamento-caixa.fxml", "Fechamento de caixa nº " + relatorio.sessao().id(),
-                tipo -> new FechamentoCaixaController(), (FechamentoCaixaController c) -> c.mostrar(relatorio));
+                tipo -> new FechamentoCaixaController(fechamentoPdf, () -> acessoService.emissao(sessao)),
+                (FechamentoCaixaController c) -> c.mostrar(relatorio));
     }
 
     /** Vazio → nulo (o service pede o valor); texto inválido → mensagem. */

@@ -106,6 +106,8 @@
                             <Region HBox.hgrow="ALWAYS"/>
                             <CheckBox fx:id="filtroSoDiferencas" text="Só itens com diferença"
                                       onAction="#carregarDivergencias"/>
+                            <Button fx:id="botaoR13Csv" text="Exportar CSV…" onAction="#exportarR13Csv" minWidth="-Infinity"/>
+                            <Button fx:id="botaoR13Pdf" text="Exportar PDF…" onAction="#exportarR13Pdf" minWidth="-Infinity"/>
                         </HBox>
                         <TableView fx:id="tabelaDivergencias" VBox.vgrow="ALWAYS">
                             <placeholder><Label text="Nenhum item para mostrar."/></placeholder>

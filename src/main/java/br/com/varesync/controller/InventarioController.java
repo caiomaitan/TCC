@@ -7,18 +7,26 @@ import br.com.varesync.model.ItemDivergencia;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ResultadoInventario;
 import br.com.varesync.model.StatusInventario;
+import br.com.varesync.report.ExportadorCsv;
+import br.com.varesync.report.RelResultadoInventario;
+import br.com.varesync.report.RelatorioPdf;
+import br.com.varesync.report.ResultadoRelatorio;
+import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.BuscaProdutoDialogo;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosInventario;
+import br.com.varesync.ui.Exportacao;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -26,6 +34,7 @@ import java.util.function.Supplier;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -58,6 +67,8 @@ public class InventarioController {
     private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final InventarioService inventarioService;
+    private final AcessoService acessoService;
+    private final RelatorioPdf relatorioPdf;
     private final Sessao sessao;
     /** Inventário mostrado embaixo; nulo sem seleção. */
     private InventarioResumo inventario;
@@ -102,6 +113,8 @@ public class InventarioController {
     @FXML private TableColumn<ItemContagem, String> colunaContagemEm;
     @FXML private Label resumoContagem;
     @FXML private CheckBox filtroSoDiferencas;
+    @FXML private Button botaoR13Csv;
+    @FXML private Button botaoR13Pdf;
     @FXML private TableView<ItemDivergencia> tabelaDivergencias;
     @FXML private TableColumn<ItemDivergencia, Long> colunaDivCodigo;
     @FXML private TableColumn<ItemDivergencia, String> colunaDivProduto;
@@ -121,8 +134,11 @@ public class InventarioController {
     @FXML private Label detalheNaoContados;
     @FXML private Label mensagem;
 
-    public InventarioController(InventarioService inventarioService, Sessao sessao) {
+    public InventarioController(InventarioService inventarioService, AcessoService acessoService,
+                                RelatorioPdf relatorioPdf, Sessao sessao) {
         this.inventarioService = inventarioService;
+        this.acessoService = acessoService;
+        this.relatorioPdf = relatorioPdf;
         this.sessao = sessao;
     }
 
@@ -266,6 +282,8 @@ public class InventarioController {
         painelContagem.setDisable(!aberto);
         botaoAplicar.setDisable(!aberto);
         botaoCancelar.setDisable(!aberto);
+        botaoR13Csv.setDisable(selecionado == null);
+        botaoR13Pdf.setDisable(selecionado == null);
         orientacao.setVisible(aberto);
         orientacao.setManaged(aberto);
         if (selecionado == null) {
@@ -539,6 +557,34 @@ public class InventarioController {
         detalheNaoContados.setText(r.inventario().aberto() ? "serão ignorados ao aplicar"
                 : r.inventario().status() == StatusInventario.APLICADO
                 ? "foram ignorados na aplicação" : "");
+    }
+
+    @FXML
+    private void exportarR13Csv() {
+        escolherEExportarR13("CSV", "csv");
+    }
+
+    @FXML
+    private void exportarR13Pdf() {
+        escolherEExportarR13("PDF", "pdf");
+    }
+
+    private void escolherEExportarR13(String formato, String extensao) {
+        if (inventario != null) {
+            Exportacao.escolher(raiz.getScene().getWindow(), formato, extensao,
+                    "R13_inventario_" + inventario.id() + "." + extensao).ifPresent(d -> exportarR13(formato, d));
+        }
+    }
+
+    /**
+     * R13 em CSV ou PDF (7.4), com todos os itens do inventário, mesmo com "Só itens com diferença" marcado: os
+     * totais e os não contados valem para o inventário inteiro. O resultado é lido de novo do banco.
+     */
+    Task<Void> exportarR13(String formato, Path destino) {
+        ResultadoRelatorio<ItemDivergencia> r13 = RelResultadoInventario.exportacao(
+                inventarioService.resultado(sessao, inventario.id()), acessoService.emissao(sessao));
+        return Exportacao.gravar(formato, destino, "CSV".equals(formato) ? d -> ExportadorCsv.salvar(r13, d)
+                : d -> relatorioPdf.salvar(r13, d), mensagem, List.of(botaoR13Csv, botaoR13Pdf));
     }
 
     private void limparTotais() {

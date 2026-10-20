@@ -10,6 +10,7 @@ import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
+import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
@@ -47,6 +48,7 @@ final class AcessoTeste {
     final VendaService vendas;
     final InventarioService inventarios;
     final RelatorioService relatorios;
+    final PainelService painel;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -70,6 +72,7 @@ final class AcessoTeste {
                 estoque, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 relogio);
+        painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, relogio);
     }
 
     /**

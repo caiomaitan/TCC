@@ -51,12 +51,19 @@
             <Label text="Tipo:"/>
             <ComboBox fx:id="escolhaTipo" prefWidth="200"/>
         </HBox>
-        <HBox fx:id="grupoRanking" alignment="CENTER_LEFT" spacing="6">
+        <HBox fx:id="grupoCriterio" alignment="CENTER_LEFT" spacing="6">
             <Label text="Critério:"/>
-            <ComboBox fx:id="escolhaCriterio" prefWidth="130"/>
+            <ComboBox fx:id="escolhaCriterio" prefWidth="140"/>
+        </HBox>
+        <HBox fx:id="grupoTopN" alignment="CENTER_LEFT" spacing="6">
             <Label text="Mostrar os"/>
             <TextField fx:id="campoTopN" prefWidth="60" styleClass="campo-numero" promptText="todos"/>
             <Label text="primeiros"/>
+        </HBox>
+        <HBox fx:id="grupoDias" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Sem venda há"/>
+            <TextField fx:id="campoDias" prefWidth="60" styleClass="campo-numero"/>
+            <Label text="dias ou mais"/>
         </HBox>
         <CheckBox fx:id="filtroAbaixoMinimo" text="Só abaixo do mínimo"/>
         <CheckBox fx:id="filtroInativos" text="Incluir inativos"/>
@@ -68,8 +75,8 @@
         <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
         <Label fx:id="mensagem" wrapText="true"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="botaoCsv" text="Exportar CSV…" onAction="#exportarCsv" disable="true"/>
-        <Button fx:id="botaoPdf" text="Exportar PDF…" onAction="#exportarPdf" disable="true"/>
+        <Button fx:id="botaoCsv" text="Exportar CSV…" onAction="#exportarCsv" disable="true" minWidth="-Infinity"/>
+        <Button fx:id="botaoPdf" text="Exportar PDF…" onAction="#exportarPdf" disable="true" minWidth="-Infinity"/>
     </HBox>
 
     <TableView fx:id="tabela" VBox.vgrow="ALWAYS">

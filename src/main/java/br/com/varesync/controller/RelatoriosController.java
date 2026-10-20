@@ -16,12 +16,12 @@ import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.ConversorData;
+import br.com.varesync.ui.Exportacao;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
-import java.io.File;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.text.Normalizer;
@@ -48,7 +48,6 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 
 /**
@@ -83,9 +82,12 @@ public class RelatoriosController {
     @FXML private TextField campoProduto;
     @FXML private HBox grupoTipo;
     @FXML private ComboBox<String> escolhaTipo;
-    @FXML private HBox grupoRanking;
+    @FXML private HBox grupoCriterio;
     @FXML private ComboBox<Criterio> escolhaCriterio;
+    @FXML private HBox grupoTopN;
     @FXML private TextField campoTopN;
+    @FXML private HBox grupoDias;
+    @FXML private TextField campoDias;
     @FXML private CheckBox filtroAbaixoMinimo;
     @FXML private CheckBox filtroInativos;
     @FXML private CheckBox filtroDetalhar;
@@ -133,15 +135,8 @@ public class RelatoriosController {
         escolhaCategoria.getItems().add(TODAS);
         escolhaCategoria.getItems().addAll(opcoes.categorias());
         escolhaCategoria.setValue(TODAS);
-        escolhaTipo.getItems().add("Todos");
-        for (TipoMovimento tipo : TipoMovimento.values()) {
-            tipos.add(tipo);
-            escolhaTipo.getItems().add(tipo.descricao());
-        }
-        escolhaTipo.getSelectionModel().select(0);
-        escolhaCriterio.getItems().setAll(Criterio.values());
-        escolhaCriterio.setValue(Criterio.RECEITA);
         campoTopN.setText("20");
+        campoDias.setText(String.valueOf(relatorioService.diasSemGiroPadrao(sessao)));
 
         escolhaRelatorio.getSelectionModel().select(0);
     }
@@ -149,23 +144,49 @@ public class RelatoriosController {
     /** Mostra só os filtros do relatório escolhido (7.4) e limpa o resultado anterior. */
     private void mostrarFiltros(Relatorio<?> relatorio) {
         Set<TipoFiltro> usados = relatorio == null ? Set.of() : relatorio.filtros();
-        Map<Node, Boolean> visiveis = Map.of(
-                grupoPeriodo, usados.contains(TipoFiltro.PERIODO),
-                grupoOperador, usados.contains(TipoFiltro.OPERADOR),
-                grupoCategoria, usados.contains(TipoFiltro.CATEGORIA),
-                grupoProduto, usados.contains(TipoFiltro.PRODUTO),
-                grupoTipo, usados.contains(TipoFiltro.TIPO_MOVIMENTO),
-                grupoRanking, usados.contains(TipoFiltro.TOP_N) || usados.contains(TipoFiltro.CRITERIO),
-                filtroAbaixoMinimo, usados.contains(TipoFiltro.SO_ABAIXO_MINIMO),
-                filtroInativos, usados.contains(TipoFiltro.INCLUIR_INATIVOS),
-                filtroDetalhar, usados.contains(TipoFiltro.DETALHAR_VENDAS));
-        visiveis.forEach((no, visivel) -> {
+        Map<Node, TipoFiltro> grupos = Map.ofEntries(
+                Map.entry(grupoPeriodo, TipoFiltro.PERIODO),
+                Map.entry(grupoOperador, TipoFiltro.OPERADOR),
+                Map.entry(grupoCategoria, TipoFiltro.CATEGORIA),
+                Map.entry(grupoProduto, TipoFiltro.PRODUTO),
+                Map.entry(grupoTipo, TipoFiltro.TIPO_MOVIMENTO),
+                Map.entry(grupoCriterio, TipoFiltro.CRITERIO),
+                Map.entry(grupoTopN, TipoFiltro.TOP_N),
+                Map.entry(grupoDias, TipoFiltro.DIAS),
+                Map.entry(filtroAbaixoMinimo, TipoFiltro.SO_ABAIXO_MINIMO),
+                Map.entry(filtroInativos, TipoFiltro.INCLUIR_INATIVOS),
+                Map.entry(filtroDetalhar, TipoFiltro.DETALHAR_VENDAS));
+        grupos.forEach((no, filtro) -> {
+            boolean visivel = usados.contains(filtro);
             no.setVisible(visivel);
             no.setManaged(visivel);
         });
+        if (relatorio != null) {
+            opcoesDoRelatorio(relatorio);
+        }
         descricao.setText(relatorio == null ? "" : relatorio.descricao());
         limparResultado();
         Mensagem.limpar(mensagem);
+    }
+
+    /** Critérios e tipos de movimento que o relatório aceita; mantém a escolha anterior se ela ainda vale. */
+    private void opcoesDoRelatorio(Relatorio<?> relatorio) {
+        Criterio criterio = escolhaCriterio.getValue();
+        escolhaCriterio.getItems().setAll(relatorio.criterios());
+        escolhaCriterio.setValue(criterio != null && relatorio.criterios().contains(criterio) ? criterio
+                : relatorio.criterios().contains(Criterio.RECEITA) ? Criterio.RECEITA : relatorio.criterios().get(0));
+
+        TipoMovimento tipo = tipoEscolhido();
+        tipos.clear();
+        tipos.addAll(relatorio.tiposMovimento());
+        escolhaTipo.getItems().setAll("Todos");
+        tipos.forEach(t -> escolhaTipo.getItems().add(t.descricao()));
+        escolhaTipo.getSelectionModel().select(tipos.contains(tipo) ? tipos.indexOf(tipo) + 1 : 0);
+    }
+
+    private TipoMovimento tipoEscolhido() {
+        int indice = escolhaTipo.getSelectionModel().getSelectedIndex();
+        return indice <= 0 || indice > tipos.size() ? null : tipos.get(indice - 1);
     }
 
     private void limparResultado() {
@@ -196,11 +217,16 @@ public class RelatoriosController {
             f = f.comProduto(produto);
         }
         if (usados.contains(TipoFiltro.TIPO_MOVIMENTO)) {
-            int indice = escolhaTipo.getSelectionModel().getSelectedIndex();
-            f = f.comTipo(indice <= 0 ? null : tipos.get(indice - 1));
+            f = f.comTipo(tipoEscolhido());
         }
-        if (usados.contains(TipoFiltro.TOP_N) || usados.contains(TipoFiltro.CRITERIO)) {
-            f = f.comRanking(topN(), escolhaCriterio.getValue());
+        if (usados.contains(TipoFiltro.CRITERIO)) {
+            f = f.comCriterio(escolhaCriterio.getValue());
+        }
+        if (usados.contains(TipoFiltro.TOP_N)) {
+            f = f.comRanking(topN(), f.criterio());
+        }
+        if (usados.contains(TipoFiltro.DIAS)) {
+            f = f.comDias(dias());
         }
         f = f.comEstoque(filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected());
         return f.comDetalhe(filtroDetalhar.isSelected());
@@ -213,6 +239,18 @@ public class RelatoriosController {
         }
         if (!Textos.soDigitos(texto) || texto.length() > 6) {
             throw new NegocioException("Informe quantos produtos mostrar no ranking (ou deixe vazio para todos).");
+        }
+        return Integer.parseInt(texto);
+    }
+
+    /** Vazio = o padrão da configuração ({@code relatorio.dias_sem_giro}). */
+    private Integer dias() {
+        String texto = Textos.normalizarEspacos(campoDias.getText());
+        if (texto.isEmpty()) {
+            return null;
+        }
+        if (!Textos.soDigitos(texto) || texto.length() > 6) {
+            throw new NegocioException("Informe os dias sem venda (número inteiro).");
         }
         return Integer.parseInt(texto);
     }
@@ -335,48 +373,27 @@ public class RelatoriosController {
 
     @FXML
     private void exportarCsv() {
-        exportar("CSV", "*.csv", destino -> ExportadorCsv.salvar(resultado, destino));
+        escolherEExportar("CSV", "csv");
     }
 
     @FXML
     private void exportarPdf() {
-        exportar("PDF", "*.pdf", destino -> relatorioPdf.salvar(resultado, destino));
+        escolherEExportar("PDF", "pdf");
     }
 
-    private void exportar(String formato, String extensao, Consumer<Path> gravar) {
-        if (resultado == null) {
-            return;
+    private void escolherEExportar(String formato, String extensao) {
+        if (resultado != null) {
+            Exportacao.escolher(raiz.getScene().getWindow(), formato, extensao,
+                    nomeArquivo(resultado, "." + extensao)).ifPresent(destino -> exportar(formato, destino));
         }
-        FileChooser escolha = new FileChooser();
-        escolha.setTitle("Exportar " + formato);
-        escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter(formato, extensao));
-        escolha.setInitialFileName(nomeArquivo(resultado, extensao.substring(1)));
-        File arquivo = escolha.showSaveDialog(raiz.getScene().getWindow());
-        if (arquivo == null) {
-            return;
-        }
-        Path destino = arquivo.toPath();
-        Task<Void> tarefa = new Task<>() {
-            @Override
-            protected Void call() {
-                gravar.accept(destino);
-                return null;
-            }
-        };
-        botaoCsv.setDisable(true);
-        botaoPdf.setDisable(true);
-        Mensagem.informar(mensagem, "Exportando " + formato + "…");
-        tarefa.setOnSucceeded(e -> {
-            botaoCsv.setDisable(false);
-            botaoPdf.setDisable(false);
-            Mensagem.sucesso(mensagem, formato + " salvo em " + destino + ".");
-        });
-        tarefa.setOnFailed(e -> {
-            botaoCsv.setDisable(false);
-            botaoPdf.setDisable(false);
-            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(tarefa.getException()));
-        });
-        Tarefas.executar("exportar-relatorio", tarefa);
+    }
+
+    /** Grava o relatório da tela em CSV ou PDF, em {@link Task}. */
+    Task<Void> exportar(String formato, Path destino) {
+        ResultadoRelatorio<?> atual = resultado;
+        Consumer<Path> gravacao = "CSV".equals(formato) ? d -> ExportadorCsv.salvar(atual, d)
+                : d -> relatorioPdf.salvar(atual, d);
+        return Exportacao.gravar(formato, destino, gravacao, mensagem, List.of(botaoCsv, botaoPdf));
     }
 
     /** "R01_vendas_por_periodo_2026-10-17.csv". */

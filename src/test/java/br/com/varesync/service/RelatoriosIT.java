@@ -10,16 +10,27 @@ import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Criterio;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
+import br.com.varesync.report.RelAlteracoesPreco;
+import br.com.varesync.report.RelCancelamentos;
+import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelEstoqueAtual;
+import br.com.varesync.report.RelFormasPagamento;
 import br.com.varesync.report.RelMaisVendidos;
 import br.com.varesync.report.RelMovimentacao;
+import br.com.varesync.report.RelPerdasAjustes;
+import br.com.varesync.report.RelRentabilidadeCategoria;
 import br.com.varesync.report.RelRentabilidadeProduto;
+import br.com.varesync.report.RelSemGiro;
+import br.com.varesync.report.RelVendasHoraDia;
+import br.com.varesync.report.RelVendasOperador;
 import br.com.varesync.report.RelVendasPeriodo;
 import br.com.varesync.report.ResultadoRelatorio;
 import java.math.BigDecimal;
@@ -51,6 +62,7 @@ class RelatoriosIT extends IntegracaoBase {
     private long refrigerante;
     private long queijo;
     private long leite;
+    private long bebidas;
     private LocalDate dia1;
     private Periodo periodo;
 
@@ -62,7 +74,7 @@ class RelatoriosIT extends IntegracaoBase {
         configurar("relatorio.margem_minima_pct", "15");
         relatorios = t.relatorios;
         admin = t.supervisor();
-        long bebidas = t.categorias.listar(admin, false).stream().filter(c -> c.nome().equals("Bebidas"))
+        bebidas = t.categorias.listar(admin, false).stream().filter(c -> c.nome().equals("Bebidas"))
                 .map(Categoria::id).findFirst().orElseThrow();
         refrigerante = produto("Refrigerante cola 2 L", bebidas, "UN", "5.49", "3.20", "10", "50", "7891000315507");
         queijo = produto("Queijo muçarela", null, "KG", "39.90", "28.00", "2", "5", null);
@@ -320,5 +332,209 @@ class RelatoriosIT extends IntegracaoBase {
         ResultadoRelatorio<RelVendasPeriodo.Linha> r = relatorios.gerar(admin, new RelVendasPeriodo(), noPeriodo());
         assertThat(r.loja()).isEqualTo("Mercado Bom Preço");
         assertThat(r.emitidoPor()).isEqualTo("Ana Admin");
+    }
+
+    // ----- Fase 6, parte 2: R06 a R10, R12, R14 a R16 -----
+
+    private FormaPagamento forma(TipoFormaPagamento tipo) {
+        return t.vendas.formasAtivas(admin).stream().filter(f -> f.tipo() == tipo).findFirst().orElseThrow();
+    }
+
+    private BigDecimal receitaDoR01() {
+        return Coluna.soma(relatorios.gerar(admin, new RelVendasPeriodo(), noPeriodo()).linhas(),
+                RelVendasPeriodo.Linha::receita);
+    }
+
+    @Test
+    void r06CategoriasSomamOLucroDoR05ESemCategoriaApareceSeparada() {
+        ResultadoRelatorio<RelRentabilidadeCategoria.Linha> r06 = relatorios.gerar(admin,
+                new RelRentabilidadeCategoria(), noPeriodo());
+
+        assertThat(r06.linhas()).extracting(RelRentabilidadeCategoria.Linha::categoria)
+                .containsExactlyInAnyOrder("Bebidas", "Sem categoria");
+        assertThat(Coluna.soma(r06.linhas(), RelRentabilidadeCategoria.Linha::lucro)).isEqualByComparingTo("21.17");
+        assertThat(r06.totais()).containsExactly("Total (2 linhas)", "R$ 78,21", "R$ 57,04", "R$ 21,17", "27,07%",
+                "100,00%");
+    }
+
+    @Test
+    void r07CurvaAbcPorReceitaEPorLucro() {
+        ResultadoRelatorio<RelCurvaAbc.Linha> receita = relatorios.gerar(admin, new RelCurvaAbc(),
+                noPeriodo().comCriterio(Criterio.RECEITA));
+        assertThat(receita.linhas()).extracting(RelCurvaAbc.Linha::produto)
+                .containsExactly("Queijo muçarela", "Refrigerante cola 2 L", "Leite UHT 1 L");
+        assertThat(receita.linhas().get(0).classe()).isEqualTo("A");
+        assertThat(receita.totais().get(3)).isEqualTo("R$ 78,21");
+
+        // Por lucro, o leite (vendido abaixo do custo) fica no fim, na classe C, sem % acumulado.
+        ResultadoRelatorio<RelCurvaAbc.Linha> lucro = relatorios.gerar(admin, new RelCurvaAbc(),
+                noPeriodo().comCriterio(Criterio.LUCRO));
+        RelCurvaAbc.Linha leiteAbc = lucro.linhas().get(2);
+        assertThat(leiteAbc.produto()).isEqualTo("Leite UHT 1 L");
+        assertThat(leiteAbc.valor()).isEqualByComparingTo("-0.20");
+        assertThat(leiteAbc.classe()).isEqualTo("C");
+        assertThat(leiteAbc.percentualAcumulado()).isNull();
+
+        assertThatThrownBy(() -> relatorios.gerar(admin, new RelCurvaAbc(),
+                noPeriodo().comCriterio(Criterio.QUANTIDADE))).isInstanceOf(NegocioException.class);
+    }
+
+    @Test
+    void r08SomaDasFormasEAReceitaDoR01EUmaVendaEmDuasFormasContaUmaVez() {
+        Carrinho e = new Carrinho();
+        incluir(maria, e, leite, "1");
+        Recebimento r = new Recebimento(e.total());
+        r.adicionar(forma(TipoFormaPagamento.PIX), new BigDecimal("2.00"));
+        r.adicionar(forma(TipoFormaPagamento.DINHEIRO), new BigDecimal("2.79"));
+        t.vendas.finalizar(maria, e, r);
+
+        ResultadoRelatorio<RelFormasPagamento.Linha> r08 = relatorios.gerar(admin, new RelFormasPagamento(),
+                noPeriodo());
+
+        assertThat(r08.linhas()).extracting(RelFormasPagamento.Linha::forma).containsExactly("Dinheiro", "PIX");
+        assertThat(r08.linhas().get(0).vendas()).isEqualTo(4);
+        assertThat(r08.linhas().get(0).valor()).isEqualByComparingTo("81.00");
+        assertThat(r08.linhas().get(1).vendas()).isEqualTo(1);
+        assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor)).isEqualByComparingTo(receitaDoR01());
+        assertThat(r08.totais()).containsExactly("Total (2 linhas)", "4", "R$ 83,00", "100,00%");
+    }
+
+    @Test
+    void r09PorOperadorComCancelamentos() {
+        ResultadoRelatorio<RelVendasOperador.Linha> r09 = relatorios.gerar(admin, new RelVendasOperador(),
+                noPeriodo());
+        assertThat(r09.linhas()).extracting(RelVendasOperador.Linha::operador)
+                .containsExactly("Maria Oliveira", "Ana Admin");
+        RelVendasOperador.Linha ana = r09.linhas().get(1);
+        assertThat(ana.vendas()).isEqualTo(2);
+        assertThat(ana.receita()).isEqualByComparingTo("38.31");
+        assertThat(ana.descontos()).isEqualByComparingTo("1.51");
+        assertThat(ana.vendasCanceladas()).isEqualTo(1);
+        assertThat(r09.totais()).containsExactly("Total (2 linhas)", "3", "R$ 78,21", "R$ 26,07", "R$ 1,51", "1",
+                "0");
+    }
+
+    @Test
+    void r10GradeSomaAReceitaEAsVendasDoPeriodo() {
+        ResultadoRelatorio<RelVendasHoraDia.Linha> receita = relatorios.gerar(admin, new RelVendasHoraDia(),
+                noPeriodo().comCriterio(Criterio.RECEITA));
+        assertThat(receita.totais().get(8)).isEqualTo("R$ 78,21");
+        ResultadoRelatorio<RelVendasHoraDia.Linha> vendas = relatorios.gerar(admin, new RelVendasHoraDia(),
+                noPeriodo().comCriterio(Criterio.VENDAS));
+        assertThat(vendas.totais().get(8)).isEqualTo("3");
+        assertThat(vendas.descricaoFiltros()).contains("Critério: nº de vendas");
+    }
+
+    @Test
+    void r12SemGiroPelosDiasSemVendaComSaldoPositivo() {
+        long fermento = produto("Fermento químico 100 g", null, "UN", "4.50", "1.80", "0", "5", null);
+        produto("Produto sem estoque", null, "UN", "2.00", "1.00", "0", "0", null);
+        long inativo = produto("Produto inativo", null, "UN", "2.00", "1.00", "0", "3", null);
+        t.produtos.alterarSituacao(admin, inativo, false);
+
+        // Hoje é o dia 2: sem venda desde ontem = 1 dia (o queijo vendeu hoje).
+        ResultadoRelatorio<RelSemGiro.Linha> umDia = relatorios.gerar(admin, new RelSemGiro(),
+                Filtros.vazios().comDias(1));
+        assertThat(umDia.linhas()).extracting(RelSemGiro.Linha::produto)
+                .containsExactly("Refrigerante cola 2 L", "Leite UHT 1 L", "Fermento químico 100 g");
+        assertThat(umDia.linhas().get(0).diasSemVenda()).isEqualTo(1L);
+        assertThat(umDia.linhas().get(0).valorParado()).isEqualByComparingTo("150.40"); // 47 × 3,20
+        assertThat(umDia.linhas().get(2).ultimaVenda()).isNull();
+
+        // Sem dias informados vale relatorio.dias_sem_giro (30): só o que nunca vendeu.
+        ResultadoRelatorio<RelSemGiro.Linha> padrao = relatorios.gerar(admin, new RelSemGiro(), Filtros.vazios());
+        assertThat(padrao.filtros().dias()).isEqualTo(30);
+        assertThat(padrao.linhas()).extracting(RelSemGiro.Linha::produtoId).containsExactly(fermento);
+        assertThat(padrao.descricaoFiltros()).contains("Sem venda há 30 dias ou mais");
+
+        assertThatThrownBy(() -> relatorios.gerar(admin, new RelSemGiro(), Filtros.vazios().comDias(0)))
+                .isInstanceOf(NegocioException.class);
+    }
+
+    @Test
+    void r14PerdasEAjustesPorMotivoComValorACusto() {
+        t.estoque.ajustar(admin, refrigerante, TipoAjuste.PERDA, new BigDecimal("2"), "Vencimento", "lote 12");
+        t.estoque.ajustar(admin, refrigerante, TipoAjuste.PERDA, BigDecimal.ONE, "Vencimento", null);
+
+        ResultadoRelatorio<RelPerdasAjustes.Linha> perdas = relatorios.gerar(admin, new RelPerdasAjustes(),
+                noPeriodo().comTipo(TipoMovimento.PERDA));
+        assertThat(perdas.linhas()).hasSize(1);
+        RelPerdasAjustes.Linha perda = perdas.linhas().get(0);
+        assertThat(perda.motivo()).isEqualTo("Vencimento");
+        assertThat(perda.movimentos()).isEqualTo(2);
+        assertThat(perda.quantidade()).isEqualByComparingTo("-3");
+        assertThat(perda.valor()).isEqualByComparingTo("-9.60"); // 3 × 3,20
+
+        ResultadoRelatorio<RelPerdasAjustes.Linha> todos = relatorios.gerar(admin, new RelPerdasAjustes(),
+                noPeriodo());
+        assertThat(todos.linhas()).anySatisfy(l -> {
+            assertThat(l.tipo()).isEqualTo(TipoMovimento.AJUSTE_ENTRADA);
+            assertThat(l.motivo()).isEqualTo("Estoque inicial");
+        });
+        assertThat(todos.linhas()).noneMatch(l -> l.tipo() == TipoMovimento.VENDA);
+        assertThatThrownBy(() -> relatorios.gerar(admin, new RelPerdasAjustes(),
+                noPeriodo().comTipo(TipoMovimento.VENDA))).isInstanceOf(NegocioException.class);
+    }
+
+    @Test
+    void r15SoAlteracoesDePrecoComOCodigoDeBarras() {
+        t.produtos.alterar(admin, refrigerante, new DadosProduto("Refrigerante cola 2 L", bebidas, "UN",
+                new BigDecimal("5.99"), new BigDecimal("3.20"), BigDecimal.TEN, null,
+                List.of(new CodigoBarras("7891000315507", true)), null));
+        t.produtos.alterar(admin, leite, new DadosProduto("Leite UHT 1 L", bebidas, "UN", new BigDecimal("4.79"),
+                new BigDecimal("4.50"), BigDecimal.ZERO, null, List.of(), null)); // só o custo
+
+        ResultadoRelatorio<RelAlteracoesPreco.Linha> r15 = relatorios.gerar(admin, new RelAlteracoesPreco(),
+                noPeriodo());
+
+        assertThat(r15.linhas()).hasSize(1);
+        RelAlteracoesPreco.Linha l = r15.linhas().get(0);
+        assertThat(l.produto()).isEqualTo("Refrigerante cola 2 L");
+        assertThat(l.codigoBarras()).isEqualTo("7891000315507");
+        assertThat(l.precoAnterior()).isEqualByComparingTo("5.49");
+        assertThat(l.precoNovo()).isEqualByComparingTo("5.99");
+        assertThat(l.variacao()).isEqualByComparingTo("9.11");
+        assertThat(l.usuario()).isEqualTo("Ana Admin");
+    }
+
+    @Test
+    void r16CancelamentosComQuemCancelouEQuemLiberou() throws Exception {
+        configurar("venda.cancelar_item_exige_supervisor", "true");
+        try {
+            Carrinho f = new Carrinho();
+            incluir(maria, f, refrigerante, "1");
+            incluir(maria, f, leite, "2");
+            t.vendas.cancelarItem(maria, f, 2, t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+            long vendaF = pagar(maria, f);
+            t.vendas.cancelar(maria, vendaF, "Cliente sem dinheiro",
+                    t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+
+            ResultadoRelatorio<RelCancelamentos.Linha> r16 = relatorios.gerar(admin, new RelCancelamentos(),
+                    noPeriodo());
+
+            assertThat(r16.linhas()).extracting(RelCancelamentos.Linha::tipo)
+                    .containsExactly("Venda", "Item", "Venda");
+            RelCancelamentos.Linha vendaC = r16.linhas().get(0);
+            assertThat(vendaC.motivo()).isEqualTo("Cliente desistiu");
+            assertThat(vendaC.canceladoPor()).isEqualTo("Ana Admin");
+            assertThat(vendaC.liberadoPor()).isEmpty();
+            RelCancelamentos.Linha item = r16.linhas().get(1);
+            assertThat(item.vendaId()).isEqualTo(vendaF);
+            assertThat(item.descricao()).isEqualTo("Item 2: 2 UN x Leite UHT 1 L");
+            assertThat(item.valor()).isEqualByComparingTo("9.58");
+            assertThat(item.canceladoPor()).isEqualTo("Maria Oliveira");
+            assertThat(item.liberadoPor()).isEqualTo("Ana Admin (admin)");
+            RelCancelamentos.Linha vendaFCancelada = r16.linhas().get(2);
+            assertThat(vendaFCancelada.descricao()).isEqualTo("Venda inteira (1 item)");
+            assertThat(vendaFCancelada.valor()).isEqualByComparingTo("5.49");
+            assertThat(vendaFCancelada.canceladoPor()).isEqualTo("Maria Oliveira");
+            assertThat(vendaFCancelada.liberadoPor()).isEqualTo("Ana Admin (admin)");
+
+            ResultadoRelatorio<RelCancelamentos.Linha> soMaria = relatorios.gerar(admin, new RelCancelamentos(),
+                    noPeriodo().comOperador(new Opcao(maria.usuarioId(), "Maria Oliveira")));
+            assertThat(soMaria.linhas()).hasSize(2);
+        } finally {
+            configurar("venda.cancelar_item_exige_supervisor", "false");
+        }
     }
 }

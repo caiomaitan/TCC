@@ -11,5 +11,6 @@ public enum TipoFiltro {
     INCLUIR_INATIVOS,
     PRODUTO,
     TIPO_MOVIMENTO,
-    DETALHAR_VENDAS
+    DETALHAR_VENDAS,
+    DIAS
 }

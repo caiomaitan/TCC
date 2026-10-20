@@ -1,6 +1,5 @@
 package br.com.varesync.report;
 
-import br.com.varesync.util.Formatos;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -16,17 +15,24 @@ public record ResultadoRelatorio<T>(Relatorio<T> relatorio, Filtros filtros, Lis
         linhas = List.copyOf(linhas);
     }
 
+    /** Resultado de linhas já calculadas (R13), com o cabeçalho da emissão. */
+    public static <T> ResultadoRelatorio<T> de(Relatorio<T> relatorio, Filtros filtros, List<T> linhas,
+                                               Emissao emissao) {
+        return new ResultadoRelatorio<>(relatorio, filtros, relatorio.colunas(filtros), linhas, emissao.loja(),
+                emissao.emitidoPor(), emissao.emitidoEm());
+    }
+
     public String titulo() {
         return relatorio.titulo();
     }
 
     public String descricaoFiltros() {
-        return filtros.descrever(relatorio.filtros());
+        return relatorio.descreverFiltros(filtros);
     }
 
     /** "Emitido por Ana Admin em 17/10/2026 14:30". */
     public String emissao() {
-        return "Emitido por " + emitidoPor + " em " + Formatos.dataHora(emitidoEm);
+        return new Emissao(loja, emitidoPor, emitidoEm).texto();
     }
 
     public boolean temTotais() {

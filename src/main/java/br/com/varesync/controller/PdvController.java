@@ -7,6 +7,7 @@ import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.RelatorioFechamento;
 import br.com.varesync.report.ComprovantePdf;
+import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Carrinho;
@@ -104,13 +105,13 @@ public class PdvController {
     @FXML private TextField entrada;
 
     public PdvController(VendaService vendaService, CaixaService caixaService, AcessoService acessoService,
-                         ComprovantePdf comprovantePdf, Sessao sessao) {
+                         ComprovantePdf comprovantePdf, FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
         this.vendaService = vendaService;
         this.caixaService = caixaService;
         this.acessoService = acessoService;
         this.comprovantePdf = comprovantePdf;
         this.sessao = sessao;
-        this.acoesCaixa = new AcoesCaixa(caixaService, acessoService, sessao);
+        this.acoesCaixa = new AcoesCaixa(caixaService, acessoService, fechamentoPdf, sessao);
     }
 
     @FXML

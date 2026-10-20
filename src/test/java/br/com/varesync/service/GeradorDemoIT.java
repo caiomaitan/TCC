@@ -7,9 +7,23 @@ import br.com.varesync.BancoTeste;
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.config.Servicos;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.DiaPainel;
+import br.com.varesync.model.Painel;
 import br.com.varesync.model.Periodo;
+import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Filtros;
+import br.com.varesync.report.RelAlteracoesPreco;
+import br.com.varesync.report.RelCancelamentos;
+import br.com.varesync.report.RelCurvaAbc;
+import br.com.varesync.report.RelFormasPagamento;
+import br.com.varesync.report.RelPerdasAjustes;
+import br.com.varesync.report.RelRentabilidadeCategoria;
+import br.com.varesync.report.RelSemGiro;
+import br.com.varesync.report.RelVendasHoraDia;
+import br.com.varesync.report.RelVendasOperador;
 import br.com.varesync.report.Relatorio;
+import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.RelEstoqueAtual;
 import br.com.varesync.report.RelMaisVendidos;
 import br.com.varesync.report.RelMovimentacao;
@@ -205,9 +219,98 @@ class GeradorDemoIT extends IntegracaoBase {
     }
 
     @Test
+    void relatoriosDaParte2BatemComOR01EComOQueFoiGerado() {
+        ResultadoRelatorio<RelVendasPeriodo.Linha> r01 = t.relatorios.gerar(admin, new RelVendasPeriodo(), periodo());
+        BigDecimal receita = Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::receita);
+        BigDecimal lucro = Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::lucro);
+        long vendas = r01.linhas().stream().mapToLong(RelVendasPeriodo.Linha::vendas).sum();
+
+        ResultadoRelatorio<RelRentabilidadeCategoria.Linha> r06 = t.relatorios.gerar(admin,
+                new RelRentabilidadeCategoria(), periodo());
+        assertThat(Coluna.soma(r06.linhas(), RelRentabilidadeCategoria.Linha::lucro)).isEqualByComparingTo(lucro);
+        assertThat(r06.totais().get(4)).as("margem do período, igual à do R01").isEqualTo(r01.totais().get(6));
+
+        ResultadoRelatorio<RelCurvaAbc.Linha> r07 = t.relatorios.gerar(admin, new RelCurvaAbc(), periodo());
+        assertThat(Coluna.soma(r07.linhas(), RelCurvaAbc.Linha::valor)).isEqualByComparingTo(receita);
+        assertThat(r07.linhas()).extracting(RelCurvaAbc.Linha::classe).contains("A", "B", "C");
+
+        ResultadoRelatorio<RelFormasPagamento.Linha> r08 = t.relatorios.gerar(admin, new RelFormasPagamento(),
+                periodo());
+        assertThat(r08.linhas()).hasSize(5);
+        assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor)).isEqualByComparingTo(receita);
+        assertThat(r08.linhas().get(0).vendasNoPeriodo()).isEqualTo(vendas);
+
+        ResultadoRelatorio<RelVendasOperador.Linha> r09 = t.relatorios.gerar(admin, new RelVendasOperador(),
+                periodo());
+        assertThat(Coluna.soma(r09.linhas(), RelVendasOperador.Linha::receita)).isEqualByComparingTo(receita);
+        assertThat(r09.linhas().stream().mapToLong(RelVendasOperador.Linha::vendasCanceladas).sum())
+                .isEqualTo(resultado.vendasCanceladas());
+
+        ResultadoRelatorio<RelVendasHoraDia.Linha> r10 = t.relatorios.gerar(admin, new RelVendasHoraDia(),
+                periodo());
+        assertThat(Coluna.soma(r10.linhas(), RelVendasHoraDia.Linha::receitaTotal)).isEqualByComparingTo(receita);
+        assertThat(r10.linhas().stream().mapToLong(RelVendasHoraDia.Linha::vendasTotal).sum()).isEqualTo(vendas);
+
+        ResultadoRelatorio<RelPerdasAjustes.Linha> r14 = t.relatorios.gerar(admin, new RelPerdasAjustes(),
+                periodo());
+        assertThat(r14.linhas()).extracting(RelPerdasAjustes.Linha::tipo)
+                .contains(TipoMovimento.PERDA, TipoMovimento.INVENTARIO);
+        assertThat(r14.linhas()).extracting(RelPerdasAjustes.Linha::motivo)
+                .contains("Inventário nº " + resultado.inventarioId());
+
+        ResultadoRelatorio<RelAlteracoesPreco.Linha> r15 = t.relatorios.gerar(admin, new RelAlteracoesPreco(),
+                periodo());
+        assertThat(r15.linhas()).isNotEmpty()
+                .allSatisfy(l -> assertThat(l.precoNovo()).isNotEqualByComparingTo(l.precoAnterior()));
+
+        ResultadoRelatorio<RelCancelamentos.Linha> r16 = t.relatorios.gerar(admin, new RelCancelamentos(),
+                periodo());
+        List<RelCancelamentos.Linha> vendasCanceladas = r16.linhas().stream()
+                .filter(l -> l.tipo().equals("Venda")).toList();
+        // Operador cancela com a liberação do gerente; o gerente (domingo à tarde) cancela sem liberação.
+        assertThat(vendasCanceladas).hasSize(resultado.vendasCanceladas())
+                .allSatisfy(l -> assertThat(l.liberadoPor()).isEqualTo(
+                        l.canceladoPor().equals("Carlos Pereira") ? "" : "Carlos Pereira (carlos)"));
+        assertThat(vendasCanceladas).anyMatch(l -> !l.liberadoPor().isEmpty());
+        assertThat(r16.linhas()).anyMatch(l -> l.tipo().equals("Item"));
+    }
+
+    @Test
+    void produtosSemGiroComOsDadosDeDemonstracao() {
+        Servicos hoje = Servicos.montar(BancoTeste.dataSource(), HOJE, AcessoTeste.TERMINAL,
+                new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        ResultadoRelatorio<RelSemGiro.Linha> r12 = hoje.relatorios().gerar(admin, new RelSemGiro(), Filtros.vazios());
+        assertThat(r12.linhas()).isNotEmpty()
+                .allSatisfy(l -> assertThat(l.saldo()).isPositive())
+                .anySatisfy(l -> assertThat(l.ultimaVenda()).isNull());
+    }
+
+    @Test
+    void painelEmMenosDeDoisSegundosEBateComOR01() {
+        Servicos hoje = Servicos.montar(BancoTeste.dataSource(), HOJE, AcessoTeste.TERMINAL,
+                new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        long inicio = System.nanoTime();
+        Painel painel = hoje.painel().carregar(admin);
+        long ms = (System.nanoTime() - inicio) / 1_000_000;
+        LOG.info("Painel com os dados de demonstração: {} ms", ms);
+        assertThat(ms).isLessThan(2000);
+
+        LocalDate dia = LocalDate.now(HOJE);
+        BigDecimal receitaR01 = Coluna.soma(hoje.relatorios().gerar(admin, new RelVendasPeriodo(),
+                Filtros.vazios().comPeriodo(new Periodo(dia.minusDays(29), dia))).linhas(),
+                RelVendasPeriodo.Linha::receita);
+        assertThat(Coluna.soma(painel.ultimos30Dias(), DiaPainel::receita)).isEqualByComparingTo(receitaR01);
+        assertThat(painel.semanaPassada().vendas()).as("os 60 dias terminam ontem; a semana anterior tem vendas")
+                .isPositive();
+        assertThat(painel.topMes()).hasSize(5);
+        assertThat(painel.alertas().abaixoDoMinimo()).isPositive();
+        assertThat(painel.alertas().precoAbaixoDoCusto()).isPositive();
+        assertThat(painel.alertas().caixaAberto()).isEmpty();
+    }
+
+    @Test
     void relatoriosDeSessentaDiasEmMenosDeTresSegundos() {
-        List<Relatorio<?>> todos = List.of(new RelVendasPeriodo(), new RelMaisVendidos(), new RelEstoqueAtual(),
-                new RelMovimentacao(), new RelRentabilidadeProduto());
+        List<Relatorio<?>> todos = Relatorios.todos();
         Filtros filtros = periodo().comDetalhe(false);
         for (Relatorio<?> relatorio : todos) {
             long inicio = System.nanoTime();

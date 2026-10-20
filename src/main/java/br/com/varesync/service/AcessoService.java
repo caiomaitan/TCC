@@ -6,6 +6,7 @@ import br.com.varesync.dao.UsuarioDAO.Credencial;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Usuario;
+import br.com.varesync.report.Emissao;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.sql.Connection;
@@ -68,6 +69,15 @@ public class AcessoService {
 
     public String nomeEmpresa() {
         return transacao.executar(con -> configuracaoDAO.buscar(con, CHAVE_EMPRESA_NOME).orElse(""));
+    }
+
+    /**
+     * Cabeçalho e rodapé de um relatório exportado (R11, R13): nome da loja ("VareSync" se vazio), quem emite e
+     * agora.
+     */
+    public Emissao emissao(Sessao sessao) {
+        String loja = nomeEmpresa();
+        return new Emissao(loja.isBlank() ? "VareSync" : loja, sessao.usuario().nome(), OffsetDateTime.now(clock));
     }
 
     /**

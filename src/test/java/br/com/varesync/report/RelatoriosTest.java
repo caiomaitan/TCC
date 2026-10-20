@@ -137,8 +137,8 @@ class RelatoriosTest {
     }
 
     @Test
-    void catalogoTemOsCincoRelatoriosDoTcc() {
+    void catalogoComecaPelosCincoRelatoriosDoTcc() {
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo)
-                .containsExactly("R01", "R02", "R03", "R04", "R05");
+                .startsWith("R01", "R02", "R03", "R04", "R05");
     }
 }

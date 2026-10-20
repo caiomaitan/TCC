@@ -79,8 +79,11 @@
         <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
     </TableView>
 
-    <HBox alignment="CENTER_RIGHT">
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Button fx:id="botaoCsv" text="Exportar CSV…" onAction="#exportarCsv" minWidth="-Infinity"/>
+        <Button fx:id="botaoPdf" text="Exportar PDF…" onAction="#exportarPdf" minWidth="-Infinity"/>
+        <Label fx:id="mensagem" wrapText="true" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
         <Button text="Fechar" onAction="#fecharJanela" defaultButton="true" cancelButton="true"
-                styleClass="botao-primario"/>
+                styleClass="botao-primario" minWidth="-Infinity"/>
     </HBox>
 </VBox>

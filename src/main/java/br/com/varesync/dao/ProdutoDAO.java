@@ -347,6 +347,7 @@ public class ProdutoDAO {
             case ATIVOS -> sql.append(" AND p.ativo");
             case INATIVOS -> sql.append(" AND NOT p.ativo");
             case TODOS -> { }
+            case ABAIXO_DO_CUSTO -> sql.append(" AND p.ativo AND p.preco_venda < p.custo");
         }
         sql.append(" ORDER BY p.nome_busca, p.id");
 
