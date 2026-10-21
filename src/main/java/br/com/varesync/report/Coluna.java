@@ -18,7 +18,7 @@ import java.util.function.Predicate;
  * for totalizável, como calcular o total. O total recebe todas as linhas: soma para valores, e a fórmula do
  * agregado para margem, markup e ticket médio (Σ lucro ÷ Σ receita, nunca média de margens).
  *
- * <p>Valores por tipo: TEXTO {@code String}; INTEIRO {@code Number}; MOEDA, CUSTO, QUANTIDADE e PERCENTUAL
+ * <p>Valores por tipo: TEXTO {@code String}; INTEIRO e CODIGO {@code Number}; MOEDA, CUSTO, QUANTIDADE e PERCENTUAL
  * {@code BigDecimal}; DATA {@code LocalDate}; DATA_HORA {@code OffsetDateTime}. Nulo aparece como "—" (ex.:
  * margem com receita zero).
  *
@@ -50,6 +50,11 @@ public record Coluna<T>(String titulo, TipoColuna tipo, TipoColuna.Alinhamento a
     /** Valor em reais, somado na linha de totais. */
     public static <T> Coluna<T> moeda(String titulo, Function<T, BigDecimal> valor) {
         return Coluna.<T>de(titulo, TipoColuna.MOEDA, valor).somada();
+    }
+
+    /** Código do produto ou número do documento: sem separador de milhar ("5505", não "5.505"). */
+    public static <T> Coluna<T> codigo(String titulo, Function<T, ? extends Number> valor) {
+        return de(titulo, TipoColuna.CODIGO, valor);
     }
 
     public static <T> Coluna<T> inteiro(String titulo, Function<T, ? extends Number> valor) {
@@ -137,6 +142,7 @@ public record Coluna<T>(String titulo, TipoColuna tipo, TipoColuna.Alinhamento a
         return switch (tipo) {
             case TEXTO -> v.toString();
             case INTEIRO -> Formatos.numero(BigDecimal.valueOf(((Number) v).longValue()), 0);
+            case CODIGO -> Long.toString(((Number) v).longValue());
             case MOEDA -> Formatos.moeda((BigDecimal) v);
             case CUSTO -> ((BigDecimal) v).signum() < 0 ? "-R$ " + Formatos.numero(((BigDecimal) v).abs(),
                     Dinheiro.ESCALA_CUSTO) : "R$ " + Formatos.numero((BigDecimal) v, Dinheiro.ESCALA_CUSTO);
@@ -153,7 +159,7 @@ public record Coluna<T>(String titulo, TipoColuna tipo, TipoColuna.Alinhamento a
         }
         return switch (tipo) {
             case TEXTO -> v.toString();
-            case INTEIRO -> Long.toString(((Number) v).longValue());
+            case INTEIRO, CODIGO -> Long.toString(((Number) v).longValue());
             case MOEDA -> decimal((BigDecimal) v, Dinheiro.ESCALA_DINHEIRO);
             case CUSTO -> decimal((BigDecimal) v, Dinheiro.ESCALA_CUSTO);
             case QUANTIDADE -> decimal((BigDecimal) v, fracionada((BigDecimal) v, fracionadaLinha)

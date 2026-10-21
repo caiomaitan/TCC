@@ -4,6 +4,8 @@ package br.com.varesync.report;
 public enum TipoColuna {
     TEXTO(Alinhamento.ESQUERDA, 3.0),
     INTEIRO(Alinhamento.DIREITA, 0.9),
+    /** Código do produto ou número do documento: inteiro sem separador de milhar e sem total. */
+    CODIGO(Alinhamento.DIREITA, 0.8),
     MOEDA(Alinhamento.DIREITA, 1.4),
     CUSTO(Alinhamento.DIREITA, 1.4),
     QUANTIDADE(Alinhamento.DIREITA, 1.1),

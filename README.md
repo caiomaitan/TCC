@@ -97,6 +97,8 @@ um banco que já tenha vendas — como o `varesync` usado nos seus testes. Use u
 4. Entre como supervisor, abra **Configurações › Dados de demonstração** e clique em **Gerar dados de
    demonstração…**. No fim aparecem os usuários criados — `maria` e `jose` (operadores de caixa) e `carlos` (gerente) —
    com as senhas provisórias: **anote**, elas não são mostradas de novo. Cada um troca a senha no primeiro login.
+   Também são criados 3 fornecedores e uma entrada de mercadoria por semana de cada um (o gerente tem todas as
+   permissões, inclusive Compras e Fornecedores).
 5. Para voltar ao banco normal, feche o sistema e devolva `db.url` para `.../varesync`.
 
 Para recomeçar a demonstração do zero (ou se a geração for interrompida no meio, o que deixa dados pela metade), com o

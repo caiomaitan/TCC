@@ -12,5 +12,6 @@ public enum TipoFiltro {
     PRODUTO,
     TIPO_MOVIMENTO,
     DETALHAR_VENDAS,
-    DIAS
+    DIAS,
+    FORNECEDOR
 }

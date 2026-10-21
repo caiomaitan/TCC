@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.util.Gtin;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,7 +13,7 @@ import java.util.List;
  *
  * <p>Casos de propósito: popularidade 0 = nunca vendido (relatório de produtos sem giro); preço abaixo do custo
  * (alerta de margem negativa); margem baixa (abaixo de {@code relatorio.margem_minima_pct}); estoque baixo (termina
- * abaixo do mínimo).
+ * abaixo do mínimo). Desde a fase 7, também os fornecedores, cada um com as suas categorias e o dia da entrega.
  */
 final class CatalogoDemo {
 
@@ -126,6 +127,30 @@ final class CatalogoDemo {
         m.unBaixo("Vela branca pacote com 8", "Outros", "4.80", "7.49", 1, 6);
         m.un("Guarda-chuva dobrável", "Outros", "19.00", "34.90", 0, 0);
         return List.copyOf(m.itens);
+    }
+
+    /**
+     * Fornecedor de demonstração (fase 7): entrega toda semana no mesmo dia os produtos das suas categorias.
+     *
+     * @param primeiraNota número da primeira nota; as seguintes somam 1
+     */
+    record FornecedorDemo(String razaoSocial, String nomeFantasia, String cnpj, String telefone, String email,
+                          String contato, String cidade, String uf, List<String> categorias, DayOfWeek diaEntrega,
+                          int primeiraNota) {
+    }
+
+    /** Três fornecedores que cobrem as 9 categorias; um com CNPJ alfanumérico (A.3). */
+    static List<FornecedorDemo> fornecedores() {
+        return List.of(
+                new FornecedorDemo("Distribuidora Ribeirão Alimentos Ltda", "Ribeirão Alimentos", "11222333000181",
+                        "1633334444", "vendas@ribeiraoalimentos.com.br", "Paulo Mendes", "Ribeirão Preto", "SP",
+                        List.of("Mercearia", "Padaria", "Outros"), DayOfWeek.MONDAY, 45120),
+                new FornecedorDemo("Bebidas e Frios Sertãozinho Ltda", "Sertãozinho Bebidas", "12ABC34501DE35",
+                        "1632221100", "pedidos@sertaozinhobebidas.com.br", "Fernanda Lima", "Sertãozinho", "SP",
+                        List.of("Bebidas", "Frios e laticínios", "Açougue", "Hortifruti"), DayOfWeek.TUESDAY, 8812),
+                new FornecedorDemo("Atacado Limpa Tudo Comércio Ltda", "Limpa Tudo", "AB12CD34EFGH83", "16988887777",
+                        "comercial@limpatudo.com.br", "Ricardo Alves", "Franca", "SP",
+                        List.of("Limpeza", "Higiene e perfumaria"), DayOfWeek.WEDNESDAY, 30455));
     }
 
     /** EAN-13 fictício: 789 + 6543 + sequência de 5 dígitos + dígito verificador. */

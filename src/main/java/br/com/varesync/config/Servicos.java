@@ -5,8 +5,10 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
+import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
@@ -18,7 +20,9 @@ import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.FornecedorService;
 import br.com.varesync.service.GeradorDemo;
 import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.PainelService;
@@ -40,7 +44,8 @@ import javax.sql.DataSource;
 public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, UsuarioService usuarios,
                        CategoriaService categorias, ProdutoService produtos, EstoqueService estoque,
                        CaixaService caixa, VendaService vendas, InventarioService inventarios,
-                       RelatorioService relatorios, PainelService painel) {
+                       FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
+                       PainelService painel) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -64,11 +69,15 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(), auditoria, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
+        FornecedorDAO fornecedorDAO = new FornecedorDAO();
+        FornecedorService fornecedores = new FornecedorService(transacao, fornecedorDAO, clock);
+        EntradaService compras = new EntradaService(transacao, new EntradaDAO(), fornecedorDAO, produtoDAO, estoqueDAO,
+                configuracaoDAO, estoque, auditoria, clock);
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
-                usuarioDAO, clock);
+                usuarioDAO, fornecedorDAO, clock);
         PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, clock);
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
-                inventarios, relatorios, painel);
+                inventarios, fornecedores, compras, relatorios, painel);
     }
 
     /**
@@ -80,7 +89,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         RelogioAjustavel relogio = new RelogioAjustavel(relogioReal.instant(), relogioReal.getZone());
         Servicos s = montar(dataSource, relogio, terminalId, senhas);
         return new GeradorDemo(relogio, relogioReal, s.transacao(), s.acesso(), s.usuarios(), s.categorias(),
-                s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), new DemoDAO(), new CaixaDAO(),
+                s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), s.fornecedores(), s.compras(),
+                new DemoDAO(), new CaixaDAO(),
                 new ConfiguracaoDAO(), new AuditoriaService(new AuditoriaDAO(), relogio, terminalId));
     }
 }

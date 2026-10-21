@@ -36,6 +36,12 @@ public class DemoDAO {
         return existentes(con, "SELECT plu::text FROM produto WHERE plu = ANY (?) ORDER BY plu", "integer", plus);
     }
 
+    /** Dos CPFs/CNPJs informados, os que já pertencem a algum fornecedor. */
+    public List<String> documentosExistentes(Connection con, Collection<String> documentos) throws SQLException {
+        return existentes(con, "SELECT cpf_cnpj FROM fornecedor WHERE cpf_cnpj = ANY (?) ORDER BY cpf_cnpj",
+                "varchar", documentos);
+    }
+
     private static List<String> existentes(Connection con, String sql, String tipo, Collection<?> valores)
             throws SQLException {
         List<String> encontrados = new ArrayList<>();

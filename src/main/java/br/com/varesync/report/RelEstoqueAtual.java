@@ -80,7 +80,7 @@ public final class RelEstoqueAtual implements Relatorio<RelEstoqueAtual.Linha> {
     @Override
     public List<Coluna<Linha>> colunas(Filtros filtros) {
         return List.of(
-                Coluna.<Linha>de("Código", TipoColuna.INTEIRO, Linha::produtoId).comLargura(0.8),
+                Coluna.<Linha>codigo("Código", Linha::produtoId).comLargura(0.8),
                 Coluna.texto("Produto", Linha::produto),
                 Coluna.<Linha>texto("Categoria", l -> l.categoria() == null ? "" : l.categoria()).comLargura(1.6),
                 Coluna.texto("Un.", Linha::unidade).comLargura(0.6),

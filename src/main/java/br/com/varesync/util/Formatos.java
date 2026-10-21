@@ -74,6 +74,15 @@ public final class Formatos {
         return dataHora == null ? SEM_VALOR : HORA.format(dataHora.atZoneSameInstant(ZoneId.systemDefault()));
     }
 
+    /** Telefone gravado só com dígitos: "(16) 3333-4444", "(16) 99999-8888"; outro tamanho volta como está. */
+    public static String telefone(String digitos) {
+        if (digitos == null || !Textos.soDigitos(digitos) || (digitos.length() != 10 && digitos.length() != 11)) {
+            return digitos == null ? "" : digitos;
+        }
+        int corte = digitos.length() - 4;
+        return "(" + digitos.substring(0, 2) + ") " + digitos.substring(2, corte) + "-" + digitos.substring(corte);
+    }
+
     public static String dataHoraComSegundos(OffsetDateTime dataHora) {
         return dataHora == null ? SEM_VALOR : DATA_HORA_SEGUNDOS.format(dataHora.atZoneSameInstant(ZoneId.systemDefault()));
     }

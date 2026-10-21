@@ -84,7 +84,7 @@ public final class RelResultadoInventario implements Relatorio<ItemDivergencia> 
     @Override
     public List<Coluna<ItemDivergencia>> colunas(Filtros filtros) {
         return List.of(
-                Coluna.<ItemDivergencia>de("Código", TipoColuna.INTEIRO, ItemDivergencia::produtoId).comLargura(0.8),
+                Coluna.<ItemDivergencia>codigo("Código", ItemDivergencia::produtoId).comLargura(0.8),
                 Coluna.texto("Produto", ItemDivergencia::nome),
                 Coluna.texto("Un.", ItemDivergencia::unidade).comLargura(0.6),
                 Coluna.quantidade("Sistema", ItemDivergencia::estoqueSistema, ItemDivergencia::unidadeFracionada),

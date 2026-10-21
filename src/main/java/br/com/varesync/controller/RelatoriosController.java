@@ -78,6 +78,8 @@ public class RelatoriosController {
     @FXML private ComboBox<Opcao> escolhaOperador;
     @FXML private HBox grupoCategoria;
     @FXML private ComboBox<Opcao> escolhaCategoria;
+    @FXML private HBox grupoFornecedor;
+    @FXML private ComboBox<Opcao> escolhaFornecedor;
     @FXML private HBox grupoProduto;
     @FXML private TextField campoProduto;
     @FXML private HBox grupoTipo;
@@ -135,6 +137,9 @@ public class RelatoriosController {
         escolhaCategoria.getItems().add(TODAS);
         escolhaCategoria.getItems().addAll(opcoes.categorias());
         escolhaCategoria.setValue(TODAS);
+        escolhaFornecedor.getItems().add(TODOS);
+        escolhaFornecedor.getItems().addAll(opcoes.fornecedores());
+        escolhaFornecedor.setValue(TODOS);
         campoTopN.setText("20");
         campoDias.setText(String.valueOf(relatorioService.diasSemGiroPadrao(sessao)));
 
@@ -148,6 +153,7 @@ public class RelatoriosController {
                 Map.entry(grupoPeriodo, TipoFiltro.PERIODO),
                 Map.entry(grupoOperador, TipoFiltro.OPERADOR),
                 Map.entry(grupoCategoria, TipoFiltro.CATEGORIA),
+                Map.entry(grupoFornecedor, TipoFiltro.FORNECEDOR),
                 Map.entry(grupoProduto, TipoFiltro.PRODUTO),
                 Map.entry(grupoTipo, TipoFiltro.TIPO_MOVIMENTO),
                 Map.entry(grupoCriterio, TipoFiltro.CRITERIO),
@@ -211,6 +217,9 @@ public class RelatoriosController {
         }
         if (usados.contains(TipoFiltro.CATEGORIA)) {
             f = f.comCategoria(nuloSeTodos(escolhaCategoria.getValue()));
+        }
+        if (usados.contains(TipoFiltro.FORNECEDOR)) {
+            f = f.comFornecedor(nuloSeTodos(escolhaFornecedor.getValue()));
         }
         if (usados.contains(TipoFiltro.PRODUTO) && !Textos.vazio(campoProduto.getText())) {
             Opcao produto = relatorioService.produto(sessao, campoProduto.getText());

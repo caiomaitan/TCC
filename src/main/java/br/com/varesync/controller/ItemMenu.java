@@ -16,8 +16,8 @@ public enum ItemMenu {
     PRODUTOS("Produtos", Permissao.PRODUTOS, false, "/fxml/produtos.fxml", false),
     ESTOQUE("Estoque", Permissao.ESTOQUE, false, "/fxml/estoque.fxml", false),
     INVENTARIO("Inventário", Permissao.INVENTARIO, false, "/fxml/inventario.fxml", false),
-    COMPRAS("Compras", Permissao.COMPRAS, false, null, false),
-    FORNECEDORES("Fornecedores", Permissao.FORNECEDORES, false, null, false),
+    COMPRAS("Compras", Permissao.COMPRAS, false, "/fxml/compras.fxml", false),
+    FORNECEDORES("Fornecedores", Permissao.FORNECEDORES, false, "/fxml/fornecedores.fxml", false),
     RELATORIOS("Relatórios", Permissao.RELATORIOS, false, "/fxml/relatorios.fxml", false),
     USUARIOS("Usuários", null, true, "/fxml/usuarios.fxml", false),
     CONFIGURACOES("Configurações", null, true, "/fxml/configuracoes.fxml", false);

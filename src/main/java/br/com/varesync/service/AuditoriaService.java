@@ -16,6 +16,7 @@ public class AuditoriaService {
     public static final String ENTIDADE_USUARIO = "usuario";
     public static final String ENTIDADE_PRODUTO = "produto";
     public static final String ENTIDADE_INVENTARIO = "inventario";
+    public static final String ENTIDADE_ENTRADA = "entrada_mercadoria";
 
     private final AuditoriaDAO dao;
     private final Clock clock;

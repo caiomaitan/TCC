@@ -15,6 +15,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
@@ -48,6 +49,7 @@ final class DialogoFormulario {
 
         mensagem.setWrapText(true);
         mensagem.setMaxWidth(380);
+        mensagem.setMinHeight(Region.USE_PREF_SIZE); // texto longo quebra a linha em vez de virar "…"
         mensagem.getStyleClass().add("mensagem-erro");
 
         VBox conteudo = new VBox(12);
@@ -55,6 +57,7 @@ final class DialogoFormulario {
             Label texto = new Label(instrucao);
             texto.setWrapText(true);
             texto.setMaxWidth(380);
+            texto.setMinHeight(Region.USE_PREF_SIZE);
             conteudo.getChildren().add(texto);
         }
         conteudo.getChildren().addAll(campos, mensagem);
@@ -86,6 +89,7 @@ final class DialogoFormulario {
                 resultado[0] = acao.get();
             } catch (NegocioException e) {
                 mensagem.setText(e.getMessage());
+                dialogo.getDialogPane().getScene().getWindow().sizeToScene(); // abre espaço para a mensagem
                 if (aoRecusar != null) {
                     aoRecusar.run();
                 }

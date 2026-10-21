@@ -6,8 +6,10 @@ import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
@@ -47,6 +49,8 @@ final class AcessoTeste {
     final CaixaService caixa;
     final VendaService vendas;
     final InventarioService inventarios;
+    final FornecedorService fornecedores;
+    final EntradaService compras;
     final RelatorioService relatorios;
     final PainelService painel;
     private final DataSource dataSource;
@@ -70,19 +74,22 @@ final class AcessoTeste {
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(), auditoria, relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
+        fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
+        compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
+                new ConfiguracaoDAO(), estoque, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
-                relogio);
+                new FornecedorDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, relogio);
     }
 
     /**
-     * Volta ao estado de primeiro acesso: sem usuários nem nada que dependa deles (produtos, kardex, auditoria),
-     * só as categorias da V2 (todas ativas) e a configuração padrão. Usa TRUNCATE porque o kardex é imutável:
-     * o trigger recusa DELETE em {@code movimento_estoque}, mas não age no TRUNCATE.
+     * Volta ao estado de primeiro acesso: sem usuários nem nada que dependa deles (produtos, kardex, auditoria, entradas),
+     * sem fornecedores, só as categorias da V2 (todas ativas) e a configuração padrão. Usa TRUNCATE porque o kardex é
+     * imutável: o trigger recusa DELETE em {@code movimento_estoque}, mas não age no TRUNCATE.
      */
     void limpar() throws SQLException {
         try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
-            st.executeUpdate("TRUNCATE usuario CASCADE");
+            st.executeUpdate("TRUNCATE usuario, fornecedor CASCADE");
             st.executeUpdate("DELETE FROM categoria WHERE nome NOT IN (" + CATEGORIAS_V2 + ")");
             st.executeUpdate("UPDATE categoria SET ativa = TRUE WHERE NOT ativa");
             st.executeUpdate("UPDATE configuracao SET valor = 'Minha Loja' WHERE chave = 'empresa.nome'");

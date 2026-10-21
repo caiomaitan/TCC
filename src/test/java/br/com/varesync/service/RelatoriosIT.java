@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.DadosEntrada;
+import br.com.varesync.model.DadosFornecedor;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.Periodo;
@@ -20,6 +22,7 @@ import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.RelAlteracoesPreco;
 import br.com.varesync.report.RelCancelamentos;
+import br.com.varesync.report.RelComprasFornecedor;
 import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelEstoqueAtual;
 import br.com.varesync.report.RelFormasPagamento;
@@ -536,5 +539,38 @@ class RelatoriosIT extends IntegracaoBase {
         } finally {
             configurar("venda.cancelar_item_exige_supervisor", "false");
         }
+    }
+
+    @Test
+    void r17ComprasPorFornecedorSoConfirmadasNoPeriodoEPeloFiltro() {
+        long distribuidora = t.fornecedores.criar(admin, new DadosFornecedor("Distribuidora Teste Ltda", null,
+                "12ABC34501DE35", null, null, null, null, null, null));
+        long outro = t.fornecedores.criar(admin, new DadosFornecedor("Outro Fornecedor", null, null, null, null, null,
+                null, null, null));
+        long primeira = t.compras.criar(admin, new DadosEntrada(distribuidora, "1", null, null));
+        t.compras.adicionarItem(admin, primeira, refrigerante, new BigDecimal("12"), new BigDecimal("3.50"), null);
+        t.compras.adicionarItem(admin, primeira, leite, new BigDecimal("6"), new BigDecimal("4.90"), null);
+        t.compras.confirmar(admin, primeira);
+        long segunda = t.compras.criar(admin, new DadosEntrada(distribuidora, "2", null, null));
+        t.compras.adicionarItem(admin, segunda, queijo, new BigDecimal("1.500"), null, new BigDecimal("42.00"));
+        t.compras.confirmar(admin, segunda);
+        long aberta = t.compras.criar(admin, new DadosEntrada(outro, "9", null, null));
+        t.compras.adicionarItem(admin, aberta, leite, new BigDecimal("1"), new BigDecimal("4.00"), null);
+
+        ResultadoRelatorio<RelComprasFornecedor.Linha> r17 = relatorios.gerar(admin, new RelComprasFornecedor(),
+                noPeriodo());
+        assertThat(r17.linhas()).as("a entrada aberta não conta").singleElement().satisfies(l -> {
+            assertThat(l.fornecedor()).isEqualTo("Distribuidora Teste Ltda");
+            assertThat(l.entradas()).isEqualTo(2);
+            assertThat(l.itens()).isEqualTo(3);
+            assertThat(l.valor()).as("42,00 + 29,40 + 42,00").isEqualByComparingTo("113.40");
+        });
+        assertThat(relatorios.opcoes(admin).fornecedores()).extracting(Opcao::nome)
+                .containsExactly("Distribuidora Teste Ltda", "Outro Fornecedor");
+        assertThat(relatorios.gerar(admin, new RelComprasFornecedor(),
+                noPeriodo().comFornecedor(new Opcao(outro, "Outro Fornecedor"))).linhas()).isEmpty();
+        Periodo antes = new Periodo(periodo.inicio().minusDays(10), periodo.inicio().minusDays(1));
+        assertThat(relatorios.gerar(admin, new RelComprasFornecedor(), Filtros.vazios().comPeriodo(antes))
+                .linhas()).isEmpty();
     }
 }

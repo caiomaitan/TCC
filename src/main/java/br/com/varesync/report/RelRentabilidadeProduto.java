@@ -103,7 +103,7 @@ public final class RelRentabilidadeProduto implements Relatorio<RelRentabilidade
     @Override
     public List<Coluna<Linha>> colunas(Filtros filtros) {
         return List.of(
-                Coluna.<Linha>de("Código", TipoColuna.INTEIRO, Linha::produtoId).comLargura(0.8),
+                Coluna.<Linha>codigo("Código", Linha::produtoId).comLargura(0.8),
                 Coluna.texto("Produto", Linha::produto),
                 Coluna.<Linha>texto("Categoria", l -> l.categoria() == null ? "" : l.categoria()).comLargura(1.6),
                 Coluna.quantidade("Quantidade", Linha::quantidade, Linha::fracionada),

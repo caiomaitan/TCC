@@ -2,8 +2,10 @@ package br.com.varesync.config;
 
 import br.com.varesync.controller.CaixaController;
 import br.com.varesync.controller.CategoriasController;
+import br.com.varesync.controller.ComprasController;
 import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
+import br.com.varesync.controller.FornecedoresController;
 import br.com.varesync.controller.InventarioController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
@@ -101,6 +103,12 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == InventarioController.class) {
             return new InventarioController(s.inventarios(), s.acesso(), relatorioPdf, sessao);
+        }
+        if (tipo == FornecedoresController.class) {
+            return new FornecedoresController(s.fornecedores(), sessao);
+        }
+        if (tipo == ComprasController.class) {
+            return new ComprasController(s.compras(), sessao, t -> criarController(t, navegacao, sessao));
         }
         if (tipo == CaixaController.class) {
             return new CaixaController(s.caixa(), s.acesso(), fechamentoPdf, sessao);

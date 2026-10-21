@@ -113,7 +113,7 @@ public final class RelCurvaAbc implements Relatorio<RelCurvaAbc.Linha> {
         String valor = filtros.criterioOuPadrao() == Criterio.LUCRO ? "Lucro" : "Receita";
         return List.of(
                 Coluna.<Linha>texto("Classe", Linha::classe).comLargura(0.7),
-                Coluna.<Linha>de("Código", TipoColuna.INTEIRO, Linha::produtoId).comLargura(0.8),
+                Coluna.<Linha>codigo("Código", Linha::produtoId).comLargura(0.8),
                 Coluna.texto("Produto", Linha::produto),
                 Coluna.moeda(valor, Linha::valor),
                 // A soma dos % arredondados daria 99,99 ou 100,01; o total é a base inteira.

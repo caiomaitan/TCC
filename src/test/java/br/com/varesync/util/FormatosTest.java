@@ -52,6 +52,14 @@ class FormatosTest {
     }
 
     @Test
+    void telefoneComDddFixoECelular() {
+        assertThat(Formatos.telefone("1633334444")).isEqualTo("(16) 3333-4444");
+        assertThat(Formatos.telefone("16999998888")).isEqualTo("(16) 99999-8888");
+        assertThat(Formatos.telefone("123")).isEqualTo("123");
+        assertThat(Formatos.telefone(null)).isEmpty();
+    }
+
+    @Test
     void dataHoraEmUtcEhConvertidaParaOFusoLocal() {
         OffsetDateTime utc = OffsetDateTime.of(2026, 3, 7, 12, 0, 0, 0, ZoneOffset.UTC);
         String esperado = Formatos.dataHora(utc.atZoneSameInstant(ZoneId.systemDefault()).toOffsetDateTime());

@@ -167,7 +167,7 @@ public final class RelCancelamentos implements Relatorio<RelCancelamentos.Linha>
         return List.of(
                 Coluna.<Linha>de("Data/hora", TipoColuna.DATA_HORA, Linha::dataHora),
                 Coluna.<Linha>texto("Tipo", Linha::tipo).comLargura(0.7),
-                Coluna.<Linha>de("Venda nº", TipoColuna.INTEIRO, Linha::vendaId).comLargura(1.0),
+                Coluna.<Linha>codigo("Venda nº", Linha::vendaId).comLargura(1.0),
                 Coluna.<Linha>texto("Descrição", Linha::descricao).comLargura(3.6),
                 Coluna.moeda("Valor", Linha::valor),
                 Coluna.<Linha>texto("Operador", Linha::operador).comLargura(1.6),

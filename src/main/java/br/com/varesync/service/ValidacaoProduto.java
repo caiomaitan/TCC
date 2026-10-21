@@ -53,7 +53,8 @@ final class ValidacaoProduto {
         return valor(custo, "o custo", Dinheiro.ESCALA_CUSTO);
     }
 
-    private static BigDecimal valor(BigDecimal valor, String rotulo, int escala) {
+    /** Valor ≥ 0 com até {@code escala} casas; {@code rotulo} em minúsculas ("o custo unitário"). */
+    static BigDecimal valor(BigDecimal valor, String rotulo, int escala) {
         if (valor == null) {
             throw new NegocioException("Informe " + rotulo + ".");
         }

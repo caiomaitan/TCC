@@ -121,9 +121,9 @@ public class ConfiguracoesController {
             Mensagem.erro(situacaoDemo, TratadorExcecoes.mensagem(e));
             return;
         }
-        if (!Dialogos.confirmar("Gerar os dados de demonstração neste banco? Serão criados usuários, cerca de 80 "
-                + "produtos e " + GeradorDemo.DIAS + " dias de vendas, caixas e movimentos de estoque. Isso leva "
-                + "alguns minutos e não pode ser desfeito.")) {
+        if (!Dialogos.confirmar("Gerar os dados de demonstração neste banco? Serão criados usuários, fornecedores, "
+                + "cerca de 80 produtos e " + GeradorDemo.DIAS + " dias de vendas, compras, caixas e movimentos de "
+                + "estoque. Isso leva alguns minutos e não pode ser desfeito.")) {
             return;
         }
         Task<GeradorDemo.Resultado> tarefa = new Task<>() {
@@ -175,6 +175,8 @@ public class ConfiguracoesController {
         }
         texto.append("\nVendas: ").append(r.vendas()).append(" (").append(r.vendasCanceladas())
                 .append(" canceladas, ").append(r.itensCancelados()).append(" itens cancelados durante a venda)")
+                .append("\nFornecedores: ").append(r.fornecedores()).append(" (").append(r.entradas())
+                .append(" entradas de mercadoria confirmadas)")
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();

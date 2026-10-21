@@ -161,9 +161,35 @@ class RelatoriosParte2Test {
     }
 
     @Test
-    void catalogoTemOsRelatoriosDaFase6NaOrdemDosCodigos() {
-        // R11 e R13 ficam nas telas Caixa e Inventário; R17 é da Fase 7.
+    void r17ComprasPorFornecedorComDocumentoMascaradoECodigoSemSeparador() {
+        ResultadoRelatorio<RelComprasFornecedor.Linha> r17 = DadosFicticios.r17();
+        assertThat(r17.titulo()).isEqualTo("R17 — Compras por fornecedor");
+        assertThat(r17.colunas()).extracting(Coluna::titulo).containsExactly("Código", "Fornecedor", "CPF/CNPJ",
+                "Entradas", "Itens", "Valor", "Última entrada");
+        RelComprasFornecedor.Linha primeira = r17.linhas().get(0);
+        assertThat(r17.colunas().get(0).formatar(primeira)).isEqualTo("5505");
+        assertThat(r17.colunas().get(2).formatar(primeira)).isEqualTo("12.ABC.345/01DE-35");
+        assertThat(r17.colunas().get(2).formatar(r17.linhas().get(1))).isEqualTo("529.982.247-25");
+        assertThat(r17.totais()).containsExactly("Total (2 linhas)", "", "", "4", "27", "R$ 4.600,30", "");
+        assertThat(r17.descricaoFiltros()).contains("Fornecedor: todos");
+    }
+
+    @Test
+    void colunaCodigoSemSeparadorDeMilharNaTelaNoPdfENoCsv() {
+        ResultadoRelatorio<RelEstoqueAtual.Linha> r03 = DadosFicticios.r03();
+        Coluna<RelEstoqueAtual.Linha> codigo = r03.colunas().get(0);
+        assertThat(codigo.tipo()).isEqualTo(TipoColuna.CODIGO);
+        assertThat(codigo.formatar(5505L, null)).isEqualTo("5505");
+        assertThat(codigo.csv(5505L, null)).isEqualTo("5505");
+        assertThat(codigo.totalizavel()).isFalse();
+        assertThat(DadosFicticios.r01(true).colunas().get(0).formatar(1974L, null)).as("Venda nº")
+                .isEqualTo("1974");
+    }
+
+    @Test
+    void catalogoTemOsRelatoriosNaOrdemDosCodigos() {
+        // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
-                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16");
+                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17");
     }
 }

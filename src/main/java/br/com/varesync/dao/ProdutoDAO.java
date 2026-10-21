@@ -109,6 +109,42 @@ public class ProdutoDAO {
         }
     }
 
+    /** Nome, custo médio e preço do produto, lidos com a linha travada (confirmação da entrada de mercadoria). */
+    public record CustoTravado(String nome, BigDecimal custo, BigDecimal precoVenda) {
+    }
+
+    public Optional<CustoTravado> travarCusto(Connection con, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT nome, custo, preco_venda FROM produto WHERE id = ? FOR UPDATE")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(new CustoTravado(rs.getString(1), rs.getBigDecimal(2),
+                        rs.getBigDecimal(3))) : Optional.empty();
+            }
+        }
+    }
+
+    /**
+     * Custo médio e último custo da entrada de mercadoria (6.10). Grava {@code atualizado_por} e {@code atualizado_em}
+     * (pelo Clock): o trigger registra a mudança de custo no histórico com essa data e esse usuário.
+     */
+    public void atualizarCusto(Connection con, long id, BigDecimal custo, BigDecimal ultimoCusto, long usuarioId,
+                               OffsetDateTime agora) throws SQLException {
+        String sql = """
+                UPDATE produto
+                   SET custo = ?, ultimo_custo = ?, atualizado_por = ?, atualizado_em = ?
+                 WHERE id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setBigDecimal(1, custo);
+            ps.setBigDecimal(2, ultimoCusto);
+            ps.setLong(3, usuarioId);
+            ps.setObject(4, agora);
+            ps.setLong(5, id);
+            ps.executeUpdate();
+        }
+    }
+
     /** Apaga o produto; códigos, histórico e o saldo zerado saem em cascata. */
     public void excluir(Connection con, long id) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement("DELETE FROM produto WHERE id = ?")) {

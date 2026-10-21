@@ -71,6 +71,18 @@ class ItemMenuTest {
     }
 
     @Test
+    void comprasEFornecedoresAbremAsSuasTelasCadaUmComASuaPermissao() {
+        assertThat(ItemMenu.visiveis(sessao(false, EnumSet.of(Permissao.COMPRAS))))
+                .containsExactly(ItemMenu.PAINEL, ItemMenu.COMPRAS);
+        assertThat(ItemMenu.visiveis(sessao(false, EnumSet.of(Permissao.FORNECEDORES))))
+                .containsExactly(ItemMenu.PAINEL, ItemMenu.FORNECEDORES);
+        assertThat(ItemMenu.COMPRAS.fxml()).isEqualTo("/fxml/compras.fxml");
+        assertThat(ItemMenu.FORNECEDORES.fxml()).isEqualTo("/fxml/fornecedores.fxml");
+        assertThat(ItemMenu.values()).as("todas as rotinas já têm tela").allSatisfy(item ->
+                assertThat(item == ItemMenu.PAINEL || item.fxml() != null).isTrue());
+    }
+
+    @Test
     void usuariosEConfiguracoesSoParaSupervisor() {
         Sessao quaseTudo = sessao(false, EnumSet.allOf(Permissao.class));
         assertThat(ItemMenu.visiveis(quaseTudo)).doesNotContain(ItemMenu.USUARIOS, ItemMenu.CONFIGURACOES);

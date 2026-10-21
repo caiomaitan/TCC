@@ -42,6 +42,10 @@
             <Label text="Categoria:"/>
             <ComboBox fx:id="escolhaCategoria" prefWidth="200"/>
         </HBox>
+        <HBox fx:id="grupoFornecedor" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Fornecedor:"/>
+            <ComboBox fx:id="escolhaFornecedor" prefWidth="240"/>
+        </HBox>
         <HBox fx:id="grupoProduto" alignment="CENTER_LEFT" spacing="6">
             <Label text="Produto:"/>
             <TextField fx:id="campoProduto" promptText="Código ou código de barras (vazio = todos)"

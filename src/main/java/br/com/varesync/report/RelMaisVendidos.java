@@ -100,7 +100,7 @@ public final class RelMaisVendidos implements Relatorio<RelMaisVendidos.Linha> {
     public List<Coluna<Linha>> colunas(Filtros filtros) {
         return List.of(
                 Coluna.<Linha>de("Posição", TipoColuna.INTEIRO, Linha::posicao).comLargura(0.8),
-                Coluna.<Linha>de("Código", TipoColuna.INTEIRO, Linha::produtoId).comLargura(0.8),
+                Coluna.<Linha>codigo("Código", Linha::produtoId).comLargura(0.8),
                 Coluna.texto("Produto", Linha::produto),
                 Coluna.texto("Un.", Linha::unidade).comLargura(0.6),
                 Coluna.quantidade("Quantidade", Linha::quantidade, Linha::fracionada),

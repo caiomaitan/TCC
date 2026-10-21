@@ -108,7 +108,7 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
     public List<Coluna<Linha>> colunas(Filtros filtros) {
         List<Coluna<Linha>> colunas = new ArrayList<>();
         if (filtros.detalharVendas()) {
-            colunas.add(Coluna.<Linha>de("Venda nº", TipoColuna.INTEIRO, Linha::vendaId).comLargura(0.9));
+            colunas.add(Coluna.<Linha>codigo("Venda nº", Linha::vendaId).comLargura(0.9));
             colunas.add(Coluna.<Linha>de("Data/hora", TipoColuna.DATA_HORA, Linha::dataHora));
             colunas.add(Coluna.<Linha>texto("Operador", Linha::operador).comLargura(2));
         } else {

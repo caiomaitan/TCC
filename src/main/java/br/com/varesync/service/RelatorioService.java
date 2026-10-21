@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.model.Periodo;
@@ -44,19 +45,21 @@ public class RelatorioService {
     private final CategoriaDAO categoriaDAO;
     private final ProdutoDAO produtoDAO;
     private final UsuarioDAO usuarioDAO;
+    private final FornecedorDAO fornecedorDAO;
     private final Clock clock;
 
-    /** Escolhas dos filtros de lista: operadores (todos os usuários, inclusive inativos) e categorias. */
-    public record OpcoesFiltro(List<Opcao> operadores, List<Opcao> categorias) {
+    /** Escolhas dos filtros de lista: operadores (todos os usuários, inclusive inativos), categorias e fornecedores. */
+    public record OpcoesFiltro(List<Opcao> operadores, List<Opcao> categorias, List<Opcao> fornecedores) {
     }
 
     public RelatorioService(Transacao transacao, ConfiguracaoDAO configuracaoDAO, CategoriaDAO categoriaDAO,
-                            ProdutoDAO produtoDAO, UsuarioDAO usuarioDAO, Clock clock) {
+                            ProdutoDAO produtoDAO, UsuarioDAO usuarioDAO, FornecedorDAO fornecedorDAO, Clock clock) {
         this.transacao = transacao;
         this.configuracaoDAO = configuracaoDAO;
         this.categoriaDAO = categoriaDAO;
         this.produtoDAO = produtoDAO;
         this.usuarioDAO = usuarioDAO;
+        this.fornecedorDAO = fornecedorDAO;
         this.clock = clock;
     }
 
@@ -69,7 +72,8 @@ public class RelatorioService {
         sessao.exigir(Permissao.RELATORIOS);
         return transacao.executar(con -> new OpcoesFiltro(
                 usuarioDAO.listar(con).stream().map(u -> new Opcao(u.id(), u.nome())).toList(),
-                categoriaDAO.listar(con, true).stream().map(c -> new Opcao(c.id(), c.nome())).toList()));
+                categoriaDAO.listar(con, true).stream().map(c -> new Opcao(c.id(), c.nome())).toList(),
+                fornecedorDAO.listar(con, true).stream().map(f -> new Opcao(f.id(), f.razaoSocial())).toList()));
     }
 
     /** Período inicial da tela: o mês corrente até hoje. */
@@ -113,7 +117,8 @@ public class RelatorioService {
         conferir(relatorio, filtros);
         OffsetDateTime agora = OffsetDateTime.now(clock);
         return transacao.executar(con -> {
-            ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(), margemMinima(con),
+            ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(),
+                    margemMinima(configuracaoDAO, con),
                     agora.atZoneSameInstant(clock.getZone()).toLocalDate());
             Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
                     ? filtros.comDias(diasSemGiro(con)) : filtros;
@@ -166,7 +171,7 @@ public class RelatorioService {
     }
 
     /** {@code relatorio.margem_minima_pct}; o valor da V2 (15) se faltar ou for inválido. */
-    private BigDecimal margemMinima(Connection con) throws SQLException {
+    static BigDecimal margemMinima(ConfiguracaoDAO configuracaoDAO, Connection con) throws SQLException {
         Optional<String> valor = configuracaoDAO.buscar(con, CHAVE_MARGEM_MINIMA);
         if (valor.isEmpty()) {
             return MARGEM_MINIMA_PADRAO;

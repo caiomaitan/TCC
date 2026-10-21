@@ -7,6 +7,8 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.DadosEntrada;
+import br.com.varesync.model.DadosFornecedor;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.ItemContagem;
@@ -18,6 +20,7 @@ import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.service.CatalogoDemo.FornecedorDemo;
 import br.com.varesync.service.CatalogoDemo.ItemCatalogo;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -31,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -48,8 +52,10 @@ import java.util.stream.Collectors;
  * {@link RelogioAjustavel} que o gerador posiciona em cada instante do passado: cadastros na véspera do primeiro
  * dia, depois {@value #DIAS} dias de operação com um caixa por dia.
  *
- * <p>Primeiro o gerador planeja tudo em memória (vendas, itens, perdas); a demanda planejada define o estoque inicial
- * de cada produto, para que o saldo não fique negativo. Depois executa o plano. Como cada service grava na própria
+ * <p>Primeiro o gerador planeja tudo em memória (vendas, itens, perdas e, desde a fase 7, as compras); a demanda
+ * planejada define o estoque inicial de cada produto e a quantidade de cada entrada semanal dos fornecedores (a
+ * demanda dos 7 dias seguintes, com o custo variando um pouco para cima), para que o saldo não fique negativo.
+ * Depois executa o plano. Como cada service grava na própria
  * transação, uma falha no meio deixa o que já foi gravado; nesse caso, o banco deve ser recriado (README).
  */
 public class GeradorDemo {
@@ -75,7 +81,8 @@ public class GeradorDemo {
     }
 
     public record Resultado(List<UsuarioDemo> usuarios, int produtos, int vendas, int vendasCanceladas,
-                            int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId) {
+                            int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
+                            int fornecedores, int entradas) {
     }
 
     /** Andamento, para a barra de progresso da tela. */
@@ -108,6 +115,18 @@ public class GeradorDemo {
                             List<VendaPlano> vendas, List<PerdaPlano> perdas, List<LocalTime> sangrias) {
     }
 
+    /** Linha da nota: alguns itens são lançados pelo valor total da linha, em vez do custo unitário. */
+    private record ItemCompra(int produto, BigDecimal quantidade, BigDecimal custo, boolean porValorTotal) {
+
+        BigDecimal valorTotal() {
+            return Dinheiro.multiplicar(quantidade, custo);
+        }
+    }
+
+    /** Entrada semanal de um fornecedor, no dia {@code dia} (1 = primeiro dia), {@code semana} 0, 1, 2… */
+    private record CompraPlano(int fornecedor, int dia, int semana, List<ItemCompra> itens) {
+    }
+
     private final RelogioAjustavel relogio;
     private final Clock relogioReal;
     private final Transacao transacao;
@@ -119,6 +138,8 @@ public class GeradorDemo {
     private final CaixaService caixa;
     private final VendaService vendas;
     private final InventarioService inventarios;
+    private final FornecedorService fornecedores;
+    private final EntradaService compras;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -128,8 +149,9 @@ public class GeradorDemo {
     public GeradorDemo(RelogioAjustavel relogio, Clock relogioReal, Transacao transacao, AcessoService acesso,
                        UsuarioService usuarios, CategoriaService categorias, ProdutoService produtos,
                        EstoqueService estoque, CaixaService caixa, VendaService vendas,
-                       InventarioService inventarios, DemoDAO demoDAO, CaixaDAO caixaDAO,
-                       ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria) {
+                       InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
+                       DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
+                       AuditoriaService auditoria) {
         this.relogio = relogio;
         this.relogioReal = relogioReal;
         this.transacao = transacao;
@@ -141,6 +163,8 @@ public class GeradorDemo {
         this.caixa = caixa;
         this.vendas = vendas;
         this.inventarios = inventarios;
+        this.fornecedores = fornecedores;
+        this.compras = compras;
         this.demoDAO = demoDAO;
         this.caixaDAO = caixaDAO;
         this.configuracaoDAO = configuracaoDAO;
@@ -175,6 +199,11 @@ public class GeradorDemo {
                 throw new NegocioException("Já há produtos com os códigos de barras ou PLUs dos dados de "
                         + "demonstração. Use um banco separado.");
             }
+            if (!demoDAO.documentosExistentes(con, CatalogoDemo.fornecedores().stream()
+                    .map(FornecedorDemo::cnpj).toList()).isEmpty()) {
+                throw new NegocioException("Já há fornecedores com os CNPJs dos dados de demonstração. Use um banco "
+                        + "separado.");
+            }
             return null;
         });
         caixa.caixaAberto(sessao).ifPresent(c -> {
@@ -193,7 +222,14 @@ public class GeradorDemo {
         LocalDate hoje = LocalDate.now(relogioReal);
         LocalDate inicio = hoje.minusDays(DIAS);
         List<DiaPlano> dias = planejar(plano, catalogo, inicio);
-        long totalPassos = catalogo.size() + dias.stream().mapToLong(d -> d.vendas().size()).sum();
+        BigDecimal[][] demandaDia = demandaPorDia(dias, catalogo.size());
+        List<FornecedorDemo> fornecedoresDemo = CatalogoDemo.fornecedores();
+        List<CompraPlano> comprasPlano = planejarCompras(new Random(SEMENTE + 3), catalogo, fornecedoresDemo,
+                demandaDia, inicio);
+        Map<Integer, List<CompraPlano>> comprasPorDia = comprasPlano.stream()
+                .collect(Collectors.groupingBy(CompraPlano::dia, LinkedHashMap::new, Collectors.toList()));
+        long totalPassos = catalogo.size() + dias.stream().mapToLong(d -> d.vendas().size()).sum()
+                + comprasPlano.size();
         long[] feito = {0};
 
         // Véspera do primeiro dia: balança, usuários e produtos.
@@ -213,13 +249,19 @@ public class GeradorDemo {
         Liberacao liberaDesconto = acesso.liberar("carlos", senhaGerente, Permissao.DESCONTO_ACIMA_LIMITE);
 
         Map<String, Long> categoriaIds = prepararCategorias(supervisor);
-        Map<Integer, BigDecimal> demanda = demanda(dias, catalogo.size());
+        posicionar(vespera, LocalTime.of(8, 20), zona);
+        List<Long> fornecedorIds = new ArrayList<>();
+        for (FornecedorDemo f : fornecedoresDemo) {
+            fornecedorIds.add(fornecedores.criar(supervisor, new DadosFornecedor(f.razaoSocial(), f.nomeFantasia(),
+                    f.cnpj(), f.telefone(), f.email(), f.contato(), f.cidade(), f.uf(),
+                    "Entrega toda " + diaDaSemana(f.diaEntrega()) + " de manhã.")));
+        }
+        Map<Integer, BigDecimal> inicial = estoquesIniciais(catalogo, dias, demandaDia, comprasPlano);
         List<Long> produtoIds = new ArrayList<>();
         for (int i = 0; i < catalogo.size(); i++) {
             ItemCatalogo item = catalogo.get(i);
             posicionar(vespera, LocalTime.of(8, 30).plusSeconds(20L * i), zona);
-            produtoIds.add(produtos.criar(supervisor, dados(item, categoriaIds, estoqueInicial(item,
-                    demanda.getOrDefault(i, BigDecimal.ZERO)))));
+            produtoIds.add(produtos.criar(supervisor, dados(item, categoriaIds, inicial.get(i))));
             progresso.informar(++feito[0], totalPassos, "Cadastrando produtos (" + (i + 1) + " de "
                     + catalogo.size() + ")");
         }
@@ -235,7 +277,16 @@ public class GeradorDemo {
         int canceladas = 0;
         int itensCancelados = 0;
         long inventarioId = 0;
+        int entradas = 0;
         for (DiaPlano dia : dias) {
+            for (CompraPlano compra : comprasPorDia.getOrDefault(dia.numero(), List.of())) {
+                comprar(gerente, compra, fornecedoresDemo.get(compra.fornecedor()),
+                        fornecedorIds.get(compra.fornecedor()), produtoIds, dia.data(), zona);
+                entradas++;
+                progresso.informar(++feito[0], totalPassos, "Dia " + dia.numero() + " de " + DIAS + " ("
+                        + Formatos.data(dia.data()) + "): entrada de mercadoria de "
+                        + fornecedoresDemo.get(compra.fornecedor()).nomeFantasia());
+            }
             if (dia.numero() == DIA_REAJUSTE_1 || dia.numero() == DIA_REAJUSTE_2) {
                 posicionar(dia.data(), LocalTime.of(7, 20), zona);
                 reajustarPrecos(gerente, catalogo, produtoIds, execucao, dia.numero() == DIA_REAJUSTE_1 ? 0 : 1);
@@ -284,14 +335,15 @@ public class GeradorDemo {
 
         relogio.ajustar(relogioReal.instant());
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
-                inicio, hoje.minusDays(1), inventarioId);
+                inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
                             + " produtos, usuários " + criados.stream().map(UsuarioDemo::login)
                             .collect(Collectors.joining(", ")) + ", " + resultado.vendas() + " vendas ("
-                            + resultado.vendasCanceladas() + " canceladas) de " + Formatos.data(inicio)
-                            + " a " + Formatos.data(resultado.fim()));
+                            + resultado.vendasCanceladas() + " canceladas), " + resultado.fornecedores()
+                            + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
+                            + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
         });
         return resultado;
@@ -400,25 +452,122 @@ public class GeradorDemo {
         throw new IllegalStateException("sorteio fora da faixa");
     }
 
-    /** Quantidade planejada para sair de cada produto (itens não cancelados e perdas). */
-    private static Map<Integer, BigDecimal> demanda(List<DiaPlano> dias, int produtos) {
-        Map<Integer, BigDecimal> demanda = new LinkedHashMap<>();
-        for (int i = 0; i < produtos; i++) {
-            demanda.put(i, BigDecimal.ZERO);
-        }
-        for (DiaPlano dia : dias) {
-            for (VendaPlano venda : dia.vendas()) {
+    /** Quantidade planejada para sair de cada produto em cada dia (itens não cancelados e perdas): [dia][produto]. */
+    private static BigDecimal[][] demandaPorDia(List<DiaPlano> dias, int produtos) {
+        BigDecimal[][] demanda = new BigDecimal[dias.size()][produtos];
+        for (int d = 0; d < dias.size(); d++) {
+            Arrays.fill(demanda[d], BigDecimal.ZERO);
+            for (VendaPlano venda : dias.get(d).vendas()) {
                 for (ItemPlano item : venda.itens()) {
                     if (!item.cancelar()) {
-                        demanda.merge(item.produto(), item.quantidade(), BigDecimal::add);
+                        demanda[d][item.produto()] = demanda[d][item.produto()].add(item.quantidade());
                     }
                 }
             }
-            for (PerdaPlano perda : dia.perdas()) {
-                demanda.merge(perda.produto(), perda.quantidade(), BigDecimal::add);
+            for (PerdaPlano perda : dias.get(d).perdas()) {
+                demanda[d][perda.produto()] = demanda[d][perda.produto()].add(perda.quantidade());
             }
         }
         return demanda;
+    }
+
+    private static BigDecimal somar(BigDecimal[][] demanda, int produto, int deDia, int ateDiaExclusivo) {
+        BigDecimal soma = BigDecimal.ZERO;
+        for (int d = deDia; d < Math.min(ateDiaExclusivo, demanda.length); d++) {
+            soma = soma.add(demanda[d][produto]);
+        }
+        return soma;
+    }
+
+    /** Produtos repostos pelo fornecedor: os das suas categorias que vendem, menos os de "estoque baixo". */
+    private static boolean reposto(ItemCatalogo item, FornecedorDemo fornecedor) {
+        return fornecedor.categorias().contains(item.categoria()) && item.popularidade() > 0 && !item.estoqueBaixo();
+    }
+
+    /** Índice (0 = primeiro dia) da primeira entrega do fornecedor. */
+    private static int primeiraEntrega(FornecedorDemo fornecedor, LocalDate inicio) {
+        int d = 0;
+        while (inicio.plusDays(d).getDayOfWeek() != fornecedor.diaEntrega()) {
+            d++;
+        }
+        return d;
+    }
+
+    /**
+     * Uma entrada por semana de cada fornecedor, no dia da entrega: a demanda planejada dos 7 dias seguintes,
+     * arredondada para cima em unidades inteiras. O custo sobe 0,25% por semana mais 0% a 2,5% de variação sobre o
+     * custo do catálogo (nunca abaixo dele: os produtos de preço abaixo do custo continuam assim); 1 em cada 5 linhas é
+     * lançada pelo valor total.
+     */
+    private static List<CompraPlano> planejarCompras(Random r, List<ItemCatalogo> catalogo,
+                                                     List<FornecedorDemo> fornecedores, BigDecimal[][] demanda,
+                                                     LocalDate inicio) {
+        List<CompraPlano> compras = new ArrayList<>();
+        for (int f = 0; f < fornecedores.size(); f++) {
+            FornecedorDemo fornecedor = fornecedores.get(f);
+            int semana = 0;
+            for (int d = primeiraEntrega(fornecedor, inicio); d < DIAS; d += 7, semana++) {
+                List<ItemCompra> itens = new ArrayList<>();
+                for (int p = 0; p < catalogo.size(); p++) {
+                    ItemCatalogo item = catalogo.get(p);
+                    if (!reposto(item, fornecedor)) {
+                        continue;
+                    }
+                    BigDecimal quantidade = somar(demanda, p, d, d + 7).setScale(0, RoundingMode.CEILING);
+                    if (quantidade.signum() == 0) {
+                        continue;
+                    }
+                    BigDecimal fator = BigDecimal.ONE.add(BigDecimal.valueOf(25L * semana + r.nextInt(251), 4));
+                    BigDecimal custo = item.custo().multiply(fator).setScale(2, RoundingMode.HALF_UP);
+                    itens.add(new ItemCompra(p, quantidade, custo, r.nextInt(5) == 0));
+                }
+                if (!itens.isEmpty()) {
+                    compras.add(new CompraPlano(f, d + 1, semana, itens));
+                }
+            }
+        }
+        compras.sort((a, b) -> a.dia() != b.dia() ? Integer.compare(a.dia(), b.dia())
+                : Integer.compare(a.fornecedor(), b.fornecedor()));
+        return compras;
+    }
+
+    /**
+     * Estoque inicial de cada produto: os repostos cobrem a demanda até a primeira entrega, com folga; os demais, a
+     * demanda dos {@value #DIAS} dias ({@link #estoqueInicial}).
+     */
+    private static Map<Integer, BigDecimal> estoquesIniciais(List<ItemCatalogo> catalogo, List<DiaPlano> dias,
+                                                             BigDecimal[][] demanda, List<CompraPlano> compras) {
+        Map<Integer, BigDecimal> inicial = new LinkedHashMap<>();
+        LocalDate inicio = dias.get(0).data();
+        List<FornecedorDemo> fornecedores = CatalogoDemo.fornecedores();
+        for (int p = 0; p < catalogo.size(); p++) {
+            ItemCatalogo item = catalogo.get(p);
+            BigDecimal total = somar(demanda, p, 0, DIAS);
+            FornecedorDemo fornecedor = null;
+            for (FornecedorDemo f : fornecedores) {
+                if (reposto(item, f)) {
+                    fornecedor = f;
+                }
+            }
+            if (fornecedor == null || compras.isEmpty()) {
+                inicial.put(p, estoqueInicial(item, total));
+            } else {
+                BigDecimal antes = somar(demanda, p, 0, primeiraEntrega(fornecedor, inicio));
+                inicial.put(p, estoqueInicialReposto(item, antes, total));
+            }
+        }
+        return inicial;
+    }
+
+    /**
+     * Produto reposto toda semana: a demanda até a primeira entrega + 30% da média semanal + mínimo + 6. Como cada
+     * entrada traz a demanda da semana, o saldo nunca fica negativo e termina acima do mínimo.
+     */
+    static BigDecimal estoqueInicialReposto(ItemCatalogo item, BigDecimal demandaAntes, BigDecimal demandaTotal) {
+        BigDecimal mediaSemanal = demandaTotal.multiply(BigDecimal.valueOf(7))
+                .divide(BigDecimal.valueOf(DIAS), Dinheiro.ESCALA_QUANTIDADE, RoundingMode.HALF_UP);
+        return demandaAntes.add(mediaSemanal.multiply(new BigDecimal("0.3"))).add(item.minimo())
+                .add(BigDecimal.valueOf(6)).setScale(0, RoundingMode.CEILING);
     }
 
     /**
@@ -443,6 +592,40 @@ public class GeradorDemo {
         relogio.ajustar(instante);
     }
 
+    /**
+     * Entrada semanal pelo {@link EntradaService} (6.10): nota com a emissão na véspera e o valor total igual à soma
+     * dos itens, itens às 6h40 e confirmação às 6h50 (antes da abertura do caixa, do inventário e dos reajustes).
+     */
+    private void comprar(Sessao gerente, CompraPlano compra, FornecedorDemo fornecedor, long fornecedorId,
+                         List<Long> produtoIds, LocalDate data, ZoneId zona) {
+        posicionar(data, LocalTime.of(6, 40), zona);
+        BigDecimal total = compra.itens().stream().map(ItemCompra::valorTotal).reduce(BigDecimal.ZERO,
+                BigDecimal::add);
+        long id = compras.criar(gerente, new DadosEntrada(fornecedorId,
+                String.valueOf(fornecedor.primeiraNota() + compra.semana()), data.minusDays(1), total));
+        LocalTime hora = LocalTime.of(6, 40, 10);
+        for (ItemCompra item : compra.itens()) {
+            posicionar(data, hora, zona);
+            hora = hora.plusSeconds(5);
+            compras.adicionarItem(gerente, id, produtoIds.get(item.produto()), item.quantidade(),
+                    item.porValorTotal() ? null : item.custo(), item.porValorTotal() ? item.valorTotal() : null);
+        }
+        posicionar(data, LocalTime.of(6, 50), zona);
+        compras.confirmar(gerente, id);
+    }
+
+    private static String diaDaSemana(DayOfWeek dia) {
+        return switch (dia) {
+            case MONDAY -> "segunda-feira";
+            case TUESDAY -> "terça-feira";
+            case WEDNESDAY -> "quarta-feira";
+            case THURSDAY -> "quinta-feira";
+            case FRIDAY -> "sexta-feira";
+            case SATURDAY -> "sábado";
+            case SUNDAY -> "domingo";
+        };
+    }
+
     /** Os pesáveis têm PLU, que só é aceito com a balança ativa (6.3). */
     private void ativarBalanca(Sessao supervisor) {
         transacao.executar(con -> {
@@ -460,7 +643,7 @@ public class GeradorDemo {
         for (UsuarioPlano u : USUARIOS) {
             String senha = "demo" + (1000 + r.nextInt(9000));
             Set<Permissao> permissoes = u.gerente()
-                    ? EnumSet.complementOf(EnumSet.of(Permissao.FORNECEDORES, Permissao.COMPRAS))
+                    ? EnumSet.allOf(Permissao.class)
                     : EnumSet.of(Permissao.PDV);
             usuarios.criar(supervisor, u.login(), u.nome(), false, permissoes, senha, senha);
             criados.add(new UsuarioDemo(u.login(), u.nome(), u.gerente() ? "Gerente" : "Operador de caixa", senha));

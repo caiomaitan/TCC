@@ -168,6 +168,14 @@ final class DadosFicticios {
                         "Carlos Pereira (carlos)")));
     }
 
+    static ResultadoRelatorio<RelComprasFornecedor.Linha> r17() {
+        return resultado(new RelComprasFornecedor(), FILTROS, List.of(
+                new RelComprasFornecedor.Linha(5505, "Bebidas e Frios Sertãozinho Ltda", "12ABC34501DE35", 3, 25,
+                        d("4520.30"), EMISSAO.minusDays(1)),
+                new RelComprasFornecedor.Linha(2, "Produtor Rural José", "52998224725", 1, 2, d("80.00"),
+                        EMISSAO.minusDays(9))));
+    }
+
     /** Inventário nº 4 aplicado: sobra de 1 (R$ 3,60), falta de 2,5 kg (R$ 8,50) e um item não contado. */
     static ResultadoRelatorio<ItemDivergencia> r13() {
         OffsetDateTime contado = EMISSAO.minusHours(2);
@@ -184,6 +192,6 @@ final class DadosFicticios {
 
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
-                r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16());
+                r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17());
     }
 }

@@ -80,7 +80,7 @@ public final class RelAlteracoesPreco implements Relatorio<RelAlteracoesPreco.Li
     public List<Coluna<Linha>> colunas(Filtros filtros) {
         return List.of(
                 Coluna.<Linha>de("Data/hora", TipoColuna.DATA_HORA, Linha::dataHora),
-                Coluna.<Linha>de("Código", TipoColuna.INTEIRO, Linha::produtoId).comLargura(0.8),
+                Coluna.<Linha>codigo("Código", Linha::produtoId).comLargura(0.8),
                 Coluna.<Linha>texto("Código de barras", l -> l.codigoBarras() == null ? "" : l.codigoBarras())
                         .comLargura(1.6),
                 Coluna.texto("Produto", Linha::produto),

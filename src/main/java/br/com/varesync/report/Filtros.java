@@ -13,33 +13,34 @@ import java.util.Set;
  *
  * @param topN quantos produtos no ranking (R02); nulo = todos
  * @param dias dias sem venda para o produto ser "sem giro" (R12); nulo = {@code relatorio.dias_sem_giro}
+ * @param fornecedor fornecedor das entradas (R17); nulo = todos
  */
 public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer topN, Criterio criterio,
                       boolean soAbaixoDoMinimo, boolean incluirInativos, Opcao produto, TipoMovimento tipo,
-                      boolean detalharVendas, Integer dias) {
+                      boolean detalharVendas, Integer dias, Opcao fornecedor) {
 
     public static Filtros vazios() {
-        return new Filtros(null, null, null, null, null, false, false, null, null, false, null);
+        return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null);
     }
 
     public Filtros comPeriodo(Periodo novo) {
         return new Filtros(novo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias);
+                tipo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comOperador(Opcao novo) {
         return new Filtros(periodo, novo, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias);
+                tipo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comCategoria(Opcao nova) {
         return new Filtros(periodo, operador, nova, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias);
+                tipo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comRanking(Integer novoTopN, Criterio novoCriterio) {
         return new Filtros(periodo, operador, categoria, novoTopN, novoCriterio, soAbaixoDoMinimo, incluirInativos,
-                produto, tipo, detalharVendas, dias);
+                produto, tipo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comCriterio(Criterio novo) {
@@ -48,27 +49,32 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
 
     public Filtros comEstoque(boolean soAbaixo, boolean inativos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixo, inativos, produto, tipo,
-                detalharVendas, dias);
+                detalharVendas, dias, fornecedor);
     }
 
     public Filtros comProduto(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, novo,
-                tipo, detalharVendas, dias);
+                tipo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comTipo(TipoMovimento novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                novo, detalharVendas, dias);
+                novo, detalharVendas, dias, fornecedor);
     }
 
     public Filtros comDetalhe(boolean detalhar) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalhar, dias);
+                tipo, detalhar, dias, fornecedor);
     }
 
     public Filtros comDias(Integer novos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, novos);
+                tipo, detalharVendas, novos, fornecedor);
+    }
+
+    public Filtros comFornecedor(Opcao novo) {
+        return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
+                tipo, detalharVendas, dias, novo);
     }
 
     public Criterio criterioOuPadrao() {
@@ -87,6 +93,10 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         return produto == null ? null : produto.id();
     }
 
+    public Long fornecedorId() {
+        return fornecedor == null ? null : fornecedor.id();
+    }
+
     /** Cabeçalho do PDF: "Período: 01/09/2026 a 30/09/2026 · Operador: todos · Categoria: Bebidas". */
     public String descrever(Set<TipoFiltro> usados) {
         List<String> partes = new ArrayList<>();
@@ -98,6 +108,9 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         }
         if (usados.contains(TipoFiltro.CATEGORIA)) {
             partes.add("Categoria: " + (categoria == null ? "todas" : categoria.nome()));
+        }
+        if (usados.contains(TipoFiltro.FORNECEDOR)) {
+            partes.add("Fornecedor: " + (fornecedor == null ? "todos" : fornecedor.nome()));
         }
         if (usados.contains(TipoFiltro.PRODUTO)) {
             partes.add("Produto: " + (produto == null ? "todos" : produto.nome() + " (código " + produto.id() + ")"));

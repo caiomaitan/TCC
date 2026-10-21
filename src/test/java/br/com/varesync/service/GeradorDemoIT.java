@@ -15,6 +15,7 @@ import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.RelAlteracoesPreco;
 import br.com.varesync.report.RelCancelamentos;
+import br.com.varesync.report.RelComprasFornecedor;
 import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelFormasPagamento;
 import br.com.varesync.report.RelPerdasAjustes;
@@ -115,7 +116,7 @@ class GeradorDemoIT extends IntegracaoBase {
     void criaSessentaDiasTerminandoOntem() throws Exception {
         assertThat(resultado.inicio()).isEqualTo(LocalDate.of(2026, 8, 18));
         assertThat(resultado.fim()).isEqualTo(LocalDate.of(2026, 10, 16));
-        assertThat(passos).isEqualTo(resultado.produtos() + resultado.vendas());
+        assertThat(passos).isEqualTo(resultado.produtos() + resultado.vendas() + resultado.entradas());
         assertThat(contar("SELECT count(*) FROM caixa_sessao")).isEqualTo(GeradorDemo.DIAS);
         assertThat(contar("SELECT count(*) FROM caixa_sessao WHERE status <> 'FECHADO'")).isZero();
         assertThat(contar("SELECT count(*) FROM caixa_sessao WHERE diferenca <> 0"))
@@ -173,6 +174,40 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(contar("SELECT count(*) FROM movimento_estoque WHERE tipo = 'INVENTARIO'")).isGreaterThan(0);
         assertThat(contar("SELECT count(*) FROM inventario_item WHERE quantidade_contada IS NULL")).isEqualTo(1);
         assertThat(t.auditoria(AcaoAuditoria.DADOS_DEMO_GERADOS)).hasSize(1);
+    }
+
+    @Test
+    void fornecedoresEEntradasSemanaisComCustoVariando() throws Exception {
+        assertThat(resultado.fornecedores()).isEqualTo(3);
+        assertThat(contar("SELECT count(*) FROM fornecedor")).isEqualTo(3);
+        assertThat(contar("SELECT count(*) FROM fornecedor WHERE cpf_cnpj ~ '[A-Z]'"))
+                .as("CNPJs alfanuméricos (A.3)").isEqualTo(2);
+        long entradas = contar("SELECT count(*) FROM entrada_mercadoria");
+        assertThat(entradas).isEqualTo(resultado.entradas()).as("uma por semana de cada fornecedor")
+                .isBetween(24L, 27L);
+        assertThat(contar("SELECT count(*) FROM entrada_mercadoria WHERE status <> 'CONFIRMADA'")).isZero();
+        assertThat(coluna("""
+                SELECT count(*) FROM entrada_mercadoria GROUP BY fornecedor_id, extract(isodow FROM confirmado_em)
+                """)).as("cada fornecedor sempre no mesmo dia da semana").hasSize(3);
+        assertThat(contar("SELECT count(*) FROM movimento_estoque WHERE tipo = 'ENTRADA_COMPRA'"))
+                .isEqualTo(contar("SELECT count(*) FROM entrada_mercadoria_item"));
+        assertThat(contar("""
+                SELECT count(*) FROM produto_historico_preco
+                 WHERE custo_anterior IS NOT NULL AND custo_novo <> custo_anterior
+                """)).as("histórico de custo pelas entradas").isGreaterThan(100);
+        assertThat(contar("""
+                SELECT count(*) FROM entrada_mercadoria e
+                 WHERE e.valor_total_nota <> (SELECT sum(valor_total) FROM entrada_mercadoria_item i
+                                               WHERE i.entrada_id = e.id)
+                """)).as("nota igual à soma dos itens").isZero();
+        assertThat(t.auditoria(AcaoAuditoria.ENTRADA_CONFIRMADA)).hasSize((int) entradas);
+        // Os de preço abaixo do custo continuam assim (o custo só sobe) e o R17 bate com as notas.
+        assertThat(contar("SELECT count(*) FROM produto WHERE preco_venda < custo")).isGreaterThanOrEqualTo(2);
+        ResultadoRelatorio<RelComprasFornecedor.Linha> r17 = t.relatorios.gerar(admin, new RelComprasFornecedor(),
+                periodo());
+        assertThat(r17.linhas()).hasSize(3);
+        assertThat(Coluna.soma(r17.linhas(), RelComprasFornecedor.Linha::valor))
+                .isEqualByComparingTo(umValor("SELECT sum(valor_total_nota) FROM entrada_mercadoria"));
     }
 
     @Test
