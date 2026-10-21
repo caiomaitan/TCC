@@ -1,0 +1,269 @@
+package br.com.varesync.service;
+
+import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.ParametrosVenda;
+import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.util.CpfCnpj;
+import br.com.varesync.util.Dinheiro;
+import br.com.varesync.util.Formatos;
+import br.com.varesync.util.Textos;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+/**
+ * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima, dias sem giro, balança e
+ * formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
+ * anterior e o novo.
+ */
+public class ConfiguracaoService {
+
+    public static final String ENTIDADE_CONFIGURACAO = "configuracao";
+    public static final String ENTIDADE_FORMA_PAGAMENTO = "forma_pagamento";
+    static final int TAMANHO_NOME_LOJA = AcessoService.TAMANHO_MAXIMO_NOME_LOJA;
+    static final int TAMANHO_ENDERECO = 200;
+    static final int TAMANHO_RODAPE = 200;
+    static final int TAMANHO_FORMA = 40;
+    private static final BigDecimal CEM = BigDecimal.valueOf(100);
+
+    private final Transacao transacao;
+    private final ConfiguracaoDAO configuracaoDAO;
+    private final FormaPagamentoDAO formaPagamentoDAO;
+    private final ProdutoDAO produtoDAO;
+    private final AuditoriaService auditoria;
+
+    public ConfiguracaoService(Transacao transacao, ConfiguracaoDAO configuracaoDAO,
+                               FormaPagamentoDAO formaPagamentoDAO, ProdutoDAO produtoDAO, AuditoriaService auditoria) {
+        this.transacao = transacao;
+        this.configuracaoDAO = configuracaoDAO;
+        this.formaPagamentoDAO = formaPagamentoDAO;
+        this.produtoDAO = produtoDAO;
+        this.auditoria = auditoria;
+    }
+
+    public Configuracoes carregar(Sessao sessao) {
+        sessao.exigirSupervisor();
+        return transacao.executar(configuracaoDAO::carregar);
+    }
+
+    /**
+     * Valida e grava os parâmetros; só as chaves que mudaram são escritas. O backup (6.12) não é editado aqui: os
+     * valores atuais são mantidos.
+     *
+     * @return descrição das mudanças (vazia se nada mudou)
+     */
+    public List<String> salvar(Sessao sessao, Configuracoes informadas) {
+        sessao.exigirSupervisor();
+        Configuracoes validadas = validar(informadas);
+        return transacao.executar(con -> {
+            configuracaoDAO.travar(con);
+            Configuracoes atuais = configuracaoDAO.carregar(con);
+            Configuracoes novas = new Configuracoes(validadas.loja(), validadas.venda(), validadas.margemMinimaPct(),
+                    validadas.diasSemGiro(), validadas.balanca(), atuais.backup(), validadas.rodapeComprovante());
+            if (novas.balanca().ativo()) {
+                conferirPlus(con, novas.balanca());
+            }
+            List<String> mudancas = mudancas(atuais, novas);
+            if (mudancas.isEmpty()) {
+                return mudancas;
+            }
+            var antes = atuais.paraMapa();
+            for (var valor : novas.paraMapa().entrySet()) {
+                if (!Objects.equals(antes.get(valor.getKey()), valor.getValue())) {
+                    configuracaoDAO.gravar(con, valor.getKey(), valor.getValue());
+                }
+            }
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONFIGURACAO_ALTERADA, ENTIDADE_CONFIGURACAO, null,
+                    "Configurações alteradas: " + String.join("; ", mudancas));
+            return mudancas;
+        });
+    }
+
+    // ----- Formas de pagamento -----
+
+    public List<FormaPagamentoCadastro> formasPagamento(Sessao sessao) {
+        sessao.exigirSupervisor();
+        return transacao.executar(formaPagamentoDAO::listar);
+    }
+
+    /** Nova forma, já ativa. Descrição única, sem diferenciar maiúsculas. @return id */
+    public int criarForma(Sessao sessao, String descricaoDigitada, TipoFormaPagamento tipo) {
+        sessao.exigirSupervisor();
+        String descricao = Textos.normalizarEspacos(descricaoDigitada);
+        if (descricao.isEmpty()) {
+            throw new NegocioException("Informe a descrição da forma de pagamento.");
+        }
+        if (descricao.length() > TAMANHO_FORMA) {
+            throw new NegocioException("A descrição pode ter no máximo " + TAMANHO_FORMA + " caracteres.");
+        }
+        if (tipo == null) {
+            throw new NegocioException("Escolha o tipo da forma de pagamento.");
+        }
+        return transacao.executar(con -> {
+            formaPagamentoDAO.buscarPorDescricao(con, descricao).ifPresent(f -> {
+                throw new NegocioException("Já existe a forma de pagamento \"" + f.descricao() + "\""
+                        + (f.ativa() ? "." : ", desativada. Ative-a em vez de criar outra."));
+            });
+            int id = formaPagamentoDAO.inserir(con, descricao, tipo);
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONFIGURACAO_ALTERADA, ENTIDADE_FORMA_PAGAMENTO, (long) id,
+                    "Forma de pagamento \"" + descricao + "\" (" + tipo.rotulo() + ") criada");
+            return id;
+        });
+    }
+
+    /** Ativa ou desativa; sempre fica ao menos uma forma ativa (sem nenhuma, o PDV não recebe). */
+    public void alterarSituacaoForma(Sessao sessao, int id, boolean ativa) {
+        sessao.exigirSupervisor();
+        transacao.executar(con -> {
+            List<FormaPagamentoCadastro> formas = formaPagamentoDAO.travar(con);
+            FormaPagamentoCadastro forma = formas.stream().filter(f -> f.id() == id).findFirst()
+                    .orElseThrow(() -> new NegocioException("Forma de pagamento não encontrada."));
+            if (forma.ativa() == ativa) {
+                return null;
+            }
+            if (!ativa && formas.stream().filter(FormaPagamentoCadastro::ativa).count() == 1) {
+                throw new NegocioException("\"" + forma.descricao() + "\" é a única forma de pagamento ativa. Ative "
+                        + "outra antes de desativar esta.");
+            }
+            formaPagamentoDAO.alterarSituacao(con, id, ativa);
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONFIGURACAO_ALTERADA, ENTIDADE_FORMA_PAGAMENTO, (long) id,
+                    "Forma de pagamento \"" + forma.descricao() + "\" " + (ativa ? "ativada" : "desativada"));
+            return null;
+        });
+    }
+
+    // ----- Validação -----
+
+    /** Normaliza e valida o que vem da tela (o backup é ignorado: {@link #salvar} mantém o gravado). */
+    static Configuracoes validar(Configuracoes c) {
+        Configuracoes.Loja loja = c.loja();
+        String nome = Textos.normalizarEspacos(loja.nome());
+        if (nome.isEmpty()) {
+            throw new NegocioException("Informe o nome da loja.");
+        }
+        limite(nome, TAMANHO_NOME_LOJA, "O nome da loja");
+        String documento = ValidacaoFornecedor.documento(loja.documento());
+        String telefone = ValidacaoFornecedor.telefone(loja.telefone());
+        String endereco = limite(Textos.normalizarEspacos(loja.endereco()), TAMANHO_ENDERECO, "O endereço");
+        String rodape = limite(Textos.normalizarEspacos(c.rodapeComprovante()), TAMANHO_RODAPE,
+                "A mensagem do comprovante");
+
+        ParametrosVenda venda = c.venda();
+        BigDecimal desconto = percentual(venda.descontoMaximoPct(), "O desconto máximo do operador", true);
+        BigDecimal margem = percentual(c.margemMinimaPct(), "A margem mínima", false);
+        if (c.diasSemGiro() < 1 || c.diasSemGiro() > Configuracoes.DIAS_SEM_GIRO_MAXIMO) {
+            throw new NegocioException("Os dias sem giro devem estar entre 1 e " + Configuracoes.DIAS_SEM_GIRO_MAXIMO
+                    + ".");
+        }
+        Configuracoes.Balanca balanca = c.balanca();
+        if (balanca.prefixo() < 0 || balanca.prefixo() > 9) {
+            throw new NegocioException("O prefixo da etiqueta de balança é um dígito, de 0 a 9 (normalmente 2).");
+        }
+        if (balanca.digitosCodigo() < Configuracoes.DIGITOS_PLU_MINIMO
+                || balanca.digitosCodigo() > Configuracoes.DIGITOS_PLU_MAXIMO) {
+            throw new NegocioException("Os dígitos do código (PLU) na etiqueta devem ser 4, 5 ou 6.");
+        }
+        if (balanca.tipoValor() == null) {
+            throw new NegocioException("Escolha o que a etiqueta de balança traz: preço total ou peso.");
+        }
+        return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
+                telefone == null ? "" : telefone),
+                new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
+                margem, c.diasSemGiro(), balanca, c.backup(), rodape);
+    }
+
+    private static BigDecimal percentual(BigDecimal valor, String rotulo, boolean aceitaCem) {
+        if (valor == null) {
+            throw new NegocioException("Informe " + rotulo.substring(0, 1).toLowerCase() + rotulo.substring(1) + ".");
+        }
+        if (valor.signum() < 0 || (aceitaCem ? valor.compareTo(CEM) > 0 : valor.compareTo(CEM) >= 0)) {
+            throw new NegocioException(rotulo + " deve estar entre 0 e " + (aceitaCem ? "100" : "99,99") + "%.");
+        }
+        if (ValidacaoProduto.casas(valor) > Dinheiro.ESCALA_PERCENTUAL) {
+            throw new NegocioException(rotulo + " pode ter no máximo " + Dinheiro.ESCALA_PERCENTUAL
+                    + " casas decimais.");
+        }
+        return valor;
+    }
+
+    private static String limite(String texto, int tamanho, String rotulo) {
+        if (texto.length() > tamanho) {
+            throw new NegocioException(rotulo + " pode ter no máximo " + tamanho + " caracteres.");
+        }
+        return texto;
+    }
+
+    /** Com menos dígitos de código, um PLU já cadastrado poderia não caber na etiqueta. */
+    private void conferirPlus(Connection con, Configuracoes.Balanca balanca) throws java.sql.SQLException {
+        List<ProdutoDAO.Dono> fora = produtoDAO.comPluAcima(con, balanca.pluMaximo());
+        if (!fora.isEmpty()) {
+            String nomes = fora.stream().limit(5).map(p -> ProdutoService.descrever(p.id(), p.nome()))
+                    .collect(Collectors.joining(", "));
+            throw new NegocioException("Com " + balanca.digitosCodigo() + " dígitos de código, o PLU vai até "
+                    + balanca.pluMaximo() + ", mas " + (fora.size() == 1 ? "1 produto tem" : fora.size()
+                    + " produtos têm") + " PLU maior: " + nomes + (fora.size() > 5 ? " e mais " + (fora.size() - 5)
+                    : "") + ". Altere o PLU desses produtos antes.");
+        }
+    }
+
+    // ----- Auditoria -----
+
+    static List<String> mudancas(Configuracoes a, Configuracoes n) {
+        List<String> m = new ArrayList<>();
+        comparar(m, "nome da loja", texto(a.loja().nome()), texto(n.loja().nome()));
+        comparar(m, "CNPJ/CPF da loja", documento(a.loja().documento()), documento(n.loja().documento()));
+        comparar(m, "endereço", texto(a.loja().endereco()), texto(n.loja().endereco()));
+        comparar(m, "telefone", telefone(a.loja().telefone()), telefone(n.loja().telefone()));
+        comparar(m, "mensagem do comprovante", texto(a.rodapeComprovante()), texto(n.rodapeComprovante()));
+        comparar(m, "venda sem estoque", estoqueNegativo(a.venda().permitirEstoqueNegativo()),
+                estoqueNegativo(n.venda().permitirEstoqueNegativo()));
+        comparar(m, "desconto máximo do operador", Formatos.percentual(a.venda().descontoMaximoPct()),
+                Formatos.percentual(n.venda().descontoMaximoPct()));
+        comparar(m, "cancelar item no PDV", cancelarItem(a.venda().cancelarItemExigeSupervisor()),
+                cancelarItem(n.venda().cancelarItemExigeSupervisor()));
+        comparar(m, "margem mínima", Formatos.percentual(a.margemMinimaPct()), Formatos.percentual(n.margemMinimaPct()));
+        comparar(m, "dias sem giro", String.valueOf(a.diasSemGiro()), String.valueOf(n.diasSemGiro()));
+        comparar(m, "etiqueta de balança", a.balanca().ativo() ? "lida no PDV" : "desligada",
+                n.balanca().ativo() ? "lida no PDV" : "desligada");
+        comparar(m, "prefixo da etiqueta", String.valueOf(a.balanca().prefixo()), String.valueOf(n.balanca().prefixo()));
+        comparar(m, "dígitos do PLU na etiqueta", String.valueOf(a.balanca().digitosCodigo()),
+                String.valueOf(n.balanca().digitosCodigo()));
+        comparar(m, "valor da etiqueta", a.balanca().tipoValor().rotulo().toLowerCase(),
+                n.balanca().tipoValor().rotulo().toLowerCase());
+        return m;
+    }
+
+    private static void comparar(List<String> mudancas, String rotulo, String antes, String depois) {
+        if (!antes.equals(depois)) {
+            mudancas.add(rotulo + " de " + antes + " para " + depois);
+        }
+    }
+
+    private static String texto(String valor) {
+        return valor.isEmpty() ? "(vazio)" : "\"" + valor + "\"";
+    }
+
+    private static String documento(String valor) {
+        return valor.isEmpty() ? "(vazio)" : CpfCnpj.formatar(valor);
+    }
+
+    private static String telefone(String valor) {
+        return valor.isEmpty() ? "(vazio)" : Formatos.telefone(valor);
+    }
+
+    private static String estoqueNegativo(boolean permite) {
+        return permite ? "\"permite e avisa\"" : "\"bloqueia\"";
+    }
+
+    private static String cancelarItem(boolean exige) {
+        return exige ? "\"pede liberação\"" : "\"livre\"";
+    }
+}

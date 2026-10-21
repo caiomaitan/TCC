@@ -94,7 +94,7 @@ class VendaServiceIT extends IntegracaoBase {
     /** O que o PDV faz com o texto digitado ou lido: interpreta, lê o produto e inclui. */
     private VendaService.Inclusao ler(Sessao sessao, Carrinho carrinho, String entrada) {
         EntradaPdv e = EntradaPdv.interpretar(entrada);
-        ProdutoVenda produto = vendas.lerProduto(sessao, e.codigo());
+        ProdutoVenda produto = vendas.lerProduto(sessao, e.codigo()).produto();
         return vendas.adicionarItem(sessao, carrinho, produto,
                 e.quantidade() == null ? BigDecimal.ONE : e.quantidade());
     }
@@ -243,8 +243,8 @@ class VendaServiceIT extends IntegracaoBase {
 
     @Test
     void leituraPorCodigoDeBarrasCodigoInternoEBloqueios() {
-        assertThat(vendas.lerProduto(admin, COD_REFRIGERANTE).id()).isEqualTo(refrigerante);
-        ProdutoVenda porCodigo = vendas.lerProduto(admin, String.valueOf(queijo));
+        assertThat(vendas.lerProduto(admin, COD_REFRIGERANTE).produto().id()).isEqualTo(refrigerante);
+        ProdutoVenda porCodigo = vendas.lerProduto(admin, String.valueOf(queijo)).produto();
         assertThat(porCodigo.id()).isEqualTo(queijo);
         assertThat(porCodigo.codigo()).isEqualTo(String.valueOf(queijo));
         assertThat(vendas.produtoParaVenda(admin, refrigerante).codigo()).isEqualTo(COD_REFRIGERANTE);
@@ -259,7 +259,7 @@ class VendaServiceIT extends IntegracaoBase {
         t.produtos.alterarSituacao(admin, queijo, false);
         assertThatThrownBy(() -> vendas.lerProduto(admin, String.valueOf(queijo)))
                 .hasMessage("O produto \"Queijo muçarela\" está inativo e não pode ser vendido.");
-        assertThat(vendas.consultarPreco(admin, String.valueOf(queijo)).ativo()).isFalse(); // F7 mostra mesmo assim
+        assertThat(vendas.consultarPreco(admin, String.valueOf(queijo)).produto().ativo()).isFalse(); // F7 mostra mesmo assim
 
         assertThat(vendas.pesquisarProdutos(admin, "refriger")).extracting(p -> p.id()).containsExactly(refrigerante);
         assertThat(vendas.pesquisarProdutos(admin, "queijo")).isEmpty(); // inativo fica fora
@@ -268,12 +268,12 @@ class VendaServiceIT extends IntegracaoBase {
     @Test
     void quantidadeFracionadaSoEmUnidadeFracionada() {
         Carrinho carrinho = new Carrinho();
-        ProdutoVenda refri = vendas.lerProduto(admin, COD_REFRIGERANTE);
+        ProdutoVenda refri = vendas.lerProduto(admin, COD_REFRIGERANTE).produto();
         assertThatThrownBy(() -> vendas.adicionarItem(admin, carrinho, refri, v("1.5")))
                 .hasMessageContaining("deve ser um número inteiro");
         assertThatThrownBy(() -> vendas.adicionarItem(admin, carrinho, refri, v("0")))
                 .hasMessage("A quantidade deve ser maior que zero.");
-        ProdutoVenda kg = vendas.lerProduto(admin, String.valueOf(queijo));
+        ProdutoVenda kg = vendas.lerProduto(admin, String.valueOf(queijo)).produto();
         assertThatThrownBy(() -> vendas.adicionarItem(admin, carrinho, kg, v("0.3455")))
                 .hasMessageContaining("no máximo 3 casas");
         assertThat(vendas.adicionarItem(admin, carrinho, kg, v("0.345")).item().valorBruto())
@@ -286,7 +286,7 @@ class VendaServiceIT extends IntegracaoBase {
     void estoqueNegativoBloqueadoContandoOCarrinhoOuSoAvisado() throws Exception {
         configurar("venda.permitir_estoque_negativo", "false");
         Carrinho carrinho = new Carrinho();
-        ProdutoVenda kg = vendas.lerProduto(admin, String.valueOf(queijo)); // saldo 2 KG
+        ProdutoVenda kg = vendas.lerProduto(admin, String.valueOf(queijo)).produto(); // saldo 2 KG
         assertThatThrownBy(() -> vendas.adicionarItem(admin, carrinho, kg, v("2.001")))
                 .hasMessage("Estoque insuficiente de \"Queijo muçarela\": saldo 2,000 KG.");
         assertThat(vendas.adicionarItem(admin, carrinho, kg, v("1.5")).aviso()).isNull();

@@ -4,6 +4,7 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
@@ -63,7 +64,6 @@ public class GeradorDemo {
     public static final long SEMENTE = 20_261_017L;
     public static final int DIAS = 60;
     static final BigDecimal FUNDO_DE_TROCO = new BigDecimal("150.00");
-    static final String CHAVE_BALANCA = "balanca.ativo";
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
     private static final int[] PESO_HORA = {3, 4, 5, 9, 10, 8, 4, 4, 5, 9, 10, 7}; // 8h às 19h
     private static final int PRIMEIRA_HORA = 8;
@@ -629,8 +629,8 @@ public class GeradorDemo {
     /** Os pesáveis têm PLU, que só é aceito com a balança ativa (6.3). */
     private void ativarBalanca(Sessao supervisor) {
         transacao.executar(con -> {
-            if (!configuracaoDAO.buscar(con, CHAVE_BALANCA).map("true"::equalsIgnoreCase).orElse(false)) {
-                configuracaoDAO.atualizar(con, CHAVE_BALANCA, "true");
+            if (!configuracaoDAO.carregar(con).balanca().ativo()) {
+                configuracaoDAO.gravar(con, Configuracoes.BALANCA_ATIVO, "true");
                 auditoria.registrar(con, supervisor, AcaoAuditoria.CONFIGURACAO_ALTERADA, "configuracao", null,
                         "Balança ativada pelo gerador de dados de demonstração (produtos pesáveis com PLU)");
             }

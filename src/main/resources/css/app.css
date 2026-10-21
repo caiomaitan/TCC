@@ -412,3 +412,22 @@
     -fx-font-weight: bold;
     -fx-padding: 0 6 0 6;
 }
+
+/* Importação de planilha (6.11): linha com erro em vermelho claro, com aviso em âmbar */
+.table-row-cell.linha-erro {
+    -fx-background: #fde2e1;
+}
+
+.table-row-cell.linha-aviso {
+    -fx-background: #fff4d6;
+}
+
+.table-row-cell.linha-erro:selected,
+.table-row-cell.linha-aviso:selected {
+    -fx-background: -fx-selection-bar-non-focused;
+}
+
+.table-view:focused .table-row-cell.linha-erro:selected,
+.table-view:focused .table-row-cell.linha-aviso:selected {
+    -fx-background: -fx-selection-bar;
+}

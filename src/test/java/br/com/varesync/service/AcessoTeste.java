@@ -14,10 +14,12 @@ import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.Configuracoes;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -38,6 +40,8 @@ final class AcessoTeste {
     static final int CUSTO_BCRYPT_TESTE = 4;
     private static final String CATEGORIAS_V2 = "'Mercearia', 'Bebidas', 'Hortifruti', 'Frios e laticínios', "
             + "'Açougue', 'Padaria', 'Limpeza', 'Higiene e perfumaria', 'Outros'";
+    private static final String FORMAS_V2 = "'Dinheiro', 'PIX', 'Cartão de débito', 'Cartão de crédito', "
+            + "'Vale-alimentação'";
 
     final RelogioTeste relogio = new RelogioTeste(Instant.parse("2026-10-06T13:00:00Z"));
     final Senhas senhas = new Senhas(CUSTO_BCRYPT_TESTE);
@@ -53,6 +57,9 @@ final class AcessoTeste {
     final EntradaService compras;
     final RelatorioService relatorios;
     final PainelService painel;
+    final ConfiguracaoService configuracoes;
+    final PromocaoService promocoes;
+    final ImportacaoProdutosService importacao;
     private final DataSource dataSource;
 
     AcessoTeste(DataSource dataSource) {
@@ -71,7 +78,8 @@ final class AcessoTeste {
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
         caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
-                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(), auditoria, relogio);
+                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
+                relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
@@ -80,6 +88,11 @@ final class AcessoTeste {
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, relogio);
+        configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
+                auditoria);
+        promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);
+        importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO, categoriaDAO,
+                new UnidadeMedidaDAO());
     }
 
     /**
@@ -92,8 +105,15 @@ final class AcessoTeste {
             st.executeUpdate("TRUNCATE usuario, fornecedor CASCADE");
             st.executeUpdate("DELETE FROM categoria WHERE nome NOT IN (" + CATEGORIAS_V2 + ")");
             st.executeUpdate("UPDATE categoria SET ativa = TRUE WHERE NOT ativa");
-            st.executeUpdate("UPDATE configuracao SET valor = 'Minha Loja' WHERE chave = 'empresa.nome'");
-            st.executeUpdate("UPDATE configuracao SET valor = 'false' WHERE chave = 'balanca.ativo'");
+            st.executeUpdate("DELETE FROM forma_pagamento WHERE descricao NOT IN (" + FORMAS_V2 + ")");
+            st.executeUpdate("UPDATE forma_pagamento SET ativa = TRUE WHERE NOT ativa");
+            try (PreparedStatement ps = con.prepareStatement("UPDATE configuracao SET valor = ? WHERE chave = ?")) {
+                for (var valor : Configuracoes.PADRAO.paraMapa().entrySet()) {
+                    ps.setString(1, valor.getValue());
+                    ps.setString(2, valor.getKey());
+                    ps.executeUpdate();
+                }
+            }
         }
     }
 

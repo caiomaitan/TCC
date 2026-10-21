@@ -191,6 +191,21 @@ public class ProdutosController {
     }
 
     @FXML
+    private void abrirPromocoes() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/promocoes.fxml", "Promoções", fabricaControllers,
+                (PromocoesController c) -> { });
+    }
+
+    /** Importação por planilha (6.11); ao fechar, refaz a busca e a lista de categorias (pode ter criado novas). */
+    @FXML
+    private void abrirImportacao() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/importacao-produtos.fxml", "Importar planilha",
+                fabricaControllers, (ImportacaoProdutosController c) -> { });
+        carregarCategorias();
+        pesquisar();
+    }
+
+    @FXML
     private void abrirCategorias() {
         Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/categorias.fxml", "Categorias",
                 fabricaControllers, (CategoriasController c) -> { });

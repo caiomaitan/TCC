@@ -123,8 +123,14 @@ public final class Carrinho {
     // ----- Alterações (pelo VendaService) -----
 
     ItemCarrinho adicionar(ProdutoVenda produto, BigDecimal quantidade, BigDecimal preco, Long promocaoId) {
+        return adicionar(produto, quantidade, preco, promocaoId, null);
+    }
+
+    /** @param valorFixo valor bruto da etiqueta de balança com preço (6.9); nulo = quantidade × preço */
+    ItemCarrinho adicionar(ProdutoVenda produto, BigDecimal quantidade, BigDecimal preco, Long promocaoId,
+                           BigDecimal valorFixo) {
         int sequencia = itens.isEmpty() ? 1 : itens.get(itens.size() - 1).sequencia() + 1;
-        ItemCarrinho item = new ItemCarrinho(sequencia, produto, quantidade, preco, promocaoId);
+        ItemCarrinho item = new ItemCarrinho(sequencia, produto, quantidade, preco, promocaoId, valorFixo);
         if (item.valorBruto().compareTo(LIMITE_VALOR) >= 0
                 || valorBruto().add(item.valorBruto()).compareTo(LIMITE_VALOR) >= 0) {
             throw new NegocioException("O valor da venda passaria do limite permitido. Confira a quantidade.");

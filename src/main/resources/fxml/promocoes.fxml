@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Promoções (6.8): filtro, busca pelo produto, lista; Ctrl+N nova, duplo clique ou Enter edita, Esc fecha. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.PromocoesController"
+      spacing="10" prefWidth="1160" prefHeight="560" styleClass="tela-cadastro">
+    <padding><Insets top="16" right="18" bottom="16" left="18"/></padding>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Promoções" styleClass="titulo"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Nova promoção (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
+    </HBox>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Mostrar"/>
+        <ComboBox fx:id="filtro" prefWidth="220"/>
+        <TextField fx:id="campoBusca" promptText="Nome do produto" HBox.hgrow="ALWAYS" onAction="#buscar"/>
+        <Button text="Buscar" onAction="#buscar"/>
+    </HBox>
+
+    <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
+        <placeholder><Label text="Nenhuma promoção neste filtro."/></placeholder>
+        <columns>
+            <TableColumn fx:id="colunaNumero" text="Nº" prefWidth="55" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaProduto" text="Produto" prefWidth="240"/>
+            <TableColumn fx:id="colunaPrecoNormal" text="Preço de venda" prefWidth="110" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaPrecoPromocional" text="Preço promocional" prefWidth="125"
+                         styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaDesconto" text="Desconto" prefWidth="80" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaInicio" text="Início" prefWidth="90"/>
+            <TableColumn fx:id="colunaFim" text="Fim" prefWidth="90"/>
+            <TableColumn fx:id="colunaSituacao" text="Situação" prefWidth="90"/>
+            <TableColumn fx:id="colunaCriadaPor" text="Criada por" prefWidth="190"/>
+        </columns>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+    </TableView>
+
+    <Label fx:id="mensagem" wrapText="true" minHeight="36" styleClass="mensagem"/>
+
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Button fx:id="botaoEditar" text="Editar…" onAction="#editar"/>
+        <Button fx:id="botaoSituacao" text="Desativar" onAction="#alternarSituacao"/>
+        <Button fx:id="botaoExcluir" text="Excluir" onAction="#excluir"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label text="Duplo clique ou Enter edita." styleClass="subtitulo"/>
+        <Button text="Fechar" cancelButton="true" onAction="#fechar"/>
+    </HBox>
+</VBox>

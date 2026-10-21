@@ -237,7 +237,7 @@ public class EntradaService {
             }
             itens.sort(Comparator.comparingLong(ItemEntrada::produtoId));
             OffsetDateTime agora = OffsetDateTime.now(clock);
-            BigDecimal margemMinima = RelatorioService.margemMinima(configuracaoDAO, con);
+            BigDecimal margemMinima = configuracaoDAO.carregar(con).margemMinimaPct();
             List<CustoAtualizado> custos = new ArrayList<>();
             List<SugestaoReajuste> sugestoes = new ArrayList<>();
             for (ItemEntrada item : itens) {

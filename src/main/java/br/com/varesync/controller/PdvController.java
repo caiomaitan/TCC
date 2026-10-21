@@ -61,6 +61,7 @@ public class PdvController {
             Leitura do produto (campo Código, sempre focado):
               • leia o código de barras ou digite o código interno e tecle Enter;
               • quantidade*código: 3*7891000315507 ou 0,345*123;
+              • etiqueta de balança (com a leitura ligada em Configurações): já traz o peso ou o valor;
               • texto: abre a busca já filtrada.
             Produto vendido por peso ou volume sem quantidade: o sistema pede a quantidade.
 
@@ -118,7 +119,7 @@ public class PdvController {
     private void initialize() {
         colunaSequencia.setCellValueFactory(c -> texto(String.format("%03d", c.getValue().sequencia())));
         colunaCodigo.setCellValueFactory(c -> texto(c.getValue().produto().codigo()));
-        colunaDescricao.setCellValueFactory(c -> texto(c.getValue().produto().nome()
+        colunaDescricao.setCellValueFactory(c -> texto(c.getValue().produto().nome() + promocao(c.getValue())
                 + (c.getValue().cancelado() ? "  (cancelado)" : "")));
         colunaQuantidade.setCellValueFactory(c -> texto(quantidade(c.getValue())));
         colunaUnitario.setCellValueFactory(c -> texto(Formatos.moeda(c.getValue().precoUnitario())));
@@ -218,7 +219,19 @@ public class PdvController {
                 escolhido.ifPresent(p -> incluir(vendaService.produtoParaVenda(sessao, p.id()), quantidade));
                 return;
             }
-            incluir(vendaService.lerProduto(sessao, lida.codigo()), quantidade);
+            VendaService.LeituraProduto leitura = vendaService.lerProduto(sessao, lida.codigo());
+            if (leitura.etiqueta() == null) {
+                incluir(leitura.produto(), quantidade);
+                return;
+            }
+            if (quantidade != null) {
+                entrada.clear();
+                quantidadeProxima = null;
+                atualizarTela();
+                throw new NegocioException("A etiqueta de balança já traz a quantidade: leia a etiqueta sem informar "
+                        + "a quantidade (F3 ou *).");
+            }
+            mostrarInclusao(vendaService.adicionarEtiqueta(sessao, carrinho, leitura));
         });
     }
 
@@ -242,16 +255,17 @@ public class PdvController {
             inclusao = Optional.of(vendaService.adicionarItem(sessao, carrinho, produto,
                     quantidade == null ? BigDecimal.ONE : quantidade));
         }
+        inclusao.ifPresentOrElse(this::mostrarInclusao, entrada::clear);
+    }
+
+    private void mostrarInclusao(VendaService.Inclusao inclusao) {
         entrada.clear();
-        if (inclusao.isEmpty()) {
-            return;
-        }
         quantidadeProxima = null;
         atualizarTela();
         tabelaItens.getSelectionModel().selectLast();
         tabelaItens.scrollTo(tabelaItens.getItems().size() - 1);
-        if (inclusao.get().aviso() != null) {
-            Mensagem.erro(mensagem, inclusao.get().aviso());
+        if (inclusao.aviso() != null) {
+            Mensagem.erro(mensagem, inclusao.aviso());
         } else {
             Mensagem.limpar(mensagem);
         }
@@ -274,11 +288,21 @@ public class PdvController {
 
     private void consultarPreco() {
         DialogosPdv.consultarPreco(codigo -> {
-            ProdutoVenda p = vendaService.consultarPreco(sessao, codigo);
-            return p.nome() + "\n" + Formatos.moeda(p.precoVenda()) + " / " + p.unidade() + "\nEstoque: "
+            VendaService.ConsultaPreco consulta = vendaService.consultarPreco(sessao, codigo);
+            ProdutoVenda p = consulta.produto();
+            String preco = consulta.preco().promocional()
+                    ? Formatos.moeda(consulta.preco().valor()) + " / " + p.unidade() + " (promoção; preço normal "
+                    + Formatos.moeda(p.precoVenda()) + ")"
+                    : Formatos.moeda(p.precoVenda()) + " / " + p.unidade();
+            return p.nome() + "\n" + preco + "\nEstoque: "
                     + Formatos.quantidade(p.saldo(), p.fracionada()) + " " + p.unidade()
                     + (p.ativo() ? "" : "\nProduto inativo: não pode ser vendido.");
         });
+    }
+
+    /** Marca o item vendido pelo preço de uma promoção (6.8). */
+    private static String promocao(ItemCarrinho item) {
+        return item.promocaoId() == null ? "" : "  (promoção)";
     }
 
     // ----- Descontos e cancelamentos -----
@@ -468,7 +492,7 @@ public class PdvController {
         tabelaItens.getItems().setAll(carrinho.itens());
         tabelaItens.refresh();
         Optional<ItemCarrinho> ultimo = carrinho.ultimoItem();
-        ultimoDescricao.setText(ultimo.map(i -> i.produto().nome() + (i.cancelado() ? " (cancelado)" : ""))
+        ultimoDescricao.setText(ultimo.map(i -> i.produto().nome() + promocao(i) + (i.cancelado() ? " (cancelado)" : ""))
                 .orElse("Caixa livre"));
         ultimoDetalhe.setText(ultimo.map(i -> quantidade(i) + " x " + Formatos.moeda(i.precoUnitario()) + " = "
                 + Formatos.moeda(i.valorBruto())).orElse(""));

@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -28,7 +29,7 @@ final class DialogoFormulario {
     private final GridPane campos = new GridPane();
     private final Label mensagem = new Label();
     private final ButtonType confirmar;
-    private Control primeiroCampo;
+    private Node primeiroCampo;
     private int linhas;
 
     DialogoFormulario(String titulo, String instrucao, String textoConfirmar) {
@@ -65,12 +66,15 @@ final class DialogoFormulario {
         Dialogos.estilizar(dialogo.getDialogPane());
     }
 
-    void adicionarCampo(String rotulo, Control campo) {
+    void adicionarCampo(String rotulo, Node campo) {
         campos.add(new Label(rotulo), 0, linhas);
         campos.add(campo, 1, linhas);
         linhas++;
-        if (primeiroCampo == null) {
-            primeiroCampo = campo;
+        if (primeiroCampo == null && !(campo instanceof Label)) { // rótulo informativo não recebe o foco
+            // Numa linha com vários controles (campo + botão), o foco inicial vai para o primeiro deles.
+            primeiroCampo = campo instanceof Parent p && !(campo instanceof Control)
+                    ? p.getChildrenUnmodifiable().stream().filter(Control.class::isInstance).findFirst().orElse(campo)
+                    : campo;
         }
     }
 

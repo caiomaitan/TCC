@@ -7,6 +7,7 @@ import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.OrigemMovimento;
@@ -40,8 +41,6 @@ public class ProdutoService {
     public static final String MOTIVO_ESTOQUE_INICIAL = "Estoque inicial";
     public static final String AVISO_ABAIXO_DO_CUSTO = "O preço está abaixo do custo: cada venda dará prejuízo.";
     public static final String AVISO_PRECO_ZERO = "Com preço zero, o produto não pode ser vendido no PDV.";
-
-    static final String CHAVE_BALANCA_ATIVA = "balanca.ativo";
 
     private final Transacao transacao;
     private final ProdutoDAO produtoDAO;
@@ -141,37 +140,56 @@ public class ProdutoService {
     public long criar(Sessao sessao, DadosProduto dados) {
         sessao.exigir(Permissao.PRODUTOS);
         Validado v = validarCampos(dados);
-        return transacao.executar(con -> {
-            UnidadeMedida unidade = unidade(con, v.unidade);
-            BigDecimal minimo = ValidacaoProduto.quantidade(v.estoqueMinimo, "O estoque mínimo", unidade.fracionada());
-            BigDecimal inicial = dados.estoqueInicial() == null ? BigDecimal.ZERO
-                    : ValidacaoProduto.quantidade(dados.estoqueInicial(), "O estoque inicial", unidade.fracionada());
-            String categoriaNome = conferirCategoria(con, v.categoriaId, null);
-            ValidacaoProduto.plu(v.plu, unidade.fracionada(), balancaAtiva(con), false);
-            conferirPluLivre(con, v.plu, null);
-            conferirCodigosLivres(con, v.codigos, null);
+        return transacao.executar(con -> inserir(con, sessao, v, dados.estoqueInicial(), MOTIVO_ESTOQUE_INICIAL,
+                ""));
+    }
 
-            long id = produtoDAO.inserir(con, gravacao(v, minimo), sessao.usuarioId(), OffsetDateTime.now(clock));
-            produtoDAO.definirCodigos(con, id, v.codigos);
-            if (inicial.signum() > 0) {
-                estoqueService.movimentar(con, sessao, id, TipoMovimento.AJUSTE_ENTRADA, inicial,
-                        OrigemMovimento.NENHUMA, MOTIVO_ESTOQUE_INICIAL, null);
-            }
+    /**
+     * Cadastro na transação de quem chama (importação por planilha, 6.11), com as mesmas validações e auditoria do
+     * cadastro pela tela. Quem chama confere a permissão.
+     *
+     * @param motivoEstoque motivo do {@code AJUSTE_ENTRADA} do estoque inicial
+     * @param origem        complemento da auditoria (ex.: " pela importação de planilha")
+     */
+    long criar(Connection con, Sessao sessao, DadosProduto dados, String motivoEstoque, String origem)
+            throws SQLException {
+        return inserir(con, sessao, validarCampos(dados), dados.estoqueInicial(), motivoEstoque, origem);
+    }
 
-            StringBuilder descricao = new StringBuilder("Produto ").append(descrever(id, v.nome))
-                    .append(" criado: preço ").append(Formatos.moeda(v.preco))
-                    .append(", custo ").append(custo(v.custo))
-                    .append(", unidade ").append(unidade.sigla());
-            if (categoriaNome != null) {
-                descricao.append(", categoria ").append(categoriaNome);
-            }
-            if (inicial.signum() > 0) {
-                descricao.append(", estoque inicial ").append(Formatos.quantidade(inicial, unidade.fracionada()));
-            }
-            auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
-                    descricao.toString());
-            return id;
-        });
+    private long inserir(Connection con, Sessao sessao, Validado v, BigDecimal estoqueInicial, String motivoEstoque,
+                         String origem) throws SQLException {
+        UnidadeMedida unidade = unidade(con, v.unidade);
+        BigDecimal minimo = ValidacaoProduto.quantidade(v.estoqueMinimo, "O estoque mínimo", unidade.fracionada());
+        BigDecimal inicial = estoqueInicial == null ? BigDecimal.ZERO
+                : ValidacaoProduto.quantidade(estoqueInicial, "O estoque inicial", unidade.fracionada());
+        if (inicial.signum() < 0) {
+            throw new NegocioException("O estoque inicial não pode ser negativo.");
+        }
+        String categoriaNome = conferirCategoria(con, v.categoriaId, null);
+        conferirPlu(con, v.plu, unidade, false);
+        conferirPluLivre(con, v.plu, null);
+        conferirCodigosLivres(con, v.codigos, null);
+
+        long id = produtoDAO.inserir(con, gravacao(v, minimo), sessao.usuarioId(), OffsetDateTime.now(clock));
+        produtoDAO.definirCodigos(con, id, v.codigos);
+        if (inicial.signum() > 0) {
+            estoqueService.movimentar(con, sessao, id, TipoMovimento.AJUSTE_ENTRADA, inicial,
+                    OrigemMovimento.NENHUMA, motivoEstoque, null);
+        }
+
+        StringBuilder descricao = new StringBuilder("Produto ").append(descrever(id, v.nome))
+                .append(" criado").append(origem).append(": preço ").append(Formatos.moeda(v.preco))
+                .append(", custo ").append(custo(v.custo))
+                .append(", unidade ").append(unidade.sigla());
+        if (categoriaNome != null) {
+            descricao.append(", categoria ").append(categoriaNome);
+        }
+        if (inicial.signum() > 0) {
+            descricao.append(", estoque inicial ").append(Formatos.quantidade(inicial, unidade.fracionada()));
+        }
+        auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
+                descricao.toString());
+        return id;
     }
 
     /** Altera o cadastro. O estoque não muda aqui (só por movimento); o estoque inicial é ignorado. */
@@ -188,7 +206,7 @@ public class ProdutoService {
                         + unidade.sigla() + ". Ajuste o estoque antes.");
             }
             String categoriaNome = conferirCategoria(con, v.categoriaId, atual.categoriaId());
-            ValidacaoProduto.plu(v.plu, unidade.fracionada(), balancaAtiva(con), Objects.equals(v.plu, atual.plu()));
+            conferirPlu(con, v.plu, unidade, Objects.equals(v.plu, atual.plu()));
             conferirPluLivre(con, v.plu, id);
             conferirCodigosLivres(con, v.codigos, id);
 
@@ -318,7 +336,15 @@ public class ProdutoService {
     }
 
     private boolean balancaAtiva(Connection con) throws SQLException {
-        return configuracaoDAO.buscar(con, CHAVE_BALANCA_ATIVA).map(Boolean::parseBoolean).orElse(false);
+        return configuracaoDAO.carregar(con).balanca().ativo();
+    }
+
+    /** PLU (6.3) com o limite dos dígitos de código da etiqueta (6.9). */
+    private void conferirPlu(Connection con, Integer plu, UnidadeMedida unidade, boolean jaGravado)
+            throws SQLException {
+        Configuracoes.Balanca balanca = configuracaoDAO.carregar(con).balanca();
+        ValidacaoProduto.plu(plu, unidade.fracionada(), balanca.ativo(), jaGravado,
+                balanca.ativo() && !jaGravado ? balanca.pluMaximo() : ValidacaoProduto.PLU_MAXIMO);
     }
 
     /** Descrição legível das mudanças para a auditoria ("Preço alterado de R$ 5,49 para R$ 5,99"). */

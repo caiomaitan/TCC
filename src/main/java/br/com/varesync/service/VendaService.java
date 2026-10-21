@@ -8,6 +8,7 @@ import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParametrosVenda;
@@ -19,6 +20,7 @@ import br.com.varesync.model.StatusVenda;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.model.VendaResumo;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -49,9 +51,6 @@ import java.util.stream.Collectors;
 public class VendaService {
 
     public static final String ENTIDADE_VENDA = "venda";
-    static final String CHAVE_ESTOQUE_NEGATIVO = "venda.permitir_estoque_negativo";
-    static final String CHAVE_DESCONTO_MAXIMO = "venda.desconto_maximo_operador_pct";
-    static final String CHAVE_CANCELAR_ITEM = "venda.cancelar_item_exige_supervisor";
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
 
     private final Transacao transacao;
@@ -98,14 +97,22 @@ public class VendaService {
 
     // ----- Leitura de produto -----
 
+    /** Produto lido no PDV e, se veio de etiqueta de balança (6.9), a etiqueta (nula nos demais casos). */
+    public record LeituraProduto(ProdutoVenda produto, EtiquetaBalanca etiqueta) {
+    }
+
+    /** Consulta de preço (F7): o produto e o preço que vale hoje (promoção ou preço de venda). */
+    public record ConsultaPreco(ProdutoVenda produto, PrecoService.Preco preco) {
+    }
+
     /**
-     * Código lido ou digitado (6.6): código de barras exato → código interno → "Produto não encontrado".
-     * Produto inativo ou sem preço é recusado.
+     * Código lido ou digitado (6.6): código de barras exato → código interno → etiqueta de balança (se ativa, 6.9)
+     * → "Produto não encontrado". Produto inativo ou sem preço é recusado.
      */
-    public ProdutoVenda lerProduto(Sessao sessao, String codigo) {
-        ProdutoVenda produto = buscarPorCodigo(sessao, codigo);
-        validarVendavel(produto);
-        return produto;
+    public LeituraProduto lerProduto(Sessao sessao, String codigo) {
+        LeituraProduto leitura = buscarPorCodigo(sessao, codigo);
+        validarVendavel(leitura.produto());
+        return leitura;
     }
 
     /** Produto escolhido na busca (F2). */
@@ -117,9 +124,12 @@ public class VendaService {
         return produto;
     }
 
-    /** Consulta de preço (F7): mostra o produto, mesmo inativo, sem vender. */
-    public ProdutoVenda consultarPreco(Sessao sessao, String codigo) {
-        return buscarPorCodigo(sessao, codigo);
+    /** Consulta de preço (F7): mostra o produto, mesmo inativo, e o preço de hoje (com promoção), sem vender. */
+    public ConsultaPreco consultarPreco(Sessao sessao, String codigo) {
+        ProdutoVenda produto = buscarPorCodigo(sessao, codigo).produto();
+        PrecoService.Preco preco = transacao.executar(
+                con -> precoService.precoVigente(con, produto, LocalDate.now(clock)));
+        return new ConsultaPreco(produto, preco);
     }
 
     /** Busca por nome (F2): só produtos ativos; só dígitos procura código interno ou código de barras exato. */
@@ -145,13 +155,44 @@ public class VendaService {
             throw new NegocioException("A quantidade deve ser maior que zero.");
         }
         BigDecimal qtd = ValidacaoProduto.quantidade(quantidade, "A quantidade", produto.fracionada());
-        record Leitura(ProdutoVenda produto, PrecoService.Preco preco, String aviso) {
+        return incluir(sessao, carrinho, produto, qtd, null);
+    }
+
+    /**
+     * Inclui o item lido pela etiqueta de balança (6.9): a quantidade (e, em {@code PRECO}, o valor do item, sem
+     * recálculo) vem da etiqueta, com o preço vigente do produto. Mesma regra de estoque de {@link #adicionarItem}.
+     */
+    public Inclusao adicionarEtiqueta(Sessao sessao, Carrinho carrinho, LeituraProduto leitura) {
+        sessao.exigir(Permissao.PDV);
+        if (leitura.etiqueta() == null) {
+            throw new IllegalArgumentException("Leitura sem etiqueta de balança");
+        }
+        if (!leitura.produto().fracionada()) {
+            throw new NegocioException("O produto \"" + leitura.produto().nome() + "\" não é vendido por peso ("
+                    + leitura.produto().unidade() + "): confira o PLU no cadastro.");
+        }
+        return incluir(sessao, carrinho, leitura.produto(), null, leitura.etiqueta());
+    }
+
+    /** @param quantidade nula quando vem da etiqueta (calculada aqui com o preço vigente) */
+    private Inclusao incluir(Sessao sessao, Carrinho carrinho, ProdutoVenda produto, BigDecimal quantidade,
+                             EtiquetaBalanca etiqueta) {
+        record Leitura(ProdutoVenda produto, PrecoService.Preco preco, BigDecimal quantidade, BigDecimal valorFixo,
+                       String aviso) {
         }
         Leitura leitura = transacao.executar(con -> {
             ProdutoVenda atual = produtoDAO.buscarParaVenda(con, produto.id())
                     .orElseThrow(() -> new NegocioException("Produto não encontrado."))
                     .comCodigo(produto.codigo());
             validarVendavel(atual);
+            PrecoService.Preco preco = precoService.precoVigente(con, atual, LocalDate.now(clock));
+            BigDecimal qtd = quantidade;
+            BigDecimal valorFixo = null;
+            if (etiqueta != null) {
+                EtiquetaBalanca.Item item = etiqueta.item(preco.valor());
+                qtd = item.quantidade();
+                valorFixo = etiqueta.tipo() == TipoValorBalanca.PRECO ? item.valorBruto() : null;
+            }
             ParametrosVenda parametros = parametros(con);
             BigDecimal noCarrinho = carrinho.quantidadeDoProduto(atual.id());
             String aviso = null;
@@ -164,10 +205,10 @@ public class VendaService {
                 aviso = "Atenção: o estoque de \"" + atual.nome() + "\" ficará negativo (saldo "
                         + quantidade(atual.saldo(), atual) + ").";
             }
-            return new Leitura(atual, precoService.precoVigente(con, atual, LocalDate.now(clock)), aviso);
+            return new Leitura(atual, preco, qtd, valorFixo, aviso);
         });
-        ItemCarrinho item = carrinho.adicionar(leitura.produto(), qtd, leitura.preco().valor(),
-                leitura.preco().promocaoId());
+        ItemCarrinho item = carrinho.adicionar(leitura.produto(), leitura.quantidade(), leitura.preco().valor(),
+                leitura.preco().promocaoId(), leitura.valorFixo());
         return new Inclusao(item, leitura.aviso());
     }
 
@@ -448,7 +489,8 @@ public class VendaService {
 
     // ----- Apoio -----
 
-    private ProdutoVenda buscarPorCodigo(Sessao sessao, String digitado) {
+    /** Código de barras exato → código interno → etiqueta de balança (com a balança ativa) → não encontrado. */
+    private LeituraProduto buscarPorCodigo(Sessao sessao, String digitado) {
         sessao.exigir(Permissao.PDV);
         String codigo = Textos.normalizarEspacos(digitado);
         if (!Textos.soDigitos(codigo)) {
@@ -457,9 +499,24 @@ public class VendaService {
         return transacao.executar(con -> {
             Optional<ProdutoVenda> porCodigoBarras = produtoDAO.buscarParaVendaPorCodigo(con, codigo);
             if (porCodigoBarras.isPresent()) {
-                return porCodigoBarras;
+                return Optional.of(new LeituraProduto(porCodigoBarras.get(), null));
             }
-            return produtoDAO.buscarParaVenda(con, ProdutoDAO.idOuNenhum(codigo));
+            Optional<ProdutoVenda> porCodigo = produtoDAO.buscarParaVenda(con, ProdutoDAO.idOuNenhum(codigo));
+            if (porCodigo.isPresent()) {
+                return Optional.of(new LeituraProduto(porCodigo.get(), null));
+            }
+            Configuracoes.Balanca balanca = configuracaoDAO.carregar(con).balanca();
+            if (!balanca.ativo()) {
+                return Optional.<LeituraProduto>empty();
+            }
+            Optional<EtiquetaBalanca> etiqueta = EtiquetaBalanca.reconhecer(codigo, balanca);
+            if (etiqueta.isEmpty()) {
+                return Optional.<LeituraProduto>empty();
+            }
+            ProdutoVenda produto = produtoDAO.buscarParaVendaPorPlu(con, etiqueta.get().plu(), codigo)
+                    .orElseThrow(() -> new NegocioException("Produto de balança não encontrado (PLU "
+                            + etiqueta.get().plu() + ")."));
+            return Optional.of(new LeituraProduto(produto, etiqueta.get()));
         }).orElseThrow(() -> new NegocioException("Produto não encontrado (código " + codigo + ")."));
     }
 
@@ -520,23 +577,7 @@ public class VendaService {
     }
 
     ParametrosVenda parametros(Connection con) throws SQLException {
-        ParametrosVenda padrao = ParametrosVenda.PADRAO;
-        boolean negativo = configuracaoDAO.buscar(con, CHAVE_ESTOQUE_NEGATIVO)
-                .map(v -> v.strip().equalsIgnoreCase("true")).orElse(padrao.permitirEstoqueNegativo());
-        BigDecimal maximo = configuracaoDAO.buscar(con, CHAVE_DESCONTO_MAXIMO).flatMap(VendaService::percentual)
-                .orElse(padrao.descontoMaximoPct());
-        boolean cancelarItem = configuracaoDAO.buscar(con, CHAVE_CANCELAR_ITEM)
-                .map(v -> v.strip().equalsIgnoreCase("true")).orElse(padrao.cancelarItemExigeSupervisor());
-        return new ParametrosVenda(negativo, maximo, cancelarItem);
-    }
-
-    private static Optional<BigDecimal> percentual(String texto) {
-        try {
-            BigDecimal valor = Dinheiro.ler(texto);
-            return valor.signum() < 0 ? Optional.empty() : Optional.of(valor);
-        } catch (IllegalArgumentException e) {
-            return Optional.empty();
-        }
+        return configuracaoDAO.carregar(con).venda();
     }
 
     private Comprovante montarComprovante(Connection con, long vendaId) throws SQLException {
@@ -556,16 +597,13 @@ public class VendaService {
             BigDecimal valor = i == ultimoDinheiro ? g.valor().add(c.totais().troco()) : g.valor();
             pagamentos.add(new Comprovante.Pagamento(g.forma(), valor));
         }
-        Comprovante.Loja loja = new Comprovante.Loja(config(con, "empresa.nome"), config(con, "empresa.documento"),
-                config(con, "empresa.endereco"), config(con, "empresa.telefone"));
+        Configuracoes config = configuracaoDAO.carregar(con);
+        Comprovante.Loja loja = new Comprovante.Loja(config.loja().nome(), config.loja().documento(),
+                config.loja().endereco(), config.loja().telefone());
         return new Comprovante(loja, c.id(), c.dataHora(), c.operador(), c.terminal(), c.status(), c.canceladaEm(),
                 c.motivoCancelamento(), vendaDAO.itensComprovante(con, vendaId), c.totais().valorBruto(),
                 c.totais().descontoItens(), c.totais().descontoVenda(), c.totais().valorTotal(), pagamentos,
-                c.totais().troco(), config(con, "comprovante.rodape"));
-    }
-
-    private String config(Connection con, String chave) throws SQLException {
-        return configuracaoDAO.buscar(con, chave).orElse("");
+                c.totais().troco(), config.rodapeComprovante());
     }
 
     private static String descrever(ItemCarrinho item) {

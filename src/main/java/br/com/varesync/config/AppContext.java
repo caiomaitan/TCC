@@ -6,6 +6,7 @@ import br.com.varesync.controller.ComprasController;
 import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
 import br.com.varesync.controller.FornecedoresController;
+import br.com.varesync.controller.ImportacaoProdutosController;
 import br.com.varesync.controller.InventarioController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
@@ -15,6 +16,7 @@ import br.com.varesync.controller.PrimeiroAcessoController;
 import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
+import br.com.varesync.controller.PromocoesController;
 import br.com.varesync.controller.RelatoriosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
@@ -117,7 +119,13 @@ public final class AppContext implements AutoCloseable {
             return new PdvController(s.vendas(), s.caixa(), s.acesso(), comprovantePdf, fechamentoPdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
-            return new ConfiguracoesController(s.estoque(), geradorDemo, sessao);
+            return new ConfiguracoesController(s.configuracoes(), s.estoque(), geradorDemo, sessao);
+        }
+        if (tipo == PromocoesController.class) {
+            return new PromocoesController(s.promocoes(), s.produtos(), sessao);
+        }
+        if (tipo == ImportacaoProdutosController.class) {
+            return new ImportacaoProdutosController(s.importacao(), sessao);
         }
         if (tipo == PainelController.class) {
             return new PainelController(s.painel(), sessao);

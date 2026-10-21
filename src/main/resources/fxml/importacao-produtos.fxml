@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Importação de produtos por planilha CSV (6.11): modelo, arquivo, prévia validada e importação. Esc fecha. -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.ImportacaoProdutosController"
+      spacing="10" prefWidth="1180" prefHeight="620" styleClass="tela-cadastro">
+    <padding><Insets top="16" right="18" bottom="16" left="18"/></padding>
+
+    <Label text="Importar produtos de planilha" styleClass="titulo"/>
+    <Label wrapText="true" minHeight="-Infinity" text="A planilha (CSV, separada por ponto e vírgula, com vírgula nos decimais) deve ter as colunas nome; codigo_barras; unidade; categoria; custo; preco_venda; estoque_minimo; estoque_inicial — baixe o modelo e preencha a partir da segunda linha. Obrigatórios: nome, custo e preço de venda. Unidade vazia vale UN; categoria que não existe é criada; o estoque inicial entra como ajuste de entrada com o motivo &quot;Importação&quot;. Os erros apontam a linha do arquivo e a coluna. Enquanto houver linha com erro, nada é importado (a não ser que você escolha ignorá-las)."/>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Button fx:id="botaoModelo" text="Baixar modelo…" onAction="#baixarModelo"/>
+        <Button fx:id="botaoArquivo" text="Escolher planilha…" onAction="#escolherArquivo" styleClass="botao-primario"/>
+        <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
+        <Label fx:id="arquivo" styleClass="subtitulo"/>
+    </HBox>
+
+    <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
+        <placeholder><Label text="Nenhuma planilha escolhida. Use &quot;Escolher planilha…&quot; ou arraste o arquivo para cá."/></placeholder>
+        <columns>
+            <TableColumn fx:id="colunaLinha" text="Linha" prefWidth="55" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaNome" text="Nome" prefWidth="200"/>
+            <TableColumn fx:id="colunaCodigo" text="Código de barras" prefWidth="120"/>
+            <TableColumn fx:id="colunaUnidade" text="Un." prefWidth="45"/>
+            <TableColumn fx:id="colunaCategoria" text="Categoria" prefWidth="130"/>
+            <TableColumn fx:id="colunaCusto" text="Custo" prefWidth="85" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaPreco" text="Preço" prefWidth="80" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaMinimo" text="Mínimo" prefWidth="60" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaInicial" text="Est. inicial" prefWidth="80" styleClass="coluna-numero"/>
+            <TableColumn fx:id="colunaSituacao" text="Situação" prefWidth="290"/>
+        </columns>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+    </TableView>
+
+    <Label fx:id="detalhe" wrapText="true" minHeight="-Infinity"/>
+    <Label fx:id="resumo" wrapText="true" minHeight="-Infinity"/>
+    <Label fx:id="mensagem" wrapText="true" minHeight="36" styleClass="mensagem"/>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <CheckBox fx:id="ignorarErros" text="Ignorar as linhas com erro"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Fechar" cancelButton="true" onAction="#fechar"/>
+        <Button fx:id="botaoImportar" text="Importar" onAction="#importar" styleClass="botao-primario"/>
+    </HBox>
+</VBox>

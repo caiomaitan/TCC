@@ -5,6 +5,7 @@ import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UsuarioDAO;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoVenda;
@@ -17,7 +18,6 @@ import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.report.TipoFiltro;
 import br.com.varesync.util.Textos;
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -33,11 +33,6 @@ import java.util.Optional;
  */
 public class RelatorioService {
 
-    static final String CHAVE_MARGEM_MINIMA = "relatorio.margem_minima_pct";
-    static final BigDecimal MARGEM_MINIMA_PADRAO = BigDecimal.valueOf(15);
-    static final String CHAVE_DIAS_SEM_GIRO = "relatorio.dias_sem_giro";
-    static final int DIAS_SEM_GIRO_PADRAO = 30;
-    static final String CHAVE_EMPRESA = "empresa.nome";
     static final int TOP_N_MAXIMO = 1000;
 
     private final Transacao transacao;
@@ -117,13 +112,14 @@ public class RelatorioService {
         conferir(relatorio, filtros);
         OffsetDateTime agora = OffsetDateTime.now(clock);
         return transacao.executar(con -> {
+            Configuracoes config = configuracaoDAO.carregar(con);
             ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(),
-                    margemMinima(configuracaoDAO, con),
+                    config.margemMinimaPct(),
                     agora.atZoneSameInstant(clock.getZone()).toLocalDate());
             Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
-                    ? filtros.comDias(diasSemGiro(con)) : filtros;
+                    ? filtros.comDias(config.diasSemGiro()) : filtros;
             List<T> linhas = relatorio.consultar(con, usados, parametros);
-            String loja = configuracaoDAO.buscar(con, CHAVE_EMPRESA).filter(n -> !n.isBlank()).orElse("VareSync");
+            String loja = config.loja().nome().isBlank() ? "VareSync" : config.loja().nome();
             return new ResultadoRelatorio<>(relatorio, usados, relatorio.colunas(usados), linhas, loja,
                     sessao.usuario().nome(), agora);
         });
@@ -160,26 +156,8 @@ public class RelatorioService {
         }
     }
 
-    /** {@code relatorio.dias_sem_giro}; o valor da V2 (30) se faltar ou for inválido. */
+    /** {@code relatorio.dias_sem_giro} ({@link Configuracoes}: o valor da V2 se faltar ou for inválido). */
     private int diasSemGiro(Connection con) throws SQLException {
-        try {
-            int dias = Integer.parseInt(configuracaoDAO.buscar(con, CHAVE_DIAS_SEM_GIRO).orElse("").strip());
-            return dias >= 1 && dias <= RelSemGiro.DIAS_MAXIMO ? dias : DIAS_SEM_GIRO_PADRAO;
-        } catch (NumberFormatException e) {
-            return DIAS_SEM_GIRO_PADRAO;
-        }
-    }
-
-    /** {@code relatorio.margem_minima_pct}; o valor da V2 (15) se faltar ou for inválido. */
-    static BigDecimal margemMinima(ConfiguracaoDAO configuracaoDAO, Connection con) throws SQLException {
-        Optional<String> valor = configuracaoDAO.buscar(con, CHAVE_MARGEM_MINIMA);
-        if (valor.isEmpty()) {
-            return MARGEM_MINIMA_PADRAO;
-        }
-        try {
-            return new BigDecimal(valor.get().strip().replace(',', '.'));
-        } catch (NumberFormatException e) {
-            return MARGEM_MINIMA_PADRAO;
-        }
+        return configuracaoDAO.carregar(con).diasSemGiro();
     }
 }

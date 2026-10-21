@@ -96,6 +96,13 @@ class ValidacaoProdutoTest {
     }
 
     @Test
+    void pluCabeNosDigitosDaEtiqueta() {
+        ValidacaoProduto.plu(9999, true, true, false, 9999);
+        assertThatThrownBy(() -> ValidacaoProduto.plu(12345, true, true, false, 9999))
+                .hasMessage("O PLU deve estar entre 1 e 9999 (a etiqueta da balança tem 4 dígitos de código).");
+    }
+
+    @Test
     void sinalEOrigemDoMovimentoPorTipo() {
         assertThat(TipoMovimento.AJUSTE_ENTRADA.aceitaQuantidade(1)).isTrue();
         assertThat(TipoMovimento.AJUSTE_ENTRADA.aceitaQuantidade(-1)).isFalse();

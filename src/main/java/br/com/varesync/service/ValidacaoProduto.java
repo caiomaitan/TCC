@@ -101,6 +101,15 @@ final class ValidacaoProduto {
      * @param jaGravado o produto já tinha este PLU: continua valendo mesmo com a balança desligada
      */
     static void plu(Integer plu, boolean fracionada, boolean balancaAtiva, boolean jaGravado) {
+        plu(plu, fracionada, balancaAtiva, jaGravado, PLU_MAXIMO);
+    }
+
+    /**
+     * PLU, com o maior valor que cabe na etiqueta ({@code balanca.digitos_codigo}: 9999, 99999 ou 999999).
+     *
+     * @param jaGravado o produto já tinha este PLU: continua valendo mesmo com a balança desligada
+     */
+    static void plu(Integer plu, boolean fracionada, boolean balancaAtiva, boolean jaGravado, int maximo) {
         if (plu == null) {
             return;
         }
@@ -110,8 +119,9 @@ final class ValidacaoProduto {
         if (!fracionada) {
             throw new NegocioException("O PLU só vale para produto vendido por peso ou volume (unidade fracionada).");
         }
-        if (plu < 1 || plu > PLU_MAXIMO) {
-            throw new NegocioException("O PLU deve estar entre 1 e " + PLU_MAXIMO + ".");
+        if (plu < 1 || plu > maximo) {
+            throw new NegocioException("O PLU deve estar entre 1 e " + maximo + (maximo < PLU_MAXIMO
+                    ? " (a etiqueta da balança tem " + String.valueOf(maximo).length() + " dígitos de código)." : "."));
         }
     }
 

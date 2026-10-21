@@ -13,6 +13,7 @@ import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
@@ -20,14 +21,17 @@ import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.FornecedorService;
 import br.com.varesync.service.GeradorDemo;
+import br.com.varesync.service.ImportacaoProdutosService;
 import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.PainelService;
 import br.com.varesync.service.PrecoService;
 import br.com.varesync.service.ProdutoService;
+import br.com.varesync.service.PromocaoService;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Transacao;
@@ -45,7 +49,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        CategoriaService categorias, ProdutoService produtos, EstoqueService estoque,
                        CaixaService caixa, VendaService vendas, InventarioService inventarios,
                        FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
-                       PainelService painel) {
+                       PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
+                       ImportacaoProdutosService importacao) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -65,8 +70,10 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         ProdutoService produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 configuracaoDAO, estoque, auditoria, clock);
         CaixaService caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, clock);
-        VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
-                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(), auditoria, clock);
+        PromocaoDAO promocaoDAO = new PromocaoDAO();
+        FormaPagamentoDAO formaPagamentoDAO = new FormaPagamentoDAO();
+        VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
+                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();
@@ -76,8 +83,13 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, fornecedorDAO, clock);
         PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, clock);
+        ConfiguracaoService configuracoes = new ConfiguracaoService(transacao, configuracaoDAO, formaPagamentoDAO,
+                produtoDAO, auditoria);
+        PromocaoService promocoes = new PromocaoService(transacao, promocaoDAO, produtoDAO, auditoria, clock);
+        ImportacaoProdutosService importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO,
+                categoriaDAO, new UnidadeMedidaDAO());
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
-                inventarios, fornecedores, compras, relatorios, painel);
+                inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao);
     }
 
     /**

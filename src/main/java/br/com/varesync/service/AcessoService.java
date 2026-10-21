@@ -4,6 +4,7 @@ import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.UsuarioDAO.Credencial;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Usuario;
 import br.com.varesync.report.Emissao;
@@ -25,7 +26,6 @@ public class AcessoService {
     public static final int MAXIMO_TENTATIVAS = 5;
     public static final Duration TEMPO_BLOQUEIO = Duration.ofMinutes(5);
 
-    static final String CHAVE_EMPRESA_NOME = "empresa.nome";
     static final int TAMANHO_MAXIMO_NOME_LOJA = 80;
 
     /** Dados do assistente de primeiro acesso. */
@@ -68,7 +68,7 @@ public class AcessoService {
     }
 
     public String nomeEmpresa() {
-        return transacao.executar(con -> configuracaoDAO.buscar(con, CHAVE_EMPRESA_NOME).orElse(""));
+        return transacao.executar(con -> configuracaoDAO.carregar(con).loja().nome());
     }
 
     /**
@@ -103,7 +103,7 @@ public class AcessoService {
             if (usuarioDAO.contar(con) > 0) {
                 throw new NegocioException("O primeiro acesso já foi feito. Entre com o seu usuário.");
             }
-            configuracaoDAO.atualizar(con, CHAVE_EMPRESA_NOME, nomeLoja);
+            configuracaoDAO.gravar(con, Configuracoes.EMPRESA_NOME, nomeLoja);
             long id = usuarioDAO.inserir(con, login, nome, hash, true, false, OffsetDateTime.now(clock));
             auditoria.registrar(con, id, AcaoAuditoria.USUARIO_CRIADO, AuditoriaService.ENTIDADE_USUARIO, id,
                     "Primeiro acesso: supervisor " + nome + " (" + login + ") criado; loja \"" + nomeLoja + "\"");

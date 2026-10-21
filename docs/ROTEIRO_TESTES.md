@@ -253,3 +253,68 @@ aberta pelo atalho de reajuste não foram exercitados pela tela.
 | CT-F7-16 | Produtos com código ≥ 1000 (dados de demonstração não chegam a isso: use um banco com muitos produtos) | R03, R05 ou R12 › Gerar | Coluna Código sem separador de milhar ("5505") na tela, no PDF e no CSV | Na tela, códigos 1 e 2 (roteiro); "5505" coberto por `RelatoriosParte2Test.colunaCodigoSemSeparadorDeMilharNaTelaNoPdfENoCsv` |
 | CT-F7-17 | Banco novo (`varesync_demo`) | Configurações › Dados de demonstração › Gerar | Além do que pede 6.14: 3 fornecedores (dois com CNPJ alfanumérico) e uma entrada confirmada por semana de cada um, sempre no mesmo dia; o resumo mostra "Fornecedores: 3 (N entradas de mercadoria confirmadas)"; R17 com 3 linhas | Coberto por `GeradorDemoIT.fornecedoresEEntradasSemanaisComCustoVariando` |
 | CT-F7-18 | Usuário só com COMPRAS | Entrar | Menu mostra Compras e não Fornecedores; o inverso com só FORNECEDORES | Coberto por `ItemMenuTest` e pelos testes de permissão dos services |
+
+## Fase 8 — Extras, parte 1 (configurações, promoções, etiqueta de balança, importação por planilha)
+
+Pré-condição comum: logado como `admin` (supervisor). Configurações é só do supervisor; Promoções e Importar planilha
+ficam na tela **Produtos** (permissão PRODUTOS).
+
+Em 2026-10-20, os casos marcados "OK (roteiro)" foram executados por um roteiro descartável (removido depois) que abriu
+as telas reais (JavaFX) sobre o banco `varesync_test`, com as janelas fora da tela e os componentes acionados por
+eventos (texto, `fire`, Enter como `ActionEvent` no campo, botões dos diálogos pelo `DialogPane`), sem teclas nem
+cliques do sistema; conferido pelas capturas (`snapshot`, 23 imagens). Não foram exercitados pela tela: o teclado de
+verdade (Tab, Ctrl+N, Enter pelo teclado), o leitor de código de barras e a balança de verdade, as janelas "Abrir" e
+"Salvar como" do sistema (o arquivo foi carregado pelo mesmo método que a janela usa), arrastar o arquivo para a lista,
+a busca de produto pelo diálogo na promoção e a finalização da venda com etiqueta (coberta por `EtiquetaBalancaIT`).
+
+### Configurações (6.13)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-01 | — | Menu **Configurações** › abas Loja, Venda, Relatórios, Balança, Formas de pagamento | Cada aba mostra os valores gravados (os da V2 num banco novo; o nome da loja do primeiro acesso); "Salvar alterações" e "Desfazer" só nas quatro primeiras abas | OK (roteiro) |
+| CT-F8-02 | CT-F8-01 | Loja: nome com espaços duplos, CNPJ `11222333000181`, telefone `16 3333-4444`, endereço, mensagem do comprovante; Venda: desmarcar "Permitir vender produto sem saldo", desconto `7,5`; Relatórios: margem `20`, dias `45`; Balança: marcar a leitura › **Salvar alterações** | "Configurações salvas: nome da loja de … para …; …" com cada mudança; CNPJ com máscara, telefone `(16) 3333-4444`, nome sem espaço duplo; auditoria `CONFIGURACAO_ALTERADA` com antes e depois | OK (roteiro). Defeito achado e corrigido: com a mensagem longa, os botões viravam "…" |
+| CT-F8-03 | CT-F8-02 | PDV: vender produto sem saldo; dar desconto de 7% na venda | Sem saldo é recusado ("Estoque insuficiente…"); 7% passa sem liberação (limite 7,5%): o valor novo vale na hora | Coberto por `ConfiguracaoServiceIT` (o PDV lê os parâmetros novos) |
+| CT-F8-04 | — | Venda: desconto `abc` › Salvar; depois Desfazer | "Desconto máximo do operador: valor inválido ("abc")."; nada gravado; Desfazer volta ao gravado | OK (roteiro) |
+| CT-F8-05 | — | Desconto `101`, margem `100`, dias `0`, CNPJ com DV errado, telefone `3333` | Cada um recusado com mensagem; nada gravado | Coberto por `ConfiguracaoServiceIT.valoresInvalidosSaoRecusadosComMensagem` |
+| CT-F8-06 | — | Balança: dígitos 4 e tipo Peso | O exemplo muda para "Exemplo: 2 0123 0000345 0 = PLU 123 com 345 g." | OK (roteiro) |
+| CT-F8-07 | Produto com PLU 12345 e balança com 5 dígitos | Balança: dígitos 4 › Salvar | Recusado: "Com 4 dígitos de código, o PLU vai até 9999, mas 1 produto tem PLU maior: …" | Coberto por `ConfiguracaoServiceIT` |
+| CT-F8-08 | — | Formas de pagamento: "Vale presente" (Outros) › Criar; selecionar PIX › Desativar › Sim | Nova forma na lista; PIX "Desativada" (esmaecida) e fora do pagamento do PDV | OK (roteiro) |
+| CT-F8-09 | Só uma forma ativa | Desativar a última | "… é a única forma de pagamento ativa. Ative outra antes de desativar esta." | Coberto por `ConfiguracaoServiceIT` |
+| CT-F8-10 | Usuário com todas as permissões, sem ser supervisor | Entrar | Menu sem Configurações; o service recusa | Coberto por `ConfiguracaoServiceIT.soSupervisorAbreEAltera` e `ItemMenuTest` |
+
+### Promoções (6.8)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-11 | Refrigerante R$ 5,49 (custo R$ 3,20) com código de barras | Produtos › **Promoções…** › Nova promoção: código de barras + Enter, preço `4,99`, início hoje, fim hoje + 6 › Criar | O produto aparece com preço e custo; "Promoção nº 1 criada."; na lista "Vigentes": preço de venda, promocional, desconto 9,11%, período, "Vigente" | OK (roteiro). Defeito achado e corrigido: coluna "Criada por" cortada |
+| CT-F8-12 | CT-F8-11 | Nova promoção do mesmo produto, `4,49`, mesmo período | No diálogo: "Já existe uma promoção ativa de "Refrigerante…" de … (nº 1, R$ 4,99) que se sobrepõe a este período…"; o diálogo continua aberto | OK (roteiro) |
+| CT-F8-13 | CT-F8-11 | Nova promoção `2,99`, de hoje + 10 a hoje + 12 | Confirmação "O preço promocional (R$ 2,99) está abaixo do custo (R$ 3,2000)… Salvar mesmo assim?"; Sim → criada; aparece em "Futuras" e em "Todas" | OK (roteiro) |
+| CT-F8-14 | CT-F8-11 | PDV: ler o refrigerante; F7 com o mesmo código | Item a R$ 4,99 com "(promoção)"; F7 mostra "R$ 4,99 / UN (promoção; preço normal R$ 5,49)"; finalizada, o item grava `promocao_id` | Item OK (roteiro); F7 e `promocao_id` cobertos por `PromocaoServiceIT` |
+| CT-F8-15 | CT-F8-11 | Desativar a promoção; vender | Preço de venda normal | Coberto por `PromocaoServiceIT` |
+| CT-F8-16 | Promoção já usada numa venda | Excluir | "… já foi aplicada em vendas e não pode ser excluída. Você pode desativá-la." | Coberto por `PromocaoServiceIT` |
+| CT-F8-17 | — | Filtros Vigentes, Futuras, Encerradas e desativadas, Todas; busca pelo nome | Cada filtro mostra só as suas; encerradas e desativadas esmaecidas | "Todas" OK (roteiro); os demais cobertos por `PromocaoServiceIT.filtrosVigentesFuturasEEncerradas` |
+
+### Etiqueta de balança no PDV (6.9, A.7)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-18 | Leitura ligada (prefixo 2, 5 dígitos, Preço); Queijo KG R$ 39,90 com PLU 123; caixa aberto | PDV: ler `2001230013776` | Item "Queijo muçarela" 0,345 KG × R$ 39,90 = R$ 13,77, com a etiqueta como código | OK (roteiro) |
+| CT-F8-19 | CT-F8-18 com o tipo Peso | Ler `2001230003456` | 0,345 KG, total R$ 13,77 | Coberto por `EtiquetaBalancaIT.pesoComCincoDigitosA7` |
+| CT-F8-20 | 4 dígitos, Preço | Ler `2012300013770` | PLU 123, R$ 13,77 | Coberto por `EtiquetaBalancaIT` |
+| CT-F8-21 | Carne R$ 29,99/kg com PLU 124 | Ler a etiqueta de R$ 10,00 | 0,333 kg e total R$ 10,00 (o valor da etiqueta, sem recalcular para R$ 9,99) | Coberto por `EtiquetaBalancaIT.valorDaEtiquetaNaoERecalculadoA7` |
+| CT-F8-22 | CT-F8-18 | Ler `2009990013777` (PLU sem produto) | "Produto de balança não encontrado (PLU 999)."; campo em vermelho, limpo | OK (roteiro) |
+| CT-F8-23 | CT-F8-18 | Ler `3*2001230013776` | "A etiqueta de balança já traz a quantidade: leia a etiqueta sem informar a quantidade (F3 ou *)." | OK (roteiro) |
+| CT-F8-24 | Leitura desligada | Ler `2001230013776` | "Produto não encontrado (código 2001230013776)." | Coberto por `EtiquetaBalancaIT` |
+| CT-F8-25 | CT-F8-18 | Venda completa: etiqueta + F10 em dinheiro | Venda gravada com 0,345 KG e R$ 13,77; baixa de 0,345 no estoque | Coberto por `EtiquetaBalancaIT.precoComCincoDigitosA7PelaVendaCompleta` |
+
+### Importação de produtos por planilha (6.11)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-26 | — | Produtos › **Importar planilha…** › Baixar modelo… | Arquivo `modelo_produtos.csv` com o cabeçalho e dois exemplos; abre no Excel com acentos | Conteúdo coberto por `PlanilhaProdutosTest` e `ImportacaoProdutosIT.modeloEPermissao`; falta abrir no Excel |
+| CT-F8-27 | Planilha com 3 produtos, o da linha 3 com custo `abc` | Escolher planilha… | Prévia: linha 3 em vermelho e já selecionada, "Linha 3: Erro — custo: "abc" não é um número válido…"; resumo "2 linhas prontas, 1 com erro…"; Importar desabilitado; nada gravado | OK (roteiro). Defeito achado e corrigido: o erro saía cortado na coluna Situação |
+| CT-F8-28 | CT-F8-27 | Marcar "Ignorar as linhas com erro" › Importar › Sim | "2 produtos importados (códigos …); 1 linha(s) com erro ignorada(s)."; os produtos na lista de Produtos ao fechar; estoque inicial no kardex com motivo "Importação" | OK (roteiro); motivo no kardex coberto por `ImportacaoProdutosIT` |
+| CT-F8-29 | — | Planilha sem erros com uma categoria nova | Prévia mostra "Categoria (nova)" e "Categorias que serão criadas: …"; Importar cria a categoria e todos os produtos | Coberto por `ImportacaoProdutosIT.planilhaValidaImportaTudoComCategoriaNovaEEstoqueInicial` |
+| CT-F8-30 | — | Planilha salva pelo Excel como "CSV (separado por vírgulas)" (Windows-1252) | Acentos corretos; "(Windows-1252, …)" ao lado do nome do arquivo | Coberto por `ImportacaoProdutosIT.windows1252ECategoriaSemDiferenciarMaiusculas`; falta com um arquivo do Excel |
+| CT-F8-31 | — | Planilha com código de barras já cadastrado, DV errado, em notação científica (`7,89123E+12`), repetido na planilha, unidade inexistente, categoria inativa | Cada linha com o erro na coluna certa | Coberto por `ImportacaoProdutosIT.codigoDeBarrasRepetidoInvalidoUnidadeECategoriaInativa` |
+| CT-F8-32 | — | Arrastar o arquivo .csv do Explorer para a lista | Mesma prévia do CT-F8-27 | Não executado |

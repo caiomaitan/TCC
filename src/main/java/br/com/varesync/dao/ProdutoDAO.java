@@ -219,6 +219,34 @@ public class ProdutoDAO {
         }
     }
 
+    /** Produto como o PDV o usa, pelo PLU da etiqueta de balança (6.9); a etiqueta lida fica como código do item. */
+    public Optional<ProdutoVenda> buscarParaVendaPorPlu(Connection con, int plu, String etiqueta) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(SELECT_VENDA + " WHERE p.plu = ?")) {
+            ps.setInt(1, plu);
+            return produtoVenda(ps, etiqueta);
+        }
+    }
+
+    /** Produtos com PLU maior que {@code maximo} (não caberiam na etiqueta com menos dígitos de código). */
+    public List<Dono> comPluAcima(Connection con, int maximo) throws SQLException {
+        String sql = """
+                SELECT id, nome
+                  FROM produto
+                 WHERE plu > ?
+                 ORDER BY id
+                """;
+        List<Dono> produtos = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, maximo);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    produtos.add(new Dono(rs.getLong(1), rs.getString(2)));
+                }
+            }
+        }
+        return produtos;
+    }
+
     private static Optional<ProdutoVenda> produtoVenda(PreparedStatement ps, String codigoLido) throws SQLException {
         try (ResultSet rs = ps.executeQuery()) {
             if (!rs.next()) {
