@@ -200,4 +200,87 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            mvn -Pempacotar clean package
+            Gera target/dist/VareSync (VareSync.exe + Java embutido) com o jpackage do JDK de JAVA_HOME.
+        -->
+        <profile>
+            <id>empacotar</id>
+            <properties>
+                <app.versao>0.1.0</app.versao>
+                <empacotar.entrada>${project.build.directory}/empacotar</empacotar.entrada>
+            </properties>
+            <build>
+                <plugins>
+                    <!-- O jar do sistema e as bibliotecas numa só pasta (entrada do jpackage) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <outputDirectory>${empacotar.entrada}</outputDirectory>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.8.1</version>
+                        <executions>
+                            <execution>
+                                <id>copiar-bibliotecas</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy-dependencies</goal>
+                                </goals>
+                                <configuration>
+                                    <includeScope>runtime</includeScope>
+                                    <outputDirectory>${empacotar.entrada}</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.1</version>
+                        <executions>
+                            <execution>
+                                <id>jpackage</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/jpackage</executable>
+                                    <arguments>
+                                        <argument>--type</argument>
+                                        <argument>app-image</argument>
+                                        <argument>--name</argument>
+                                        <argument>VareSync</argument>
+                                        <argument>--app-version</argument>
+                                        <argument>${app.versao}</argument>
+                                        <argument>--vendor</argument>
+                                        <argument>VareSync</argument>
+                                        <argument>--description</argument>
+                                        <argument>${project.description}</argument>
+                                        <argument>--input</argument>
+                                        <argument>${empacotar.entrada}</argument>
+                                        <argument>--main-jar</argument>
+                                        <argument>${project.build.finalName}.jar</argument>
+                                        <argument>--main-class</argument>
+                                        <argument>${main.class}</argument>
+                                        <argument>--java-options</argument>
+                                        <argument>-Dfile.encoding=UTF-8</argument>
+                                        <argument>--dest</argument>
+                                        <argument>${project.build.directory}/dist</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

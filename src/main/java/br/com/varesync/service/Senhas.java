@@ -2,12 +2,16 @@ package br.com.varesync.service;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Hash BCrypt das senhas e regras de senha nova (6.1): mínimo de 6 caracteres e diferente do login.
  * A senha em texto nunca é gravada nem registrada no log.
  */
 public final class Senhas {
+
+    private static final Logger log = LoggerFactory.getLogger(Senhas.class);
 
     public static final int CUSTO_PADRAO = 12;
     public static final int TAMANHO_MINIMO = 6;
@@ -38,12 +42,15 @@ public final class Senhas {
 
     /** Confere a senha com o hash. Hash vazio ou corrompido e senha longa demais dão {@code false}. */
     public boolean confere(String senha, String hash) {
-        if (senha == null || hash == null || hash.isEmpty()) {
+        if (senha == null || hash == null || hash.isEmpty()
+                || senha.getBytes(StandardCharsets.UTF_8).length > BYTES_MAXIMO) {
             return false;
         }
         try {
             return BCrypt.verifyer().verify(senha.toCharArray(), hash).verified;
         } catch (IllegalArgumentException invalido) {
+            // Só o hash gravado no banco pode estar errado aqui (alterado fora do sistema); nem ele vai para o log.
+            log.warn("Hash de senha em formato inválido no banco: tratado como senha errada");
             return false;
         }
     }

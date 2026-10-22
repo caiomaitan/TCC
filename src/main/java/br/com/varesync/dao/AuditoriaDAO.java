@@ -6,7 +6,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,10 +29,10 @@ public class AuditoriaDAO {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            definirLong(ps, 1, usuarioId);
+            Jdbc.definirLong(ps, 1, usuarioId);
             ps.setString(2, acao.name());
             ps.setString(3, entidade);
-            definirLong(ps, 4, entidadeId);
+            Jdbc.definirLong(ps, 4, entidadeId);
             ps.setString(5, descricao);
             ps.setString(6, terminal);
             ps.setObject(7, criadoEm);
@@ -58,8 +57,8 @@ public class AuditoriaDAO {
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setObject(1, filtro.inicio());
             ps.setObject(2, filtro.fim());
-            definirLong(ps, 3, filtro.usuarioId());
-            definirLong(ps, 4, filtro.usuarioId());
+            Jdbc.definirLong(ps, 3, filtro.usuarioId());
+            Jdbc.definirLong(ps, 4, filtro.usuarioId());
             String acao = filtro.acao() == null ? null : filtro.acao().name();
             ps.setString(5, acao);
             ps.setString(6, acao);
@@ -67,8 +66,7 @@ public class AuditoriaDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String nome = rs.getString("nome");
-                    long entidadeId = rs.getLong("entidade_id");
-                    Long entidade = rs.wasNull() ? null : entidadeId;
+                    Long entidade = Jdbc.lerLong(rs, "entidade_id");
                     registros.add(new RegistroAuditoria(rs.getLong("id"),
                             rs.getObject("criado_em", OffsetDateTime.class),
                             nome == null ? null : nome + " (" + rs.getString("login") + ")",
@@ -89,14 +87,6 @@ public class AuditoriaDAO {
                 rs.next();
                 return Optional.ofNullable(rs.getObject(1, OffsetDateTime.class));
             }
-        }
-    }
-
-    private static void definirLong(PreparedStatement ps, int indice, Long valor) throws SQLException {
-        if (valor == null) {
-            ps.setNull(indice, Types.BIGINT);
-        } else {
-            ps.setLong(indice, valor);
         }
     }
 }

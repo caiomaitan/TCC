@@ -1,5 +1,6 @@
 package br.com.varesync.report;
 
+import br.com.varesync.dao.Jdbc;
 import br.com.varesync.model.MovimentoKardex;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.util.Dinheiro;
@@ -85,8 +86,8 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
                 while (rs.next()) {
                     MovimentoKardex kardex = new MovimentoKardex(0, null, TipoMovimento.valueOf(rs.getString("tipo")),
                             rs.getBigDecimal("quantidade"), null, rs.getBigDecimal("saldo_posterior"),
-                            rs.getBigDecimal("custo"), rs.getString("usuario"), lerLong(rs, "venda_id"),
-                            lerLong(rs, "inventario_id"), lerLong(rs, "entrada_id"), rs.getString("motivo"));
+                            rs.getBigDecimal("custo"), rs.getString("usuario"), Jdbc.lerLong(rs, "venda_id"),
+                            Jdbc.lerLong(rs, "inventario_id"), Jdbc.lerLong(rs, "entrada_id"), rs.getString("motivo"));
                     linhas.add(new Linha(rs.getObject("criado_em", OffsetDateTime.class), rs.getLong("produto_id"),
                             rs.getString("produto"), rs.getString("unidade"), rs.getBoolean("fracionada"),
                             kardex.tipo(), kardex.quantidade(), kardex.saldoPosterior(), kardex.custoUnitario(),
@@ -97,10 +98,6 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
         return linhas;
     }
 
-    private static Long lerLong(ResultSet rs, String coluna) throws SQLException {
-        long valor = rs.getLong(coluna);
-        return rs.wasNull() ? null : valor;
-    }
 
     @Override
     public List<Coluna<Linha>> colunas(Filtros filtros) {

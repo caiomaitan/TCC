@@ -20,6 +20,7 @@ import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Recebimento;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.VendaService;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosPdv;
 import br.com.varesync.ui.Janelas;
@@ -254,7 +255,8 @@ public class PdvController {
             inclusao = DialogosPdv.quantidade("Quantidade — " + produto.nome(),
                     "Informe a quantidade em " + produto.unidade() + " (até 3 casas). Preço: "
                             + Formatos.moeda(produto.precoVenda()) + "/" + produto.unidade() + ".",
-                    texto -> vendaService.adicionarItem(sessao, carrinho, produto, lerNumero(texto, "a quantidade")));
+                    texto -> vendaService.adicionarItem(sessao, carrinho, produto,
+                            CampoNumero.ler(texto, "Quantidade")));
         } else {
             inclusao = Optional.of(vendaService.adicionarItem(sessao, carrinho, produto,
                     quantidade == null ? BigDecimal.ONE : quantidade));
@@ -279,7 +281,7 @@ public class PdvController {
         DialogosPdv.quantidade("Quantidade do próximo item (F3)",
                 "Vale para o próximo produto lido. Também é possível digitar quantidade*código (ex.: 3*789…).",
                 texto -> {
-                    BigDecimal valor = lerNumero(texto, "a quantidade");
+                    BigDecimal valor = CampoNumero.ler(texto, "Quantidade");
                     if (valor == null || valor.signum() <= 0) {
                         throw new NegocioException("A quantidade deve ser maior que zero.");
                     }
@@ -317,7 +319,7 @@ public class PdvController {
                 "Valor do item: " + Formatos.moeda(item.valorBruto()) + ". Desconto atual: "
                         + Formatos.moeda(item.desconto()) + ". Informe 0 para retirar.",
                 (tipo, texto) -> comLiberacaoDeDesconto(liberacao -> vendaService.aplicarDescontoItem(sessao,
-                        carrinho, item.sequencia(), tipo, lerNumero(texto, "o desconto"), liberacao)))
+                        carrinho, item.sequencia(), tipo, CampoNumero.ler(texto, "Desconto"), liberacao)))
                 .ifPresent(ok -> {
                     atualizarTela();
                     Mensagem.sucesso(mensagem, "Desconto aplicado no item " + item.sequencia() + ".");
@@ -333,7 +335,7 @@ public class PdvController {
                         + ". Desconto atual: " + Formatos.moeda(carrinho.descontoVenda())
                         + ". O desconto é rateado entre os itens. Informe 0 para retirar.",
                 (tipo, texto) -> comLiberacaoDeDesconto(liberacao -> vendaService.aplicarDescontoVenda(sessao,
-                        carrinho, tipo, lerNumero(texto, "o desconto"), liberacao)))
+                        carrinho, tipo, CampoNumero.ler(texto, "Desconto"), liberacao)))
                 .ifPresent(ok -> {
                     atualizarTela();
                     Mensagem.sucesso(mensagem, "Desconto na venda: " + Formatos.moeda(carrinho.descontoVenda()) + ".");
@@ -561,18 +563,6 @@ public class PdvController {
 
     private static String quantidade(ItemCarrinho item) {
         return Formatos.quantidade(item.quantidade(), item.produto().fracionada()) + " " + item.produto().unidade();
-    }
-
-    /** Número digitado; vazio → nulo (o service pede o valor). */
-    static BigDecimal lerNumero(String texto, String rotulo) {
-        if (Textos.vazio(texto)) {
-            return null;
-        }
-        try {
-            return Dinheiro.ler(texto);
-        } catch (IllegalArgumentException e) {
-            throw new NegocioException("Valor inválido para " + rotulo + " (\"" + texto.strip() + "\").");
-        }
     }
 
     private static ReadOnlyStringWrapper texto(String valor) {

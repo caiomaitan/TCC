@@ -316,8 +316,8 @@ public class ProdutoDAO {
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, codigo);
-            definirLong(ps, 2, ignorarId);
-            definirLong(ps, 3, ignorarId);
+            Jdbc.definirLong(ps, 2, ignorarId);
+            Jdbc.definirLong(ps, 3, ignorarId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(new Dono(rs.getLong(1), rs.getString(2))) : Optional.empty();
             }
@@ -334,8 +334,8 @@ public class ProdutoDAO {
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, plu);
-            definirLong(ps, 2, ignorarId);
-            definirLong(ps, 3, ignorarId);
+            Jdbc.definirLong(ps, 2, ignorarId);
+            Jdbc.definirLong(ps, 3, ignorarId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(new Dono(rs.getLong(1), rs.getString(2))) : Optional.empty();
             }
@@ -354,8 +354,8 @@ public class ProdutoDAO {
         List<Dono> produtos = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, nomeBusca);
-            definirLong(ps, 2, ignorarId);
-            definirLong(ps, 3, ignorarId);
+            Jdbc.definirLong(ps, 2, ignorarId);
+            Jdbc.definirLong(ps, 3, ignorarId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     produtos.add(new Dono(rs.getLong(1), rs.getString(2)));
@@ -401,7 +401,7 @@ public class ProdutoDAO {
             parametros.add(filtro.digitos());
         } else if (filtro.termoNome() != null && !filtro.termoNome().isEmpty()) {
             sql.append(" AND p.nome_busca LIKE ? ESCAPE '\\'");
-            parametros.add("%" + escaparLike(filtro.termoNome()) + "%");
+            parametros.add("%" + Jdbc.escaparLike(filtro.termoNome()) + "%");
         }
         if (filtro.categoriaId() != null) {
             sql.append(" AND p.categoria_id = ?");
@@ -467,10 +467,6 @@ public class ProdutoDAO {
         return linhas;
     }
 
-    /** "%", "_" e "\" digitados valem como texto, não como curinga do LIKE. */
-    static String escaparLike(String termo) {
-        return termo.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-    }
 
     /** Código interno, se os dígitos cabem num BIGINT; senão -1 (nenhum produto). */
     public static long idOuNenhum(String digitos) {
@@ -482,7 +478,7 @@ public class ProdutoDAO {
 
     private static int definirGravacao(PreparedStatement ps, Gravacao g) throws SQLException {
         ps.setString(1, g.nome());
-        definirLong(ps, 2, g.categoriaId());
+        Jdbc.definirLong(ps, 2, g.categoriaId());
         ps.setString(3, g.unidade());
         ps.setBigDecimal(4, g.precoVenda());
         ps.setBigDecimal(5, g.custo());
@@ -496,8 +492,7 @@ public class ProdutoDAO {
     }
 
     private static Produto lerProduto(ResultSet rs, List<CodigoBarras> codigos) throws SQLException {
-        long categoriaId = rs.getLong("categoria_id");
-        Long categoria = rs.wasNull() ? null : categoriaId;
+        Long categoria = Jdbc.lerLong(rs, "categoria_id");
         int plu = rs.getInt("plu");
         Integer pluOuNulo = rs.wasNull() ? null : plu;
         return new Produto(
@@ -516,13 +511,5 @@ public class ProdutoDAO {
                 rs.getObject("atualizado_em", OffsetDateTime.class),
                 rs.getString("atualizado_por_nome"),
                 codigos);
-    }
-
-    private static void definirLong(PreparedStatement ps, int indice, Long valor) throws SQLException {
-        if (valor == null) {
-            ps.setNull(indice, Types.BIGINT);
-        } else {
-            ps.setLong(indice, valor);
-        }
     }
 }

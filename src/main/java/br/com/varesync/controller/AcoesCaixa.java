@@ -10,13 +10,13 @@ import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Liberacao;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCaixa;
 import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.LiberacaoSupervisorDialogo;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
-import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
 import java.util.Optional;
 import javafx.stage.Window;
@@ -42,7 +42,8 @@ public class AcoesCaixa {
 
     /** @return o caixa aberto, ou vazio se cancelado */
     public Optional<CaixaSessao> abrir() {
-        return DialogosCaixa.abrir(sessao.terminal(), texto -> caixaService.abrir(sessao, ler(texto)));
+        return DialogosCaixa.abrir(sessao.terminal(),
+                texto -> caixaService.abrir(sessao, CampoNumero.ler(texto, "Fundo de troco")));
     }
 
     /**
@@ -62,8 +63,9 @@ public class AcoesCaixa {
         }
         Liberacao liberada = liberacao;
         return DialogosCaixa.movimentar((tipo, valor, motivo) -> {
-            caixaService.registrarMovimento(sessao, tipo, ler(valor), motivo, liberada);
-            return tipo.descricao() + " de " + Formatos.moeda(Dinheiro.dinheiro(ler(valor))) + " registrad"
+            BigDecimal lido = CampoNumero.ler(valor, "Valor");
+            caixaService.registrarMovimento(sessao, tipo, lido, motivo, liberada);
+            return tipo.descricao() + " de " + Formatos.moeda(Dinheiro.dinheiro(lido)) + " registrad"
                     + (tipo == TipoCaixaMovimento.SUPRIMENTO ? "o" : "a") + ".";
         });
     }
@@ -75,7 +77,7 @@ public class AcoesCaixa {
      */
     public Optional<RelatorioFechamento> fechar() {
         return DialogosCaixa.fechar(sessao.terminal(), texto -> {
-            BigDecimal contado = ler(texto);
+            BigDecimal contado = CampoNumero.ler(texto, "Dinheiro contado");
             if (contado == null) {
                 throw new NegocioException("Informe o dinheiro contado.");
             }
@@ -92,17 +94,5 @@ public class AcoesCaixa {
         Janelas.abrirModal(dona, "/fxml/fechamento-caixa.fxml", "Fechamento de caixa nº " + relatorio.sessao().id(),
                 tipo -> new FechamentoCaixaController(fechamentoPdf, () -> acessoService.emissao(sessao)),
                 (FechamentoCaixaController c) -> c.mostrar(relatorio));
-    }
-
-    /** Vazio → nulo (o service pede o valor); texto inválido → mensagem. */
-    static BigDecimal ler(String texto) {
-        if (Textos.vazio(texto)) {
-            return null;
-        }
-        try {
-            return Dinheiro.ler(texto);
-        } catch (IllegalArgumentException e) {
-            throw new NegocioException("Valor inválido (\"" + texto.strip() + "\").");
-        }
     }
 }

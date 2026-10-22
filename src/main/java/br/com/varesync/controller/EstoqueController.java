@@ -8,6 +8,7 @@ import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.DialogosEstoque;
 import br.com.varesync.ui.Mensagem;
@@ -240,7 +241,7 @@ public class EstoqueController {
         long id = produto.produtoId();
         DialogosEstoque.ajustar(produto.descricao(), quantidade(produto.saldo()),
                         (tipo, quantidade, motivo, observacao) -> estoqueService.ajustar(sessao, id, tipo,
-                                ler(quantidade, "Quantidade"), motivo, observacao))
+                                CampoNumero.ler(quantidade, "Quantidade"), motivo, observacao))
                 .ifPresent(this::ajustado);
     }
 
@@ -253,7 +254,7 @@ public class EstoqueController {
         BigDecimal atual = produto.saldo();
         DialogosEstoque.ajustarSaldoPara(produto.descricao(), quantidade(atual), texto -> previa(atual, texto),
                         (novoSaldo, motivo) -> estoqueService.ajustarSaldoPara(sessao, id,
-                                ler(novoSaldo, "Novo saldo"), motivo))
+                                CampoNumero.ler(novoSaldo, "Novo saldo"), motivo))
                 .ifPresent(this::ajustado);
     }
 
@@ -305,18 +306,6 @@ public class EstoqueController {
 
     private static String custo(BigDecimal valor) {
         return valor == null ? Formatos.SEM_VALOR : "R$ " + Formatos.numero(valor, Dinheiro.ESCALA_CUSTO);
-    }
-
-    /** Vazio ou texto inválido → mensagem com o nome do campo. */
-    private static BigDecimal ler(String texto, String rotulo) {
-        if (Textos.vazio(texto)) {
-            return null;
-        }
-        try {
-            return Dinheiro.ler(texto);
-        } catch (IllegalArgumentException e) {
-            throw new NegocioException(rotulo + ": valor inválido (\"" + texto.strip() + "\").");
-        }
     }
 
     private static void alternar(Label rotulo, String estilo, boolean ligado) {

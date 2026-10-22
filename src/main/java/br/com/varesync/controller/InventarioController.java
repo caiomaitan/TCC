@@ -16,6 +16,7 @@ import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.BuscaProdutoDialogo;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosInventario;
 import br.com.varesync.ui.Exportacao;
@@ -508,7 +509,7 @@ public class InventarioController {
         ItemContagem item = itemAtual;
         try {
             ItemContagem gravado = inventarioService.registrarContagem(sessao, inventario.id(), item.itemId(),
-                    ler(campoQuantidade.getText()));
+                    CampoNumero.ler(campoQuantidade.getText(), "Quantidade contada"));
             atualizarLinha();
             carregarContagem(gravado.itemId());
             Mensagem.sucesso(mensagem, "Contagem gravada: " + gravado.nome() + " = "
@@ -701,18 +702,6 @@ public class InventarioController {
 
     private static <T> Comparator<T> porQuantidade(Function<T, BigDecimal> valor) {
         return Comparator.comparing(valor, Comparator.nullsFirst(Comparator.naturalOrder()));
-    }
-
-    /** Vazio ou texto inválido → mensagem. */
-    private static BigDecimal ler(String texto) {
-        if (Textos.vazio(texto)) {
-            return null;
-        }
-        try {
-            return Dinheiro.ler(texto);
-        } catch (IllegalArgumentException e) {
-            throw new NegocioException("Quantidade contada: valor inválido (\"" + texto.strip() + "\").");
-        }
     }
 
     /** Célula de texto calculado a partir da linha, em vermelho quando {@code negativo}. */

@@ -6,6 +6,7 @@ import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Recebimento;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.VendaService;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Formatos;
@@ -86,7 +87,7 @@ public class PagamentoController {
     @FXML
     private void adicionar() {
         try {
-            recebimento.adicionar(forma.getValue(), PdvController.lerNumero(valor.getText(), "o valor"));
+            recebimento.adicionar(forma.getValue(), CampoNumero.ler(valor.getText(), "Valor"));
             Mensagem.limpar(mensagem);
             atualizar();
         } catch (NegocioException e) {

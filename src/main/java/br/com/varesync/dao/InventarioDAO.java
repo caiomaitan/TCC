@@ -153,7 +153,7 @@ public class InventarioDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     candidatos.add(new Candidato(rs.getLong("id"), rs.getString("nome"), rs.getBoolean("ativo"),
-                            lerLong(rs, "inventario_aberto")));
+                            Jdbc.lerLong(rs, "inventario_aberto")));
                 }
             }
         }
@@ -340,10 +340,5 @@ public class InventarioDAO {
         try (ResultSet rs = ps.executeQuery()) {
             return rs.next() ? Optional.of(rs.getLong(1)) : Optional.empty();
         }
-    }
-
-    private static Long lerLong(ResultSet rs, String coluna) throws SQLException {
-        long valor = rs.getLong(coluna);
-        return rs.wasNull() ? null : valor;
     }
 }

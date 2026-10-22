@@ -22,6 +22,7 @@ import java.util.Optional;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.event.Event;
 import javafx.fxml.FXML;
@@ -113,6 +114,8 @@ public class PrincipalController {
         relogio.play();
 
         abrir(ItemMenu.PAINEL);
+        // Foco inicial no primeiro item do menu (o ScrollPane do menu não entra na ordem do Tab).
+        Platform.runLater(botoes.get(ItemMenu.PAINEL)::requestFocus);
     }
 
     public void encerrar() {

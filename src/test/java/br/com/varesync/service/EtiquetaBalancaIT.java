@@ -13,8 +13,8 @@ import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.util.Gtin;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,13 +66,15 @@ class EtiquetaBalancaIT extends IntegracaoBase {
     }
 
     private List<String> gravado(long vendaId) throws Exception {
-        try (Connection con = dataSource.getConnection(); Statement st = con.createStatement();
-             ResultSet rs = st.executeQuery("""
+        try (Connection con = dataSource.getConnection(); PreparedStatement ps = con.prepareStatement("""
                      SELECT vi.quantidade, vi.preco_unitario, vi.valor_bruto, me.quantidade, v.valor_total
                        FROM venda_item vi
                        JOIN venda v ON v.id = vi.venda_id
                        JOIN movimento_estoque me ON me.venda_item_id = vi.id
-                      WHERE vi.venda_id = """ + vendaId)) {
+                      WHERE vi.venda_id = ?
+                     """)) {
+            ps.setLong(1, vendaId);
+            ResultSet rs = ps.executeQuery();
             assertThat(rs.next()).isTrue();
             return List.of(rs.getBigDecimal(1).toPlainString(), rs.getBigDecimal(2).toPlainString(),
                     rs.getBigDecimal(3).toPlainString(), rs.getBigDecimal(4).toPlainString(),

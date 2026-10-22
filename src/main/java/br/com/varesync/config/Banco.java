@@ -34,7 +34,8 @@ public final class Banco {
         }
         Properties props = propriedades(usuario, senha);
         try (Connection con = DriverManager.getConnection(url, props)) {
-            log.info("Conexão com o banco testada com sucesso: {}", url);
+            log.info("Conexão com o banco testada com sucesso: {} (PostgreSQL {})", url,
+                    con.getMetaData().getDatabaseProductVersion());
         } catch (SQLException e) {
             log.warn("Falha ao conectar em {} com o usuário {} (SQLState {})", url, usuario, e.getSQLState(), e);
             boolean semSenha = senha == null || senha.isEmpty();

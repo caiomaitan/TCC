@@ -40,9 +40,9 @@ public class MovimentoEstoqueDAO {
             } else {
                 ps.setBigDecimal(4, custoUnitario);
             }
-            definirLong(ps, 5, vendaItemId);
-            definirLong(ps, 6, inventarioItemId);
-            definirLong(ps, 7, entradaItemId);
+            Jdbc.definirLong(ps, 5, vendaItemId);
+            Jdbc.definirLong(ps, 6, inventarioItemId);
+            Jdbc.definirLong(ps, 7, entradaItemId);
             ps.setString(8, motivo);
             ps.setLong(9, usuarioId);
             ps.setObject(10, criadoEm);
@@ -89,9 +89,9 @@ public class MovimentoEstoqueDAO {
                             rs.getBigDecimal("saldo_posterior"),
                             rs.getBigDecimal("custo_unitario"),
                             rs.getString("usuario_nome"),
-                            lerLong(rs, "venda_id"),
-                            lerLong(rs, "inventario_id"),
-                            lerLong(rs, "entrada_id"),
+                            Jdbc.lerLong(rs, "venda_id"),
+                            Jdbc.lerLong(rs, "inventario_id"),
+                            Jdbc.lerLong(rs, "entrada_id"),
                             rs.getString("motivo")));
                 }
             }
@@ -99,16 +99,4 @@ public class MovimentoEstoqueDAO {
         return linhas;
     }
 
-    private static Long lerLong(ResultSet rs, String coluna) throws SQLException {
-        long valor = rs.getLong(coluna);
-        return rs.wasNull() ? null : valor;
-    }
-
-    private static void definirLong(PreparedStatement ps, int indice, Long valor) throws SQLException {
-        if (valor == null) {
-            ps.setNull(indice, Types.BIGINT);
-        } else {
-            ps.setLong(indice, valor);
-        }
-    }
 }

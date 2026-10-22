@@ -12,6 +12,7 @@ import br.com.varesync.service.LeitorNfe;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.BuscaProdutoDialogo;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.DialogoNfe;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCompras;
@@ -424,8 +425,8 @@ public class ComprasController {
             return;
         }
         try {
-            BigDecimal quantidade = DialogosCompras.ler(campoQuantidade.getText(), "Quantidade");
-            BigDecimal valor = DialogosCompras.ler(campoValor.getText(), modoValor.getValue());
+            BigDecimal quantidade = CampoNumero.ler(campoQuantidade.getText(), "Quantidade");
+            BigDecimal valor = CampoNumero.ler(campoValor.getText(), modoValor.getValue());
             BigDecimal custoUnitario = VALOR_DA_LINHA.equals(modoValor.getValue()) ? null : valor;
             BigDecimal valorLinha = VALOR_DA_LINHA.equals(modoValor.getValue()) ? valor : null;
             if (custoUnitario == null && valorLinha == null) {

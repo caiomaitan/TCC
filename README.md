@@ -1,26 +1,42 @@
 # VareSync
 
 ERP desktop simplificado para mercados, mercearias e lojas de conveniência: produtos, estoque, PDV com caixa,
-inventário e indicadores de rentabilidade (lucro bruto e margem). TCC de Engenharia de Software — Universidade de
-Ribeirão Preto.
+inventário, compras e indicadores de rentabilidade (lucro bruto e margem). TCC de Engenharia de Software —
+Universidade de Ribeirão Preto.
 
-A especificação completa está em [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md); o andamento, em
-[`docs/PROGRESSO.md`](docs/PROGRESSO.md).
+A especificação completa está em [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md); o andamento, as decisões e as
+métricas, em [`docs/PROGRESSO.md`](docs/PROGRESSO.md); o roteiro de testes manuais, em
+[`docs/ROTEIRO_TESTES.md`](docs/ROTEIRO_TESTES.md).
 
-## Pré-requisitos
+Sumário: [1 Pré-requisitos](#1-pré-requisitos) · [2 Criação do banco](#2-criação-do-banco) ·
+[3 Instalação do zero](#3-instalação-do-zero) · [4 Primeiro acesso](#4-primeiro-acesso) ·
+[5 Configuração local e logs](#5-configuração-local-e-logs) ·
+[6 Banco de demonstração e usuários de demonstração](#6-banco-de-demonstração-e-usuários-de-demonstração) ·
+[7 Backup e restauração](#7-backup-e-restauração) · [8 Balança](#8-balança) ·
+[9 Empacotamento (jpackage)](#9-empacotamento-jpackage) · [10 Testes](#10-testes) · [11 Estrutura](#11-estrutura)
 
-| Programa | Versão | Observação |
+## 1. Pré-requisitos
+
+| Programa | Versão | Para quê |
 |---|---|---|
-| JDK | 21 (ex.: Eclipse Temurin 21) | `JAVA_HOME` apontando para ele |
-| Maven | 3.9 ou mais novo | `mvn` no PATH |
-| PostgreSQL | 14 ou mais novo (testado no 16) | porta 5432 |
+| Windows | 10 ou 11, 64 bits | o pacote `VareSync.exe` é para Windows |
+| PostgreSQL | 14 ou mais novo (testado no 16), porta 5432 | banco de dados — **sempre** |
+| JDK | 21 (ex.: Eclipse Temurin 21), com `JAVA_HOME` apontando para ele | só para compilar, rodar pelo código-fonte ou gerar o pacote |
+| Maven | 3.9 ou mais novo, `mvn` no PATH | idem |
 
-Confira o ambiente com `mvn -v`: a linha `Java version` deve mostrar 21. O `java -version` do PATH pode mostrar
-outra versão (no Windows é comum um Java 8 da Oracle vir antes no PATH); o projeto usa o JDK do `JAVA_HOME`.
+Quem só **usa** o sistema precisa do PostgreSQL e da pasta `VareSync` gerada pelo empacotamento (seção 9): o Java vai
+dentro dela.
 
-## Criação do banco
+Para compilar, confira o ambiente com `mvn -v`: a linha `Java version` deve mostrar 21. O `java -version` do PATH pode
+mostrar outra versão (no Windows é comum um Java 8 da Oracle vir antes no PATH); o projeto usa o JDK do `JAVA_HOME`.
 
-Conectado ao PostgreSQL como `postgres` (psql ou DBeaver com auto-commit ligado), troque a senha e execute:
+Na instalação do PostgreSQL (instalador de https://www.postgresql.org/download/windows), anote a senha do usuário
+`postgres` e mantenha a porta 5432. O Stack Builder, no fim, pode ser desmarcado.
+
+## 2. Criação do banco
+
+Conectado ao PostgreSQL como `postgres` (no psql, ou no DBeaver/pgAdmin com auto-commit ligado), troque
+`troque-esta-senha` por uma senha sua e execute:
 
 ```sql
 CREATE ROLE varesync LOGIN PASSWORD 'troque-esta-senha';
@@ -28,28 +44,64 @@ CREATE DATABASE varesync      OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 CREATE DATABASE varesync_test OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 ```
 
-- `varesync` é o banco do sistema; as tabelas são criadas pelo próprio sistema (Flyway) na primeira execução.
-- `varesync_test` é usado pelos testes automáticos e **é apagado e recriado a cada execução dos testes**.
+- `varesync` é o banco do sistema. As tabelas são criadas pelo próprio sistema (Flyway) na primeira execução: não
+  rode nenhum script à mão.
+- `varesync_test` só é usado pelos testes automáticos (seção 10) e **é apagado e recriado a cada execução dos
+  testes**. Quem só usa o sistema pode deixá-lo de fora.
+- Se o DBeaver mostrar "CREATE DATABASE cannot run inside a transaction block", ligue o auto-commit e execute de novo.
 
-## Variáveis de ambiente (testes de integração)
+## 3. Instalação do zero
 
-| Variável | Obrigatória | Padrão |
-|---|---|---|
-| `VARESYNC_DB_SENHA` | sim | — |
-| `VARESYNC_DB_USUARIO` | não | `varesync` |
-| `VARESYNC_DB_TESTE_URL` | não | `jdbc:postgresql://localhost:5432/varesync_test` |
+### 3.1 Pelo pacote (computador da loja)
 
-No Windows: Menu Iniciar → "variáveis de ambiente" → *Editar as variáveis de ambiente para sua conta* → Novo.
-Depois abra um terminal (ou o editor) **novo** para ele enxergar a variável. A senha nunca vai para arquivo do
-repositório.
+1. Instale o PostgreSQL e crie o banco (seções 1 e 2).
+2. Gere a pasta `VareSync` (seção 9) ou copie-a de quem a gerou. Coloque-a onde quiser, por exemplo `C:\VareSync`.
+   Dentro dela ficam `VareSync.exe`, a pasta `app` (o sistema) e a pasta `runtime` (o Java).
+3. Crie um atalho: clique com o botão direito em `VareSync.exe` › *Enviar para* › *Área de trabalho (criar atalho)*.
+4. Abra o `VareSync.exe`. Se o Windows mostrar "O Windows protegeu o computador" (o pacote não é assinado), clique em
+   *Mais informações* › *Executar assim mesmo*.
+5. Siga a seção 4 (primeiro acesso).
 
-## Como rodar
+Para desinstalar, apague a pasta `VareSync`. Os dados ficam no banco; a configuração e os logs, em
+`C:\Users\<você>\.varesync`.
 
-```bash
-mvn javafx:run
-```
+### 3.2 Pelo código-fonte (desenvolvimento)
 
-Na primeira execução o sistema cria `~/.varesync/config.properties`:
+1. Instale JDK 21, Maven e PostgreSQL e crie o banco (seções 1 e 2).
+2. Na pasta do projeto, rode:
+
+   ```bash
+   mvn javafx:run
+   ```
+
+3. Siga a seção 4 (primeiro acesso).
+
+O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente, DBeaver) está em
+[`COMO_USAR.md`](COMO_USAR.md).
+
+## 4. Primeiro acesso
+
+1. **Conexão com o banco.** Na primeira execução o sistema cria `~/.varesync/config.properties` (seção 5) sem a
+   senha, e por isso abre a tela **Conexão com o banco**. Confira o endereço
+   (`jdbc:postgresql://localhost:5432/varesync`) e o usuário (`varesync`), digite a senha criada na seção 2, clique
+   em **Testar** e depois em **Salvar**. O sistema conecta e cria as tabelas (as migrations em
+   `src/main/resources/db/migration`). Essa tela volta sempre que a conexão falhar (servidor parado, senha trocada).
+2. **Assistente de primeiro acesso.** Com o banco sem usuários, o sistema pede o **nome da loja** e cria o
+   **supervisor** (nome, login, senha e confirmação). Não existe usuário nem senha padrão. A senha tem de 6 a 50
+   caracteres e é diferente do login.
+3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
+   rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
+4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
+   negativo, desconto máximo do operador, cancelamento de item com supervisor), margem mínima, balança, backup e
+   formas de pagamento.
+
+Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
+**Usuários**.
+
+## 5. Configuração local e logs
+
+Arquivo `~/.varesync/config.properties` (no Windows, `C:\Users\<você>\.varesync\config.properties`), criado na
+primeira execução:
 
 ```properties
 db.url=jdbc:postgresql://localhost:5432/varesync
@@ -58,23 +110,23 @@ db.senha=
 terminal.id=CAIXA-01
 ```
 
-Se não conseguir conectar, abre a tela **Conexão com o banco** (endereço, usuário, senha, Testar, Salvar). Ao
-salvar, o sistema conecta e aplica as migrations (`src/main/resources/db/migration`). `terminal.id` identifica o
-computador no controle de caixa e deve ser único por máquina.
+- `db.senha` é preenchida pela tela **Conexão com o banco**. O arquivo fica na pasta do usuário, fora do repositório.
+- `terminal.id` identifica o computador no controle de caixa e **deve ser único por máquina**. Com dois caixas, troque
+  no segundo para `CAIXA-02` (com o sistema fechado).
+- Com vários computadores, todos apontam `db.url` para o servidor do banco (ex.:
+  `jdbc:postgresql://192.168.0.10:5432/varesync`). No servidor, o PostgreSQL precisa aceitar conexões da rede
+  (`listen_addresses` no `postgresql.conf` e uma linha para a rede da loja no `pg_hba.conf`).
 
-Primeiro acesso: com a tabela `usuario` vazia, o sistema abre um assistente que pede o nome da loja e cria o
-supervisor (nome, login e senha). Não existe usuário nem senha padrão. Depois disso abre a tela de login. Os demais
-usuários são cadastrados pelo supervisor em **Usuários**, com senha provisória que é trocada no primeiro login.
-Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes.
+Logs: `~/.varesync/logs/varesync.log`, um arquivo por dia, mantidos 30 dias. Erros técnicos vão para o log; a tela
+mostra só a mensagem para o usuário.
 
-Logs: `~/.varesync/logs/varesync.log` (um arquivo por dia, mantidos 30 dias).
-
-## Banco de demonstração (`varesync_demo`)
+## 6. Banco de demonstração e usuários de demonstração
 
 O gerador de dados de demonstração (**Configurações › Dados de demonstração**, só para o supervisor) preenche um banco
-com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80 produtos, 3 usuários, um caixa por dia
-com vendas, sangrias e fechamento, descontos, cancelamentos, perdas, reajustes de preço e um inventário. Ele **recusa**
-um banco que já tenha vendas — como o `varesync` usado nos seus testes. Use um banco separado:
+com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80 produtos (12 pesáveis, com PLU), 3
+usuários, 3 fornecedores com uma entrada de mercadoria por semana, um caixa por dia com vendas, sangrias e fechamento,
+descontos, cancelamentos, perdas, reajustes de preço e um inventário aplicado. Ele **recusa** um banco que já tenha
+vendas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
 
@@ -82,24 +134,28 @@ um banco que já tenha vendas — como o `varesync` usado nos seus testes. Use u
    CREATE DATABASE varesync_demo OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
    ```
 
-2. Com o sistema fechado, edite `~/.varesync/config.properties` (no Windows,
-   `C:\Users\<você>\.varesync\config.properties`) e troque o nome do banco no fim da URL:
+2. Com o sistema fechado, edite `~/.varesync/config.properties` e troque o nome do banco no fim da URL:
 
    ```properties
    db.url=jdbc:postgresql://localhost:5432/varesync_demo
    ```
 
-   (Se a senha ainda não estiver no arquivo, a tela **Conexão com o banco** abre e pede; ela só fica nesse arquivo,
-   fora do repositório.)
-
-3. Abra o sistema (`mvn javafx:run`). As tabelas são criadas, e o assistente de primeiro acesso cria a loja e o
-   supervisor.
+3. Abra o sistema. As tabelas são criadas e o assistente de primeiro acesso cria a loja e o supervisor.
 4. Entre como supervisor, abra **Configurações › Dados de demonstração** e clique em **Gerar dados de
-   demonstração…**. No fim aparecem os usuários criados — `maria` e `jose` (operadores de caixa) e `carlos` (gerente) —
-   com as senhas provisórias: **anote**, elas não são mostradas de novo. Cada um troca a senha no primeiro login.
-   Também são criados 3 fornecedores e uma entrada de mercadoria por semana de cada um (o gerente tem todas as
-   permissões, inclusive Compras e Fornecedores).
+   demonstração…** (leva alguns segundos; a barra mostra o andamento). No fim aparecem os usuários criados.
 5. Para voltar ao banco normal, feche o sistema e devolva `db.url` para `.../varesync`.
+
+**Usuários de demonstração** (a semente é fixa, então as senhas provisórias são sempre estas; cada um troca a senha
+no primeiro login):
+
+| Login | Nome | Perfil | Senha provisória |
+|---|---|---|---|
+| `maria` | Maria Oliveira | Operadora de caixa (PDV) | `demo1835` |
+| `jose` | José Santos | Operador de caixa (PDV) | `demo9076` |
+| `carlos` | Carlos Pereira | Gerente (todas as permissões, sem ser supervisor) | `demo6999` |
+
+O supervisor é o criado por você no assistente. Os dados de demonstração também ativam a balança (prefixo 2, 5
+dígitos, valor em preço).
 
 Para recomeçar a demonstração do zero (ou se a geração for interrompida no meio, o que deixa dados pela metade), com o
 sistema fechado:
@@ -109,9 +165,9 @@ DROP DATABASE varesync_demo;
 CREATE DATABASE varesync_demo OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 ```
 
-A semente é fixa: gerado no mesmo dia, o resultado é sempre o mesmo. As datas acompanham o dia em que você gera.
+Gerado no mesmo dia, o resultado é sempre o mesmo; as datas acompanham o dia em que você gera.
 
-## Backup e restauração
+## 7. Backup e restauração
 
 O backup usa o `pg_dump` do PostgreSQL (formato custom, `-Fc`). Ele precisa ser da **mesma versão do servidor ou mais
 novo**; o sistema confere antes de começar.
@@ -124,52 +180,101 @@ novo**; o sistema confere antes de começar.
 - **Qual `pg_dump`**: o informado em Configurações › Backup; vazio, o do PATH ou o de
   `C:\Program Files\PostgreSQL\<versão>\bin` (o de versão mais alta).
 - A senha do banco vai para o `pg_dump` pela variável `PGPASSWORD` do processo, nunca na linha de comando.
-- O Painel avisa o supervisor quando o último backup tem mais de 7 dias. Guarde cópias também fora do computador.
+- O Painel avisa o supervisor quando o último backup tem mais de 7 dias. Guarde cópias também fora do computador
+  (pen drive, nuvem).
 
-**Restauração** (fora do sistema): feche o VareSync em **todos** os computadores e rode, num terminal:
+**Restauração** (fora do sistema): feche o VareSync em **todos** os computadores e, num PowerShell, rode (troque a
+versão do PostgreSQL e o caminho do arquivo; a senha pedida é a do usuário `varesync`):
 
-```bash
-pg_restore --clean --if-exists -h localhost -U varesync -d varesync C:\caminho\varesync_20261021_2200.backup
+```powershell
+& "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" --clean --if-exists -h localhost -U varesync -d varesync C:\caminho\varesync_20261021_2200.backup
 ```
 
-Ou restaure num banco novo, para conferir antes de substituir o de uso:
+Ou restaure num banco novo, para conferir antes de substituir o de uso. Como `postgres`:
 
 ```sql
 CREATE DATABASE varesync_restaurado OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 ```
 
-```bash
-pg_restore -h localhost -U varesync -d varesync_restaurado C:\caminho\varesync_20261021_2200.backup
+```powershell
+& "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" -h localhost -U varesync -d varesync_restaurado C:\caminho\varesync_20261021_2200.backup
 ```
 
 Para usar o banco restaurado, aponte `db.url` em `~/.varesync/config.properties` para ele. A restauração completa
 funciona com os triggers do banco (saldos, histórico de preço).
 
-## Testes
+## 8. Balança
+
+Com a balança ativa (Configurações › Balança), o PDV lê a etiqueta impressa pela balança (EAN-13 com o prefixo, o PLU
+do produto e o preço ou o peso). Configure igual à balança: prefixo, quantidade de dígitos do PLU e o tipo de valor.
+
+**Atenção no modo `PRECO`** (a etiqueta traz o total em R$): o sistema cobra o valor impresso e calcula a quantidade
+baixada do estoque dividindo esse valor pelo preço do quilo **do sistema** (inclusive o promocional, se houver
+promoção vigente). Por isso a balança tem de estar programada com **o mesmo preço por quilo** do cadastro, e cada
+reajuste ou promoção de produto pesável tem de ser feito também na balança. Com preços diferentes, o estoque baixa uma
+quantidade diferente da pesada. No modo `PESO` (a etiqueta traz os gramas), o sistema calcula o total com o próprio
+preço e esse cuidado não é necessário.
+
+## 9. Empacotamento (jpackage)
+
+Gera a pasta `VareSync` com `VareSync.exe` e o Java embutido (app-image do `jpackage`, sem instalador). Precisa do JDK
+21 e do Maven (seção 1); o `jpackage` é o do JDK de `JAVA_HOME`. Não precisa de WiX nem de banco.
+
+1. Na pasta do projeto, rode:
+
+   ```bash
+   mvn -Pempacotar clean package
+   ```
+
+   Os testes unitários rodam antes (os de integração, não). O perfil `empacotar` do `pom.xml` copia o jar do sistema
+   e as bibliotecas para `target/empacotar` e chama o `jpackage --type app-image`.
+2. O resultado fica em `target\dist\VareSync` (cerca de 190 MB: `VareSync.exe`, `app` e `runtime`).
+3. Para conferir, abra `target\dist\VareSync\VareSync.exe`: deve abrir a tela de conexão, o assistente ou o login,
+   conforme a situação do banco (seção 4).
+4. Copie a pasta inteira `VareSync` para o computador da loja (seção 3.1). Ela não depende de nada do projeto nem do
+   Java instalado.
+
+A versão mostrada pelo Windows nas propriedades do `.exe` vem da propriedade `app.versao` do perfil, no `pom.xml`.
+
+Se o `mvn clean` disser "Failed to delete …\VareSync.exe", feche o VareSync aberto a partir de `target\dist` e rode
+de novo; logo depois de abrir o `.exe`, o antivírus do Windows pode segurar o arquivo por alguns segundos.
+
+## 10. Testes
 
 ```bash
-mvn -q verify
+mvn -q clean verify
 ```
 
 - `mvn test`: só os unitários (`*Test`, sem banco).
-- `mvn verify`: unitários e integração (`*IT`, no banco `varesync_test`). Sem `VARESYNC_DB_SENHA`, os testes de
-  integração falham com uma mensagem dizendo qual variável definir.
+- `mvn verify`: unitários e integração (`*IT`, no banco `varesync_test`).
 - `IntegridadeBancoIT` executa `scripts/teste_integridade_banco.sql` (15 cenários, tudo desfeito no fim).
 
-O script também roda à mão: `psql -d varesync -v ON_ERROR_STOP=1 -f scripts/teste_integridade_banco.sql`, ou no
-DBeaver com *Executar script* (Alt+X) — a aba Output mostra "OK 1" a "OK 15".
+Os testes de integração leem a conexão de variáveis de ambiente (a senha nunca vai para arquivo do repositório):
 
-## Estrutura
+| Variável | Obrigatória | Padrão |
+|---|---|---|
+| `VARESYNC_DB_SENHA` | sim | — |
+| `VARESYNC_DB_USUARIO` | não | `varesync` |
+| `VARESYNC_DB_TESTE_URL` | não | `jdbc:postgresql://localhost:5432/varesync_test` |
+
+Sem `VARESYNC_DB_SENHA`, os testes de integração falham com uma mensagem dizendo qual variável definir. No Windows:
+Menu Iniciar › "variáveis de ambiente" › *Editar as variáveis de ambiente para sua conta* › Novo; depois abra um
+terminal (ou o editor) **novo** para ele enxergar a variável.
+
+O script de integridade também roda à mão: `psql -d varesync -v ON_ERROR_STOP=1 -f scripts/teste_integridade_banco.sql`,
+ou no DBeaver com *Executar script* (Alt+X) — a aba Output mostra "OK 1" a "OK 15".
+
+## 11. Estrutura
 
 ```
 src/main/java/br/com/varesync/
 ├── Launcher.java   main() (não estende Application: roda sem module-info)
 ├── App.java        inicialização e troca de telas
-├── config/         AppConfig, Banco (HikariCP), Migracao (Flyway), AppContext
+├── config/         AppConfig, Banco (HikariCP), Migracao (Flyway), AppContext, Servicos
 ├── model/ dao/ service/ report/ controller/ ui/ util/
 src/main/resources/
-├── db/migration/   V1 (esquema) e V2 (dados de referência) — não editar; mudanças em V3, V4…
-├── fxml/ css/ logback.xml
+├── db/migration/   V1 (esquema), V2 (dados de referência), V3 (horários da aplicação) — não editar; mudanças em V4…
+├── fxml/ css/ reports/ logback.xml
 ```
 
 Arquitetura: `controller` (JavaFX) → `service` (regras e transação) → `dao` (SQL). Detalhes na seção 4 da

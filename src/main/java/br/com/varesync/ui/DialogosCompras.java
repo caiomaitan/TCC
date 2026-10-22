@@ -81,7 +81,7 @@ public final class DialogosCompras {
             }
             Fornecedor escolhido = fornecedor.getValue();
             return gravar.apply(new DadosEntrada(escolhido == null ? null : escolhido.id(), numero.getText(),
-                    emissao.getValue(), ler(valor.getText(), "Valor total da nota")));
+                    emissao.getValue(), CampoNumero.ler(valor.getText(), "Valor total da nota")));
         }, null);
     }
 
@@ -143,18 +143,6 @@ public final class DialogosCompras {
         dialogo.getDialogPane().setContent(conteudo);
         Dialogos.estilizar(dialogo.getDialogPane());
         dialogo.showAndWait();
-    }
-
-    /** Vazio = nulo; texto inválido → mensagem com o rótulo. */
-    public static BigDecimal ler(String texto, String rotulo) {
-        if (Textos.vazio(texto)) {
-            return null;
-        }
-        try {
-            return Dinheiro.ler(texto);
-        } catch (IllegalArgumentException e) {
-            throw new NegocioException(rotulo + ": valor inválido (\"" + texto.strip() + "\").");
-        }
     }
 
     private static String custo(BigDecimal valor) {

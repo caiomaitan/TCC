@@ -25,9 +25,6 @@ import br.com.varesync.report.RelVendasHoraDia;
 import br.com.varesync.report.RelVendasOperador;
 import br.com.varesync.report.Relatorio;
 import br.com.varesync.report.Relatorios;
-import br.com.varesync.report.RelEstoqueAtual;
-import br.com.varesync.report.RelMaisVendidos;
-import br.com.varesync.report.RelMovimentacao;
 import br.com.varesync.report.RelRentabilidadeProduto;
 import br.com.varesync.report.RelVendasPeriodo;
 import br.com.varesync.report.ResultadoRelatorio;
@@ -155,6 +152,9 @@ class GeradorDemoIT extends IntegracaoBase {
     void cadastrosEstoqueEOcorrencias() throws Exception {
         assertThat(resultado.usuarios()).extracting(GeradorDemo.UsuarioDemo::login)
                 .containsExactly("maria", "jose", "carlos");
+        // Semente fixa: as senhas provisórias são sempre as mesmas (estão no README, "Usuários de demonstração").
+        assertThat(resultado.usuarios()).extracting(GeradorDemo.UsuarioDemo::senha)
+                .containsExactly("demo1835", "demo9076", "demo6999");
         assertThat(contar("SELECT count(*) FROM usuario WHERE deve_trocar_senha")).isEqualTo(3);
         assertThat(contar("SELECT count(*) FROM produto")).isEqualTo(resultado.produtos()).isBetween(75L, 85L);
         assertThat(contar("SELECT count(DISTINCT categoria_id) FROM produto")).isEqualTo(9);

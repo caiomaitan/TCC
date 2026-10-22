@@ -51,11 +51,11 @@ public class PromocaoDAO {
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setObject(1, hoje);
             ps.setObject(2, hoje);
-            String like = nomeBusca == null ? null : "%" + escaparLike(nomeBusca) + "%";
+            String like = nomeBusca == null ? null : "%" + Jdbc.escaparLike(nomeBusca) + "%";
             ps.setString(3, nomeBusca);
             ps.setString(4, like);
-            definirLong(ps, 5, produtoId);
-            definirLong(ps, 6, produtoId);
+            Jdbc.definirLong(ps, 5, produtoId);
+            Jdbc.definirLong(ps, 6, produtoId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     promocoes.add(ler(rs));
@@ -91,8 +91,8 @@ public class PromocaoDAO {
             ps.setLong(1, produtoId);
             ps.setObject(2, fim);
             ps.setObject(3, inicio);
-            definirLong(ps, 4, ignorarId);
-            definirLong(ps, 5, ignorarId);
+            Jdbc.definirLong(ps, 4, ignorarId);
+            Jdbc.definirLong(ps, 5, ignorarId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     promocoes.add(ler(rs));
@@ -194,15 +194,4 @@ public class PromocaoDAO {
                 rs.getObject("criado_em", OffsetDateTime.class));
     }
 
-    private static String escaparLike(String termo) {
-        return termo.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-    }
-
-    private static void definirLong(PreparedStatement ps, int indice, Long valor) throws SQLException {
-        if (valor == null) {
-            ps.setNull(indice, java.sql.Types.BIGINT);
-        } else {
-            ps.setLong(indice, valor);
-        }
-    }
 }

@@ -5,7 +5,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -43,8 +42,8 @@ public class CategoriaDAO {
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, nome);
-            definirLong(ps, 2, ignorarId);
-            definirLong(ps, 3, ignorarId);
+            Jdbc.definirLong(ps, 2, ignorarId);
+            Jdbc.definirLong(ps, 3, ignorarId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(ler(rs)) : Optional.empty();
             }
@@ -97,13 +96,5 @@ public class CategoriaDAO {
 
     private static Categoria ler(ResultSet rs) throws SQLException {
         return new Categoria(rs.getLong("id"), rs.getString("nome"), rs.getBoolean("ativa"));
-    }
-
-    private static void definirLong(PreparedStatement ps, int indice, Long valor) throws SQLException {
-        if (valor == null) {
-            ps.setNull(indice, Types.BIGINT);
-        } else {
-            ps.setLong(indice, valor);
-        }
     }
 }

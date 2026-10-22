@@ -45,7 +45,7 @@ public class EstoqueDAO {
             parametros.add(filtro.digitos());
         } else if (filtro.termoNome() != null && !filtro.termoNome().isEmpty()) {
             sql.append(" AND p.nome_busca LIKE ? ESCAPE '\\'");
-            parametros.add("%" + ProdutoDAO.escaparLike(filtro.termoNome()) + "%");
+            parametros.add("%" + Jdbc.escaparLike(filtro.termoNome()) + "%");
         }
         if (filtro.soAbaixoDoMinimo()) {
             sql.append(" AND e.abaixo_do_minimo");

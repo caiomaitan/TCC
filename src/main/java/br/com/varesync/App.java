@@ -14,6 +14,7 @@ import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.net.URL;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -150,6 +151,8 @@ public class App extends Application implements Navegacao {
             } else {
                 mostrarLogin("");
             }
+            // Métrica 9.4 (abertura até a tela de login): desde o início da JVM, com conexão e migrations.
+            log.info("Primeira tela aberta em {} ms", ManagementFactory.getRuntimeMXBean().getUptime());
         });
         tarefa.setOnFailed(e -> {
             Throwable erro = tarefa.getException();

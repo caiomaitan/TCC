@@ -95,7 +95,7 @@ public final class DialogosPromocao {
 
         return formulario.mostrar(() -> {
             DadosPromocao dados = new DadosPromocao(produto[0] == null ? null : produto[0].id(),
-                    DialogosCompras.ler(preco.getText(), "Preço promocional"), lerData(inicio, "início"),
+                    CampoNumero.ler(preco.getText(), "Preço promocional"), lerData(inicio, "início"),
                     lerData(fim, "fim"), ativa.isSelected());
             List<String> avisos = acoes.avisos().apply(dados);
             if (!avisos.isEmpty() && !Dialogos.confirmar(String.join("\n", avisos) + "\n\nSalvar mesmo assim?")) {
