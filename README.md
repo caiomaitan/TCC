@@ -111,6 +111,40 @@ CREATE DATABASE varesync_demo OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
 
 A semente é fixa: gerado no mesmo dia, o resultado é sempre o mesmo. As datas acompanham o dia em que você gera.
 
+## Backup e restauração
+
+O backup usa o `pg_dump` do PostgreSQL (formato custom, `-Fc`). Ele precisa ser da **mesma versão do servidor ou mais
+novo**; o sistema confere antes de começar.
+
+- **Manual**: Configurações › Backup › *Fazer backup agora* (só o supervisor).
+- **Automático**: ao sair do sistema (botão Sair ou fechar a janela), se ainda não houve backup no dia — no máximo um
+  por dia, contando todos os computadores.
+- **Onde**: na pasta configurada em Configurações › Backup; vazia, em `~/.varesync/backups`. O arquivo se chama
+  `varesync_AAAAMMDD_HHmm.backup`; ficam só os últimos N (padrão 15), os mais antigos são apagados.
+- **Qual `pg_dump`**: o informado em Configurações › Backup; vazio, o do PATH ou o de
+  `C:\Program Files\PostgreSQL\<versão>\bin` (o de versão mais alta).
+- A senha do banco vai para o `pg_dump` pela variável `PGPASSWORD` do processo, nunca na linha de comando.
+- O Painel avisa o supervisor quando o último backup tem mais de 7 dias. Guarde cópias também fora do computador.
+
+**Restauração** (fora do sistema): feche o VareSync em **todos** os computadores e rode, num terminal:
+
+```bash
+pg_restore --clean --if-exists -h localhost -U varesync -d varesync C:\caminho\varesync_20261021_2200.backup
+```
+
+Ou restaure num banco novo, para conferir antes de substituir o de uso:
+
+```sql
+CREATE DATABASE varesync_restaurado OWNER varesync ENCODING 'UTF8' TEMPLATE template0;
+```
+
+```bash
+pg_restore -h localhost -U varesync -d varesync_restaurado C:\caminho\varesync_20261021_2200.backup
+```
+
+Para usar o banco restaurado, aponte `db.url` em `~/.varesync/config.properties` para ele. A restauração completa
+funciona com os triggers do banco (saldos, histórico de preço).
+
 ## Testes
 
 ```bash

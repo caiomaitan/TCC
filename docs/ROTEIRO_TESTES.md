@@ -318,3 +318,69 @@ a busca de produto pelo diálogo na promoção e a finalização da venda com et
 | CT-F8-30 | — | Planilha salva pelo Excel como "CSV (separado por vírgulas)" (Windows-1252) | Acentos corretos; "(Windows-1252, …)" ao lado do nome do arquivo | Coberto por `ImportacaoProdutosIT.windows1252ECategoriaSemDiferenciarMaiusculas`; falta com um arquivo do Excel |
 | CT-F8-31 | — | Planilha com código de barras já cadastrado, DV errado, em notação científica (`7,89123E+12`), repetido na planilha, unidade inexistente, categoria inativa | Cada linha com o erro na coluna certa | Coberto por `ImportacaoProdutosIT.codigoDeBarrasRepetidoInvalidoUnidadeECategoriaInativa` |
 | CT-F8-32 | — | Arrastar o arquivo .csv do Explorer para a lista | Mesma prévia do CT-F8-27 | Não executado |
+
+## Fase 8 — Extras, parte 2 (busca do Estoque, backup, auditoria, impressão do comprovante, XML de NF-e)
+
+Pré-condição comum: logado como `admin` (supervisor), com o PostgreSQL instalado no computador (o `pg_dump` vem com
+ele).
+
+Em 2026-10-21, os casos marcados "OK (roteiro)" foram executados por um roteiro descartável (removido depois) que abriu
+as telas reais (JavaFX) sobre o banco `varesync_test`, com as janelas fora da tela e os componentes acionados por
+eventos (texto, `fire`, botões dos diálogos pelo `DialogPane`), sem teclas nem cliques do sistema; conferido pelas
+capturas (`snapshot`, 17 imagens). O backup rodou com o `pg_dump` real (PostgreSQL 16) e a impressão foi para a
+impressora "Microsoft Print to PDF" com destino em arquivo (o PDF gerado foi conferido), não para a impressora padrão.
+Não foram exercitados pela tela: o teclado de verdade (F5 no comprovante, Tab), as janelas "Abrir", "Escolher pasta" e
+"Salvar como" do sistema (o arquivo foi carregado pelo mesmo método que a janela usa), o botão Sair e o X da janela
+principal (o mesmo método do backup ao sair foi chamado direto), uma impressora térmica de verdade, o "Cadastrar
+produto…" da NF-e e uma restauração com `pg_restore`.
+
+### Busca do Estoque (defeito da parte 1)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-33 | Produtos "Desconto 50% caixa", "Desconto 500 caixa", "Tampa a_b", "Tampa axb" | Estoque: buscar `50%`; depois `a_b` | Uma linha em cada busca (o `%` e o `_` valem como texto) | OK (roteiro); `\` coberto por `EstoqueServiceIT` |
+
+### Backup (6.12)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-34 | Nenhum backup feito | Painel do supervisor | Alerta "Nenhum backup do banco foi feito ainda — fazer em Configurações › Backup"; o clique abre Configurações na aba Backup | OK (roteiro) |
+| CT-F8-35 | CT-F8-34; operador logado | Sair do sistema | Janela "Fazendo o backup automático do banco de dados (um por dia)…" e o sistema fecha; arquivo `varesync_AAAAMMDD_HHmm.backup` na pasta padrão (`~/.varesync/backups`); auditoria "Backup automático (ao sair do sistema)…" com o operador | OK (roteiro; o método do Sair chamado direto) |
+| CT-F8-36 | CT-F8-35 | Sair de novo no mesmo dia | Sai sem backup (no máximo um por dia) | Coberto por `BackupIT.automaticoNoMaximoUmPorDiaParaQualquerUsuario` |
+| CT-F8-37 | — | Configurações › Backup: pasta, manter 2 › Fazer backup agora (sem salvar) | "Os campos de backup foram alterados: clique em "Salvar alterações" antes…" | OK (roteiro) |
+| CT-F8-38 | CT-F8-37 | Salvar alterações › Fazer backup agora três vezes, em minutos diferentes | "Backup gravado em … (100 KB)."; no terceiro, "Apagados os mais antigos: …"; ficam só 2 arquivos; "Será usado o pg_dump C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"; último backup e lista atualizados | OK (roteiro) |
+| CT-F8-39 | Backup feito hoje | Painel do supervisor | Sem alerta de backup; com o último backup há 8 dias, "O último backup do banco foi há 8 dias (…)" | Sem alerta OK (roteiro); 8 dias coberto por `BackupIT.alertaDoPainelSoParaOSupervisorComBackupHaMaisDeSeteDias` |
+| CT-F8-40 | — | Configurações › Backup: pg_dump inexistente, pasta relativa, manter 0 › Salvar | Cada um recusado com mensagem | Coberto por `ConfiguracaoServiceIT.camposDeBackupValidadosEGravados` |
+| CT-F8-41 | Computador sem PostgreSQL (ou pg_dump antigo) | Fazer backup agora | "Não encontrei o pg_dump…" / "O pg_dump encontrado é da versão 9, mas o servidor… é da versão 16…"; nenhum arquivo pela metade | Coberto por `BackupIT.semPgDumpVersaoAntigaOuFalhaDoProgramaDaoMensagemClaraESemArquivo` |
+| CT-F8-42 | Um backup gerado | Restaurar num banco novo, seguindo o README | Banco restaurado com os dados; o sistema abre apontando para ele | Não executado |
+| CT-F8-43 | Usuário com todas as permissões, sem ser supervisor | Entrar | Sem Configurações no menu; o painel não mostra o alerta de backup; o service recusa o backup manual | Coberto por `BackupIT` |
+
+### Auditoria (6.13)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-44 | Logins, backups e alterações feitos | Configurações › Auditoria | Últimos 7 dias, do mais recente para o mais antigo: data e hora com segundos, usuário "Nome (login)", ação, descrição, terminal; "N registros…" | OK (roteiro) |
+| CT-F8-45 | CT-F8-44 | Ação "Backup" › Consultar; selecionar a primeira linha | Só os backups; a descrição inteira aparece embaixo da lista | OK (roteiro) |
+| CT-F8-46 | CT-F8-44 | Usuário "Bruno Caixa (caixa1)" › Consultar | Só as ações dele, inclusive "Login recusado"; login inexistente aparece como "(não identificado)" | Coberto por `ConsultaAuditoriaIT` |
+| CT-F8-47 | — | Data "31/02/2026" › Consultar | "Informe a data inicial e a final do período." | OK (roteiro). Defeito achado e corrigido: a data impossível virava 28/02 |
+| CT-F8-48 | Mais de 5.000 registros no filtro | Consultar | Mostra os 5.000 mais recentes e avisa para reduzir o filtro | Coberto por `ConsultaAuditoriaIT.limitaAsLinhasEAvisa` |
+
+### Impressão do comprovante
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-49 | Impressora padrão configurada (de preferência a térmica de 80 mm) | PDV: venda › Ver comprovante › Imprimir (F5) | "Comprovante enviado para a impressora …"; sai no layout de 80 mm (o mesmo do PDF) | Na "Microsoft Print to PDF" com destino em arquivo: OK (roteiro), PDF de 53 KB conferido; falta numa impressora de verdade |
+| CT-F8-50 | Sem impressora padrão no Windows | Imprimir | "Nenhuma impressora padrão está configurada no Windows…" | OK (roteiro, com a impressora ausente simulada) |
+| CT-F8-51 | Venda da sessão | F9 › reimprimir › Imprimir | Mesmo comprovante | Mesma janela do CT-F8-49 (não exercitado pelo F9) |
+
+### XML de NF-e na entrada de mercadoria (6.11)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F8-52 | Produtos com os códigos 7891000315507 e 7896004000015 e um queijo KG sem código; fornecedor do CNPJ não cadastrado | Compras › Importar XML da NF-e… (`src/test/resources/nfe/nfe-distribuidora.xml`) | Conferência: emitente "… — será cadastrado como fornecedor", emissão, valor, 4 itens; item 3 com "48 UN (trib.)" (2 caixas); item 2 "(sem GTIN)" em vermelho, sem vínculo; "Gerar entrada" desabilitado | OK (roteiro) |
+| CT-F8-53 | CT-F8-52 | Selecionar o item 2 › Escolher produto… › Queijo › Escolher | Linha vinculada; "Todos os itens têm produto."; "Gerar entrada" habilitado | OK (roteiro) |
+| CT-F8-54 | CT-F8-53 | Gerar entrada | Entrada ABERTA selecionada, com o fornecedor cadastrado, NF 1234, emissão e valor da nota; café com 12 (itens 1 e 4 somados) a R$ 12,4167; latas 48 a R$ 2,5000; "Soma confere com a nota" | OK (roteiro) |
+| CT-F8-55 | CT-F8-54 | Importar o mesmo XML de novo | "Esta nota já foi lançada (entrada nº 1)…"; "Gerar entrada" desabilitado | OK (roteiro) |
+| CT-F8-56 | — | Importar um XML que não é de NF-e | "O arquivo não é o XML de uma NF-e (não tem o grupo infNFe)." | OK (roteiro) |
+| CT-F8-57 | Item sem produto cadastrado | Cadastrar produto… › Salvar › fechar | O cadastro abre com o nome da nota, o código de barras e o custo; o item fica vinculado ao produto novo | Não executado pela tela (o vínculo pelo código cadastrado está em `ImportacaoNfeIT`) |
+| CT-F8-58 | CT-F8-54 | Confirmar entrada | Estoque e custo médio atualizados como na Fase 7 | Coberto por `ImportacaoNfeIT.geraEntradaAbertaComFornecedorNovoItensSomadosEUnidadeTributavel` |

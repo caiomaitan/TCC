@@ -4,6 +4,7 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ProgressIndicator?>
@@ -20,8 +21,8 @@
 <?import javafx.scene.layout.VBox?>
 
 <!-- Configurações (6.13, só supervisor): loja, venda, relatórios, balança, formas de pagamento, diagnóstico do estoque
-     (6.4) e dados de demonstração (6.14). As quatro primeiras abas são salvas juntas pelo botão "Salvar alterações".
-     Backup e auditoria entram na parte 2 da Fase 8. -->
+     (6.4), backup (6.12), auditoria e dados de demonstração (6.14). Loja, Venda, Relatórios, Balança e Backup são
+     salvas juntas pelo botão "Salvar alterações". -->
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.ConfiguracoesController"
       spacing="10" styleClass="tela-cadastro">
@@ -123,6 +124,82 @@
                     <Button text="Criar" onAction="#criarForma"/>
                 </HBox>
                 <Label fx:id="mensagemFormas" wrapText="true" minHeight="-Infinity" styleClass="mensagem"/>
+            </VBox>
+        </Tab>
+        <Tab fx:id="abaBackup" text="Backup">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label wrapText="true" minHeight="-Infinity" text="Cópia do banco de dados com o pg_dump do PostgreSQL. Além do botão abaixo, o sistema faz um backup automático ao sair, no máximo um por dia. Guarde cópias também fora deste computador (pen drive, nuvem)."/>
+                <GridPane hgap="12" vgap="10" maxWidth="900">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="190"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                        <ColumnConstraints/>
+                    </columnConstraints>
+                    <Label text="Pasta dos backups" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoPastaBackup" promptText="Vazio = pasta padrão" GridPane.rowIndex="0"
+                               GridPane.columnIndex="1"/>
+                    <Button text="Escolher…" onAction="#escolherPastaBackup" GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                    <Label text="Programa pg_dump" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoPgDump" promptText="Vazio = procurar automaticamente" GridPane.rowIndex="1"
+                               GridPane.columnIndex="1"/>
+                    <Button text="Escolher…" onAction="#escolherPgDump" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                    <Label text="Manter os últimos" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <HBox spacing="8" alignment="CENTER_LEFT" GridPane.rowIndex="2" GridPane.columnIndex="1">
+                        <TextField fx:id="campoManterBackups" prefWidth="70" styleClass="campo-numero"/>
+                        <Label text="backups (os mais antigos são apagados)"/>
+                    </HBox>
+                </GridPane>
+                <Label fx:id="situacaoPgDump" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button fx:id="botaoFazerBackup" text="Fazer backup agora" onAction="#fazerBackup"
+                            styleClass="botao-primario" minWidth="-Infinity"/>
+                    <ProgressIndicator fx:id="progressoBackup" visible="false" prefWidth="22" prefHeight="22"/>
+                    <Label fx:id="resultadoBackup" wrapText="true" minHeight="-Infinity" HBox.hgrow="ALWAYS"
+                           maxWidth="Infinity"/>
+                </HBox>
+                <Label fx:id="ultimoBackup" styleClass="titulo-secao"/>
+                <TableView fx:id="tabelaBackups" VBox.vgrow="ALWAYS" maxWidth="900">
+                    <placeholder><Label text="Nenhum backup nesta pasta."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaBackupArquivo" text="Arquivo" prefWidth="320"/>
+                        <TableColumn fx:id="colunaBackupTamanho" text="Tamanho" prefWidth="110" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaBackupData" text="Gravado em" prefWidth="160"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Restaurar um backup é feito fora do sistema, com o VareSync fechado em todos os computadores: veja o passo a passo no README (pg_restore --clean --if-exists -d varesync arquivo.backup)."/>
+            </VBox>
+        </Tab>
+        <Tab fx:id="abaAuditoria" text="Auditoria">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="De"/>
+                    <DatePicker fx:id="auditoriaInicio" prefWidth="130"/>
+                    <Label text="até"/>
+                    <DatePicker fx:id="auditoriaFim" prefWidth="130"/>
+                    <Label text="Usuário"/>
+                    <ComboBox fx:id="auditoriaUsuario" prefWidth="210"/>
+                    <Label text="Ação"/>
+                    <ComboBox fx:id="auditoriaAcao" prefWidth="230"/>
+                    <Button fx:id="botaoConsultarAuditoria" text="Consultar" onAction="#consultarAuditoria"
+                            styleClass="botao-primario" minWidth="-Infinity"/>
+                    <ProgressIndicator fx:id="progressoAuditoria" visible="false" prefWidth="22" prefHeight="22"/>
+                </HBox>
+                <TableView fx:id="tabelaAuditoria" VBox.vgrow="ALWAYS">
+                    <placeholder><Label text="Nenhum registro no filtro."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaAuditoriaData" text="Data e hora" prefWidth="140"/>
+                        <TableColumn fx:id="colunaAuditoriaUsuario" text="Usuário" prefWidth="170"/>
+                        <TableColumn fx:id="colunaAuditoriaAcao" text="Ação" prefWidth="170"/>
+                        <TableColumn fx:id="colunaAuditoriaDescricao" text="Descrição" prefWidth="560"/>
+                        <TableColumn fx:id="colunaAuditoriaTerminal" text="Terminal" prefWidth="100"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <Label fx:id="detalheAuditoria" wrapText="true" minHeight="-Infinity"/>
+                <Label fx:id="resumoAuditoria" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
             </VBox>
         </Tab>
         <Tab text="Diagnóstico do estoque">

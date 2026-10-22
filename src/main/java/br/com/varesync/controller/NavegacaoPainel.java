@@ -10,4 +10,7 @@ public interface NavegacaoPainel {
 
     /** Produtos já filtrados em "Preço abaixo do custo". */
     void abrirProdutosAbaixoDoCusto();
+
+    /** Configurações já na aba Backup (alerta de backup atrasado). */
+    void abrirBackup();
 }

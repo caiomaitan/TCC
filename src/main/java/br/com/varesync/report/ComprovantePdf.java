@@ -31,11 +31,18 @@ public class ComprovantePdf {
 
     /** @return o PDF em bytes */
     public byte[] gerar(Comprovante comprovante) {
+        try {
+            return JasperExportManager.exportReportToPdf(preencher(comprovante));
+        } catch (JRException e) {
+            throw new ErroInesperadoException(e);
+        }
+    }
+
+    /** O comprovante preenchido no layout de 80 mm (o mesmo para o PDF e para a impressora). */
+    public JasperPrint preencher(Comprovante comprovante) {
         List<Map<String, ?>> linhas = comprovante.linhas().stream().map(ComprovantePdf::campos).toList();
         try {
-            JasperPrint impressao = JasperFillManager.fillReport(modelo(), new HashMap<>(),
-                    new JRMapCollectionDataSource(linhas));
-            return JasperExportManager.exportReportToPdf(impressao);
+            return JasperFillManager.fillReport(modelo(), new HashMap<>(), new JRMapCollectionDataSource(linhas));
         } catch (JRException e) {
             throw new ErroInesperadoException(e);
         }

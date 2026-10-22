@@ -1,5 +1,6 @@
 package br.com.varesync.model;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 /**
@@ -10,9 +11,17 @@ import java.util.Optional;
  * @param precoAbaixoDoCusto produtos ativos com preço de venda menor que o custo (PRODUTOS)
  * @param caixaAberto        caixa aberto neste terminal (PDV)
  * @param inventariosAbertos inventários abertos (INVENTARIO)
+ * @param backupAtrasado     último backup há mais de 7 dias, ou nenhum (só supervisor); nulo = em dia ou não se aplica
  */
 public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, Optional<CaixaSessao> caixaAberto,
-                            Integer inventariosAbertos) {
+                            Integer inventariosAbertos, BackupAtrasado backupAtrasado) {
+
+    /**
+     * @param ultimo data do último backup; nula se nunca houve
+     * @param dias   dias desde o último backup (0 se nunca houve)
+     */
+    public record BackupAtrasado(OffsetDateTime ultimo, long dias) {
+    }
 
     public AlertasPainel {
         caixaAberto = caixaAberto == null ? Optional.empty() : caixaAberto;
@@ -21,7 +30,7 @@ public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, 
     /** Há algo a mostrar? */
     public boolean algum() {
         return positivo(abaixoDoMinimo) || positivo(precoAbaixoDoCusto) || caixaAberto.isPresent()
-                || positivo(inventariosAbertos);
+                || positivo(inventariosAbertos) || backupAtrasado != null;
     }
 
     private static boolean positivo(Integer valor) {

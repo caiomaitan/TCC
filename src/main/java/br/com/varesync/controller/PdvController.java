@@ -7,6 +7,7 @@ import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.RelatorioFechamento;
 import br.com.varesync.report.ComprovantePdf;
+import br.com.varesync.report.ImpressaoComprovante;
 import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
@@ -76,6 +77,7 @@ public class PdvController {
     private final CaixaService caixaService;
     private final AcessoService acessoService;
     private final ComprovantePdf comprovantePdf;
+    private final ImpressaoComprovante impressao;
     private final Sessao sessao;
     private final AcoesCaixa acoesCaixa;
     private Carrinho carrinho = new Carrinho();
@@ -106,11 +108,13 @@ public class PdvController {
     @FXML private TextField entrada;
 
     public PdvController(VendaService vendaService, CaixaService caixaService, AcessoService acessoService,
-                         ComprovantePdf comprovantePdf, FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
+                         ComprovantePdf comprovantePdf, ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf,
+                         Sessao sessao) {
         this.vendaService = vendaService;
         this.caixaService = caixaService;
         this.acessoService = acessoService;
         this.comprovantePdf = comprovantePdf;
+        this.impressao = impressao;
         this.sessao = sessao;
         this.acoesCaixa = new AcoesCaixa(caixaService, acessoService, fechamentoPdf, sessao);
     }
@@ -455,7 +459,8 @@ public class PdvController {
 
     private void mostrarComprovante(Comprovante comprovante) {
         Janelas.abrirModal(janela, "/fxml/comprovante.fxml", "Comprovante da venda nº " + comprovante.vendaId(),
-                tipo -> new ComprovanteController(comprovantePdf), (ComprovanteController c) -> c.mostrar(comprovante));
+                tipo -> new ComprovanteController(comprovantePdf, impressao),
+                (ComprovanteController c) -> c.mostrar(comprovante));
     }
 
     private void vendasDaSessao() {

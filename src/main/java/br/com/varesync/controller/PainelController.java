@@ -271,6 +271,12 @@ public class PainelController {
                     : a.inventariosAbertos() + " inventários estão abertos — ver no Inventário",
                     () -> navegacao.abrir(ItemMenu.INVENTARIO));
         }
+        if (a.backupAtrasado() != null) {
+            AlertasPainel.BackupAtrasado b = a.backupAtrasado();
+            alerta((b.ultimo() == null ? "Nenhum backup do banco foi feito ainda"
+                    : "O último backup do banco foi há " + b.dias() + " dias (" + Formatos.dataHora(b.ultimo()) + ")")
+                    + " — fazer em Configurações › Backup", () -> navegacao.abrirBackup());
+        }
         if (alertas.getChildren().isEmpty()) {
             Label nenhum = new Label("Nenhum alerta no momento.");
             nenhum.getStyleClass().add("subtitulo");

@@ -50,6 +50,20 @@ public final class BancoTeste {
         }
     }
 
+    /** URL, usuário e senha do banco de teste (do ambiente), para quem precisa conectar fora do pool (pg_dump). */
+    public record Credenciais(String url, String usuario, String senha) {
+
+        @Override
+        public String toString() {
+            return usuario + "@" + url;
+        }
+    }
+
+    public static Credenciais credenciais() {
+        return new Credenciais(valorOuPadrao(System.getenv("VARESYNC_DB_TESTE_URL"), URL_PADRAO),
+                valorOuPadrao(System.getenv("VARESYNC_DB_USUARIO"), "varesync"), System.getenv("VARESYNC_DB_SENHA"));
+    }
+
     private static HikariDataSource criar() {
         String senha = System.getenv("VARESYNC_DB_SENHA");
         if (senha == null || senha.isEmpty()) {

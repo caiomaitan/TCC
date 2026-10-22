@@ -23,6 +23,7 @@
         <Label text="Compras — entrada de mercadoria" styleClass="titulo"/>
         <Region HBox.hgrow="ALWAYS"/>
         <CheckBox fx:id="filtroConfirmadas" text="Mostrar confirmadas" onAction="#pesquisar"/>
+        <Button text="Importar XML da NF-e…" onAction="#importarNfe"/>
         <Button text="Nova entrada… (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
     </HBox>
 

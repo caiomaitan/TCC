@@ -13,6 +13,9 @@ import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,19 +58,16 @@ public class ConfiguracaoService {
     }
 
     /**
-     * Valida e grava os parâmetros; só as chaves que mudaram são escritas. O backup (6.12) não é editado aqui: os
-     * valores atuais são mantidos.
+     * Valida e grava os parâmetros (loja, venda, relatórios, balança e backup); só as chaves que mudaram são escritas.
      *
      * @return descrição das mudanças (vazia se nada mudou)
      */
     public List<String> salvar(Sessao sessao, Configuracoes informadas) {
         sessao.exigirSupervisor();
-        Configuracoes validadas = validar(informadas);
+        Configuracoes novas = validar(informadas);
         return transacao.executar(con -> {
             configuracaoDAO.travar(con);
             Configuracoes atuais = configuracaoDAO.carregar(con);
-            Configuracoes novas = new Configuracoes(validadas.loja(), validadas.venda(), validadas.margemMinimaPct(),
-                    validadas.diasSemGiro(), validadas.balanca(), atuais.backup(), validadas.rodapeComprovante());
             if (novas.balanca().ativo()) {
                 conferirPlus(con, novas.balanca());
             }
@@ -142,7 +142,7 @@ public class ConfiguracaoService {
 
     // ----- Validação -----
 
-    /** Normaliza e valida o que vem da tela (o backup é ignorado: {@link #salvar} mantém o gravado). */
+    /** Normaliza e valida o que vem da tela. */
     static Configuracoes validar(Configuracoes c) {
         Configuracoes.Loja loja = c.loja();
         String nome = Textos.normalizarEspacos(loja.nome());
@@ -174,10 +174,50 @@ public class ConfiguracaoService {
         if (balanca.tipoValor() == null) {
             throw new NegocioException("Escolha o que a etiqueta de balança traz: preço total ou peso.");
         }
+        Configuracoes.Backup backup = backup(c.backup());
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, c.backup(), rodape);
+                margem, c.diasSemGiro(), balanca, backup, rodape);
+    }
+
+    /**
+     * Backup (6.12): pasta vazia = padrão (~/.varesync/backups), senão um caminho completo que não seja um arquivo;
+     * pg_dump vazio = detectar, senão o arquivo (ou a pasta bin) que existe; manter de 1 a 999.
+     */
+    static Configuracoes.Backup backup(Configuracoes.Backup b) {
+        String pasta = b.pasta() == null ? "" : b.pasta().strip();
+        if (!pasta.isEmpty()) {
+            Path caminho;
+            try {
+                caminho = Path.of(pasta);
+            } catch (InvalidPathException e) {
+                throw new NegocioException("A pasta de backup não é um caminho válido: " + pasta + ".");
+            }
+            if (!caminho.isAbsolute()) {
+                throw new NegocioException("Informe o caminho completo da pasta de backup (ex.: D:\\Backups\\VareSync).");
+            }
+            if (Files.isRegularFile(caminho)) {
+                throw new NegocioException("O caminho de backup é um arquivo, não uma pasta: " + pasta + ".");
+            }
+        }
+        String pgDump = b.pgDump() == null ? "" : b.pgDump().strip();
+        if (!pgDump.isEmpty()) {
+            boolean existe;
+            try {
+                existe = Files.exists(Path.of(pgDump));
+            } catch (InvalidPathException e) {
+                existe = false;
+            }
+            if (!existe) {
+                throw new NegocioException("O pg_dump informado não existe: " + pgDump + ". Deixe vazio para o sistema "
+                        + "procurar sozinho.");
+            }
+        }
+        if (b.manterUltimos() < 1 || b.manterUltimos() > 999) {
+            throw new NegocioException("A quantidade de backups mantidos deve estar entre 1 e 999.");
+        }
+        return new Configuracoes.Backup(pasta, pgDump, b.manterUltimos());
     }
 
     private static BigDecimal percentual(BigDecimal valor, String rotulo, boolean aceitaCem) {
@@ -238,7 +278,15 @@ public class ConfiguracaoService {
                 String.valueOf(n.balanca().digitosCodigo()));
         comparar(m, "valor da etiqueta", a.balanca().tipoValor().rotulo().toLowerCase(),
                 n.balanca().tipoValor().rotulo().toLowerCase());
+        comparar(m, "pasta de backup", caminho(a.backup().pasta()), caminho(n.backup().pasta()));
+        comparar(m, "pg_dump", caminho(a.backup().pgDump()), caminho(n.backup().pgDump()));
+        comparar(m, "backups mantidos", String.valueOf(a.backup().manterUltimos()),
+                String.valueOf(n.backup().manterUltimos()));
         return m;
+    }
+
+    private static String caminho(String valor) {
+        return valor.isEmpty() ? "(padrão)" : "\"" + valor + "\"";
     }
 
     private static void comparar(List<String> mudancas, String rotulo, String antes, String depois) {

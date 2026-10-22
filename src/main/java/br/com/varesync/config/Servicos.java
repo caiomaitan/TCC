@@ -22,10 +22,12 @@ import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.ConfiguracaoService;
+import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.FornecedorService;
 import br.com.varesync.service.GeradorDemo;
+import br.com.varesync.service.ImportacaoNfeService;
 import br.com.varesync.service.ImportacaoProdutosService;
 import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.PainelService;
@@ -50,7 +52,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        CaixaService caixa, VendaService vendas, InventarioService inventarios,
                        FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
-                       ImportacaoProdutosService importacao) {
+                       ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
+                       ImportacaoNfeService nfe) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -82,14 +85,17 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 configuracaoDAO, estoque, auditoria, clock);
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, fornecedorDAO, clock);
-        PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, clock);
+        PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, new AuditoriaDAO(),
+                clock);
         ConfiguracaoService configuracoes = new ConfiguracaoService(transacao, configuracaoDAO, formaPagamentoDAO,
                 produtoDAO, auditoria);
         PromocaoService promocoes = new PromocaoService(transacao, promocaoDAO, produtoDAO, auditoria, clock);
         ImportacaoProdutosService importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO,
                 categoriaDAO, new UnidadeMedidaDAO());
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
-                inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao);
+                inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao,
+                new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
+                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock));
     }
 
     /**

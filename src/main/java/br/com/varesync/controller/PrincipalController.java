@@ -4,10 +4,12 @@ import br.com.varesync.config.AppConfig;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
+import br.com.varesync.service.BackupService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogoSenha;
+import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Formatos;
 import java.io.IOException;
@@ -20,8 +22,11 @@ import java.util.Optional;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.concurrent.Task;
+import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -29,6 +34,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
@@ -51,6 +58,7 @@ public class PrincipalController {
     private final Clock clock;
     private final AcessoService acessoService;
     private final CaixaService caixaService;
+    private final BackupService backupService;
     private final FechamentoCaixaPdf fechamentoPdf;
     private final Navegacao navegacao;
     private final Sessao sessao;
@@ -69,12 +77,14 @@ public class PrincipalController {
     @FXML private Label statusConexao;
 
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
-                               CaixaService caixaService, FechamentoCaixaPdf fechamentoPdf, Navegacao navegacao,
-                               Sessao sessao, Callback<Class<?>, Object> fabricaControllers) {
+                               CaixaService caixaService, BackupService backupService, FechamentoCaixaPdf fechamentoPdf,
+                               Navegacao navegacao, Sessao sessao,
+                               Callback<Class<?>, Object> fabricaControllers) {
         this.config = config;
         this.clock = clock;
         this.acessoService = acessoService;
         this.caixaService = caixaService;
+        this.backupService = backupService;
         this.fechamentoPdf = fechamentoPdf;
         this.navegacao = navegacao;
         this.sessao = sessao;
@@ -215,6 +225,12 @@ public class PrincipalController {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.PRODUTOS);
                 loader.<ProdutosController>getController().mostrarAbaixoDoCusto();
             }
+
+            @Override
+            public void abrirBackup() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.CONFIGURACOES);
+                loader.<ConfiguracoesController>getController().mostrarBackup();
+            }
         };
     }
 
@@ -253,7 +269,8 @@ public class PrincipalController {
 
     /**
      * Confirmação de Sair (botão ou fechar a janela). Com caixa aberto neste terminal, avisa antes (6.1); o caixa
-     * continua aberto e quem entrar depois neste computador continua nele.
+     * continua aberto e quem entrar depois neste computador continua nele. Confirmada a saída, faz o backup automático
+     * se ainda não houve backup hoje (6.12).
      */
     public boolean confirmarSaida() {
         Optional<CaixaSessao> aberto;
@@ -263,13 +280,70 @@ public class PrincipalController {
             aberto = Optional.empty(); // sem banco, a saída não fica presa; o erro vai para o log
             TratadorExcecoes.mensagem(e);
         }
+        boolean sair;
         if (aberto.isEmpty()) {
-            return Dialogos.confirmar("Deseja sair do VareSync?");
+            sair = Dialogos.confirmar("Deseja sair do VareSync?");
+        } else {
+            CaixaSessao caixa = aberto.get();
+            sair = Dialogos.confirmar("O caixa nº " + caixa.id() + " deste terminal está aberto (aberto por "
+                    + caixa.abertoPorNome() + " em " + Formatos.dataHora(caixa.abertoEm()) + "). Se o expediente "
+                    + "acabou, feche o caixa antes de sair (menu Caixa › Fechar caixa).\n\nSair mesmo assim?");
         }
-        CaixaSessao caixa = aberto.get();
-        return Dialogos.confirmar("O caixa nº " + caixa.id() + " deste terminal está aberto (aberto por "
-                + caixa.abertoPorNome() + " em " + Formatos.dataHora(caixa.abertoEm()) + "). Se o expediente "
-                + "acabou, feche o caixa antes de sair (menu Caixa › Fechar caixa).\n\nSair mesmo assim?");
+        if (sair) {
+            backupAoSair();
+        }
+        return sair;
+    }
+
+    /**
+     * Backup automático ao sair, no máximo um por dia (6.12), com uma janela "Fazendo o backup…" enquanto o
+     * {@code pg_dump} roda em {@link Task}. Falha não impede a saída: vai para o log e, para o supervisor, num aviso.
+     */
+    void backupAoSair() {
+        boolean pendente;
+        try {
+            pendente = backupService.automaticoPendente();
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mensagem(e); // registra no log
+            return;
+        }
+        if (!pendente) {
+            return;
+        }
+        Stage aviso = new Stage();
+        aviso.initOwner(conteudo.getScene().getWindow());
+        aviso.initModality(Modality.APPLICATION_MODAL);
+        aviso.setTitle(Dialogos.TITULO);
+        aviso.setOnCloseRequest(Event::consume); // fecha sozinha quando o backup termina
+        ProgressIndicator girando = new ProgressIndicator();
+        girando.setPrefSize(36, 36);
+        Label texto = new Label("Fazendo o backup automático do banco de dados (um por dia)…\nAguarde: o sistema "
+                + "fecha em seguida.");
+        HBox caixa = new HBox(14, girando, texto);
+        caixa.setAlignment(Pos.CENTER_LEFT);
+        caixa.setPadding(new Insets(20));
+        Scene cena = new Scene(caixa);
+        cena.getStylesheets().add(getClass().getResource(Dialogos.CSS).toExternalForm());
+        aviso.setScene(cena);
+
+        Task<Optional<BackupService.Resultado>> tarefa = new Task<>() {
+            @Override
+            protected Optional<BackupService.Resultado> call() {
+                return backupService.fazerAutomatico(sessao);
+            }
+        };
+        String[] falha = new String[1];
+        tarefa.setOnSucceeded(e -> aviso.hide());
+        tarefa.setOnFailed(e -> {
+            falha[0] = TratadorExcecoes.mensagem(tarefa.getException());
+            aviso.hide();
+        });
+        Tarefas.executar("backup-automatico", tarefa);
+        aviso.showAndWait();
+        if (falha[0] != null && sessao.supervisor()) {
+            Dialogos.alerta(Alert.AlertType.WARNING, "O backup automático não foi feito: " + falha[0]
+                    + "\n\nO sistema será fechado mesmo assim. Faça o backup em Configurações › Backup.");
+        }
     }
 
     /** Barra de status: situação do caixa deste terminal (7.5). */

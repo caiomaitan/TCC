@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia no formato antigo (2.00): só o grupo NFe, data em dEmi, emitente pessoa física (CPF do vetor A.2). -->
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35120552998224725000155000000077100000077" versao="2.00">
+    <ide>
+      <nNF>77</nNF>
+      <dEmi>2026-09-30</dEmi>
+    </ide>
+    <emit>
+      <CPF>52998224725</CPF>
+      <xNome>Joao Produtor Rural</xNome>
+      <enderEmit>
+        <xMun>Cravinhos</xMun>
+        <UF>sp</UF>
+        <fone>3333</fone>
+      </enderEmit>
+    </emit>
+    <det nItem="1">
+      <prod>
+        <cEAN></cEAN>
+        <xProd>OVOS BRANCOS DUZIA</xProd>
+        <uCom>DZ</uCom>
+        <qCom>30.0000</qCom>
+        <vUnCom>9.0000</vUnCom>
+        <vProd>270.00</vProd>
+        <cEANTrib></cEANTrib>
+        <uTrib>DZ</uTrib>
+        <qTrib>30.0000</qTrib>
+        <vUnTrib>9.0000</vUnTrib>
+      </prod>
+    </det>
+    <total>
+      <ICMSTot>
+        <vNF>270.00</vNF>
+      </ICMSTot>
+    </total>
+  </infNFe>
+</NFe>

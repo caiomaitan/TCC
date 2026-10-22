@@ -2,6 +2,7 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.report.ComprovantePdf;
+import br.com.varesync.report.ImpressaoComprovante;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -14,34 +15,73 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TextArea;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 /**
- * Comprovante não fiscal em tela (texto de largura fixa) e "Salvar PDF…" (6.6). O PDF é gerado em {@link Task}:
+ * Comprovante não fiscal em tela (texto de largura fixa), Imprimir na impressora padrão (F5) e "Salvar PDF…" (6.6).
+ * Impressão e PDF rodam em {@link Task}:
  * na primeira vez o JasperReports compila o modelo.
  */
 public class ComprovanteController {
 
     private final ComprovantePdf comprovantePdf;
+    private final ImpressaoComprovante impressao;
     private Comprovante comprovante;
 
     @FXML private VBox raiz;
     @FXML private TextArea texto;
+    @FXML private Button botaoImprimir;
     @FXML private Button botaoPdf;
     @FXML private ProgressIndicator progresso;
     @FXML private Button botaoFechar;
     @FXML private Label mensagem;
 
-    public ComprovanteController(ComprovantePdf comprovantePdf) {
+    public ComprovanteController(ComprovantePdf comprovantePdf, ImpressaoComprovante impressao) {
+        this.impressao = impressao;
         this.comprovantePdf = comprovantePdf;
     }
 
     public void mostrar(Comprovante comprovanteVenda) {
         this.comprovante = comprovanteVenda;
         texto.setText(comprovanteVenda.texto());
+        raiz.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.F5) {
+                e.consume();
+                imprimir();
+            }
+        });
         Platform.runLater(botaoFechar::requestFocus);
+    }
+
+    /** Imprime na impressora padrão do Windows, em {@link Task}. */
+    @FXML
+    private void imprimir() {
+        if (botaoImprimir.isDisabled()) {
+            return;
+        }
+        Task<String> tarefa = new Task<>() {
+            @Override
+            protected String call() {
+                return impressao.imprimir(comprovante);
+            }
+        };
+        botaoImprimir.setDisable(true);
+        progresso.setVisible(true);
+        Mensagem.informar(mensagem, "Enviando para a impressora…");
+        tarefa.setOnSucceeded(e -> {
+            botaoImprimir.setDisable(false);
+            progresso.setVisible(false);
+            Mensagem.sucesso(mensagem, "Comprovante enviado para a impressora " + tarefa.getValue() + ".");
+        });
+        tarefa.setOnFailed(e -> {
+            botaoImprimir.setDisable(false);
+            progresso.setVisible(false);
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        Tarefas.executar("comprovante-impressao", tarefa);
     }
 
     @FXML

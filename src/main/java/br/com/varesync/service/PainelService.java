@@ -2,6 +2,8 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
+import br.com.varesync.dao.AuditoriaDAO;
+import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.DiaPainel;
@@ -15,6 +17,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -42,14 +45,17 @@ public class PainelService {
     private final PainelDAO painelDAO;
     private final EstoqueDAO estoqueDAO;
     private final CaixaService caixaService;
+    private final AuditoriaDAO auditoriaDAO;
     private final Clock clock;
 
     public PainelService(Transacao transacao, PainelDAO painelDAO, EstoqueDAO estoqueDAO, CaixaService caixaService,
+                         AuditoriaDAO auditoriaDAO,
                          Clock clock) {
         this.transacao = transacao;
         this.painelDAO = painelDAO;
         this.estoqueDAO = estoqueDAO;
         this.caixaService = caixaService;
+        this.auditoriaDAO = auditoriaDAO;
         this.clock = clock;
     }
 
@@ -85,7 +91,18 @@ public class PainelService {
         Optional<CaixaSessao> caixa = sessao.pode(Permissao.PDV) ? caixaService.caixaAberto(con, sessao)
                 : Optional.empty();
         Integer inventarios = sessao.pode(Permissao.INVENTARIO) ? painelDAO.contarInventariosAbertos(con) : null;
-        return new AlertasPainel(abaixo, custo, caixa, inventarios);
+        return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null);
+    }
+
+    /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */
+    private AlertasPainel.BackupAtrasado backupAtrasado(Connection con) throws SQLException {
+        Optional<OffsetDateTime> ultimo = auditoriaDAO.ultimo(con, AcaoAuditoria.BACKUP_REALIZADO);
+        if (ultimo.isEmpty()) {
+            return new AlertasPainel.BackupAtrasado(null, 0);
+        }
+        long dias = ChronoUnit.DAYS.between(ultimo.get().atZoneSameInstant(clock.getZone()).toLocalDate(),
+                LocalDate.now(clock));
+        return dias > BackupService.DIAS_ALERTA ? new AlertasPainel.BackupAtrasado(ultimo.get(), dias) : null;
     }
 
     /** Vendas com {@code inicio <= data_hora < fim}. */

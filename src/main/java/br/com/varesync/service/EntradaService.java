@@ -111,10 +111,13 @@ public class EntradaService {
     /** @return número da entrada criada (aberta e sem itens) */
     public long criar(Sessao sessao, DadosEntrada dados) {
         sessao.exigir(Permissao.COMPRAS);
-        return transacao.executar(con -> {
-            EntradaDAO.Gravacao g = validar(con, dados, null, null);
-            return dao.inserir(con, g, sessao.usuarioId(), OffsetDateTime.now(clock));
-        });
+        return transacao.executar(con -> criar(con, sessao, dados));
+    }
+
+    /** Cria a entrada na transação de quem chama (importação do XML da NF-e), com as mesmas validações. */
+    long criar(Connection con, Sessao sessao, DadosEntrada dados) throws SQLException {
+        EntradaDAO.Gravacao g = validar(con, dados, null, null);
+        return dao.inserir(con, g, sessao.usuarioId(), OffsetDateTime.now(clock));
     }
 
     /** Corrige os dados da nota de uma entrada aberta. */
@@ -182,15 +185,21 @@ public class EntradaService {
         sessao.exigir(Permissao.COMPRAS);
         return transacao.executar(con -> {
             exigirAberta(con, entradaId);
-            ProdutoVenda produto = ativo(produtoDAO.buscarParaVenda(con, produtoId)
-                    .orElseThrow(() -> new NegocioException("Produto não encontrado.")));
-            if (dao.itemDoProduto(con, entradaId, produtoId).isPresent()) {
-                throw new NegocioException("O produto " + produto.nome() + " já está nesta entrada. Altere a "
-                        + "quantidade da linha em vez de lançá-lo de novo.");
-            }
-            Valores v = valores(quantidade, custoUnitario, valorTotal, produto.fracionada());
-            return dao.inserirItem(con, entradaId, produtoId, v.quantidade(), v.custo(), v.total());
+            return adicionarItem(con, entradaId, produtoId, quantidade, custoUnitario, valorTotal);
         });
+    }
+
+    /** Inclui o item na transação de quem chama (entrada aberta já conferida). */
+    long adicionarItem(Connection con, long entradaId, long produtoId, BigDecimal quantidade,
+                       BigDecimal custoUnitario, BigDecimal valorTotal) throws SQLException {
+        ProdutoVenda produto = ativo(produtoDAO.buscarParaVenda(con, produtoId)
+                .orElseThrow(() -> new NegocioException("Produto não encontrado.")));
+        if (dao.itemDoProduto(con, entradaId, produtoId).isPresent()) {
+            throw new NegocioException("O produto " + produto.nome() + " já está nesta entrada. Altere a "
+                    + "quantidade da linha em vez de lançá-lo de novo.");
+        }
+        Valores v = valores(quantidade, custoUnitario, valorTotal, produto.fracionada());
+        return dao.inserirItem(con, entradaId, produtoId, v.quantidade(), v.custo(), v.total());
     }
 
     /** Altera quantidade e custo (ou valor total) de um item; o produto não muda (remova e inclua outro). */

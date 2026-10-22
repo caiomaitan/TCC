@@ -1,16 +1,23 @@
 package br.com.varesync.controller;
 
+import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
+import br.com.varesync.model.Periodo;
+import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
+import br.com.varesync.service.BackupService;
 import br.com.varesync.service.ConfiguracaoService;
+import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.GeradorDemo;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.service.UsuarioService;
+import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
@@ -20,7 +27,12 @@ import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Gtin;
 import br.com.varesync.util.Textos;
+import java.io.File;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -30,6 +42,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
@@ -42,6 +55,8 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 
 /**
@@ -52,6 +67,11 @@ import javafx.util.StringConverter;
 public class ConfiguracoesController {
 
     private final ConfiguracaoService configuracaoService;
+    private final BackupService backupService;
+    private final ConsultaAuditoriaService auditoriaService;
+    private final UsuarioService usuarioService;
+    /** A aba Auditoria carrega a lista de usuários e a primeira consulta só quando é aberta. */
+    private boolean auditoriaPreparada;
     private final EstoqueService estoqueService;
     private final GeradorDemo geradorDemo;
     private final Sessao sessao;
@@ -64,6 +84,34 @@ public class ConfiguracoesController {
     @FXML private Tab abaRelatorios;
     @FXML private Tab abaBalanca;
     @FXML private Tab abaFormas;
+    @FXML private Tab abaBackup;
+    @FXML private Tab abaAuditoria;
+    @FXML private TextField campoPastaBackup;
+    @FXML private TextField campoPgDump;
+    @FXML private TextField campoManterBackups;
+    @FXML private Label situacaoPgDump;
+    @FXML private Button botaoFazerBackup;
+    @FXML private ProgressIndicator progressoBackup;
+    @FXML private Label resultadoBackup;
+    @FXML private Label ultimoBackup;
+    @FXML private TableView<BackupService.ArquivoBackup> tabelaBackups;
+    @FXML private TableColumn<BackupService.ArquivoBackup, String> colunaBackupArquivo;
+    @FXML private TableColumn<BackupService.ArquivoBackup, String> colunaBackupTamanho;
+    @FXML private TableColumn<BackupService.ArquivoBackup, String> colunaBackupData;
+    @FXML private DatePicker auditoriaInicio;
+    @FXML private DatePicker auditoriaFim;
+    @FXML private ComboBox<Escolha<Long>> auditoriaUsuario;
+    @FXML private ComboBox<Escolha<AcaoAuditoria>> auditoriaAcao;
+    @FXML private Button botaoConsultarAuditoria;
+    @FXML private ProgressIndicator progressoAuditoria;
+    @FXML private TableView<RegistroAuditoria> tabelaAuditoria;
+    @FXML private TableColumn<RegistroAuditoria, String> colunaAuditoriaData;
+    @FXML private TableColumn<RegistroAuditoria, String> colunaAuditoriaUsuario;
+    @FXML private TableColumn<RegistroAuditoria, String> colunaAuditoriaAcao;
+    @FXML private TableColumn<RegistroAuditoria, String> colunaAuditoriaDescricao;
+    @FXML private TableColumn<RegistroAuditoria, String> colunaAuditoriaTerminal;
+    @FXML private Label detalheAuditoria;
+    @FXML private Label resumoAuditoria;
     @FXML private TextField campoNomeLoja;
     @FXML private TextField campoDocumento;
     @FXML private TextField campoEndereco;
@@ -103,9 +151,14 @@ public class ConfiguracoesController {
     @FXML private Label situacaoDemo;
     @FXML private TextArea resultadoDemo;
 
-    public ConfiguracoesController(ConfiguracaoService configuracaoService, EstoqueService estoqueService,
+    public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
+                                   ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
+                                   EstoqueService estoqueService,
                                    GeradorDemo geradorDemo, Sessao sessao) {
         this.configuracaoService = configuracaoService;
+        this.backupService = backupService;
+        this.auditoriaService = auditoriaService;
+        this.usuarioService = usuarioService;
         this.estoqueService = estoqueService;
         this.geradorDemo = geradorDemo;
         this.sessao = sessao;
@@ -131,11 +184,16 @@ public class ConfiguracoesController {
             }
         });
 
-        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca);
+        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
             barraSalvar.setManaged(visivel);
+            if (aba == abaBackup) {
+                atualizarBackup();
+            } else if (aba == abaAuditoria && !auditoriaPreparada) {
+                prepararAuditoria();
+            }
         });
 
         colunaFormaDescricao.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().descricao()));
@@ -178,6 +236,8 @@ public class ConfiguracoesController {
         });
         campoTipoForma.setValue(TipoFormaPagamento.OUTROS);
 
+        prepararTabelaBackups();
+        prepararTabelaAuditoria();
         mostrar(configuracaoService.carregar(sessao));
         carregarFormas(null);
         verificar();
@@ -201,10 +261,13 @@ public class ConfiguracoesController {
         campoPrefixo.setText(String.valueOf(c.balanca().prefixo()));
         campoDigitos.setValue(c.balanca().digitosCodigo());
         campoTipoValor.setValue(c.balanca().tipoValor());
+        campoPastaBackup.setText(c.backup().pasta());
+        campoPgDump.setText(c.backup().pgDump());
+        campoManterBackups.setText(String.valueOf(c.backup().manterUltimos()));
         atualizarBalanca();
     }
 
-    /** Lê os campos das quatro abas; texto que não é número vira mensagem com o nome do campo. */
+    /** Lê os campos das cinco abas de parâmetros; texto que não é número vira mensagem com o nome do campo. */
     Configuracoes lerCampos() {
         String prefixo = campoPrefixo.getText() == null ? "" : campoPrefixo.getText().strip();
         if (!prefixo.matches("\\d")) {
@@ -217,7 +280,8 @@ public class ConfiguracoesController {
                 numero(campoMargemMinima, "Margem mínima"), inteiro(campoDiasSemGiro, "Dias sem giro"),
                 new Configuracoes.Balanca(campoBalancaAtiva.isSelected(), Integer.parseInt(prefixo),
                         campoDigitos.getValue() == null ? 0 : campoDigitos.getValue(), campoTipoValor.getValue()),
-                gravadas.backup(), campoRodape.getText());
+                new Configuracoes.Backup(campoPastaBackup.getText(), campoPgDump.getText(),
+                        inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText());
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -282,6 +346,207 @@ public class ConfiguracoesController {
         String semDv = prefixo + plu + valor;
         exemploEtiqueta.setText("Exemplo: " + prefixo + " " + plu + " " + valor + " " + Gtin.digitoVerificador(semDv)
                 + " = PLU 123 com " + (tipo == TipoValorBalanca.PRECO ? "total de R$ 13,77" : "345 g") + ".");
+    }
+
+    // ----- Backup (6.12) -----
+
+    /** Abre a tela já na aba Backup (alerta "último backup há mais de 7 dias" do Painel). */
+    public void mostrarBackup() {
+        abas.getSelectionModel().select(abaBackup);
+    }
+
+    private void prepararTabelaBackups() {
+        colunaBackupArquivo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().nome()));
+        colunaBackupTamanho.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                BackupService.tamanhoLegivel(c.getValue().tamanho())));
+        colunaBackupData.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.dataHora(c.getValue().modificadoEm())));
+    }
+
+    /** Pasta, pg_dump encontrado, último backup e arquivos da pasta (pelo que está gravado). */
+    private void atualizarBackup() {
+        try {
+            BackupService.Situacao s = backupService.situacao(sessao);
+            situacaoPgDump.getStyleClass().remove("mensagem-erro");
+            if (s.pgDump().isPresent()) {
+                situacaoPgDump.setText("Será usado o pg_dump " + s.pgDump().get() + ". Pasta dos backups: "
+                        + s.pasta() + ".");
+            } else {
+                situacaoPgDump.setText("O pg_dump não foi encontrado. Informe o caminho dele (ex.: C:\\Program Files\\"
+                        + "PostgreSQL\\16\\bin\\pg_dump.exe) e salve. Pasta dos backups: " + s.pasta() + ".");
+                situacaoPgDump.getStyleClass().add("mensagem-erro");
+            }
+            ultimoBackup.setText(s.ultimo().map(u -> "Último backup: " + Formatos.dataHora(u))
+                    .orElse("Nenhum backup foi feito ainda."));
+            tabelaBackups.getItems().setAll(s.arquivos());
+        } catch (RuntimeException e) {
+            Mensagem.erro(resultadoBackup, TratadorExcecoes.mensagem(e));
+        }
+    }
+
+    @FXML
+    private void escolherPastaBackup() {
+        DirectoryChooser escolha = new DirectoryChooser();
+        escolha.setTitle("Pasta dos backups");
+        File atual = Textos.vazio(campoPastaBackup.getText()) ? null : new File(campoPastaBackup.getText().strip());
+        if (atual != null && atual.isDirectory()) {
+            escolha.setInitialDirectory(atual);
+        }
+        File pasta = escolha.showDialog(abas.getScene().getWindow());
+        if (pasta != null) {
+            campoPastaBackup.setText(pasta.getAbsolutePath());
+            Mensagem.informar(mensagemParametros, "Clique em \"Salvar alterações\" para usar a nova pasta.");
+        }
+    }
+
+    @FXML
+    private void escolherPgDump() {
+        FileChooser escolha = new FileChooser();
+        escolha.setTitle("Programa pg_dump");
+        escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter("pg_dump", "pg_dump.exe", "pg_dump"));
+        File arquivo = escolha.showOpenDialog(abas.getScene().getWindow());
+        if (arquivo != null) {
+            campoPgDump.setText(arquivo.getAbsolutePath());
+            Mensagem.informar(mensagemParametros, "Clique em \"Salvar alterações\" para usar este pg_dump.");
+        }
+    }
+
+    /** Backup manual, em {@link Task}, com a configuração gravada (campos alterados pedem "Salvar" antes). */
+    @FXML
+    private void fazerBackup() {
+        Configuracoes naTela;
+        try {
+            naTela = lerCampos();
+        } catch (NegocioException e) {
+            naTela = null;
+        }
+        if (naTela == null || !naTela.backup().equals(gravadas.backup())) {
+            Mensagem.erro(resultadoBackup, "Os campos de backup foram alterados: clique em \"Salvar alterações\" "
+                    + "antes de fazer o backup.");
+            return;
+        }
+        Task<BackupService.Resultado> tarefa = new Task<>() {
+            @Override
+            protected BackupService.Resultado call() {
+                return backupService.fazer(sessao);
+            }
+        };
+        botaoFazerBackup.setDisable(true);
+        progressoBackup.setVisible(true);
+        Mensagem.informar(resultadoBackup, "Fazendo o backup… (com muitos dados pode levar alguns minutos)");
+        tarefa.setOnSucceeded(e -> {
+            botaoFazerBackup.setDisable(false);
+            progressoBackup.setVisible(false);
+            BackupService.Resultado r = tarefa.getValue();
+            Mensagem.sucesso(resultadoBackup, "Backup gravado em " + r.arquivo() + " ("
+                    + BackupService.tamanhoLegivel(r.tamanho()) + ")."
+                    + (r.removidos().isEmpty() ? "" : " Apagados os mais antigos: " + String.join(", ", r.removidos())
+                    + "."));
+            atualizarBackup();
+        });
+        tarefa.setOnFailed(e -> {
+            botaoFazerBackup.setDisable(false);
+            progressoBackup.setVisible(false);
+            Mensagem.erro(resultadoBackup, TratadorExcecoes.mensagem(tarefa.getException()));
+            atualizarBackup();
+        });
+        Tarefas.executar("backup-manual", tarefa);
+    }
+
+    // ----- Auditoria (6.13) -----
+
+    /** Opção de filtro: valor nulo = todos. */
+    record Escolha<T>(T valor, String rotulo) {
+        @Override
+        public String toString() {
+            return rotulo;
+        }
+    }
+
+    private void prepararTabelaAuditoria() {
+        colunaAuditoriaData.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.dataHoraComSegundos(c.getValue().criadoEm())));
+        colunaAuditoriaUsuario.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                c.getValue().usuario() == null ? "(não identificado)" : c.getValue().usuario()));
+        colunaAuditoriaAcao.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().acao().rotulo()));
+        colunaAuditoriaDescricao.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().descricao()));
+        colunaAuditoriaTerminal.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().terminal()));
+        auditoriaInicio.setConverter(new ConversorData());
+        auditoriaFim.setConverter(new ConversorData());
+        tabelaAuditoria.getSelectionModel().selectedItemProperty().addListener((o, a, r) -> detalheAuditoria.setText(
+                r == null ? "" : Formatos.dataHoraComSegundos(r.criadoEm()) + " — " + r.acao().rotulo() + ": "
+                        + (r.descricao() == null ? "" : r.descricao())));
+        List<Escolha<AcaoAuditoria>> acoes = new ArrayList<>();
+        acoes.add(new Escolha<>(null, "Todas"));
+        Arrays.stream(AcaoAuditoria.values()).sorted(Comparator.comparing(AcaoAuditoria::rotulo))
+                .forEach(a -> acoes.add(new Escolha<>(a, a.rotulo())));
+        auditoriaAcao.getItems().setAll(acoes);
+        auditoriaAcao.setValue(acoes.get(0));
+    }
+
+    /** Na primeira abertura da aba: lista de usuários (inclusive inativos), período padrão e a consulta. */
+    private void prepararAuditoria() {
+        auditoriaPreparada = true;
+        List<Escolha<Long>> usuarios = new ArrayList<>();
+        usuarios.add(new Escolha<>(null, "Todos"));
+        try {
+            usuarioService.listar(sessao).forEach(u -> usuarios.add(new Escolha<>(u.id(), u.nome() + " ("
+                    + u.login() + ")")));
+        } catch (RuntimeException e) {
+            Mensagem.erro(resumoAuditoria, TratadorExcecoes.mensagem(e));
+        }
+        auditoriaUsuario.getItems().setAll(usuarios);
+        auditoriaUsuario.setValue(usuarios.get(0));
+        Periodo padrao = auditoriaService.periodoPadrao();
+        auditoriaInicio.setValue(padrao.inicio());
+        auditoriaFim.setValue(padrao.fim());
+        consultarAuditoria();
+    }
+
+    @FXML
+    private void consultarAuditoria() {
+        Periodo periodo = new Periodo(data(auditoriaInicio), data(auditoriaFim));
+        Long usuarioId = auditoriaUsuario.getValue() == null ? null : auditoriaUsuario.getValue().valor();
+        AcaoAuditoria acao = auditoriaAcao.getValue() == null ? null : auditoriaAcao.getValue().valor();
+        Task<ConsultaAuditoriaService.Consulta> tarefa = new Task<>() {
+            @Override
+            protected ConsultaAuditoriaService.Consulta call() {
+                return auditoriaService.consultar(sessao, periodo, usuarioId, acao);
+            }
+        };
+        botaoConsultarAuditoria.setDisable(true);
+        progressoAuditoria.setVisible(true);
+        Mensagem.informar(resumoAuditoria, "Consultando…");
+        tarefa.setOnSucceeded(e -> {
+            botaoConsultarAuditoria.setDisable(false);
+            progressoAuditoria.setVisible(false);
+            ConsultaAuditoriaService.Consulta c = tarefa.getValue();
+            tabelaAuditoria.getItems().setAll(c.registros());
+            detalheAuditoria.setText("");
+            int n = c.registros().size();
+            String texto = (n == 1 ? "1 registro" : Formatos.numero(BigDecimal.valueOf(n), 0) + " registros")
+                    + ", do mais recente para o mais antigo. Selecione uma linha para ler a descrição inteira.";
+            if (c.limitado()) {
+                Mensagem.erro(resumoAuditoria, "Mostrando os " + Formatos.numero(BigDecimal.valueOf(n), 0)
+                        + " registros mais recentes; há mais no filtro. Reduza o período ou escolha o usuário ou a "
+                        + "ação.");
+            } else {
+                Mensagem.informar(resumoAuditoria, texto);
+            }
+        });
+        tarefa.setOnFailed(e -> {
+            botaoConsultarAuditoria.setDisable(false);
+            progressoAuditoria.setVisible(false);
+            Mensagem.erro(resumoAuditoria, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        Tarefas.executar("consulta-auditoria", tarefa);
+    }
+
+    /** O texto digitado vale mesmo sem sair do campo; inválido vira nulo (o service pede a data). */
+    private static LocalDate data(DatePicker campo) {
+        LocalDate lida = campo.getConverter().fromString(campo.getEditor().getText());
+        campo.setValue(lida);
+        return lida;
     }
 
     // ----- Formas de pagamento -----

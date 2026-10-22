@@ -140,6 +140,29 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
     }
 
     @Test
+    void camposDeBackupValidadosEGravados(@org.junit.jupiter.api.io.TempDir java.nio.file.Path pasta)
+            throws Exception {
+        Configuracoes c = configuracoes.carregar(admin);
+        java.util.function.Function<Configuracoes.Backup, Configuracoes> com = b -> new Configuracoes(c.loja(),
+                c.venda(), c.margemMinimaPct(), c.diasSemGiro(), c.balanca(), b, c.rodapeComprovante());
+        assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("backups", "", 15))))
+                .hasMessageContaining("caminho completo");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("",
+                pasta.resolve("nao-existe.exe").toString(), 15)))).hasMessageContaining("pg_dump informado não existe");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("", "", 0))))
+                .hasMessageContaining("entre 1 e 999");
+        java.nio.file.Path arquivo = java.nio.file.Files.writeString(pasta.resolve("um-arquivo.txt"), "x");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup(arquivo.toString(),
+                "", 15)))).hasMessageContaining("é um arquivo");
+
+        List<String> mudancas = configuracoes.salvar(admin, com.apply(new Configuracoes.Backup(" " + pasta + " ", "",
+                7)));
+        assertThat(mudancas).containsExactly("pasta de backup de (padrão) para \"" + pasta + "\"",
+                "backups mantidos de 15 para 7");
+        assertThat(configuracoes.carregar(admin).backup()).isEqualTo(new Configuracoes.Backup(pasta.toString(), "", 7));
+    }
+
+    @Test
     void menosDigitosDeCodigoNaoDeixaPluCadastradoForaDaEtiqueta() {
         Configuracoes c = configuracoes.carregar(admin);
         configuracoes.salvar(admin, c.comBalanca(new Configuracoes.Balanca(true, 2, 5, TipoValorBalanca.PRECO)));

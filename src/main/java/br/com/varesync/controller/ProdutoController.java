@@ -131,6 +131,23 @@ public class ProdutoController {
         coluna.setCellValueFactory(c -> new ReadOnlyStringWrapper(valor.apply(c.getValue())));
     }
 
+    /** Produto novo já preenchido com o item de uma NF-e (6.11): nome, código de barras e custo da nota. */
+    public void preencherNovo(String nome, String codigoBarras, BigDecimal custo) {
+        carregar(null);
+        campoNome.setText(nome == null ? "" : nome);
+        if (custo != null) {
+            campoCusto.setText(Formatos.numero(custo, Dinheiro.ESCALA_CUSTO));
+        }
+        if (codigoBarras != null) {
+            listaCodigos.getItems().add(new CodigoBarras(codigoBarras, true));
+        }
+    }
+
+    /** Código do produto na tela (o que acabou de ser salvo, no cadastro novo), ou vazio. */
+    public Optional<Long> produtoId() {
+        return produto == null ? Optional.empty() : Optional.of(produto.id());
+    }
+
     /** Mostra o produto {@code id}, ou o formulário vazio se nulo. */
     public void carregar(Long id) {
         produto = id == null ? null : produtoService.buscar(sessao, id);

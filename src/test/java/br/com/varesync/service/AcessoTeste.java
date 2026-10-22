@@ -60,7 +60,11 @@ final class AcessoTeste {
     final ConfiguracaoService configuracoes;
     final PromocaoService promocoes;
     final ImportacaoProdutosService importacao;
+    final ConsultaAuditoriaService consultaAuditoria;
+    final ImportacaoNfeService nfe;
     private final DataSource dataSource;
+    private final Transacao transacao;
+    private final AuditoriaService auditoriaService;
 
     AcessoTeste(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -87,12 +91,23 @@ final class AcessoTeste {
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), relogio);
-        painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, relogio);
+        painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(), relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
                 auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);
         importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO, categoriaDAO,
                 new UnidadeMedidaDAO());
+        consultaAuditoria = new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), relogio);
+        nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO, compras, relogio);
+        this.transacao = transacao;
+        this.auditoriaService = auditoria;
+    }
+
+    /** Backup sobre o banco de teste, com o executor, a pasta padrão e os lugares de busca do pg_dump dados. */
+    BackupService backup(ExecutorProcesso executor, BackupService.Conexao conexao, java.nio.file.Path pastaPadrao,
+                         List<java.nio.file.Path> instalacoes, String path) {
+        return new BackupService(transacao, new ConfiguracaoDAO(), new AuditoriaDAO(), auditoriaService, executor,
+                conexao, pastaPadrao, instalacoes, path, relogio);
     }
 
     /**

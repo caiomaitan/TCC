@@ -293,6 +293,23 @@ class EstoqueServiceIT extends IntegracaoBase {
     }
 
     @Test
+    void percentSublinhadoEBarraNaBuscaValemComoTexto() {
+        long cinquenta = criar("Desconto 50% caixa", "UN", "0", null, List.of());
+        criar("Desconto 500 caixa", "UN", "0", null, List.of());
+        long sublinhado = criar("Tampa a_b", "UN", "0", null, List.of());
+        criar("Tampa axb", "UN", "0", null, List.of());
+        long barra = criar("Cabo 1\\2 polegada", "UN", "0", null, List.of());
+        criar("Cabo 12 polegada", "UN", "0", null, List.of());
+
+        assertThat(estoque.pesquisar(admin, "50%", false, false)).extracting(SaldoEstoque::produtoId)
+                .containsExactly(cinquenta);
+        assertThat(estoque.pesquisar(admin, "a_b", false, false)).extracting(SaldoEstoque::produtoId)
+                .containsExactly(sublinhado);
+        assertThat(estoque.pesquisar(admin, "1\\2", false, false)).extracting(SaldoEstoque::produtoId)
+                .containsExactly(barra);
+    }
+
+    @Test
     void pesquisaPorNomeCodigoECodigoDeBarrasEFiltraAbaixoDoMinimo() {
         long acucar = criar("Açúcar refinado 1 kg", "UN", "5", "3",
                 List.of(new CodigoBarras("7891234567895", true)));

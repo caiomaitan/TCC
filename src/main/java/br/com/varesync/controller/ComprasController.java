@@ -7,9 +7,12 @@ import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.ResultadoEntrada;
 import br.com.varesync.service.EntradaService;
+import br.com.varesync.service.ImportacaoNfeService;
+import br.com.varesync.service.LeitorNfe;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.BuscaProdutoDialogo;
+import br.com.varesync.ui.DialogoNfe;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCompras;
 import br.com.varesync.ui.Janelas;
@@ -17,7 +20,11 @@ import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -38,6 +45,7 @@ import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.util.Callback;
 
 /**
@@ -55,6 +63,7 @@ public class ComprasController {
     private final EntradaService entradaService;
     private final Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
+    private final ImportacaoNfeService importacaoNfe;
     /** Entrada mostrada nos detalhes; nula sem seleção. */
     private EntradaResumo entrada;
     /** Produto escolhido para incluir; nulo quando se altera um item ou nada foi escolhido. */
@@ -103,9 +112,10 @@ public class ComprasController {
     @FXML private Label diferenca;
     @FXML private Label mensagem;
 
-    public ComprasController(EntradaService entradaService, Sessao sessao,
+    public ComprasController(EntradaService entradaService, ImportacaoNfeService importacaoNfe, Sessao sessao,
                              Callback<Class<?>, Object> fabricaControllers) {
         this.entradaService = entradaService;
+        this.importacaoNfe = importacaoNfe;
         this.sessao = sessao;
         this.fabricaControllers = fabricaControllers;
     }
@@ -199,6 +209,56 @@ public class ComprasController {
                     Mensagem.sucesso(mensagem, "Entrada nº " + id + " criada. Inclua os itens da nota.");
                     Platform.runLater(campoProduto::requestFocus);
                 });
+    }
+
+    /**
+     * Importação do XML da NF-e (6.11): escolhe o arquivo, mostra a conferência (fornecedor, itens e vínculo com os
+     * produtos) e gera uma entrada aberta, que fica selecionada para conferir e confirmar.
+     */
+    @FXML
+    private void importarNfe() {
+        FileChooser escolha = new FileChooser();
+        escolha.setTitle("XML da NF-e");
+        escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter("XML da NF-e", "*.xml"));
+        File arquivo = escolha.showOpenDialog(tabelaEntradas.getScene().getWindow());
+        if (arquivo != null) {
+            importarNfe(arquivo.toPath());
+        }
+    }
+
+    private void importarNfe(Path arquivo) {
+        byte[] xml;
+        try {
+            xml = Files.readAllBytes(arquivo);
+        } catch (IOException e) {
+            Mensagem.erro(mensagem, "Não foi possível ler o arquivo " + arquivo.getFileName() + ".");
+            return;
+        }
+        ImportacaoNfeService.Previa previa;
+        try {
+            previa = importacaoNfe.ler(sessao, xml);
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+            return;
+        }
+        DialogoNfe.conferir(previa, new DialogoNfe.Acoes(
+                termo -> entradaService.pesquisarProdutos(sessao, termo),
+                id -> entradaService.produtoPorCodigo(sessao, String.valueOf(id)),
+                sessao.pode(Permissao.PRODUTOS) ? this::cadastrarProduto : null,
+                escolhidos -> importacaoNfe.gerarEntrada(sessao, xml, escolhidos))).ifPresent(id -> {
+                    tabelaEntradas.getItems().setAll(entradaService.listar(sessao, filtroConfirmadas.isSelected()));
+                    selecionar(id);
+                    Mensagem.sucesso(mensagem, "Entrada nº " + id + " gerada pelo XML da NF-e. Confira os itens e "
+                            + "confirme a entrada.");
+                });
+    }
+
+    /** Cadastro de produto preenchido com o item da nota; devolve o código do produto se ele foi salvo. */
+    private Optional<Long> cadastrarProduto(LeitorNfe.Item item) {
+        ProdutoController produto = Janelas.abrirModal(tabelaEntradas.getScene().getWindow(), "/fxml/produto.fxml",
+                "Novo produto", fabricaControllers, (ProdutoController c) -> c.preencherNovo(item.descricao(),
+                        item.codigoBarras(), DialogoNfe.custoUnitario(item)));
+        return produto.produtoId();
     }
 
     @FXML
