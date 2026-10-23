@@ -18,8 +18,8 @@ esperado de cada um). Colunas:
   executado.
 - **Resultado obtido** e **Data**: para você preencher ao executar o caso (OK / Falhou e o que aconteceu).
 
-Situação do registro no desenvolvimento: 75 OK (69 pela tela e 6 por você), 28 cobertos por teste automático, 19
-parciais, 4 não executados e 69 ainda sem execução. Os casos que dependem de teclado de verdade, leitor de código de
+Situação do registro no desenvolvimento: 75 OK (69 pela tela e 6 por você), 28 cobertos por teste automático, 20
+parciais, 4 não executados e 68 ainda sem execução. Os casos que dependem de teclado de verdade, leitor de código de
 barras, balança, impressora térmica, janelas "Abrir"/"Salvar como" do Windows, Excel e leitor de PDF só podem ser
 fechados pela execução manual.
 
@@ -218,7 +218,7 @@ fechados pela execução manual.
 | 191 | CT-F9-06 | RNF05 | Venda de 3 itens só com o teclado (métrica) | Não executado | | |
 | 192 | CT-F9-07 | RF12 | Senhas dos usuários de demonstração do README | Parcial (ver o roteiro) | | |
 | 193 | CT-F9-08 | Extras | Restauração do backup pelo README | — | | |
-| 194 | CT-F9-09 | RNF07 | Ícone próprio na janela e no VareSync.exe | — | | |
+| 194 | CT-F9-09 | RNF07 | Ícone próprio na janela e no VareSync.exe | Parcial (ver o roteiro) | | |
 | 195 | CT-F9-10 | RNF02 | Ensaio do roteiro de demonstração (DEMO.md) | — | | |
 
 ### 1.1 Casos por requisito

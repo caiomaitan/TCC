@@ -8,7 +8,7 @@ mudar regra de negócio nem banco — `docs/DEMO.md` (roteiro de 10 minutos com 
 das Fig. 14 a 22), `docs/diagramas/` (DER do banco real e diagramas de classes em Mermaid), `docs/TCC_RESULTADOS.md`
 (Quadro 23 com os 195 casos, Quadro 24, testes automáticos), `docs/TCC_MUDANCAS.md` (o que mudou em relação ao texto do
 TCC) e o ícone próprio do VareSync (janelas e `VareSync.exe`). `mvn -q verify` passa: 297 testes unitários e 206 de
-integração, todos verdes. Sem migration nova.
+integração, todos verdes (conferido de novo em 2026-10-22 depois de gerar o pacote com o ícone). Sem migration nova.
 
 Parte 1 (2026-10-21 a 2026-10-22): revisão geral do código, pendências pequenas, métricas da 9.4, README final e
 empacotamento com `jpackage` (app-image para Windows).
@@ -380,8 +380,8 @@ espaçamento vertical dos itens caiu 1 px, o que faz todos caberem em 1280×720.
 - O pacote não foi testado num computador sem JDK. O `runtime` do app-image é independente do JDK instalado (o `.exe`
   registrou "Java 21.0.12.1" do próprio pacote), mas falta conferir numa máquina limpa (CT-F9-03).
 - O pacote não é assinado: o SmartScreen do Windows pode avisar na primeira execução (README, seção 3.1).
-- Pendência resolvida (Fase 9, parte 2): ícone próprio na janela e no `VareSync.exe`. O pacote não foi gerado de novo
-  nesta sessão (o `jpackage` leva minutos e o `.exe` antigo trava o `mvn clean`); conferir no CT-F9-09.
+- Pendência resolvida (Fase 9, parte 2): ícone próprio na janela e no `VareSync.exe`. Pacote gerado de novo em 2026-10-22
+  (`mvn -Pempacotar clean package`): o ícone extraído do `.exe` é o do VareSync. Falta ver a janela aberta (CT-F9-09).
 - Pendência resolvida (Fase 9, parte 2): `docs/DEMO.md` e o material do TCC. O roteiro da demonstração foi exercitado
   pelo roteiro de capturas (mesmos dados, mesma venda, mesma NF-e), mas não cronometrado por uma pessoa: CT-F9-10.
 - Os saldos do banco de demonstração dependem do dia em que ele é gerado (o gerador é reproduzível no mesmo dia; as
