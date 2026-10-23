@@ -1,0 +1,113 @@
+%% VareSync — pacote dao: SQL puro (JDBC + PreparedStatement, text blocks). Todo método recebe a Connection
+%% da transação aberta pelo service; o DAO nunca abre conexão nem faz commit/rollback e não tem regra de negócio.
+%% Ao lado de cada DAO, as tabelas e views que ele lê ou grava. Os relatórios (pacote report) fazem a própria
+%% consulta sobre as views, também com Jdbc.
+classDiagram
+
+    class Jdbc {
+        <<utilitário>>
+        +definirLong(PreparedStatement, int, Long)$
+        +lerLong(ResultSet, String) Long$
+        +escaparLike(String) String$
+    }
+    class UsuarioDAO {
+        usuario, usuario_permissao
+        +inserir() +listar() +lerCredencial()
+        +registrarFalha() +registrarLogin()
+        +alterarCadastro() +alterarSenha() +alterarSituacao()
+        +definirPermissoes() +desbloquear()
+        +travarSupervisoresAtivos()
+    }
+    class AuditoriaDAO {
+        auditoria
+        +inserir() +consultar() +ultimo()
+    }
+    class ConfiguracaoDAO {
+        configuracao
+        +carregar(Connection) Configuracoes
+        +buscar() +gravar() +travar()
+    }
+    class CategoriaDAO {
+        categoria
+        +inserir() +listar() +renomear()
+        +alterarSituacao() +excluir() +contarProdutos()
+    }
+    class UnidadeMedidaDAO {
+        unidade_medida
+        +listar() +buscar()
+    }
+    class ProdutoDAO {
+        produto, produto_codigo_barras, produto_historico_preco
+        +inserir() +alterar() +alterarSituacao() +excluir()
+        +pesquisar() +buscar() +historico() +vinculos()
+        +buscarParaVenda() +buscarParaVendaPorCodigo() +buscarParaVendaPorPlu()
+        +travarCusto() +atualizarCusto()
+        +donoDoCodigo() +donoDoPlu()
+    }
+    class PromocaoDAO {
+        promocao
+        +inserir() +alterar() +excluir() +listar()
+        +sobrepostas() +vigente() +usadaEmVenda()
+    }
+    class FornecedorDAO {
+        fornecedor
+        +inserir() +alterar() +alterarSituacao() +excluir()
+        +listar() +buscar() +donoDoDocumento() +contarEntradas()
+    }
+    class EstoqueDAO {
+        vw_estoque_atual, vw_estoque_inconsistente, produto_estoque
+        +pesquisar() +buscar() +contarAbaixoDoMinimo()
+        +travarSaldo(Connection, long) BigDecimal
+        +inconsistencias()
+    }
+    class MovimentoEstoqueDAO {
+        movimento_estoque
+        +inserir() +listar()
+    }
+    class CaixaDAO {
+        caixa_sessao, caixa_movimento, vw_caixa_resumo
+        +abrir() +fechar() +buscarAberta() +travarAberta()
+        +inserirMovimento() +listarMovimentos()
+        +resumo() +vendasPorForma() +descontos() +buscarUltimaFechada()
+    }
+    class FormaPagamentoDAO {
+        forma_pagamento
+        +listar() +listarAtivas() +inserir() +alterarSituacao() +travar()
+    }
+    class VendaDAO {
+        venda, venda_item, venda_pagamento
+        +inserir() +inserirItem() +inserirPagamento()
+        +travar() +cancelar() +itensVendidos()
+        +listarDaSessao() +cabecalho() +itensComprovante() +pagamentos()
+    }
+    class InventarioDAO {
+        inventario, inventario_item
+        +inserir() +inserirItens() +removerItem() +listar() +buscar()
+        +itensContagem() +registrarContagem() +divergencias()
+        +marcarAplicado() +marcarCancelado() +travar() +travarInclusoes()
+    }
+    class EntradaDAO {
+        entrada_mercadoria, entrada_mercadoria_item
+        +inserir() +alterar() +excluir() +listar() +buscar()
+        +inserirItem() +alterarItem() +removerItem() +itens()
+        +mesmaNota() +marcarConfirmada() +travar()
+    }
+    class PainelDAO {
+        vw_venda_item_rentabilidade, inventario, produto
+        +vendas() +maisLucrativos()
+        +contarPrecoAbaixoDoCusto() +contarInventariosAbertos()
+    }
+    class DemoDAO {
+        venda, usuario, produto, fornecedor
+        +contarVendas() +loginsExistentes() +codigosExistentes()
+        +plusExistentes() +documentosExistentes()
+    }
+
+    UsuarioDAO ..> Jdbc
+    AuditoriaDAO ..> Jdbc
+    CategoriaDAO ..> Jdbc
+    ProdutoDAO ..> Jdbc
+    PromocaoDAO ..> Jdbc
+    EstoqueDAO ..> Jdbc
+    MovimentoEstoqueDAO ..> Jdbc
+    InventarioDAO ..> Jdbc

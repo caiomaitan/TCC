@@ -1,0 +1,199 @@
+%% VareSync — pacote service: regras de negócio e transações. Dependências = parâmetros do construtor
+%% (montadas em config/Servicos). Toda operação recebe a Sessao e confere a permissão (sessao.exigir).
+%% Todos os services que gravam recebem Transacao e Clock; para não poluir, essas setas não aparecem.
+classDiagram
+
+    class Transacao {
+        +executar(Trabalho~T~) T
+    }
+    class Sessao {
+        +exigir(Permissao)
+        +exigirOuLiberado(Permissao, Liberacao) Liberacao
+        +exigirSupervisor()
+    }
+    class Liberacao {
+        <<record>>
+        long usuarioId
+        String login
+        String nome
+        Permissao permissao
+    }
+    class Senhas {
+        +gerarHash(String) String
+        +confere(String, String) boolean
+    }
+    class AuditoriaService {
+        +registrar(Connection, Sessao, AcaoAuditoria, String, Long, String)
+    }
+    class AcessoService {
+        +precisaPrimeiroAcesso() boolean
+        +criarPrimeiroSupervisor(PrimeiroAcesso) long
+        +entrar(String, String) Sessao
+        +trocarSenha(Sessao, String, String, String) Sessao
+        +liberar(String, String, Permissao) Liberacao
+        +sair(Sessao)
+    }
+    class UsuarioService {
+        +listar(Sessao)
+        +criar(Sessao, String, String, boolean, ...) long
+        +alterar(Sessao, long, String, boolean, Set~Permissao~)
+        +alterarSituacao(Sessao, long, boolean)
+        +redefinirSenha(Sessao, long, String, String)
+        +desbloquear(Sessao, long)
+    }
+    class CategoriaService {
+        +listar() +criar() +renomear() +alterarSituacao() +excluir()
+    }
+    class ProdutoService {
+        +pesquisar(Sessao, String, Long, SituacaoProduto)
+        +buscar(Sessao, long) Produto
+        +avisos(Sessao, Long, DadosProduto) List~String~
+        +criar(Sessao, DadosProduto) long
+        +alterar(Sessao, long, DadosProduto)
+        +alterarSituacao(Sessao, long, boolean)
+        +excluir(Sessao, long)
+        +historico(Sessao, long) List~HistoricoPreco~
+    }
+    class EstoqueService {
+        +movimentar(Connection, Sessao, long, TipoMovimento, BigDecimal, OrigemMovimento, String, BigDecimal)
+        +pesquisar(Sessao, String, boolean, ...) List~SaldoEstoque~
+        +kardex(Sessao, long, Periodo) List~MovimentoKardex~
+        +ajustar(Sessao, long, TipoAjuste, BigDecimal, ...) ResultadoAjuste
+        +ajustarSaldoPara(Sessao, long, BigDecimal, String) ResultadoAjuste
+        +contarAbaixoDoMinimo(Sessao) int
+        +diagnostico(Sessao) List~InconsistenciaEstoque~
+    }
+    class CaixaService {
+        +abrir(Sessao, BigDecimal) CaixaSessao
+        +caixaAberto(Sessao) Optional~CaixaSessao~
+        +registrarMovimento(Sessao, TipoCaixaMovimento, BigDecimal, String, Liberacao) long
+        +fechar(Sessao, BigDecimal) RelatorioFechamento
+        +relatorioFechamento(Sessao, long) RelatorioFechamento
+        +travarAberta(Connection, Sessao) CaixaSessao
+    }
+    class PrecoService {
+        +precoVigente(Connection, ProdutoVenda, LocalDate) Preco
+    }
+    class VendaService {
+        +lerProduto(Sessao, String) LeituraProduto
+        +adicionarItem(Sessao, Carrinho, ProdutoVenda, BigDecimal) Inclusao
+        +adicionarEtiqueta(Sessao, Carrinho, LeituraProduto) Inclusao
+        +aplicarDescontoItem(...)
+        +aplicarDescontoVenda(...)
+        +cancelarItem(Sessao, Carrinho, int, Liberacao) String
+        +abandonar(Sessao, Carrinho)
+        +finalizar(Sessao, Carrinho, Recebimento) VendaFinalizada
+        +cancelar(Sessao, long, String, Liberacao)
+        +vendasDaSessao(Sessao) List~VendaResumo~
+        +comprovante(Sessao, long) Comprovante
+    }
+    class Carrinho {
+        +total() BigDecimal
+        +baseDescontoVenda() BigDecimal
+        +temItensAtivos() boolean
+    }
+    class ItemCarrinho
+    class Recebimento {
+        +adicionar(FormaPagamento, BigDecimal)
+        +troco() BigDecimal
+    }
+    class EtiquetaBalanca {
+        +reconhecer(String, Balanca) Optional~EtiquetaBalanca~$
+        +item(BigDecimal) Item
+    }
+    class InventarioService {
+        +criar(Sessao, String) long
+        +incluirPorCodigo(Sessao, long, String) InclusaoInventario
+        +incluirCategoria(Sessao, long, long) InclusaoInventario
+        +incluirTodosAtivos(Sessao, long) InclusaoInventario
+        +itensContagem(Sessao, long) List~ItemContagem~
+        +registrarContagem(Sessao, long, long, BigDecimal) ItemContagem
+        +resultado(Sessao, long) ResultadoInventario
+        +aplicar(Sessao, long) ResultadoInventario
+        +cancelar(Sessao, long)
+    }
+    class FornecedorService {
+        +pesquisar() +criar() +alterar() +alterarSituacao() +excluir()
+    }
+    class EntradaService {
+        +criar(Sessao, DadosEntrada) long
+        +adicionarItem(Sessao, long, long, BigDecimal, ...) long
+        +alterarDados(Sessao, long, DadosEntrada)
+        +confirmar(Sessao, long) ResultadoEntrada
+        +excluir(Sessao, long)
+    }
+    class ImportacaoNfeService {
+        +ler(Sessao, byte[]) Previa
+        +gerarEntrada(Sessao, byte[], Map) long
+    }
+    class LeitorNfe {
+        +ler(byte[]) Nota$
+    }
+    class ImportacaoProdutosService {
+        +previa(Sessao, byte[]) Previa
+        +importar(Sessao, byte[], boolean) Resultado
+    }
+    class PromocaoService {
+        +listar() +criar() +alterar() +alterarSituacao() +excluir()
+    }
+    class RelatorioService {
+        +disponiveis(Sessao) List~Relatorio~
+        +gerar(Sessao, Relatorio, Filtros) ResultadoRelatorio
+    }
+    class PainelService {
+        +carregar(Sessao) Painel
+    }
+    class ConfiguracaoService {
+        +carregar(Sessao) Configuracoes
+        +salvar(Sessao, Configuracoes)
+        +criarForma(...) +alterarSituacaoForma(...)
+    }
+    class ConsultaAuditoriaService {
+        +consultar(Sessao, Periodo, Long, AcaoAuditoria) Consulta
+    }
+    class BackupService {
+        +fazer(Sessao) Resultado
+        +fazerAutomatico(Sessao) Optional
+        +automaticoPendente() boolean
+    }
+    class GeradorDemo {
+        +conferir(Sessao)
+        +gerar(Sessao, Progresso) Resultado
+    }
+
+    AcessoService --> AuditoriaService
+    AcessoService --> Senhas
+    UsuarioService --> AuditoriaService
+    UsuarioService --> Senhas
+    ProdutoService --> EstoqueService : estoque inicial
+    ProdutoService --> AuditoriaService
+    EstoqueService --> AuditoriaService
+    CaixaService --> AuditoriaService
+    VendaService --> EstoqueService : VENDA / CANCELAMENTO_VENDA
+    VendaService --> CaixaService : travarAberta
+    VendaService --> PrecoService : promoção vigente
+    VendaService --> AuditoriaService
+    VendaService ..> Carrinho
+    VendaService ..> Recebimento
+    VendaService ..> EtiquetaBalanca
+    Carrinho *-- "*" ItemCarrinho
+    InventarioService --> EstoqueService : INVENTARIO
+    InventarioService --> AuditoriaService
+    EntradaService --> EstoqueService : ENTRADA_COMPRA
+    EntradaService --> AuditoriaService
+    ImportacaoNfeService --> EntradaService
+    ImportacaoNfeService ..> LeitorNfe
+    ImportacaoProdutosService --> ProdutoService
+    PromocaoService --> AuditoriaService
+    PainelService --> CaixaService
+    ConfiguracaoService --> AuditoriaService
+    BackupService --> AuditoriaService
+    GeradorDemo --> AcessoService
+    GeradorDemo --> ProdutoService
+    GeradorDemo --> VendaService
+    GeradorDemo --> CaixaService
+    GeradorDemo --> InventarioService
+    GeradorDemo --> EntradaService
+    VendaService ..> Sessao
+    VendaService ..> Liberacao
+    VendaService --> Transacao

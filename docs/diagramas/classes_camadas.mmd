@@ -1,0 +1,106 @@
+%% VareSync — visão das camadas (controller → service → dao → PostgreSQL), com a montagem e a transação.
+%% Os detalhes de cada camada estão em classes_model.mmd, classes_service.mmd e classes_dao.mmd.
+%% Para importar no draw.io: Organizar › Inserir › Avançado › Mermaid, colar este texto.
+classDiagram
+    direction LR
+
+    class App {
+        +start(Stage)
+        +mostrarLogin(String)
+        +entrar(Sessao)
+        +logoff()
+        +sair()
+    }
+    class Navegacao {
+        <<interface>>
+        +mostrarLogin(String)
+        +entrar(Sessao)
+        +logoff()
+        +sair()
+    }
+    class AppContext {
+        <<composition root>>
+        +iniciar(AppConfig) AppContext$
+        +criarController(Class, Navegacao, Sessao) Object
+    }
+    class Servicos {
+        <<record>>
+        +montar(DataSource, Clock, String, Senhas) Servicos$
+        +geradorDemo(DataSource, Clock, String, Senhas) GeradorDemo$
+    }
+    class PdvController {
+        <<controller JavaFX>>
+    }
+    class ProdutoController {
+        <<controller JavaFX>>
+    }
+    class VendaService {
+        <<service>>
+        +finalizar(Sessao, Carrinho, Recebimento) VendaFinalizada
+    }
+    class EstoqueService {
+        <<service>>
+        +movimentar(Connection, Sessao, long, TipoMovimento, BigDecimal, OrigemMovimento, String, BigDecimal)
+    }
+    class ProdutoService {
+        <<service>>
+    }
+    class Transacao {
+        +executar(Trabalho~T~) T
+    }
+    class Trabalho~T~ {
+        <<interface>>
+        +executar(Connection) T
+    }
+    class TradutorErros {
+        +traduzir(Exception) RuntimeException$
+    }
+    class NegocioException
+    class Sessao {
+        +usuario() Usuario
+        +terminal() String
+        +pode(Permissao) boolean
+        +exigir(Permissao)
+        +exigirOuLiberado(Permissao, Liberacao) Liberacao
+        +exigirSupervisor()
+    }
+    class AuditoriaService {
+        <<service>>
+        +registrar(Connection, Sessao, AcaoAuditoria, String, Long, String)
+    }
+    class VendaDAO {
+        <<dao>>
+    }
+    class ProdutoDAO {
+        <<dao>>
+    }
+    class MovimentoEstoqueDAO {
+        <<dao>>
+    }
+    class PostgreSQL {
+        <<banco>>
+        triggers de saldo, histórico e kardex
+        views vw_venda_item_rentabilidade, vw_estoque_atual, vw_caixa_resumo
+    }
+
+    App ..|> Navegacao
+    App --> AppContext : cria
+    AppContext --> Servicos : monta (injeção pelo construtor)
+    AppContext ..> PdvController : controllerFactory
+    AppContext ..> ProdutoController : controllerFactory
+    PdvController --> VendaService
+    ProdutoController --> ProdutoService
+    VendaService --> Transacao
+    VendaService --> VendaDAO
+    VendaService --> EstoqueService
+    VendaService --> AuditoriaService
+    ProdutoService --> ProdutoDAO
+    ProdutoService --> EstoqueService
+    EstoqueService --> MovimentoEstoqueDAO
+    VendaService ..> Sessao : exigir(PDV)
+    Transacao ..> Trabalho~T~
+    Transacao ..> TradutorErros : SQLException → mensagem
+    TradutorErros ..> NegocioException
+    VendaDAO ..> PostgreSQL : SQL (PreparedStatement)
+    ProdutoDAO ..> PostgreSQL
+    MovimentoEstoqueDAO ..> PostgreSQL

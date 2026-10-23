@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia para a demonstração (docs/DEMO.md). Dados inventados; o CNPJ tem dígitos verificadores válidos
+     e não pertence aos fornecedores do gerador de dados, então a importação cadastra o fornecedor.
+     Os códigos de barras são os dos produtos de demonstração (CatalogoDemo):
+     item 1 = Leite UHT integral 1 L em caixa com 12 (uCom CX; o EAN tributável é o da unidade, então valem qTrib e
+     vUnTrib: 48 UN a R$ 4,20); itens 2 a 4 = iogurte, manteiga e requeijão por unidade. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261045723174000110550010000077011000077015" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <natOp>VENDA DE MERCADORIA</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>7701</nNF>
+        <dhEmi>2026-10-20T08:15:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+      </ide>
+      <emit>
+        <CNPJ>45723174000110</CNPJ>
+        <xNome>Laticinios Vale do Pardo Ltda</xNome>
+        <xFant>Vale do Pardo</xFant>
+        <enderEmit>
+          <xLgr>Rodovia Anhanguera</xLgr>
+          <nro>Km 312</nro>
+          <xBairro>Distrito Industrial</xBairro>
+          <xMun>Ribeirão Preto</xMun>
+          <UF>SP</UF>
+          <fone>1636365050</fone>
+        </enderEmit>
+        <IE>797123456110</IE>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>LEITE-CX12</cProd>
+          <cEAN>17896543000313</cEAN>
+          <xProd>LEITE UHT INTEGRAL 1L CX C/12</xProd>
+          <NCM>04012010</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>CX</uCom>
+          <qCom>4.0000</qCom>
+          <vUnCom>50.4000000000</vUnCom>
+          <vProd>201.60</vProd>
+          <cEANTrib>7896543000316</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>48.0000</qTrib>
+          <vUnTrib>4.2000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>IOG-NAT-170</cProd>
+          <cEAN>7896543000354</cEAN>
+          <xProd>IOGURTE NATURAL 170G</xProd>
+          <NCM>04032000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>24.0000</qCom>
+          <vUnCom>1.8500000000</vUnCom>
+          <vProd>44.40</vProd>
+          <cEANTrib>7896543000354</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>24.0000</qTrib>
+          <vUnTrib>1.8500000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>MANT-SAL-200</cProd>
+          <cEAN>7896543000361</cEAN>
+          <xProd>MANTEIGA COM SAL 200G</xProd>
+          <NCM>04051000</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>12.0000</qCom>
+          <vUnCom>9.6000000000</vUnCom>
+          <vProd>115.20</vProd>
+          <cEANTrib>7896543000361</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>12.0000</qTrib>
+          <vUnTrib>9.6000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+      </det>
+      <det nItem="4">
+        <prod>
+          <cProd>REQ-CREM-200</cProd>
+          <cEAN>7896543000378</cEAN>
+          <xProd>REQUEIJAO CREMOSO 200G</xProd>
+          <NCM>04069090</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>12.0000</qCom>
+          <vUnCom>5.7000000000</vUnCom>
+          <vProd>68.40</vProd>
+          <cEANTrib>7896543000378</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>12.0000</qTrib>
+          <vUnTrib>5.7000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vProd>429.60</vProd>
+          <vNF>429.60</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <chNFe>35261045723174000110550010000077011000077015</chNFe>
+    </infProt>
+  </protNFe>
+</nfeProc>

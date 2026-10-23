@@ -1,0 +1,312 @@
+%% VareSync — pacote model (principais entidades, linhas de consulta e enums).
+%% Classes simples para o que se edita (Usuario, Produto); record para linhas de consulta e relatório.
+%% Enums com os mesmos valores dos CHECK do banco. Dinheiro, custo e quantidade sempre BigDecimal.
+classDiagram
+
+    class Usuario {
+        -long id
+        -String login
+        -String nome
+        -boolean supervisor
+        -boolean ativo
+        -boolean deveTrocarSenha
+        -int tentativasFalhas
+        -OffsetDateTime bloqueadoAte
+        -OffsetDateTime ultimoLoginEm
+        -Set~Permissao~ permissoes
+    }
+    class Produto {
+        -long id
+        -String nome
+        -Long categoriaId
+        -String unidade
+        -boolean unidadeFracionada
+        -BigDecimal precoVenda
+        -BigDecimal custo
+        -BigDecimal estoqueMinimo
+        -Integer plu
+        -boolean ativo
+        -BigDecimal estoqueAtual
+        -List~CodigoBarras~ codigosBarras
+    }
+    class CodigoBarras {
+        <<record>>
+        String codigo
+        boolean principal
+    }
+    class Categoria {
+        <<record>>
+        long id
+        String nome
+        boolean ativa
+    }
+    class UnidadeMedida {
+        <<record>>
+        String sigla
+        String descricao
+        boolean fracionada
+    }
+    class HistoricoPreco {
+        <<record>>
+        OffsetDateTime criadoEm
+        String usuarioNome
+        BigDecimal precoAnterior
+        BigDecimal precoNovo
+        BigDecimal custoAnterior
+        BigDecimal custoNovo
+    }
+    class Promocao {
+        <<record>>
+        long id
+        long produtoId
+        BigDecimal precoPromocional
+        LocalDate inicio
+        LocalDate fim
+        boolean ativa
+    }
+    class Fornecedor {
+        <<record>>
+        long id
+        String razaoSocial
+        String nomeFantasia
+        String cpfCnpj
+        String cidade
+        String uf
+        boolean ativo
+    }
+    class SaldoEstoque {
+        <<record>>
+        long produtoId
+        String nome
+        BigDecimal saldo
+        BigDecimal estoqueMinimo
+        BigDecimal custo
+        BigDecimal valorEmEstoque
+        boolean abaixoDoMinimo
+    }
+    class MovimentoKardex {
+        <<record>>
+        long id
+        OffsetDateTime criadoEm
+        TipoMovimento tipo
+        BigDecimal quantidade
+        BigDecimal saldoAnterior
+        BigDecimal saldoPosterior
+        BigDecimal custoUnitario
+        Long vendaId
+        Long inventarioId
+        Long entradaId
+        String motivo
+    }
+    class ProdutoVenda {
+        <<record>>
+        long id
+        String codigo
+        String nome
+        boolean fracionada
+        BigDecimal precoVenda
+        BigDecimal custo
+        BigDecimal saldo
+    }
+    class FormaPagamento {
+        <<record>>
+        int id
+        String descricao
+        TipoFormaPagamento tipo
+    }
+    class VendaResumo {
+        <<record>>
+        long id
+        OffsetDateTime dataHora
+        String operador
+        int itens
+        BigDecimal total
+        StatusVenda status
+    }
+    class Comprovante {
+        <<record>>
+        long vendaId
+        OffsetDateTime dataHora
+        String operador
+        StatusVenda status
+        List~Item~ itens
+        BigDecimal total
+        List~Pagamento~ pagamentos
+        BigDecimal troco
+    }
+    class CaixaSessao {
+        <<record>>
+        long id
+        String terminal
+        StatusCaixa status
+        BigDecimal valorAbertura
+        BigDecimal valorEsperado
+        BigDecimal valorContado
+        BigDecimal diferenca
+    }
+    class CaixaResumo {
+        <<record>>
+        BigDecimal valorAbertura
+        BigDecimal suprimentos
+        BigDecimal sangrias
+        BigDecimal vendasDinheiro
+        BigDecimal dinheiroEsperado
+    }
+    class CaixaMovimento {
+        <<record>>
+        TipoCaixaMovimento tipo
+        BigDecimal valor
+        String motivo
+    }
+    class RelatorioFechamento {
+        <<record R11>>
+        CaixaSessao sessao
+        CaixaResumo resumo
+        List~VendasPorForma~ vendasPorForma
+        List~CaixaMovimento~ movimentos
+        BigDecimal descontos
+    }
+    class InventarioResumo {
+        <<record>>
+        long id
+        String descricao
+        StatusInventario status
+        int totalItens
+        int itensContados
+    }
+    class ItemContagem {
+        <<record, contagem cega>>
+        long itemId
+        String nome
+        BigDecimal quantidadeContada
+    }
+    class ItemDivergencia {
+        <<record>>
+        BigDecimal estoqueSistema
+        BigDecimal quantidadeContada
+        BigDecimal diferenca
+        BigDecimal custoUnitario
+    }
+    class ResultadoInventario {
+        <<record R13>>
+        InventarioResumo inventario
+        List~ItemDivergencia~ itens
+    }
+    class EntradaResumo {
+        <<record>>
+        long id
+        long fornecedorId
+        String numeroDocumento
+        BigDecimal valorTotalNota
+        StatusEntrada status
+        BigDecimal somaItens
+    }
+    class ItemEntrada {
+        <<record>>
+        long produtoId
+        BigDecimal quantidade
+        BigDecimal custoUnitario
+        BigDecimal valorTotal
+    }
+    class Configuracoes {
+        <<record>>
+        Loja loja
+        ParametrosVenda venda
+        BigDecimal margemMinimaPct
+        int diasSemGiro
+        Balanca balanca
+        Backup backup
+        String rodapeComprovante
+    }
+    class Painel {
+        <<record>>
+        IndicadoresDia hoje
+        IndicadoresDia semanaPassada
+        List~DiaPainel~ ultimos30Dias
+        List~ProdutoPainel~ topMes
+        AlertasPainel alertas
+    }
+
+    class Permissao {
+        <<enumeration>>
+        PRODUTOS
+        FORNECEDORES
+        COMPRAS
+        ESTOQUE
+        INVENTARIO
+        PDV
+        SANGRIA_SUPRIMENTO
+        CANCELAR_VENDA
+        DESCONTO_ACIMA_LIMITE
+        RELATORIOS
+    }
+    class TipoMovimento {
+        <<enumeration>>
+        ENTRADA_COMPRA
+        VENDA
+        CANCELAMENTO_VENDA
+        AJUSTE_ENTRADA
+        AJUSTE_SAIDA
+        PERDA
+        INVENTARIO
+    }
+    class StatusVenda {
+        <<enumeration>>
+        FINALIZADA
+        CANCELADA
+    }
+    class StatusCaixa {
+        <<enumeration>>
+        ABERTO
+        FECHADO
+    }
+    class TipoCaixaMovimento {
+        <<enumeration>>
+        SANGRIA
+        SUPRIMENTO
+    }
+    class StatusInventario {
+        <<enumeration>>
+        ABERTO
+        APLICADO
+        CANCELADO
+    }
+    class StatusEntrada {
+        <<enumeration>>
+        ABERTA
+        CONFIRMADA
+    }
+    class TipoFormaPagamento {
+        <<enumeration>>
+        DINHEIRO
+        PIX
+        CARTAO_DEBITO
+        CARTAO_CREDITO
+        OUTROS
+    }
+    class AcaoAuditoria {
+        <<enumeration>>
+        LOGIN
+        VENDA_CANCELADA
+        INVENTARIO_APLICADO
+        ENTRADA_CONFIRMADA
+        ...28 ações
+    }
+
+    Usuario --> "*" Permissao
+    Produto *-- "*" CodigoBarras
+    Produto ..> Categoria
+    Produto ..> UnidadeMedida
+    MovimentoKardex --> TipoMovimento
+    VendaResumo --> StatusVenda
+    Comprovante --> StatusVenda
+    FormaPagamento --> TipoFormaPagamento
+    CaixaSessao --> StatusCaixa
+    CaixaMovimento --> TipoCaixaMovimento
+    RelatorioFechamento *-- CaixaSessao
+    RelatorioFechamento *-- CaixaResumo
+    RelatorioFechamento *-- "*" CaixaMovimento
+    InventarioResumo --> StatusInventario
+    ResultadoInventario *-- InventarioResumo
+    ResultadoInventario *-- "*" ItemDivergencia
+    EntradaResumo --> StatusEntrada

@@ -404,3 +404,10 @@ da linha do log).
 | CT-F9-06 | Caixa aberto; 3 produtos com código de barras | 1. Vender 3 itens e pagar em dinheiro só com o teclado (leitor, F10, forma, valor, Enter) | Venda finalizada sem usar o mouse (métrica 9.4) | Não refeito nesta fase (feito na Fase 4 com o Robot do JavaFX; ver PROGRESSO › Métricas) |
 | CT-F9-07 | Banco `varesync_demo` (README, seção 6) | 1. Gerar os dados de demonstração 2. Log off e entrar como `maria` com `demo1835`, `jose` com `demo9076` e `carlos` com `demo6999` | Cada um entra e é obrigado a trocar a senha; `maria` e `jose` só veem Painel, PDV e Caixa; `carlos` vê todas as rotinas, menos Usuários e Configurações | Senhas conferidas por `GeradorDemoIT`; pela tela, falta a pessoa executar |
 | CT-F9-08 | README aberto | 1. Seguir a seção 7 (restauração num banco novo `varesync_restaurado`) com um backup do sistema | `pg_restore` termina sem erro; apontando `db.url` para o banco restaurado, o sistema abre com os mesmos dados | |
+
+## Fase 9 — Qualidade e entrega, parte 2 (material do TCC e da banca, ícone)
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F9-09 | Pacote gerado de novo (`mvn -Pempacotar clean package`) | 1. Ver `target\dist\VareSync\VareSync.exe` no Explorer 2. Abrir o `.exe` e olhar a barra de título e a barra de tarefas 3. Entrar, abrir um produto (janela modal) e o PDV | 1. O `.exe` tem o ícone do VareSync (quadrado azul com "V" branco), não o ícone padrão do Java 2 e 3. O mesmo ícone na janela de login, na principal, nas janelas modais e na barra de tarefas | |
+| CT-F9-10 | `docs/DEMO.md`, seção 1 (preparação) feita | 1. Executar a seção 2 de `docs/DEMO.md` cronometrando cada passo 2. Comparar as telas com `docs/telas/` | 1. Tudo em até 10 minutos; total da venda R$ 69,53 e troco R$ 10,47; café com saldo = contado − 1 depois de aplicar o inventário; NF-e 7701 gera a entrada com 4 itens e cadastra "Laticinios Vale do Pardo Ltda" 2. Mesmas telas e valores (os saldos podem variar com o dia da geração) | |

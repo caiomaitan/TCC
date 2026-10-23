@@ -1,0 +1,293 @@
+%% VareSync — DER do banco real (V1__schema_inicial.sql + V2 + V3), PostgreSQL.
+%% 24 tabelas. Tipos: bigint, varchar, numeric (precisão no comentário), timestamptz, date, boolean, text.
+%% "gerada" = coluna GENERATED ALWAYS ... STORED (o Java não escreve).
+%% A V3 só troca funções de trigger (horários vindos da aplicação); não muda tabelas.
+%% Para importar no draw.io: Organizar › Inserir › Avançado › Mermaid, colar este texto.
+erDiagram
+
+    %% ---------- Acesso ----------
+    usuario {
+        bigint id PK
+        varchar login UK "30, minúsculo"
+        varchar nome "80"
+        varchar senha_hash "BCrypt"
+        boolean supervisor
+        boolean ativo
+        boolean deve_trocar_senha
+        smallint tentativas_falhas
+        timestamptz bloqueado_ate
+        timestamptz ultimo_login_em
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+    permissao {
+        varchar codigo PK "PRODUTOS, PDV, ..."
+        varchar descricao
+    }
+    usuario_permissao {
+        bigint usuario_id PK, FK
+        varchar permissao_codigo PK, FK
+    }
+    configuracao {
+        varchar chave PK "ex.: venda.desconto_maximo_operador_pct"
+        text valor
+        varchar descricao
+    }
+    auditoria {
+        bigint id PK
+        bigint usuario_id FK "nulo no login inexistente"
+        varchar acao "LOGIN, VENDA_CANCELADA, ..."
+        varchar entidade
+        bigint entidade_id
+        text descricao
+        varchar terminal
+        timestamptz criado_em
+    }
+
+    %% ---------- Cadastros ----------
+    unidade_medida {
+        varchar sigla PK "UN, KG, ..."
+        varchar descricao
+        boolean fracionada
+    }
+    categoria {
+        bigint id PK
+        varchar nome UK "único sem diferenciar maiúsculas"
+        boolean ativa
+    }
+    produto {
+        bigint id PK "código do produto"
+        varchar nome "120"
+        text nome_busca "gerada: minúsculo e sem acento"
+        bigint categoria_id FK
+        varchar unidade FK
+        numeric preco_venda "12,2"
+        numeric custo "14,4 custo médio"
+        numeric ultimo_custo "14,4"
+        numeric estoque_minimo "14,3"
+        integer plu UK "etiqueta de balança"
+        boolean ativo
+        timestamptz criado_em
+        bigint criado_por FK
+        timestamptz atualizado_em
+        bigint atualizado_por FK
+    }
+    produto_codigo_barras {
+        bigint id PK
+        bigint produto_id FK
+        varchar codigo UK "GTIN 8/12/13/14"
+        boolean principal "no máximo um por produto"
+    }
+    produto_historico_preco {
+        bigint id PK
+        bigint produto_id FK
+        numeric preco_anterior "12,2"
+        numeric preco_novo "12,2"
+        numeric custo_anterior "14,4"
+        numeric custo_novo "14,4"
+        bigint usuario_id FK
+        timestamptz criado_em "trigger"
+    }
+    promocao {
+        bigint id PK
+        bigint produto_id FK
+        numeric preco_promocional "12,2"
+        date data_inicio
+        date data_fim
+        boolean ativa
+        bigint criado_por FK
+        timestamptz criado_em
+    }
+    fornecedor {
+        bigint id PK
+        varchar razao_social "120"
+        varchar nome_fantasia
+        varchar cpf_cnpj UK "CPF ou CNPJ alfanumérico, sem máscara"
+        varchar telefone
+        varchar email
+        varchar contato
+        varchar cidade
+        char uf
+        text observacao
+        boolean ativo
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+
+    %% ---------- Estoque ----------
+    produto_estoque {
+        bigint produto_id PK, FK "1:1; só o trigger escreve"
+        numeric quantidade "14,3 saldo atual"
+        timestamptz atualizado_em
+    }
+    movimento_estoque {
+        bigint id PK "kardex imutável"
+        bigint produto_id FK
+        varchar tipo "ENTRADA_COMPRA, VENDA, CANCELAMENTO_VENDA, AJUSTE_ENTRADA, AJUSTE_SAIDA, PERDA, INVENTARIO"
+        numeric quantidade "14,3 com sinal"
+        numeric saldo_anterior "trigger"
+        numeric saldo_posterior "trigger"
+        numeric custo_unitario "14,4"
+        bigint venda_item_id FK
+        bigint inventario_item_id FK
+        bigint entrada_item_id FK
+        varchar motivo "obrigatório em ajuste e perda"
+        bigint usuario_id FK
+        timestamptz criado_em
+    }
+
+    %% ---------- Caixa e vendas ----------
+    forma_pagamento {
+        smallint id PK
+        varchar descricao UK
+        varchar tipo "DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO, OUTROS"
+        boolean ativa
+    }
+    caixa_sessao {
+        bigint id PK
+        varchar terminal "um ABERTO por terminal"
+        bigint usuario_id FK "quem abriu"
+        timestamptz aberto_em
+        numeric valor_abertura "12,2 fundo de troco"
+        varchar status "ABERTO, FECHADO"
+        timestamptz fechado_em
+        bigint fechado_por FK
+        numeric valor_esperado "12,2"
+        numeric valor_contado "12,2"
+        numeric diferenca "gerada: contado - esperado"
+        text observacao
+    }
+    caixa_movimento {
+        bigint id PK
+        bigint caixa_sessao_id FK
+        varchar tipo "SANGRIA, SUPRIMENTO"
+        numeric valor "12,2"
+        varchar motivo
+        bigint usuario_id FK
+        timestamptz criado_em
+    }
+    venda {
+        bigint id PK "número da venda"
+        bigint caixa_sessao_id FK
+        bigint usuario_id FK "operador"
+        timestamptz data_hora
+        varchar status "FINALIZADA, CANCELADA"
+        numeric valor_bruto "12,2"
+        numeric desconto_itens "12,2"
+        numeric desconto_venda "12,2"
+        numeric valor_total "12,2"
+        numeric troco "12,2"
+        timestamptz cancelada_em
+        bigint cancelada_por FK
+        varchar motivo_cancelamento
+    }
+    venda_item {
+        bigint id PK
+        bigint venda_id FK
+        smallint sequencia "única na venda"
+        bigint produto_id FK
+        numeric quantidade "14,3"
+        numeric preco_unitario "12,2"
+        numeric valor_bruto "12,2"
+        numeric desconto "12,2"
+        numeric desconto_rateado "12,2"
+        numeric valor_liquido "12,2"
+        numeric custo_unitario "14,4 custo na hora da venda"
+        numeric custo_total "12,2"
+        bigint promocao_id FK
+        boolean cancelado
+    }
+    venda_pagamento {
+        bigint id PK
+        bigint venda_id FK
+        smallint forma_pagamento_id FK
+        numeric valor "12,2 no dinheiro, sem o troco"
+    }
+
+    %% ---------- Inventário ----------
+    inventario {
+        bigint id PK
+        varchar descricao "80"
+        varchar status "ABERTO, APLICADO, CANCELADO"
+        text observacao
+        bigint criado_por FK
+        timestamptz criado_em
+        bigint aplicado_por FK
+        timestamptz aplicado_em
+    }
+    inventario_item {
+        bigint id PK
+        bigint inventario_id FK
+        bigint produto_id FK "único no inventário"
+        numeric quantidade_contada "14,3"
+        numeric estoque_sistema "14,3 saldo na contagem"
+        numeric custo_unitario "14,4"
+        timestamptz contado_em
+        bigint contado_por FK
+        numeric diferenca "gerada: contado - sistema"
+    }
+
+    %% ---------- Compras ----------
+    entrada_mercadoria {
+        bigint id PK
+        bigint fornecedor_id FK
+        varchar numero_documento "único por fornecedor"
+        date data_emissao
+        numeric valor_total_nota "12,2"
+        varchar status "ABERTA, CONFIRMADA"
+        text observacao
+        bigint criado_por FK
+        timestamptz criado_em
+        bigint confirmado_por FK
+        timestamptz confirmado_em
+    }
+    entrada_mercadoria_item {
+        bigint id PK
+        bigint entrada_id FK
+        bigint produto_id FK
+        numeric quantidade "14,3"
+        numeric custo_unitario "14,4"
+        numeric valor_total "12,2"
+    }
+
+    %% ---------- Relacionamentos ----------
+    usuario ||--o{ usuario_permissao : "tem"
+    permissao ||--o{ usuario_permissao : "concedida em"
+    usuario |o--o{ auditoria : "registra"
+
+    categoria |o--o{ produto : "classifica"
+    unidade_medida ||--o{ produto : "mede"
+    usuario ||--o{ produto : "cria / altera"
+    produto ||--o{ produto_codigo_barras : "tem"
+    produto ||--o{ produto_historico_preco : "histórico (trigger)"
+    usuario ||--o{ produto_historico_preco : "alterou"
+    produto ||--o{ promocao : "tem"
+    usuario ||--o{ promocao : "cria"
+
+    produto ||--|| produto_estoque : "saldo (trigger)"
+    produto ||--o{ movimento_estoque : "kardex"
+    usuario ||--o{ movimento_estoque : "registrou"
+    venda_item |o--o{ movimento_estoque : "baixa / estorno"
+    inventario_item |o--o| movimento_estoque : "ajuste"
+    entrada_mercadoria_item |o--o| movimento_estoque : "entrada"
+
+    usuario ||--o{ caixa_sessao : "abre / fecha"
+    caixa_sessao ||--o{ caixa_movimento : "sangria / suprimento"
+    usuario ||--o{ caixa_movimento : "registrou"
+    caixa_sessao ||--o{ venda : "contém"
+    usuario ||--o{ venda : "opera / cancela"
+    venda ||--|{ venda_item : "itens"
+    produto ||--o{ venda_item : "vendido em"
+    promocao |o--o{ venda_item : "preço de"
+    venda ||--o{ venda_pagamento : "pagamentos"
+    forma_pagamento ||--o{ venda_pagamento : "forma"
+
+    usuario ||--o{ inventario : "cria / aplica"
+    inventario ||--o{ inventario_item : "itens"
+    produto ||--o{ inventario_item : "contado em"
+    usuario |o--o{ inventario_item : "contou"
+
+    fornecedor ||--o{ entrada_mercadoria : "emite"
+    usuario ||--o{ entrada_mercadoria : "cria / confirma"
+    entrada_mercadoria ||--|{ entrada_mercadoria_item : "itens"
+    produto ||--o{ entrada_mercadoria_item : "comprado em"

@@ -10,6 +10,7 @@ import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
+import br.com.varesync.ui.Icone;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import java.io.IOException;
@@ -57,6 +58,7 @@ public class App extends Application implements Navegacao {
     @Override
     public void start(Stage stage) {
         TratadorExcecoes.instalar();
+        Icone.instalar();
         log.info("Iniciando o VareSync (Java {})", System.getProperty("java.version"));
         palco = stage;
         palco.setTitle(Dialogos.TITULO);
