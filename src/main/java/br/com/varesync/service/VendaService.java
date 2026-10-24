@@ -248,8 +248,8 @@ public class VendaService {
 
     /** O desconto atual passa do limite e ainda não há permissão nem liberação que o cubra? (antes do F10) */
     public boolean descontoPrecisaLiberacao(Sessao sessao, Carrinho carrinho) {
-        sessao.exigir(Permissao.PDV);
-        return precisaLiberacao(sessao, carrinho, transacao.executar(this::parametros));
+        Sessao atual = sessao.exigir(Permissao.PDV);
+        return precisaLiberacao(atual, carrinho, transacao.executar(this::parametros));
     }
 
     /** Registra a liberação do desconto atual, pedida antes do pagamento. */
@@ -261,29 +261,32 @@ public class VendaService {
 
     /** Cancelar item pede liberação? ({@code venda.cancelar_item_exige_supervisor} e o usuário sem CANCELAR_VENDA) */
     public boolean cancelarItemPrecisaLiberacao(Sessao sessao) {
-        sessao.exigir(Permissao.PDV);
+        Sessao atual = sessao.exigir(Permissao.PDV);
         return transacao.executar(this::parametros).cancelarItemExigeSupervisor()
-                && !sessao.pode(Permissao.CANCELAR_VENDA);
+                && !atual.pode(Permissao.CANCELAR_VENDA);
     }
 
     /**
      * Cancela o item durante a venda (F6): fica riscado e sai do total; auditoria {@code ITEM_CANCELADO}. Com
-     * {@code venda.cancelar_item_exige_supervisor = true}, exige CANCELAR_VENDA ou a liberação.
+     * {@code venda.cancelar_item_exige_supervisor = true}, exige CANCELAR_VENDA ou a liberação. O item guarda quando,
+     * quem cancelou e quem liberou, gravados em {@code venda_item} na finalização (F10.3).
      *
      * @return aviso para a tela, ou nulo (o desconto da venda é retirado se passar do novo total)
      */
     public String cancelarItem(Sessao sessao, Carrinho carrinho, int sequencia, Liberacao liberacao) {
         sessao.exigir(Permissao.PDV);
         ItemCarrinho item = carrinho.itemAtivo(sequencia);
-        transacao.executar(con -> {
-            Liberacao liberou = parametros(con).cancelarItemExigeSupervisor()
+        OffsetDateTime agora = OffsetDateTime.now(clock);
+        Optional<Liberacao> liberou = transacao.executar(con -> {
+            Liberacao valeu = parametros(con).cancelarItemExigeSupervisor()
                     ? sessao.exigirOuLiberado(Permissao.CANCELAR_VENDA, liberacao) : null;
             auditoria.registrar(con, sessao, AcaoAuditoria.ITEM_CANCELADO, ENTIDADE_VENDA, null,
                     "Item " + item.sequencia() + " cancelado durante a venda: " + descrever(item)
-                            + (liberou == null ? "" : " (" + liberou.descricao() + ")"));
-            return null;
+                            + (valeu == null ? "" : " (" + valeu.descricao() + ")"));
+            return Optional.ofNullable(valeu);
         });
-        boolean descontoRetirado = carrinho.cancelar(sequencia);
+        boolean descontoRetirado = carrinho.cancelar(sequencia, new ItemCarrinho.Cancelamento(agora,
+                sessao.usuarioId(), liberou.map(Liberacao::usuarioId).orElse(null)));
         return descontoRetirado ? "O desconto da venda foi retirado porque ficou maior que o novo total. "
                 + "Se for o caso, aplique de novo (F5)." : null;
     }
@@ -291,6 +294,19 @@ public class VendaService {
     /** Abandona a venda em andamento (Esc): auditoria {@code VENDA_ABANDONADA} com os itens e o total; nada vai para {@code venda}. */
     public void abandonar(Sessao sessao, Carrinho carrinho) {
         sessao.exigir(Permissao.PDV);
+        registrarAbandono(sessao, carrinho, "");
+    }
+
+    /**
+     * Abandona a venda em andamento quando a sessão termina e o usuário não pode continuar (F10.1 e F10.2): acesso
+     * encerrado pelo supervisor ou "Trocar usuário" na tela bloqueada. Não confere a permissão (o usuário pode ter
+     * perdido o acesso): só registra {@code VENDA_ABANDONADA} com o motivo e esvazia o carrinho.
+     */
+    public void abandonarNoEncerramento(Sessao sessao, Carrinho carrinho, String motivo) {
+        registrarAbandono(sessao, carrinho, " (" + motivo + ")");
+    }
+
+    private void registrarAbandono(Sessao sessao, Carrinho carrinho, String complemento) {
         if (carrinho.vazio()) {
             return;
         }
@@ -303,7 +319,7 @@ public class VendaService {
                             + Formatos.moeda(carrinho.total())
                             + (carrinho.descontos().signum() > 0
                             ? " (descontos de " + Formatos.moeda(carrinho.descontos()) + ")" : "")
-                            + ". Itens: " + itens);
+                            + ". Itens: " + itens + complemento);
             return null;
         });
         carrinho.limpar();
@@ -323,7 +339,7 @@ public class VendaService {
      * carrinho continua como estava.
      */
     public VendaFinalizada finalizar(Sessao sessao, Carrinho carrinho, Recebimento recebimento) {
-        sessao.exigir(Permissao.PDV);
+        Sessao conferida = sessao.exigir(Permissao.PDV);
         if (!carrinho.temItensAtivos()) {
             throw new NegocioException("A venda não tem itens.");
         }
@@ -341,10 +357,14 @@ public class VendaService {
 
             boolean acimaDoLimite = !carrinho.dentroDoLimite(parametros.descontoMaximoPct());
             Liberacao liberacaoDesconto = null;
-            if (acimaDoLimite && !sessao.pode(Permissao.DESCONTO_ACIMA_LIMITE)) {
+            if (acimaDoLimite && !conferida.pode(Permissao.DESCONTO_ACIMA_LIMITE)) {
                 liberacaoDesconto = carrinho.liberacaoDescontoValida()
                         .orElseThrow(() -> new LimiteDescontoException(mensagemLimite(carrinho, parametros)));
+                conferida.exigirOuLiberado(Permissao.DESCONTO_ACIMA_LIMITE, liberacaoDesconto); // quem liberou ainda pode
             }
+            // Quem autorizou o desconto acima do limite (F10.3): quem liberou, ou o próprio operador com a permissão.
+            Long descontoLiberadoPor = !acimaDoLimite ? null
+                    : liberacaoDesconto == null ? sessao.usuarioId() : liberacaoDesconto.usuarioId();
 
             Set<Integer> formasAtivas = formaPagamentoDAO.listarAtivas(con).stream().map(FormaPagamento::id)
                     .collect(Collectors.toSet());
@@ -386,7 +406,8 @@ public class VendaService {
             Map<Integer, BigDecimal> rateio = carrinho.rateio();
             BigDecimal troco = recebimento.troco();
             long vendaId = vendaDAO.inserir(con, caixa.id(), sessao.usuarioId(), agora, new VendaDAO.Totais(
-                    carrinho.valorBruto(), carrinho.descontoItens(), carrinho.descontoVenda(), total, troco));
+                    carrinho.valorBruto(), carrinho.descontoItens(), carrinho.descontoVenda(), total, troco),
+                    descontoLiberadoPor);
 
             record Vendido(ItemCarrinho item, long itemId) {
             }
@@ -395,10 +416,12 @@ public class VendaService {
                 BigDecimal custo = produtos.get(item.produto().id()).custo();
                 BigDecimal rateado = item.cancelado() ? Dinheiro.ZERO : rateio.get(item.sequencia());
                 BigDecimal liquido = item.valorBruto().subtract(item.desconto()).subtract(rateado);
+                ItemCarrinho.Cancelamento c = item.cancelamento();
                 long itemId = vendaDAO.inserirItem(con, vendaId, new VendaDAO.Item(item.sequencia(),
                         item.produto().id(), item.quantidade(), item.precoUnitario(), item.valorBruto(),
                         item.desconto(), rateado, liquido, custo, Dinheiro.multiplicar(item.quantidade(), custo),
-                        item.promocaoId(), item.cancelado()));
+                        item.promocaoId(), item.cancelado(), c == null ? null : c.em(),
+                        c == null ? null : c.porUsuarioId(), c == null ? null : c.liberadoPorUsuarioId()));
                 if (!item.cancelado()) {
                     movimentar.add(new Vendido(item, itemId));
                 }
@@ -439,8 +462,8 @@ public class VendaService {
 
     /**
      * Cancela uma venda finalizada da sessão aberta (6.6): CANCELAR_VENDA ou liberação; motivo obrigatório. Numa
-     * transação: status {@code CANCELADA} com quem autorizou, quando e o motivo; {@code CANCELAMENTO_VENDA} para cada
-     * item não cancelado; auditoria com o operador e quem liberou.
+     * transação: status {@code CANCELADA} com quem autorizou, quem executou (F10.3), quando e o motivo;
+     * {@code CANCELAMENTO_VENDA} para cada item não cancelado; auditoria com o operador e quem liberou.
      */
     public void cancelar(Sessao sessao, long vendaId, String motivo, Liberacao liberacao) {
         sessao.exigir(Permissao.PDV);
@@ -466,7 +489,7 @@ public class VendaService {
                 throw new NegocioException("A venda nº " + vendaId + " já está cancelada.");
             }
             long autorizou = liberou == null ? sessao.usuarioId() : liberou.usuarioId();
-            vendaDAO.cancelar(con, vendaId, agora, autorizou, motivoFinal);
+            vendaDAO.cancelar(con, vendaId, agora, autorizou, sessao.usuarioId(), motivoFinal);
             List<VendaDAO.ItemVendido> itens = new ArrayList<>(vendaDAO.itensVendidos(con, vendaId));
             itens.sort(Comparator.comparingLong(VendaDAO.ItemVendido::produtoId));
             for (VendaDAO.ItemVendido item : itens) {
@@ -532,7 +555,7 @@ public class VendaService {
 
     private void conferirLimite(Sessao sessao, Carrinho carrinho, Liberacao liberacao) {
         ParametrosVenda parametros = transacao.executar(this::parametros);
-        if (!precisaLiberacao(sessao, carrinho, parametros)) {
+        if (!precisaLiberacao(sessao.conferida(), carrinho, parametros)) {
             return;
         }
         if (liberacao == null) {

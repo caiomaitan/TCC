@@ -7,10 +7,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** Acesso tipado às configurações (5.2): padrão da V2, valores inválidos e ida e volta pela tabela. Sem banco. */
+/** Acesso tipado às configurações (5.2): padrão da V2 e da V4, valores inválidos e ida e volta pela tabela. Sem banco. */
 class ConfiguracoesTest {
 
-    /** As linhas que a V2 insere. */
+    /** As linhas que a V2 insere, mais a da V4 (bloqueio por inatividade, F10.2). */
     static Map<String, String> v2() {
         Map<String, String> m = new HashMap<>();
         m.put("empresa.nome", "Minha Loja");
@@ -30,6 +30,7 @@ class ConfiguracoesTest {
         m.put("backup.pg_dump", "");
         m.put("backup.manter_ultimos", "15");
         m.put("comprovante.rodape", "Obrigado pela preferência!");
+        m.put("seguranca.inatividade_minutos", "15");
         return m;
     }
 
@@ -50,6 +51,9 @@ class ConfiguracoesTest {
         m.put("balanca.prefixo", "22");
         m.put("balanca.digitos_codigo", "7");
         m.put("balanca.tipo_valor", "VOLUME");
+        m.put("seguranca.inatividade_minutos", "481");
+        assertThat(Configuracoes.de(m)).isEqualTo(Configuracoes.PADRAO);
+        m.put("seguranca.inatividade_minutos", "-1");
         assertThat(Configuracoes.de(m)).isEqualTo(Configuracoes.PADRAO);
     }
 
@@ -65,7 +69,9 @@ class ConfiguracoesTest {
         m.put("balanca.ativo", "true");
         m.put("balanca.digitos_codigo", "4");
         m.put("balanca.tipo_valor", "peso");
+        m.put("seguranca.inatividade_minutos", "0");
         Configuracoes c = Configuracoes.de(m);
+        assertThat(c.inatividadeMinutos()).isZero(); // 0 desliga o bloqueio
         assertThat(c.loja().nome()).isEqualTo("Mercado Bom Preço");
         assertThat(c.venda().permitirEstoqueNegativo()).isFalse();
         assertThat(c.venda().descontoMaximoPct()).isEqualByComparingTo("7.5");

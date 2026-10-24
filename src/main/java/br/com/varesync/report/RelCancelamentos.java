@@ -21,13 +21,22 @@ import java.util.regex.Pattern;
  * R16 — Cancelamentos (7.3): vendas canceladas (pela data do cancelamento) e itens cancelados durante a venda (pela
  * data da venda) no período, com o operador da venda, o motivo, quem cancelou e quem liberou.
  *
+ * <p>Desde a V4 (F10.3) a venda grava quem fez cada cancelamento e quem liberou:
+ * <ul>
+ * <li>Venda: quem cancelou é {@code venda.cancelamento_operador_id}; quem liberou é {@code venda.cancelada_por}
+ * quando é outra pessoa (a liberação do supervisor, 6.6).</li>
+ * <li>Item: quem cancelou é {@code venda_item.cancelado_por}; quem liberou, {@code cancelamento_liberado_por}.</li>
+ * </ul>
+ *
+ * <p>Registros anteriores à V4 (colunas nulas) continuam lidos como antes:
  * <ul>
  * <li>Venda: quem cancelou é o usuário da auditoria {@code VENDA_CANCELADA}; quem liberou é
- * {@code venda.cancelada_por} quando é outra pessoa (a liberação do supervisor, 6.6).</li>
+ * {@code venda.cancelada_por} quando é outra pessoa.</li>
  * <li>Item: quem cancelou é o operador da venda (o F6 é dado durante a venda); quem liberou vem da auditoria
  * {@code ITEM_CANCELADO} desse item ("Item 2 cancelado durante a venda: … (liberado por Nome (login))"), a última
- * do mesmo operador e terminal antes da finalização. Itens de vendas abandonadas não aparecem (não há venda).</li>
+ * do mesmo operador e terminal antes da finalização.</li>
  * </ul>
+ * Itens de vendas abandonadas não aparecem (não há venda).
  */
 public final class RelCancelamentos implements Relatorio<RelCancelamentos.Linha> {
 
@@ -77,14 +86,16 @@ public final class RelCancelamentos implements Relatorio<RelCancelamentos.Linha>
         String sql = """
                 SELECT v.id, v.cancelada_em, v.valor_total, v.motivo_cancelamento, op.nome AS operador,
                        aut.id AS autorizou_id, aut.nome AS autorizou, aut.login AS autorizou_login,
-                       fez.id AS fez_id, fez.nome AS fez,
+                       COALESCE(exe.id, fez.id) AS fez_id, COALESCE(exe.nome, fez.nome) AS fez,
                        (SELECT count(*) FROM venda_item vi WHERE vi.venda_id = v.id AND NOT vi.cancelado) AS itens
                   FROM venda v
                   JOIN usuario op  ON op.id = v.usuario_id
                   JOIN usuario aut ON aut.id = v.cancelada_por
+                  LEFT JOIN usuario exe ON exe.id = v.cancelamento_operador_id
                   LEFT JOIN LATERAL (SELECT a.usuario_id
                                        FROM auditoria a
-                                      WHERE a.acao = ? AND a.entidade = ? AND a.entidade_id = v.id
+                                      WHERE v.cancelamento_operador_id IS NULL
+                                        AND a.acao = ? AND a.entidade = ? AND a.entidade_id = v.id
                                       ORDER BY a.id DESC
                                       LIMIT 1) a ON TRUE
                   LEFT JOIN usuario fez ON fez.id = a.usuario_id
@@ -117,16 +128,20 @@ public final class RelCancelamentos implements Relatorio<RelCancelamentos.Linha>
             throws SQLException {
         String sql = """
                 SELECT v.id, v.data_hora, vi.sequencia, vi.quantidade, vi.valor_bruto, p.nome AS produto, p.unidade,
-                       um.fracionada, op.nome AS operador, a.descricao AS auditoria
+                       um.fracionada, op.nome AS operador, a.descricao AS auditoria,
+                       cp.nome AS cancelou, lib.nome AS liberou, lib.login AS liberou_login
                   FROM venda_item vi
                   JOIN venda v           ON v.id = vi.venda_id
                   JOIN caixa_sessao cs   ON cs.id = v.caixa_sessao_id
                   JOIN produto p         ON p.id = vi.produto_id
                   JOIN unidade_medida um ON um.sigla = p.unidade
                   JOIN usuario op        ON op.id = v.usuario_id
+                  LEFT JOIN usuario cp   ON cp.id = vi.cancelado_por
+                  LEFT JOIN usuario lib  ON lib.id = vi.cancelamento_liberado_por
                   LEFT JOIN LATERAL (SELECT a.descricao
                                        FROM auditoria a
-                                      WHERE a.acao = ? AND a.usuario_id = v.usuario_id
+                                      WHERE vi.cancelado_por IS NULL
+                                        AND a.acao = ? AND a.usuario_id = v.usuario_id
                                         AND a.terminal = cs.terminal AND a.criado_em <= v.data_hora
                                         AND a.descricao LIKE 'Item ' || vi.sequencia || ' cancelado durante a venda:%'
                                       ORDER BY a.criado_em DESC, a.id DESC
@@ -142,12 +157,17 @@ public final class RelCancelamentos implements Relatorio<RelCancelamentos.Linha>
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String operador = rs.getString("operador");
+                    String cancelou = rs.getString("cancelou");
+                    String liberou = rs.getString("liberou");
+                    // Desde a V4 pelas colunas do item; antes dela, pelo operador e pelo texto da auditoria.
+                    String liberado = cancelou == null ? liberadoPor(rs.getString("auditoria"))
+                            : liberou == null ? "" : liberou + " (" + rs.getString("liberou_login") + ")";
                     linhas.add(new Linha(rs.getObject("data_hora", OffsetDateTime.class), ITEM, rs.getLong("id"),
                             "Item " + rs.getInt("sequencia") + ": " + Formatos.quantidade(
                                     rs.getBigDecimal("quantidade"), rs.getBoolean("fracionada")) + " "
                                     + rs.getString("unidade") + " x " + rs.getString("produto"),
-                            rs.getBigDecimal("valor_bruto"), operador, MOTIVO_ITEM, operador,
-                            liberadoPor(rs.getString("auditoria"))));
+                            rs.getBigDecimal("valor_bruto"), operador, MOTIVO_ITEM,
+                            cancelou == null ? operador : cancelou, liberado));
                 }
             }
         }

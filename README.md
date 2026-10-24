@@ -92,11 +92,22 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
 3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
-   negativo, desconto máximo do operador, cancelamento de item com supervisor), margem mínima, balança, backup e
-   formas de pagamento.
+   negativo, desconto máximo do operador, cancelamento de item com supervisor), margem mínima, balança, segurança
+   (bloqueio por inatividade), backup e formas de pagamento.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
+
+**Segurança da sessão.**
+- **Bloqueio por inatividade:** depois de 15 minutos sem teclado nem mouse (padrão), a tela mostra **Sessão
+  bloqueada** por cima do que estava aberto, inclusive a venda em andamento no PDV. Para continuar, a pessoa logada
+  digita a própria senha; senha errada conta para o bloqueio de 5 tentativas. **Trocar usuário** faz o log off (e
+  pergunta antes se há venda em andamento). O tempo fica em **Configurações › Segurança** (0 desliga) e vale a partir
+  do próximo login.
+- **Acesso alterado pelo supervisor:** o que o supervisor muda em **Usuários** vale na próxima ação de quem está
+  logado, em qualquer computador. Permissão retirada: a ação é recusada e o menu deixa de mostrar a rotina, sem log
+  off. Usuário inativado ou com a senha redefinida: o sistema volta ao login com o aviso "Seu acesso foi alterado pelo
+  supervisor" (no PDV, a venda em andamento é abandonada e fica na auditoria).
 
 ## 5. Configuração local e logs
 

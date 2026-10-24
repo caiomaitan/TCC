@@ -27,7 +27,7 @@ public class UsuarioDAO {
 
     private static final String COLUNAS = """
             SELECT u.id, u.login, u.nome, u.senha_hash, u.supervisor, u.ativo, u.deve_trocar_senha,
-                   u.tentativas_falhas, u.bloqueado_ate, u.ultimo_login_em,
+                   u.tentativas_falhas, u.bloqueado_ate, u.ultimo_login_em, u.versao_acesso,
                    ARRAY(SELECT up.permissao_codigo FROM usuario_permissao up
                           WHERE up.usuario_id = u.id ORDER BY up.permissao_codigo) AS permissoes
               FROM usuario u
@@ -77,6 +77,17 @@ public class UsuarioDAO {
 
     public Optional<Usuario> buscarPorIdParaAtualizar(Connection con, long id) throws SQLException {
         return buscarCredencialPorIdParaAtualizar(con, id).map(Credencial::usuario);
+    }
+
+    /**
+     * Situação atual do acesso (F10.1), numa consulta só e sem travar: ativo, supervisor, troca obrigatória, versão e
+     * permissões.
+     */
+    public Optional<Usuario> buscarPorId(Connection con, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(COLUNAS + " WHERE u.id = ?")) {
+            ps.setLong(1, id);
+            return lerCredencial(ps).map(Credencial::usuario);
+        }
     }
 
     public List<Usuario> listar(Connection con) throws SQLException {
@@ -155,10 +166,18 @@ public class UsuarioDAO {
         }
     }
 
-    /** Substitui as permissões gravadas do usuário. */
+    /**
+     * Substitui as permissões gravadas do usuário, excluindo e incluindo só as que mudaram: cada linha incluída ou
+     * excluída muda a versão do acesso (trigger da V4, F10.1).
+     */
     public void definirPermissoes(Connection con, long id, Set<Permissao> permissoes) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement("DELETE FROM usuario_permissao WHERE usuario_id = ?")) {
+        String excluir = """
+                DELETE FROM usuario_permissao
+                 WHERE usuario_id = ? AND NOT (permissao_codigo = ANY (?))
+                """;
+        try (PreparedStatement ps = con.prepareStatement(excluir)) {
             ps.setLong(1, id);
+            ps.setArray(2, con.createArrayOf("varchar", permissoes.stream().map(Permissao::name).toArray()));
             ps.executeUpdate();
         }
         if (permissoes.isEmpty()) {
@@ -167,6 +186,7 @@ public class UsuarioDAO {
         String sql = """
                 INSERT INTO usuario_permissao (usuario_id, permissao_codigo)
                 VALUES (?, ?)
+                ON CONFLICT DO NOTHING
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             for (Permissao permissao : permissoes) {
@@ -259,7 +279,8 @@ public class UsuarioDAO {
                 rs.getInt("tentativas_falhas"),
                 rs.getObject("bloqueado_ate", OffsetDateTime.class),
                 rs.getObject("ultimo_login_em", OffsetDateTime.class),
-                lerPermissoes(rs.getArray("permissoes")));
+                lerPermissoes(rs.getArray("permissoes")),
+                rs.getInt("versao_acesso"));
     }
 
     private static Set<Permissao> lerPermissoes(Array array) throws SQLException {

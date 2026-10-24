@@ -8,7 +8,10 @@ import br.com.varesync.controller.ConexaoController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrincipalController;
+import br.com.varesync.model.Configuracoes;
+import br.com.varesync.service.SessaoEncerradaException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.BloqueioInatividade;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Icone;
 import br.com.varesync.ui.Tarefas;
@@ -17,6 +20,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -29,6 +35,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +57,8 @@ public class App extends Application implements Navegacao {
     private PrincipalController principal;
     /** Usuário logado; nulo fora da janela principal e da troca de senha. */
     private Sessao sessao;
+    /** Bloqueio por inatividade da janela principal e do PDV (F10.2); nulo fora da janela principal. */
+    private BloqueioInatividade bloqueio;
 
     public static void main(String[] args) {
         launch(args);
@@ -88,10 +97,18 @@ public class App extends Application implements Navegacao {
 
     @Override
     public void mostrarLogin(String loginSugerido) {
+        mostrarLogin(loginSugerido, null);
+    }
+
+    /** @param aviso motivo de ter voltado ao login (nulo no log off normal) */
+    private void mostrarLogin(String loginSugerido, String aviso) {
         encerrarPrincipal();
         sessao = null;
         LoginController controller = (LoginController) mostrar("/fxml/login.fxml", 440, 380, false);
         controller.sugerirLogin(loginSugerido);
+        if (aviso != null) {
+            controller.avisar(aviso);
+        }
     }
 
     @Override
@@ -102,6 +119,7 @@ public class App extends Application implements Navegacao {
             mostrar("/fxml/troca-senha.fxml", 520, 440, false);
         } else {
             principal = (PrincipalController) mostrar("/fxml/principal.fxml", LARGURA_MINIMA, ALTURA_MINIMA, true);
+            ligarBloqueio();
         }
     }
 
@@ -117,6 +135,88 @@ public class App extends Application implements Navegacao {
     @Override
     public void sair() {
         Platform.exit();
+    }
+
+    @Override
+    public Sessao sessaoAtual() {
+        return sessao;
+    }
+
+    // ---- Sessão revalidada (F10.1) e bloqueio por inatividade (F10.2) ----
+
+    /**
+     * Uma operação viu que a versão do acesso mudou: a sessão passa a ser a nova (com as permissões atuais) e o menu
+     * é refeito, sem log off. Avisos repetidos (telas que ainda têm a sessão antiga) são ignorados.
+     */
+    private void trocarSessao(Sessao nova) {
+        if (sessao == null || nova.usuarioId() != sessao.usuarioId() || nova.versaoAcesso() <= sessao.versaoAcesso()) {
+            return;
+        }
+        log.info("Acesso de {} alterado (versão {} → {}): sessão trocada", nova.usuario().login(),
+                sessao.versaoAcesso(), nova.versaoAcesso());
+        sessao = nova;
+        if (principal != null) {
+            principal.trocarSessao(nova);
+        }
+    }
+
+    /**
+     * Usuário inativado ou com a senha redefinida pelo supervisor: abandona a venda do PDV (com
+     * {@code VENDA_ABANDONADA}), fecha as outras janelas, registra o logout e volta ao login com o aviso.
+     */
+    private void encerrarSessao(Sessao encerrada) {
+        if (sessao == null || encerrada.usuarioId() != sessao.usuarioId()) {
+            return;
+        }
+        log.info("Acesso de {} encerrado pelo supervisor: log off", sessao.usuario().login());
+        String login = sessao.usuario().login();
+        if (principal != null) {
+            principal.encerrarSessao();
+        }
+        desligarBloqueio();
+        fecharOutrasJanelas();
+        registrarLogout();
+        mostrarLogin(login, SessaoEncerradaException.MENSAGEM);
+    }
+
+    /** "Trocar usuário" na tela bloqueada: com venda em andamento, pergunta antes; depois faz o log off. */
+    private void trocarUsuario(Window telaBloqueada) {
+        if (principal != null && !principal.liberarParaTrocaDeUsuario(telaBloqueada)) {
+            return;
+        }
+        desligarBloqueio();
+        fecharOutrasJanelas();
+        logoff();
+    }
+
+    private void ligarBloqueio() {
+        int minutos;
+        try {
+            minutos = contexto.acessoService().inatividadeMinutos();
+        } catch (RuntimeException e) {
+            minutos = Configuracoes.PADRAO.inatividadeMinutos();
+            log.error("Falha ao ler o tempo de inatividade; usando {} min", minutos, e);
+        }
+        bloqueio = BloqueioInatividade.iniciar(minutos, sessao.usuario().descricao(),
+                senha -> contexto.acessoService().desbloquear(sessao, senha), this::trocarUsuario);
+    }
+
+    private void desligarBloqueio() {
+        if (bloqueio != null) {
+            bloqueio.parar();
+            bloqueio = null;
+        }
+    }
+
+    /** Fecha PDV, diálogos e menus abertos sobre a janela principal (do mais recente para o mais antigo). */
+    private void fecharOutrasJanelas() {
+        List<Window> abertas = new ArrayList<>(Window.getWindows());
+        Collections.reverse(abertas);
+        for (Window janela : abertas) {
+            if (janela != palco) {
+                janela.hide();
+            }
+        }
     }
 
     // ---- Inicialização ----
@@ -142,6 +242,9 @@ public class App extends Application implements Navegacao {
                 Banco.testarConexao(config);
                 updateMessage("Atualizando o banco de dados…");
                 contexto = AppContext.iniciar(config);
+                contexto.acessoService().observarAcesso(
+                        nova -> Platform.runLater(() -> trocarSessao(nova)),
+                        encerrada -> Platform.runLater(() -> encerrarSessao(encerrada)));
                 return contexto.acessoService().precisaPrimeiroAcesso();
             }
         };
@@ -188,6 +291,7 @@ public class App extends Application implements Navegacao {
     }
 
     private void encerrarPrincipal() {
+        desligarBloqueio();
         if (principal != null) {
             principal.encerrar();
             principal = null;

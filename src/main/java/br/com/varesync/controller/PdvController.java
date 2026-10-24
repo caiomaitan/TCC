@@ -48,6 +48,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Duration;
 
 /**
@@ -400,6 +401,44 @@ public class PdvController {
         carrinho = new Carrinho();
         quantidadeProxima = null;
         atualizarTela();
+    }
+
+    /**
+     * Sessão encerrada pelo supervisor (F10.1): a venda em andamento é abandonada sem perguntar, com
+     * {@code VENDA_ABANDONADA}, e o PDV fecha.
+     */
+    void encerrarSessao() {
+        try {
+            vendaService.abandonarNoEncerramento(sessao, carrinho, "sessão encerrada: acesso alterado pelo supervisor");
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mensagem(e); // fica no log; o log off continua
+        }
+        carrinho = new Carrinho();
+        janela.close();
+    }
+
+    /**
+     * "Trocar usuário" na tela bloqueada (F10.2): com venda em andamento, pergunta (por cima da tela bloqueada) se
+     * abandona; se sim, abandona com {@code VENDA_ABANDONADA} e fecha o PDV.
+     *
+     * @return false se a pessoa preferiu não abandonar a venda
+     */
+    boolean liberarParaTrocaDeUsuario(Window dono) {
+        if (!carrinho.vazio()) {
+            if (!Dialogos.confirmar(dono, "Há uma venda em andamento (" + resumoDaVenda() + "). Abandonar a venda e "
+                    + "trocar de usuário?")) {
+                return false;
+            }
+            try {
+                vendaService.abandonarNoEncerramento(sessao, carrinho, "troca de usuário na tela bloqueada");
+            } catch (RuntimeException e) {
+                TratadorExcecoes.mostrar(e);
+                return false;
+            }
+            carrinho = new Carrinho();
+        }
+        janela.close();
+        return true;
     }
 
     /** Fechar a janela: sem venda, sai; com venda, pergunta se abandona. */

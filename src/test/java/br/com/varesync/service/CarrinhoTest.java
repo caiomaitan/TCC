@@ -18,6 +18,10 @@ class CarrinhoTest {
     static final ProdutoVenda QUEIJO = new ProdutoVenda(2, "2", "Queijo muçarela", "KG", true,
             new BigDecimal("39.90"), new BigDecimal("28.0000"), true, new BigDecimal("1"));
 
+    /** Cancelamento sem liberação, feito pelo usuário 1 (os dados só são gravados na finalização). */
+    static final ItemCarrinho.Cancelamento CANCELAMENTO = new ItemCarrinho.Cancelamento(
+            java.time.OffsetDateTime.parse("2026-10-24T10:00:00-03:00"), 1, null);
+
     private static BigDecimal v(String valor) {
         return new BigDecimal(valor);
     }
@@ -95,7 +99,7 @@ class CarrinhoTest {
         carrinho.definirDescontoItem(2, v("0.77"));
         carrinho.definirDescontoVenda(v("1.00"));
 
-        assertThat(carrinho.cancelar(2)).isFalse();
+        assertThat(carrinho.cancelar(2, CANCELAMENTO)).isFalse();
         ItemCarrinho cancelado = carrinho.item(2).orElseThrow();
         assertThat(cancelado.cancelado()).isTrue();
         assertThat(cancelado.desconto()).isEqualByComparingTo("0");
@@ -103,14 +107,14 @@ class CarrinhoTest {
         assertThat(carrinho.total()).isEqualByComparingTo("15.47");
         assertThat(carrinho.rateio()).containsOnlyKeys(1);
         assertThat(carrinho.itens()).hasSize(2); // continua na lista (riscado)
-        assertThatThrownBy(() -> carrinho.cancelar(2)).hasMessageContaining("já foi cancelado");
+        assertThatThrownBy(() -> carrinho.cancelar(2, CANCELAMENTO)).hasMessageContaining("já foi cancelado");
     }
 
     @Test
     void cancelarItemQueDeixaODescontoDaVendaMaiorQueOTotalRetiraODesconto() {
         Carrinho carrinho = carrinhoDoAceite();
         carrinho.definirDescontoVenda(v("20.00"));
-        assertThat(carrinho.cancelar(1)).isTrue();
+        assertThat(carrinho.cancelar(1, CANCELAMENTO)).isTrue();
         assertThat(carrinho.descontoVenda()).isEqualByComparingTo("0");
         assertThat(carrinho.total()).isEqualByComparingTo("13.77");
     }
@@ -120,7 +124,7 @@ class CarrinhoTest {
         Carrinho carrinho = carrinhoDoAceite();
         carrinho.adicionar(REFRIGERANTE, v("2"), REFRIGERANTE.precoVenda(), null);
         assertThat(carrinho.quantidadeDoProduto(1)).isEqualByComparingTo("5");
-        carrinho.cancelar(1);
+        carrinho.cancelar(1, CANCELAMENTO);
         assertThat(carrinho.quantidadeDoProduto(1)).isEqualByComparingTo("2");
         assertThat(carrinho.ultimoItem()).hasValueSatisfying(i -> assertThat(i.sequencia()).isEqualTo(3));
     }
@@ -137,7 +141,7 @@ class CarrinhoTest {
         assertThat(carrinho.liberacaoDescontoValida()).contains(liberacao);
 
         carrinho.definirDescontoVenda(v("3.02"));
-        carrinho.cancelar(2); // o desconto passa a ser 3,02 de 16,47: maior que o liberado
+        carrinho.cancelar(2, CANCELAMENTO); // o desconto passa a ser 3,02 de 16,47: maior que o liberado
         assertThat(carrinho.liberacaoDescontoValida()).isEmpty();
     }
 

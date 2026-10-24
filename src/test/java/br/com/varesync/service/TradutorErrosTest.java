@@ -25,6 +25,14 @@ class TradutorErrosTest {
     }
 
     @Test
+    void negocioEmbrulhadoPeloHandlerDoFxmlTambemPassa() {
+        NegocioException original = new PermissaoNegadaException("Sem permissão");
+        RuntimeException embrulhada = new RuntimeException(
+                new java.lang.reflect.InvocationTargetException(original));
+        assertThat(TradutorErros.traduzir(embrulhada)).isSameAs(original);
+    }
+
+    @Test
     void unicoUsaMensagemDaConstraint() {
         PSQLException erro = erroPostgres("23505", "duplicate key value", "uq_pcb_codigo");
 

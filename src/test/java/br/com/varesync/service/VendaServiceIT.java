@@ -405,6 +405,74 @@ class VendaServiceIT extends IntegracaoBase {
     }
 
     @Test
+    void cancelamentosELiberacoesGravadosNaVendaF103() throws Exception {
+        configurar("venda.cancelar_item_exige_supervisor", "true");
+        Sessao caixa1 = operador("caixa1", Permissao.PDV);
+        t.caixa.abrir(caixa1, v("0"));
+        String agora = "'" + t.relogio.instant() + "'::timestamptz";
+
+        // Venda 1: item 2 cancelado com a liberação do supervisor; desconto acima do limite liberado.
+        Carrinho c1 = new Carrinho();
+        ler(caixa1, c1, "2*" + COD_REFRIGERANTE); // 10,98
+        ler(caixa1, c1, COD_REFRIGERANTE);
+        vendas.cancelarItem(caixa1, c1, 2, t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+        vendas.aplicarDescontoVenda(caixa1, c1, TipoDesconto.VALOR, v("1.00"),
+                t.acesso.liberar("admin", "segredo1", Permissao.DESCONTO_ACIMA_LIMITE));
+        long venda1 = vendas.finalizar(caixa1, c1, emDinheiro(caixa1, c1, "9.98")).vendaId();
+        assertThat(linhas("SELECT sequencia, cancelado, cancelado_em = " + agora + ", cancelado_por, "
+                + "cancelamento_liberado_por FROM venda_item WHERE venda_id = " + venda1 + " ORDER BY sequencia"))
+                .containsExactly(Arrays.asList(1, false, null, null, null),
+                        Arrays.asList(2, true, true, caixa1.usuarioId(), admin.usuarioId()));
+        assertThat(linhas("SELECT desconto_liberado_por FROM venda WHERE id = " + venda1))
+                .containsExactly(List.of(admin.usuarioId()));
+
+        // Venda 2: desconto dentro do limite → ninguém autorizou; item cancelado sem liberação (quem tem a permissão).
+        Carrinho c2 = new Carrinho();
+        ler(admin, c2, COD_REFRIGERANTE);
+        ler(admin, c2, COD_REFRIGERANTE);
+        vendas.cancelarItem(admin, c2, 1, null);
+        vendas.aplicarDescontoVenda(admin, c2, TipoDesconto.VALOR, v("0.10"), null);
+        long venda2 = vendas.finalizar(admin, c2, emDinheiro(admin, c2, "5.39")).vendaId();
+        assertThat(linhas("SELECT cancelado_por, cancelamento_liberado_por FROM venda_item WHERE venda_id = " + venda2
+                + " AND cancelado")).containsExactly(Arrays.asList(admin.usuarioId(), null));
+        assertThat(linhas("SELECT desconto_liberado_por FROM venda WHERE id = " + venda2))
+                .containsExactly(Arrays.asList((Object) null));
+
+        // Venda 3: acima do limite por quem tem DESCONTO_ACIMA_LIMITE → ele mesmo autorizou.
+        Carrinho c3 = new Carrinho();
+        ler(admin, c3, COD_REFRIGERANTE);
+        vendas.aplicarDescontoVenda(admin, c3, TipoDesconto.PERCENTUAL, v("20"), null);
+        long venda3 = vendas.finalizar(admin, c3, emDinheiro(admin, c3, "4.39")).vendaId();
+        assertThat(linhas("SELECT desconto_liberado_por FROM venda WHERE id = " + venda3))
+                .containsExactly(List.of(admin.usuarioId()));
+
+        // Cancelar a venda 1 com liberação: cancelada_por = quem autorizou; cancelamento_operador_id = quem fez.
+        vendas.cancelar(caixa1, venda1, "Cliente desistiu",
+                t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+        // Sem liberação, por quem tem a permissão: os dois são a mesma pessoa.
+        vendas.cancelar(admin, venda2, "Erro de digitação", null);
+        assertThat(linhas("SELECT id, cancelada_por, cancelamento_operador_id FROM venda WHERE status = 'CANCELADA' "
+                + "ORDER BY id")).containsExactly(List.of(venda1, admin.usuarioId(), caixa1.usuarioId()),
+                List.of(venda2, admin.usuarioId(), admin.usuarioId()));
+    }
+
+    @Test
+    void checksNovosDaVendaRecusamCancelamentoSemQuemFez() throws Exception {
+        long caixaId = t.caixa.abrir(admin, v("0")).id();
+        Carrinho carrinho = new Carrinho();
+        ler(admin, carrinho, COD_REFRIGERANTE);
+        long id = vendas.finalizar(admin, carrinho, emDinheiro(admin, carrinho, "5.49")).vendaId();
+        try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
+            assertThatThrownBy(() -> st.executeUpdate("UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), "
+                    + "cancelada_por = " + admin.usuarioId() + ", motivo_cancelamento = 'x' WHERE id = " + id))
+                    .hasMessageContaining("ck_venda_cancel_operador");
+            assertThatThrownBy(() -> st.executeUpdate("UPDATE venda_item SET cancelado = TRUE WHERE venda_id = " + id))
+                    .hasMessageContaining("ck_vi_cancelamento");
+        }
+        assertThat(caixaId).isPositive();
+    }
+
+    @Test
     void cancelarItemComConfiguracaoLigadaPedeLiberacao() throws Exception {
         configurar("venda.cancelar_item_exige_supervisor", "true");
         Sessao caixa1 = operador("caixa1", Permissao.PDV);

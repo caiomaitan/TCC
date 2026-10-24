@@ -16,4 +16,7 @@ public interface Navegacao {
 
     /** Encerra o sistema (o logout é registrado ao fechar). */
     void sair();
+
+    /** Sessão atual (trocada quando o acesso do usuário muda, F10.1); as telas abertas depois recebem esta. */
+    Sessao sessaoAtual();
 }

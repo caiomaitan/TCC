@@ -178,8 +178,8 @@ public final class Carrinho {
      *
      * @return true se o desconto da venda passou a ser maior que o total e foi removido
      */
-    boolean cancelar(int sequencia) {
-        itemAtivo(sequencia).cancelar();
+    boolean cancelar(int sequencia, ItemCarrinho.Cancelamento dados) {
+        itemAtivo(sequencia).cancelar(dados);
         if (descontoVenda.compareTo(baseDescontoVenda()) > 0) {
             descontoVenda = Dinheiro.ZERO;
             return true;

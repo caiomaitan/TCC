@@ -144,7 +144,8 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
             throws Exception {
         Configuracoes c = configuracoes.carregar(admin);
         java.util.function.Function<Configuracoes.Backup, Configuracoes> com = b -> new Configuracoes(c.loja(),
-                c.venda(), c.margemMinimaPct(), c.diasSemGiro(), c.balanca(), b, c.rodapeComprovante());
+                c.venda(), c.margemMinimaPct(), c.diasSemGiro(), c.balanca(), b, c.rodapeComprovante(),
+                c.inatividadeMinutos());
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("backups", "", 15))))
                 .hasMessageContaining("caminho completo");
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("",

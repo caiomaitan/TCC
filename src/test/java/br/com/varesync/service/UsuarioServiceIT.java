@@ -137,7 +137,8 @@ class UsuarioServiceIT extends IntegracaoBase {
 
         // Com dois supervisores ativos, um pode inativar o outro.
         usuarios.alterarSituacao(sup2, admin.usuarioId(), false);
-        assertThat(buscar(admin.usuarioId()).ativo()).isFalse();
+        assertThat(usuarios.listar(sup2).stream().filter(u -> u.id() == admin.usuarioId()).findFirst().orElseThrow()
+                .ativo()).isFalse();
 
         // Agora sup2 é o último supervisor ativo: ninguém o inativa nem tira o perfil dele.
         assertThatThrownBy(() -> usuarios.alterarSituacao(sup2, id, false))
@@ -145,14 +146,20 @@ class UsuarioServiceIT extends IntegracaoBase {
         assertThatThrownBy(() -> usuarios.alterar(sup2, id, "Segundo Supervisor", false, Set.of()))
                 .hasMessage("Você não pode remover o seu próprio acesso de supervisor.");
 
-        // Mesmo um supervisor que sobrou numa sessão antiga (admin, já inativo) não consegue.
+        // A sessão antiga de admin (já inativo) é encerrada na próxima ação (F10.1).
         assertThatThrownBy(() -> usuarios.alterarSituacao(admin, id, false))
+                .isInstanceOf(SessaoEncerradaException.class);
+        // E, se uma sessão ainda não conferida chegasse lá (dois computadores ao mesmo tempo), a regra do último
+        // supervisor ativo continua no service, com os supervisores travados.
+        Sessao semConferencia = new Sessao(admin.usuario(), AcessoTeste.TERMINAL);
+        assertThatThrownBy(() -> usuarios.alterarSituacao(semConferencia, id, false))
                 .hasMessage(UsuarioService.SEM_SUPERVISOR);
-        assertThatThrownBy(() -> usuarios.alterar(admin, id, "Segundo Supervisor", false, Set.of()))
+        assertThatThrownBy(() -> usuarios.alterar(semConferencia, id, "Segundo Supervisor", false, Set.of()))
                 .hasMessage(UsuarioService.SEM_SUPERVISOR);
 
-        assertThat(buscar(id).supervisor()).isTrue();
-        assertThat(buscar(id).ativo()).isTrue();
+        Usuario segundo = usuarios.listar(sup2).stream().filter(u -> u.id() == id).findFirst().orElseThrow();
+        assertThat(segundo.supervisor()).isTrue();
+        assertThat(segundo.ativo()).isTrue();
 
         // Reativar devolve o segundo supervisor; aí o rebaixamento é permitido.
         usuarios.alterarSituacao(sup2, admin.usuarioId(), true);

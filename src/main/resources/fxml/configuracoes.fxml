@@ -102,6 +102,16 @@
                 <Label fx:id="exemploEtiqueta" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaSeguranca" text="Segurança">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Bloquear a tela depois de (minutos)" minWidth="230"/>
+                    <TextField fx:id="campoInatividade" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Sem teclado nem mouse por esse tempo, a janela principal e o PDV mostram a tela &quot;Sessão bloqueada&quot;: o que estava aberto continua como estava (inclusive a venda em andamento) e só volta com a senha de quem está logado. De 0 (não bloqueia) a 480. Vale a partir do próximo login."/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>

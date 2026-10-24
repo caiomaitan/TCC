@@ -1,6 +1,6 @@
 -- =====================================================================
 -- VareSync — teste de integridade do banco
--- Rode num banco já migrado (V1 e V2). Tudo é desfeito no ROLLBACK final.
+-- Rode num banco já migrado (V1 a V4). Tudo é desfeito no ROLLBACK final.
 --   psql:    psql -d varesync -v ON_ERROR_STOP=1 -f scripts/teste_integridade_banco.sql
 --   DBeaver: abrir o arquivo e "Executar script" (Alt+X); ver a aba Output.
 -- Cada cenário imprime "OK n"; qualquer falha interrompe com a mensagem do ASSERT.
@@ -138,8 +138,9 @@ BEGIN
     RETURNING id INTO v_item1;
 
     INSERT INTO venda_item (venda_id, sequencia, produto_id, quantidade, preco_unitario, valor_bruto,
-                            desconto, desconto_rateado, valor_liquido, custo_unitario, custo_total, cancelado)
-    VALUES (v_venda, 2, v_prod, 1, 5.49, 5.49, 0, 0, 5.49, 3.2000, 3.20, TRUE);
+                            desconto, desconto_rateado, valor_liquido, custo_unitario, custo_total, cancelado,
+                            cancelado_em, cancelado_por)
+    VALUES (v_venda, 2, v_prod, 1, 5.49, 5.49, 0, 0, 5.49, 3.2000, 3.20, TRUE, now(), v_user);
 
     INSERT INTO venda_pagamento (venda_id, forma_pagamento_id, valor)
     VALUES (v_venda, v_dinheiro, 6.00), (v_venda, v_pix, 10.00);
@@ -186,7 +187,8 @@ BEGIN
     -- 10. Cancelamento da venda ------------------------------------------
     v_ok := FALSE;
     BEGIN
-        UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), cancelada_por = v_user, motivo_cancelamento = ' '
+        UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), cancelada_por = v_user,
+                         cancelamento_operador_id = v_user, motivo_cancelamento = ' '
          WHERE id = v_venda;
     EXCEPTION WHEN check_violation THEN v_ok := TRUE;
     END;
@@ -194,13 +196,14 @@ BEGIN
 
     v_ok := FALSE;
     BEGIN
-        UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), cancelada_por = v_user WHERE id = v_venda;
+        UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), cancelada_por = v_user,
+                         cancelamento_operador_id = v_user WHERE id = v_venda;
     EXCEPTION WHEN check_violation THEN v_ok := TRUE;
     END;
     ASSERT v_ok, 'cancelamento sem motivo deveria falhar';
 
     UPDATE venda SET status = 'CANCELADA', cancelada_em = now(), cancelada_por = v_user,
-                     motivo_cancelamento = 'Cliente desistiu'
+                     cancelamento_operador_id = v_user, motivo_cancelamento = 'Cliente desistiu'
      WHERE id = v_venda;
     INSERT INTO movimento_estoque (produto_id, tipo, quantidade, venda_item_id, usuario_id)
     VALUES (v_prod, 'CANCELAMENTO_VENDA', 3, v_item1, v_user);

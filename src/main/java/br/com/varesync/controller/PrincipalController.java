@@ -41,6 +41,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Callback;
 import javafx.util.Duration;
 
@@ -62,11 +63,15 @@ public class PrincipalController {
     private final BackupService backupService;
     private final FechamentoCaixaPdf fechamentoPdf;
     private final Navegacao navegacao;
-    private final Sessao sessao;
+    /** Trocada quando o acesso do usuário muda em outro computador (F10.1). */
+    private Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
     private final Map<ItemMenu, Button> botoes = new EnumMap<>(ItemMenu.class);
     private ItemMenu itemAtual;
     private Timeline relogio;
+    /** PDV aberto (janela modal), para abandonar a venda no log off forçado ou na troca de usuário. */
+    private PdvController pdvAberto;
+    private boolean encerrado;
 
     @FXML private Label nomeLoja;
     @FXML private VBox menu;
@@ -95,14 +100,7 @@ public class PrincipalController {
     @FXML
     private void initialize() {
         nomeLoja.setText(acessoService.nomeEmpresa());
-        for (ItemMenu item : ItemMenu.visiveis(sessao)) {
-            Button botao = new Button(item.rotulo());
-            botao.getStyleClass().add("item-menu");
-            botao.setMaxWidth(Double.MAX_VALUE);
-            botao.setOnAction(e -> abrir(item));
-            botoes.put(item, botao);
-            menu.getChildren().add(botao);
-        }
+        montarMenu();
 
         statusUsuario.setText("Usuário: " + sessao.usuario().descricao());
         statusTerminal.setText("Terminal: " + config.terminalId());
@@ -118,7 +116,52 @@ public class PrincipalController {
         Platform.runLater(botoes.get(ItemMenu.PAINEL)::requestFocus);
     }
 
+    /** Itens do menu lateral: só as rotinas que a sessão permite; o item aberto continua marcado. */
+    private void montarMenu() {
+        botoes.clear();
+        menu.getChildren().clear();
+        for (ItemMenu item : ItemMenu.visiveis(sessao)) {
+            Button botao = new Button(item.rotulo());
+            botao.getStyleClass().add("item-menu");
+            botao.setMaxWidth(Double.MAX_VALUE);
+            botao.setOnAction(e -> abrir(item));
+            if (item == itemAtual) {
+                botao.getStyleClass().add(ITEM_SELECIONADO);
+            }
+            botoes.put(item, botao);
+            menu.getChildren().add(botao);
+        }
+    }
+
+    /**
+     * O acesso do usuário mudou em outro computador (F10.1): a sessão passa a ser esta, com as permissões atuais, e o
+     * menu é refeito. A tela aberta continua; se ela deixou de ser permitida, a próxima ação é recusada pelo service.
+     */
+    public void trocarSessao(Sessao nova) {
+        sessao = nova;
+        montarMenu();
+        statusUsuario.setText("Usuário: " + sessao.usuario().descricao());
+    }
+
+    /** Log off forçado (acesso encerrado pelo supervisor, F10.1): abandona a venda do PDV aberto, sem perguntar. */
+    public void encerrarSessao() {
+        if (pdvAberto != null) {
+            pdvAberto.encerrarSessao();
+        }
+    }
+
+    /**
+     * "Trocar usuário" na tela bloqueada (F10.2): com venda em andamento no PDV, pergunta (por cima de {@code dono})
+     * se abandona.
+     *
+     * @return false se a pessoa preferiu continuar com a venda
+     */
+    public boolean liberarParaTrocaDeUsuario(Window dono) {
+        return pdvAberto == null || pdvAberto.liberarParaTrocaDeUsuario(dono);
+    }
+
     public void encerrar() {
+        encerrado = true;
         if (relogio != null) {
             relogio.stop();
         }
@@ -177,10 +220,16 @@ public class PrincipalController {
             janela.setMinWidth(LARGURA_MINIMA_PDV);
             janela.setMinHeight(ALTURA_MINIMA_PDV);
             janela.setMaximized(true);
-            loader.<PdvController>getController().preparar(janela);
+            pdvAberto = loader.getController();
+            pdvAberto.preparar(janela);
             janela.showAndWait();
         } catch (RuntimeException e) {
             TratadorExcecoes.mostrar(e);
+        } finally {
+            pdvAberto = null;
+        }
+        if (encerrado) {
+            return; // o PDV fechou pelo log off (sessão encerrada ou troca de usuário)
         }
         atualizarCaixa();
         if (itemAtual == ItemMenu.PAINEL) {

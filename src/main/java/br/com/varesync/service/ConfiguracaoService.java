@@ -23,8 +23,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima, dias sem giro, balança e
- * formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
+ * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima, dias sem giro, balança,
+ * bloqueio por inatividade (F10.2) e formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
  * anterior e o novo.
  */
 public class ConfiguracaoService {
@@ -175,10 +175,14 @@ public class ConfiguracaoService {
             throw new NegocioException("Escolha o que a etiqueta de balança traz: preço total ou peso.");
         }
         Configuracoes.Backup backup = backup(c.backup());
+        if (c.inatividadeMinutos() < 0 || c.inatividadeMinutos() > Configuracoes.INATIVIDADE_MAXIMA) {
+            throw new NegocioException("O bloqueio por inatividade deve estar entre 0 (desligado) e "
+                    + Configuracoes.INATIVIDADE_MAXIMA + " minutos.");
+        }
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, backup, rodape);
+                margem, c.diasSemGiro(), balanca, backup, rodape, c.inatividadeMinutos());
     }
 
     /**
@@ -282,7 +286,12 @@ public class ConfiguracaoService {
         comparar(m, "pg_dump", caminho(a.backup().pgDump()), caminho(n.backup().pgDump()));
         comparar(m, "backups mantidos", String.valueOf(a.backup().manterUltimos()),
                 String.valueOf(n.backup().manterUltimos()));
+        comparar(m, "bloqueio por inatividade", inatividade(a.inatividadeMinutos()), inatividade(n.inatividadeMinutos()));
         return m;
+    }
+
+    private static String inatividade(int minutos) {
+        return minutos == 0 ? "desligado" : minutos + " min";
     }
 
     private static String caminho(String valor) {

@@ -6,7 +6,8 @@ import org.postgresql.util.ServerErrorMessage;
 
 /**
  * Converte exceções técnicas em mensagens para o usuário, pelo SQLState e pelo nome da constraint.
- * {@link NegocioException} passa sem alteração; nas demais a exceção original fica como causa.
+ * {@link NegocioException} passa sem alteração, também quando vem embrulhada (handler de FXML); nas demais a exceção
+ * original fica como causa.
  */
 public final class TradutorErros {
 
@@ -24,6 +25,12 @@ public final class TradutorErros {
         }
         if (erro instanceof ErroInesperadoException inesperado) {
             return inesperado;
+        }
+        // Regra de negócio embrulhada (o FXMLLoader embrulha a exceção do handler em InvocationTargetException).
+        for (Throwable t = erro.getCause(); t != null; t = t.getCause()) {
+            if (t instanceof NegocioException negocio) {
+                return negocio;
+            }
         }
         SQLException sql = encontrarSql(erro);
         if (sql == null) {

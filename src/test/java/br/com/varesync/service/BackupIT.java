@@ -52,7 +52,8 @@ class BackupIT extends IntegracaoBase {
     private void manter(int quantos) {
         Configuracoes c = t.configuracoes.carregar(admin);
         t.configuracoes.salvar(admin, new Configuracoes(c.loja(), c.venda(), c.margemMinimaPct(), c.diasSemGiro(),
-                c.balanca(), new Configuracoes.Backup("", "", quantos), c.rodapeComprovante()));
+                c.balanca(), new Configuracoes.Backup("", "", quantos), c.rodapeComprovante(),
+                c.inatividadeMinutos()));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package br.com.varesync.ui;
 
 import br.com.varesync.service.NegocioException;
+import br.com.varesync.service.SessaoEncerradaException;
 import br.com.varesync.service.TradutorErros;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
@@ -26,7 +27,10 @@ public final class TratadorExcecoes {
 
     public static void mostrar(Throwable erro) {
         RuntimeException traduzida = TradutorErros.traduzir(erro);
-        if (traduzida instanceof NegocioException) {
+        if (traduzida instanceof SessaoEncerradaException) {
+            // A interface já faz o log off e mostra a mensagem na tela de login (F10.1).
+            log.info("Sessão encerrada: {}", traduzida.getMessage());
+        } else if (traduzida instanceof NegocioException) {
             log.info("Regra de negócio: {}", traduzida.getMessage());
             exibir(Alert.AlertType.WARNING, traduzida.getMessage());
         } else {

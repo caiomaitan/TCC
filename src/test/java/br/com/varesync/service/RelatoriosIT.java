@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.model.Categoria;
@@ -538,6 +539,70 @@ class RelatoriosIT extends IntegracaoBase {
             assertThat(soMaria.linhas()).hasSize(2);
         } finally {
             configurar("venda.cancelar_item_exige_supervisor", "false");
+        }
+    }
+
+    /**
+     * F10.3: o R16 lê quem cancelou e quem liberou das colunas da venda; nos registros anteriores à V4 (colunas nulas)
+     * continua lendo a auditoria. Para provar as duas leituras, a auditoria é trocada e depois as colunas são
+     * esvaziadas como numa venda antiga.
+     */
+    @Test
+    void r16LeAsColunasNovasEOsRegistrosAntigosPelaAuditoria() throws Exception {
+        configurar("venda.cancelar_item_exige_supervisor", "true");
+        try {
+            Carrinho f = new Carrinho();
+            incluir(maria, f, refrigerante, "1");
+            incluir(maria, f, leite, "2");
+            t.vendas.cancelarItem(maria, f, 2, t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+            long vendaF = pagar(maria, f);
+            t.vendas.cancelar(maria, vendaF, "Cliente sem dinheiro",
+                    t.acesso.liberar("admin", "segredo1", Permissao.CANCELAR_VENDA));
+            executar("UPDATE auditoria SET descricao = 'Item 2 cancelado durante a venda: texto antigo' "
+                    + "WHERE acao = 'ITEM_CANCELADO'");
+            executar("UPDATE auditoria SET usuario_id = " + admin.usuarioId() + " WHERE acao = 'VENDA_CANCELADA' "
+                    + "AND entidade_id = " + vendaF);
+
+            List<RelCancelamentos.Linha> pelasColunas = relatorios.gerar(admin, new RelCancelamentos(), noPeriodo())
+                    .linhas().stream().filter(l -> l.vendaId() == vendaF).toList();
+            assertThat(pelasColunas).extracting(RelCancelamentos.Linha::tipo, RelCancelamentos.Linha::canceladoPor,
+                            RelCancelamentos.Linha::liberadoPor)
+                    .containsExactly(tuple("Item", "Maria Oliveira", "Ana Admin (admin)"),
+                            tuple("Venda", "Maria Oliveira", "Ana Admin (admin)"));
+
+            // Como numa venda anterior à V4: sem as colunas novas (os CHECKs NOT VALID não valem para elas).
+            executar("ALTER TABLE venda_item DROP CONSTRAINT ck_vi_cancelamento",
+                    "ALTER TABLE venda DROP CONSTRAINT ck_venda_cancel_operador",
+                    "UPDATE venda_item SET cancelado_em = NULL, cancelado_por = NULL, cancelamento_liberado_por = NULL "
+                            + "WHERE venda_id = " + vendaF,
+                    "UPDATE venda SET cancelamento_operador_id = NULL WHERE id = " + vendaF,
+                    "ALTER TABLE venda_item ADD CONSTRAINT ck_vi_cancelamento CHECK (NOT cancelado OR "
+                            + "(cancelado_em IS NOT NULL AND cancelado_por IS NOT NULL)) NOT VALID",
+                    "ALTER TABLE venda ADD CONSTRAINT ck_venda_cancel_operador CHECK (status <> 'CANCELADA' OR "
+                            + "cancelamento_operador_id IS NOT NULL) NOT VALID");
+            List<RelCancelamentos.Linha> pelaAuditoria = relatorios.gerar(admin, new RelCancelamentos(), noPeriodo())
+                    .linhas().stream().filter(l -> l.vendaId() == vendaF).toList();
+            assertThat(pelaAuditoria).extracting(RelCancelamentos.Linha::tipo, RelCancelamentos.Linha::canceladoPor,
+                            RelCancelamentos.Linha::liberadoPor)
+                    .containsExactly(tuple("Item", "Maria Oliveira", ""), tuple("Venda", "Ana Admin", ""));
+        } finally {
+            configurar("venda.cancelar_item_exige_supervisor", "false");
+        }
+    }
+
+    /** Vários comandos numa transação só (ou todos, ou nenhum). */
+    private void executar(String... comandos) throws Exception {
+        try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
+            con.setAutoCommit(false);
+            try {
+                for (String sql : comandos) {
+                    st.execute(sql);
+                }
+                con.commit();
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            }
         }
     }
 

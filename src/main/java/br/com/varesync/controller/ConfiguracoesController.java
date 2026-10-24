@@ -60,8 +60,8 @@ import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 
 /**
- * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima e dias sem giro, balança
- * (salvos juntos por "Salvar alterações"), formas de pagamento, o diagnóstico do estoque (6.4) e o gerador de dados
+ * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima e dias sem giro, balança,
+ * bloqueio por inatividade (F10.2) e backup (salvos juntos por "Salvar alterações"), formas de pagamento, o diagnóstico do estoque (6.4) e o gerador de dados
  * de demonstração (6.14). Diagnóstico e gerador rodam em {@link Task}.
  */
 public class ConfiguracoesController {
@@ -83,6 +83,7 @@ public class ConfiguracoesController {
     @FXML private Tab abaVenda;
     @FXML private Tab abaRelatorios;
     @FXML private Tab abaBalanca;
+    @FXML private Tab abaSeguranca;
     @FXML private Tab abaFormas;
     @FXML private Tab abaBackup;
     @FXML private Tab abaAuditoria;
@@ -127,6 +128,7 @@ public class ConfiguracoesController {
     @FXML private ComboBox<Integer> campoDigitos;
     @FXML private ComboBox<TipoValorBalanca> campoTipoValor;
     @FXML private Label exemploEtiqueta;
+    @FXML private TextField campoInatividade;
     @FXML private HBox barraSalvar;
     @FXML private Label mensagemParametros;
     @FXML private Button botaoSalvar;
@@ -184,7 +186,7 @@ public class ConfiguracoesController {
             }
         });
 
-        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaBackup);
+        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -264,10 +266,11 @@ public class ConfiguracoesController {
         campoPastaBackup.setText(c.backup().pasta());
         campoPgDump.setText(c.backup().pgDump());
         campoManterBackups.setText(String.valueOf(c.backup().manterUltimos()));
+        campoInatividade.setText(String.valueOf(c.inatividadeMinutos()));
         atualizarBalanca();
     }
 
-    /** Lê os campos das cinco abas de parâmetros; texto que não é número vira mensagem com o nome do campo. */
+    /** Lê os campos das seis abas de parâmetros; texto que não é número vira mensagem com o nome do campo. */
     Configuracoes lerCampos() {
         String prefixo = campoPrefixo.getText() == null ? "" : campoPrefixo.getText().strip();
         if (!prefixo.matches("\\d")) {
@@ -281,7 +284,8 @@ public class ConfiguracoesController {
                 new Configuracoes.Balanca(campoBalancaAtiva.isSelected(), Integer.parseInt(prefixo),
                         campoDigitos.getValue() == null ? 0 : campoDigitos.getValue(), campoTipoValor.getValue()),
                 new Configuracoes.Backup(campoPastaBackup.getText(), campoPgDump.getText(),
-                        inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText());
+                        inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText(),
+                inteiro(campoInatividade, "Bloquear a tela depois de"));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {

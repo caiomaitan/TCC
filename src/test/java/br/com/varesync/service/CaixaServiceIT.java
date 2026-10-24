@@ -121,12 +121,13 @@ class CaixaServiceIT extends IntegracaoBase {
         try (Connection con = dataSource.getConnection();
              PreparedStatement ps = con.prepareStatement("""
                      UPDATE venda SET status = 'CANCELADA', cancelada_em = ?, cancelada_por = ?,
-                                      motivo_cancelamento = 'Cliente desistiu'
+                                      cancelamento_operador_id = ?, motivo_cancelamento = 'Cliente desistiu'
                       WHERE id = ?
                      """)) {
             ps.setObject(1, OffsetDateTime.now(t.relogio));
             ps.setLong(2, admin.usuarioId());
-            ps.setLong(3, vendaId);
+            ps.setLong(3, admin.usuarioId());
+            ps.setLong(4, vendaId);
             ps.executeUpdate();
         }
     }

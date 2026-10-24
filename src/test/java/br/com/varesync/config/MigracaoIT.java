@@ -7,18 +7,18 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1, V2 e V3 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V4 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1V2eV3() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(3);
+    void bancoVazioRecebeV1aV4() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(4);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
-                     WHERE success AND version IN ('1', '2', '3')
-                    """)).isEqualTo(3);
+                     WHERE success AND version IN ('1', '2', '3', '4')
+                    """)).isEqualTo(4);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'

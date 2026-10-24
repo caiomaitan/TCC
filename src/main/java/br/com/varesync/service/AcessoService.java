@@ -16,11 +16,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
- * Primeiro acesso, login com bloqueio, troca de senha, logout e liberação de supervisor (6.1, 6.2).
+ * Primeiro acesso, login com bloqueio, troca de senha, logout e liberação de supervisor (6.1, 6.2). Também é a
+ * {@link ConferenciaAcesso} das sessões que cria (F10.1) e desbloqueia a tela bloqueada por inatividade (F10.2).
  */
-public class AcessoService {
+public class AcessoService implements ConferenciaAcesso {
 
     public static final String FALHA_LOGIN = "Usuário ou senha inválidos.";
     public static final int MAXIMO_TENTATIVAS = 5;
@@ -50,6 +52,8 @@ public class AcessoService {
     private final Senhas senhas;
     private final Clock clock;
     private final String terminal;
+    private volatile Consumer<Sessao> aoAlterarAcesso = sessao -> { };
+    private volatile Consumer<Sessao> aoEncerrarAcesso = sessao -> { };
 
     public AcessoService(Transacao transacao, UsuarioDAO usuarioDAO, ConfiguracaoDAO configuracaoDAO,
                          AuditoriaService auditoria, Senhas senhas, Clock clock, String terminal) {
@@ -135,7 +139,59 @@ public class AcessoService {
         if (conferencia.usuario() == null) {
             throw new NegocioException(conferencia.recusa());
         }
-        return new Sessao(conferencia.usuario(), terminal);
+        return new Sessao(conferencia.usuario(), terminal, this);
+    }
+
+    /**
+     * Desbloqueio da tela bloqueada por inatividade (F10.2): o usuário logado digita a senha; senha errada conta
+     * para o bloqueio de 5 tentativas, como no login.
+     *
+     * @return a sessão conferida com o banco (nova, se o acesso mudou enquanto a tela estava bloqueada)
+     * @throws SessaoEncerradaException usuário inativado ou com a senha redefinida pelo supervisor
+     * @throws NegocioException senha errada ou usuário bloqueado por tentativas
+     */
+    public Sessao desbloquear(Sessao sessao, String senha) {
+        if (senha == null || senha.isEmpty()) {
+            throw new NegocioException("Digite a sua senha.");
+        }
+        Sessao atual = sessao.conferida();
+        Conferencia conferencia = transacao.executar(
+                con -> conferir(con, sessao.usuario().login(), senha, "Desbloqueio da tela"));
+        if (conferencia.usuario() == null) {
+            throw new NegocioException(conferencia.recusa());
+        }
+        return atual;
+    }
+
+    /** {@code seguranca.inatividade_minutos}: minutos sem uso até bloquear a tela (0 = não bloqueia). */
+    public int inatividadeMinutos() {
+        return transacao.executar(con -> configuracaoDAO.carregar(con).inatividadeMinutos());
+    }
+
+    // ----- ConferenciaAcesso (F10.1) -----
+
+    /**
+     * Quem a interface avisa quando uma sessão conferida muda de versão ou é encerrada. Os avisos podem vir de
+     * qualquer thread (inclusive das {@code Task}).
+     */
+    public void observarAcesso(Consumer<Sessao> aoAlterar, Consumer<Sessao> aoEncerrar) {
+        this.aoAlterarAcesso = aoAlterar;
+        this.aoEncerrarAcesso = aoEncerrar;
+    }
+
+    @Override
+    public Optional<Usuario> ler(long usuarioId) {
+        return transacao.executar(con -> usuarioDAO.buscarPorId(con, usuarioId));
+    }
+
+    @Override
+    public void acessoAlterado(Sessao nova) {
+        aoAlterarAcesso.accept(nova);
+    }
+
+    @Override
+    public void acessoEncerrado(Sessao sessao) {
+        aoEncerrarAcesso.accept(sessao);
     }
 
     /**
@@ -160,7 +216,7 @@ public class AcessoService {
                     sessao.usuarioId(), "Senha trocada pelo próprio usuário");
             return recarregar(con, sessao.usuarioId());
         });
-        return new Sessao(atualizado, sessao.terminal());
+        return new Sessao(atualizado, sessao.terminal(), this);
     }
 
     /** Log off ou saída do sistema. */

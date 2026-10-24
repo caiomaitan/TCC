@@ -41,6 +41,11 @@ public class LoginController {
         campoLogin.setText(login == null ? "" : login);
     }
 
+    /** Motivo de ter voltado ao login (acesso alterado pelo supervisor, F10.1). */
+    public void avisar(String texto) {
+        Mensagem.erro(mensagem, texto);
+    }
+
     @FXML
     private void entrar() {
         String login = campoLogin.getText();

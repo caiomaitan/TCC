@@ -446,3 +446,15 @@
 .table-view:focused .table-row-cell.linha-aviso:selected {
     -fx-background: -fx-selection-bar;
 }
+
+/* Tela "Sessão bloqueada" (F10.2): cobre as janelas do sistema; o cartão fica no centro */
+.tela-bloqueada {
+    -fx-background-color: -vs-destaque-escuro;
+}
+
+.cartao-bloqueio {
+    -fx-background-color: -vs-superficie;
+    -fx-background-radius: 8;
+    -fx-padding: 28 32 24 32;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 18, 0, 0, 4);
+}

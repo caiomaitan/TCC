@@ -107,9 +107,8 @@ public final class AppContext implements AutoCloseable {
             return new TrocaSenhaController(s.acesso(), navegacao, sessao);
         }
         if (tipo == PrincipalController.class) {
-            return new PrincipalController(config, clock, s.acesso(), s.caixa(), backup, fechamentoPdf, navegacao,
-                    sessao,
-                    t -> criarController(t, navegacao, sessao));
+            // As telas abertas pelo menu recebem a sessão do momento (trocada quando o acesso muda, F10.1).
+            return new PrincipalController(config, clock, s.acesso(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()));
         }
         if (tipo == UsuariosController.class) {
             return new UsuariosController(s.usuarios(), sessao, clock);

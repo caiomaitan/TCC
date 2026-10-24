@@ -59,7 +59,8 @@ public class PainelService {
         this.clock = clock;
     }
 
-    public Painel carregar(Sessao sessao) {
+    public Painel carregar(Sessao informada) {
+        Sessao sessao = informada.conferida(); // o painel segue as permissões atuais (F10.1)
         OffsetDateTime agora = OffsetDateTime.now(clock);
         ZoneId zona = clock.getZone();
         LocalDate hoje = agora.atZoneSameInstant(zona).toLocalDate();

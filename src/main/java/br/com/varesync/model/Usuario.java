@@ -21,10 +21,19 @@ public final class Usuario {
     private final OffsetDateTime bloqueadoAte;
     private final OffsetDateTime ultimoLoginEm;
     private final Set<Permissao> permissoes;
+    private final int versaoAcesso;
 
     public Usuario(long id, String login, String nome, boolean supervisor, boolean ativo, boolean deveTrocarSenha,
                    int tentativasFalhas, OffsetDateTime bloqueadoAte, OffsetDateTime ultimoLoginEm,
                    Set<Permissao> permissoes) {
+        this(id, login, nome, supervisor, ativo, deveTrocarSenha, tentativasFalhas, bloqueadoAte, ultimoLoginEm,
+                permissoes, 0);
+    }
+
+    /** @param versaoAcesso {@code usuario.versao_acesso} (F10.1), incrementada pelo banco a cada mudança de acesso */
+    public Usuario(long id, String login, String nome, boolean supervisor, boolean ativo, boolean deveTrocarSenha,
+                   int tentativasFalhas, OffsetDateTime bloqueadoAte, OffsetDateTime ultimoLoginEm,
+                   Set<Permissao> permissoes, int versaoAcesso) {
         this.id = id;
         this.login = login;
         this.nome = nome;
@@ -37,6 +46,7 @@ public final class Usuario {
         EnumSet<Permissao> copia = EnumSet.noneOf(Permissao.class);
         copia.addAll(permissoes);
         this.permissoes = Collections.unmodifiableSet(copia);
+        this.versaoAcesso = versaoAcesso;
     }
 
     public long id() {
@@ -78,6 +88,10 @@ public final class Usuario {
 
     public Set<Permissao> permissoes() {
         return permissoes;
+    }
+
+    public int versaoAcesso() {
+        return versaoAcesso;
     }
 
     public boolean bloqueadoEm(OffsetDateTime instante) {

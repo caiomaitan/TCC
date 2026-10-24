@@ -9,7 +9,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +25,15 @@ public class VendaDAO {
                          BigDecimal valorTotal, BigDecimal troco) {
     }
 
-    /** Valores de uma linha de {@code venda_item}. */
+    /**
+     * Valores de uma linha de {@code venda_item}. Item cancelado leva quando e quem cancelou e, se houve, quem liberou
+     * (F10.3); nos demais, os três ficam nulos.
+     */
     public record Item(int sequencia, long produtoId, BigDecimal quantidade, BigDecimal precoUnitario,
                        BigDecimal valorBruto, BigDecimal desconto, BigDecimal descontoRateado,
                        BigDecimal valorLiquido, BigDecimal custoUnitario, BigDecimal custoTotal, Long promocaoId,
-                       boolean cancelado) {
+                       boolean cancelado, OffsetDateTime canceladoEm, Long canceladoPor,
+                       Long cancelamentoLiberadoPor) {
     }
 
     /** Venda travada para o cancelamento. */
@@ -50,13 +53,16 @@ public class VendaDAO {
     public record PagamentoGravado(String forma, TipoFormaPagamento tipo, BigDecimal valor) {
     }
 
-    /** @return id (número) da venda */
-    public long inserir(Connection con, long caixaSessaoId, long usuarioId, OffsetDateTime dataHora, Totais t)
-            throws SQLException {
+    /**
+     * @param descontoLiberadoPor quem autorizou o desconto acima do limite (F10.3); nulo dentro do limite
+     * @return id (número) da venda
+     */
+    public long inserir(Connection con, long caixaSessaoId, long usuarioId, OffsetDateTime dataHora, Totais t,
+                        Long descontoLiberadoPor) throws SQLException {
         String sql = """
                 INSERT INTO venda (caixa_sessao_id, usuario_id, data_hora, status, valor_bruto, desconto_itens,
-                                   desconto_venda, valor_total, troco)
-                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?)
+                                   desconto_venda, valor_total, troco, desconto_liberado_por)
+                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -68,6 +74,7 @@ public class VendaDAO {
             ps.setBigDecimal(6, t.descontoVenda());
             ps.setBigDecimal(7, t.valorTotal());
             ps.setBigDecimal(8, t.troco());
+            Jdbc.definirLong(ps, 9, descontoLiberadoPor);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -80,8 +87,9 @@ public class VendaDAO {
         String sql = """
                 INSERT INTO venda_item (venda_id, sequencia, produto_id, quantidade, preco_unitario, valor_bruto,
                                         desconto, desconto_rateado, valor_liquido, custo_unitario, custo_total,
-                                        promocao_id, cancelado)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        promocao_id, cancelado, cancelado_em, cancelado_por,
+                                        cancelamento_liberado_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -96,12 +104,11 @@ public class VendaDAO {
             ps.setBigDecimal(9, i.valorLiquido());
             ps.setBigDecimal(10, i.custoUnitario());
             ps.setBigDecimal(11, i.custoTotal());
-            if (i.promocaoId() == null) {
-                ps.setNull(12, Types.BIGINT);
-            } else {
-                ps.setLong(12, i.promocaoId());
-            }
+            Jdbc.definirLong(ps, 12, i.promocaoId());
             ps.setBoolean(13, i.cancelado());
+            ps.setObject(14, i.canceladoEm());
+            Jdbc.definirLong(ps, 15, i.canceladoPor());
+            Jdbc.definirLong(ps, 16, i.cancelamentoLiberadoPor());
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -143,18 +150,24 @@ public class VendaDAO {
         }
     }
 
-    public void cancelar(Connection con, long vendaId, OffsetDateTime canceladaEm, long canceladaPor, String motivo)
-            throws SQLException {
+    /**
+     * @param canceladaPor quem autorizou (o próprio operador ou quem liberou)
+     * @param operadorId   quem executou o cancelamento (F10.3)
+     */
+    public void cancelar(Connection con, long vendaId, OffsetDateTime canceladaEm, long canceladaPor, long operadorId,
+                         String motivo) throws SQLException {
         String sql = """
                 UPDATE venda
-                   SET status = 'CANCELADA', cancelada_em = ?, cancelada_por = ?, motivo_cancelamento = ?
+                   SET status = 'CANCELADA', cancelada_em = ?, cancelada_por = ?, cancelamento_operador_id = ?,
+                       motivo_cancelamento = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setObject(1, canceladaEm);
             ps.setLong(2, canceladaPor);
-            ps.setString(3, motivo);
-            ps.setLong(4, vendaId);
+            ps.setLong(3, operadorId);
+            ps.setString(4, motivo);
+            ps.setLong(5, vendaId);
             ps.executeUpdate();
         }
     }
