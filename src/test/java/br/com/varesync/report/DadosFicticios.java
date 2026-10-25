@@ -1,5 +1,7 @@
 package br.com.varesync.report;
 
+import br.com.varesync.model.Cliente;
+import br.com.varesync.model.HistoricoCliente;
 import br.com.varesync.model.InventarioResumo;
 import br.com.varesync.model.ItemDivergencia;
 import br.com.varesync.model.Periodo;
@@ -190,8 +192,30 @@ final class DadosFicticios {
         return RelResultadoInventario.exportacao(resultado, new Emissao("Mercado Bom Preço", "Ana Admin", EMISSAO));
     }
 
+    static ResultadoRelatorio<RelClientes.Linha> r18() {
+        return resultado(new RelClientes(), FILTROS, List.of(
+                new RelClientes.Linha(7, "Maria da Silva", "52998224725", 3, d("100.00"), EMISSAO.minusDays(2)),
+                new RelClientes.Linha(8, "Padaria Boa Massa", "11222333000181", 1, d("10.00"),
+                        EMISSAO.minusDays(9))));
+    }
+
+    /** Maria da Silva: duas compras de R$ 50,00, com consentimento de marketing. */
+    static ResultadoRelatorio<RelDadosCliente.Linha> dadosCliente() {
+        Cliente maria = new Cliente(7, "Maria da Silva", "52998224725", "16999998888", "maria@exemplo.com.br",
+                LocalDate.of(1985, 3, 25), "14010000", "Rua das Flores", "120", "apto 3", "Centro", "Ribeirão Preto",
+                "SP", "Prefere PIX", true, EMISSAO.minusDays(30), false, true, EMISSAO.minusDays(30), "Ana Admin",
+                EMISSAO.minusDays(1), "Ana Admin");
+        HistoricoCliente historico = new HistoricoCliente(List.of(
+                new HistoricoCliente.Compra(12, EMISSAO.minusDays(1), 2, d("50.00")),
+                new HistoricoCliente.Compra(9, EMISSAO.minusDays(5), 1, d("50.00"))), List.of(
+                new HistoricoCliente.ProdutoComprado(1, "Refrigerante cola 2 L", "UN", false, 2, d("6"), d("32.94")),
+                new HistoricoCliente.ProdutoComprado(2, "Queijo muçarela", "KG", true, 1, d("0.500"), d("19.95"))));
+        return RelDadosCliente.exportacao(maria, historico, new Emissao("Mercado Bom Preço", "Ana Admin", EMISSAO));
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
-                r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17());
+                r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
+                dadosCliente());
     }
 }

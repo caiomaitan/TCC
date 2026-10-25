@@ -8,6 +8,14 @@ import org.junit.jupiter.api.Test;
 class CpfCnpjTest {
 
     @Test
+    void cpfMascaradoMostraSoOsSeisDigitosDoMeioECnpjVaiInteiro() {
+        assertThat(CpfCnpj.ocultar("12345678909")).as("exemplo da F12.2").isEqualTo("***.456.789-**");
+        assertThat(CpfCnpj.ocultar("52998224725")).isEqualTo("***.982.247-**");
+        assertThat(CpfCnpj.ocultar("12ABC34501DE35")).isEqualTo("12.ABC.345/01DE-35");
+        assertThat(CpfCnpj.ocultar(null)).isEmpty();
+    }
+
+    @Test
     void cpfDoApendiceA2() {
         assertThat(CpfCnpj.cpfValido("52998224725")).isTrue();
         assertThat(CpfCnpj.cpfValido("52998224724")).isFalse();

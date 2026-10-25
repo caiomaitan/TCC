@@ -1,5 +1,6 @@
 package br.com.varesync.service;
 
+import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -29,6 +30,7 @@ public final class Carrinho {
     private BigDecimal descontoVenda = Dinheiro.ZERO;
     private Liberacao liberacaoDesconto;
     private BigDecimal fracaoLiberada;
+    private ClienteVenda cliente;
 
     public List<ItemCarrinho> itens() {
         return Collections.unmodifiableList(itens);
@@ -53,6 +55,11 @@ public final class Carrinho {
 
     public Optional<ItemCarrinho> ultimoItem() {
         return itens.isEmpty() ? Optional.empty() : Optional.of(itens.get(itens.size() - 1));
+    }
+
+    /** Cliente identificado (F11, F12.2); pode ser trocado ou removido até a finalização. */
+    public Optional<ClienteVenda> cliente() {
+        return Optional.ofNullable(cliente);
     }
 
     /** Soma do valor bruto dos itens não cancelados ({@code venda.valor_bruto}). */
@@ -193,11 +200,17 @@ public final class Carrinho {
         this.fracaoLiberada = fracaoDesconto();
     }
 
+    /** @param novo nulo remove a identificação */
+    void definirCliente(ClienteVenda novo) {
+        this.cliente = novo;
+    }
+
     void limpar() {
         itens.clear();
         descontoVenda = Dinheiro.ZERO;
         liberacaoDesconto = null;
         fracaoLiberada = null;
+        cliente = null;
     }
 
     ItemCarrinho itemAtivo(int sequencia) {

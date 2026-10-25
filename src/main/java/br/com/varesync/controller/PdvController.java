@@ -1,6 +1,7 @@
 package br.com.varesync.controller;
 
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
@@ -12,6 +13,7 @@ import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Carrinho;
+import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.EntradaPdv;
 import br.com.varesync.service.ItemCarrinho;
 import br.com.varesync.service.Liberacao;
@@ -22,6 +24,7 @@ import br.com.varesync.service.Sessao;
 import br.com.varesync.service.VendaService;
 import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.Dialogos;
+import br.com.varesync.ui.DialogosCliente;
 import br.com.varesync.ui.DialogosPdv;
 import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.LiberacaoSupervisorDialogo;
@@ -54,7 +57,8 @@ import javafx.util.Duration;
 /**
  * PDV (6.6): leitura do produto (código, quantidade*código, texto → busca), carrinho em memória, descontos com limite
  * e liberação, cancelamento de item, abandono, pagamento (F10) e finalização numa única transação, vendas da sessão
- * (F9) e o comprovante. F8 e F12 usam as mesmas operações da tela Caixa. Toda regra está no {@link VendaService}.
+ * (F9), o cliente (F11) e o comprovante. F8 e F12 usam as mesmas operações da tela Caixa. Toda regra está no
+ * {@link VendaService} e, para achar e cadastrar o cliente, no {@link ClienteService}.
  */
 public class PdvController {
 
@@ -72,10 +76,11 @@ public class PdvController {
             F4 desconto no item selecionado · F5 desconto na venda (R$ ou %)
             F6 cancelar o item selecionado · F7 consultar preço (sem vender)
             F8 sangria/suprimento · F9 vendas da sessão (comprovante ou cancelamento)
-            F10 pagamento e finalização · F12 fechar o caixa
+            F10 pagamento e finalização · F11 identificar o cliente (CPF/CNPJ ou nome) · F12 fechar o caixa
             ↑/↓ escolhem o item · Esc abandona a venda em andamento (ou sai do PDV, sem venda)""";
 
     private final VendaService vendaService;
+    private final ClienteService clienteService;
     private final CaixaService caixaService;
     private final AcessoService acessoService;
     private final ComprovantePdf comprovantePdf;
@@ -91,6 +96,7 @@ public class PdvController {
     @FXML private Label caixaInfo;
     @FXML private Label terminalInfo;
     @FXML private Label operadorInfo;
+    @FXML private Label cliente;
     @FXML private TableView<ItemCarrinho> tabelaItens;
     @FXML private TableColumn<ItemCarrinho, String> colunaSequencia;
     @FXML private TableColumn<ItemCarrinho, String> colunaCodigo;
@@ -109,10 +115,11 @@ public class PdvController {
     @FXML private Label mensagem;
     @FXML private TextField entrada;
 
-    public PdvController(VendaService vendaService, CaixaService caixaService, AcessoService acessoService,
-                         ComprovantePdf comprovantePdf, ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf,
-                         Sessao sessao) {
+    public PdvController(VendaService vendaService, ClienteService clienteService, CaixaService caixaService,
+                         AcessoService acessoService, ComprovantePdf comprovantePdf, ImpressaoComprovante impressao,
+                         FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
         this.vendaService = vendaService;
+        this.clienteService = clienteService;
         this.caixaService = caixaService;
         this.acessoService = acessoService;
         this.comprovantePdf = comprovantePdf;
@@ -184,6 +191,7 @@ public class PdvController {
             case F8 -> this::sangriaSuprimento;
             case F9 -> this::vendasDaSessao;
             case F10 -> this::pagar;
+            case F11 -> this::identificarCliente;
             case F12 -> this::fecharCaixa;
             case ESCAPE -> this::escape;
             default -> null;
@@ -510,6 +518,25 @@ public class PdvController {
                 (VendasSessaoController c) -> { });
     }
 
+    // ----- Cliente (F11) -----
+
+    /** Identifica, troca ou remove o cliente da venda em andamento (F12.2), com cadastro rápido sem sair do PDV. */
+    private void identificarCliente() {
+        DialogosCliente.identificar(carrinho.cliente().orElse(null),
+                texto -> clienteService.pesquisarParaVenda(sessao, texto),
+                (nome, documento) -> clienteService.cadastrarRapido(sessao, nome, documento)).ifPresent(escolha -> {
+                    if (escolha.cliente() == null) {
+                        vendaService.removerCliente(sessao, carrinho);
+                        Mensagem.informar(mensagem, "Cliente removido da venda.");
+                    } else {
+                        ClienteVenda identificado = vendaService.identificarCliente(sessao, carrinho,
+                                escolha.cliente().id());
+                        Mensagem.sucesso(mensagem, "Cliente identificado: " + identificado.nome() + ".");
+                    }
+                    atualizarTela();
+                });
+    }
+
     // ----- Caixa (F8, F12) -----
 
     private void sangriaSuprimento() {
@@ -535,6 +562,7 @@ public class PdvController {
     // ----- Tela -----
 
     private void atualizarTela() {
+        cliente.setText(carrinho.cliente().map(c -> "Cliente: " + c.descricao()).orElse("Sem cliente (F11)"));
         tabelaItens.getItems().setAll(carrinho.itens());
         tabelaItens.refresh();
         Optional<ItemCarrinho> ultimo = carrinho.ultimoItem();

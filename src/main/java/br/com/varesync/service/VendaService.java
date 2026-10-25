@@ -1,5 +1,6 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
@@ -7,6 +8,7 @@ import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamento;
@@ -22,6 +24,7 @@ import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.model.VendaResumo;
+import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
@@ -63,6 +66,7 @@ public class VendaService {
     private final CaixaService caixaService;
     private final PrecoService precoService;
     private final AuditoriaService auditoria;
+    private final ClienteDAO clienteDAO;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
@@ -76,7 +80,7 @@ public class VendaService {
     public VendaService(Transacao transacao, ProdutoDAO produtoDAO, VendaDAO vendaDAO,
                         FormaPagamentoDAO formaPagamentoDAO, ConfiguracaoDAO configuracaoDAO, EstoqueDAO estoqueDAO,
                         EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
-                        AuditoriaService auditoria, Clock clock) {
+                        AuditoriaService auditoria, ClienteDAO clienteDAO, Clock clock) {
         this.transacao = transacao;
         this.produtoDAO = produtoDAO;
         this.vendaDAO = vendaDAO;
@@ -87,6 +91,7 @@ public class VendaService {
         this.caixaService = caixaService;
         this.precoService = precoService;
         this.auditoria = auditoria;
+        this.clienteDAO = clienteDAO;
         this.clock = clock;
     }
 
@@ -325,6 +330,32 @@ public class VendaService {
         carrinho.limpar();
     }
 
+    // ----- Cliente (F11, F12.2) -----
+
+    /** Identifica o cliente da venda (troca o anterior, se houver). Cliente inativo ou anonimizado é recusado. */
+    public ClienteVenda identificarCliente(Sessao sessao, Carrinho carrinho, long clienteId) {
+        sessao.exigir(Permissao.PDV);
+        ClienteVenda cliente = transacao.executar(con -> clienteAtivo(con, clienteId));
+        carrinho.definirCliente(cliente);
+        return cliente;
+    }
+
+    /** Tira a identificação do cliente da venda em andamento. */
+    public void removerCliente(Sessao sessao, Carrinho carrinho) {
+        sessao.exigir(Permissao.PDV);
+        carrinho.definirCliente(null);
+    }
+
+    private ClienteVenda clienteAtivo(Connection con, long clienteId) throws SQLException {
+        ClienteVenda cliente = clienteDAO.buscarParaVenda(con, clienteId)
+                .orElseThrow(() -> new NegocioException("Cliente não encontrado."));
+        if (!cliente.ativo()) {
+            throw new NegocioException("O cliente \"" + cliente.nome() + "\" está inativo e não pode ser identificado "
+                    + "na venda. Remova ou troque o cliente (F11).");
+        }
+        return cliente;
+    }
+
     public List<FormaPagamento> formasAtivas(Sessao sessao) {
         sessao.exigir(Permissao.PDV);
         return transacao.executar(formaPagamentoDAO::listarAtivas);
@@ -403,11 +434,17 @@ public class VendaService {
                 }
             }
 
+            // O cliente pode ter sido inativado ou anonimizado em outro computador depois da identificação.
+            Long clienteId = null;
+            if (carrinho.cliente().isPresent()) {
+                clienteId = clienteAtivo(con, carrinho.cliente().get().id()).id();
+            }
+
             Map<Integer, BigDecimal> rateio = carrinho.rateio();
             BigDecimal troco = recebimento.troco();
             long vendaId = vendaDAO.inserir(con, caixa.id(), sessao.usuarioId(), agora, new VendaDAO.Totais(
                     carrinho.valorBruto(), carrinho.descontoItens(), carrinho.descontoVenda(), total, troco),
-                    descontoLiberadoPor);
+                    descontoLiberadoPor, clienteId);
 
             record Vendido(ItemCarrinho item, long itemId) {
             }
@@ -626,7 +663,8 @@ public class VendaService {
         return new Comprovante(loja, c.id(), c.dataHora(), c.operador(), c.terminal(), c.status(), c.canceladaEm(),
                 c.motivoCancelamento(), vendaDAO.itensComprovante(con, vendaId), c.totais().valorBruto(),
                 c.totais().descontoItens(), c.totais().descontoVenda(), c.totais().valorTotal(), pagamentos,
-                c.totais().troco(), config.rodapeComprovante());
+                c.totais().troco(), config.rodapeComprovante(), c.clienteNome() == null ? null
+                : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())));
     }
 
     private static String descrever(ItemCarrinho item) {

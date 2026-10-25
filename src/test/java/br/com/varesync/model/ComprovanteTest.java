@@ -16,6 +16,10 @@ public class ComprovanteTest {
 
     /** Venda do roteiro de aceite: 3 × 5,49 + 0,345 kg × 39,90, 5% na venda, PIX 10 + dinheiro 50. */
     public static Comprovante exemplo(StatusVenda status) {
+        return exemplo(status, null);
+    }
+
+    static Comprovante exemplo(StatusVenda status, Comprovante.Cliente cliente) {
         Comprovante.Loja loja = new Comprovante.Loja("Mercado Bom Preço", "11.222.333/0001-81", "Rua A, 10",
                 "(16) 3333-4444");
         List<Comprovante.Item> itens = List.of(
@@ -30,7 +34,20 @@ public class ComprovanteTest {
                 status == StatusVenda.CANCELADA ? quando.plusMinutes(5) : null,
                 status == StatusVenda.CANCELADA ? "Cliente desistiu" : null, itens, v("30.24"), v("0.00"),
                 v("1.51"), v("28.73"), List.of(new Comprovante.Pagamento("PIX", v("10.00")),
-                new Comprovante.Pagamento("Dinheiro", v("50.00"))), v("31.27"), "Obrigado pela preferência!");
+                new Comprovante.Pagamento("Dinheiro", v("50.00"))), v("31.27"), "Obrigado pela preferência!",
+                cliente);
+    }
+
+    @Test
+    void clienteIdentificadoApareceComOCpfMascarado() {
+        String texto = exemplo(StatusVenda.FINALIZADA,
+                new Comprovante.Cliente("Maria da Silva", "***.982.247-**")).texto();
+        assertThat(texto).contains("Cliente: Maria da Silva", "CPF: ***.982.247-**").doesNotContain("52998224725");
+        assertThat(exemplo(StatusVenda.FINALIZADA, new Comprovante.Cliente("Padaria Boa", "11.222.333/0001-81"))
+                .texto()).contains("Cliente: Padaria Boa", "CNPJ: 11.222.333/0001-81");
+        assertThat(exemplo(StatusVenda.FINALIZADA, new Comprovante.Cliente("João", "")).texto())
+                .contains("Cliente: João").doesNotContainPattern("(?m)^CPF:"); // a loja tem "CNPJ/CPF:"
+        assertThat(exemplo(StatusVenda.FINALIZADA).texto()).doesNotContain("Cliente:");
     }
 
     @Test

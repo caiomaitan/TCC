@@ -12,18 +12,23 @@ import java.util.List;
  * itens, descontos, total, pagamentos, troco e rodapé. {@link #linhas()} é a fonte única da tela e do PDF.
  *
  * @param pagamentos valor entregue por forma (no dinheiro, já com o troco somado)
+ * @param cliente    cliente identificado (F12.2), ou nulo
  */
 public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
                           StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento,
                           List<Item> itens, BigDecimal valorBruto, BigDecimal descontoItens,
                           BigDecimal descontoVenda, BigDecimal total, List<Pagamento> pagamentos, BigDecimal troco,
-                          String rodape) {
+                          String rodape, Cliente cliente) {
 
     public static final String NAO_FISCAL = "NÃO É DOCUMENTO FISCAL";
     /** Largura do comprovante em tela, como numa impressora de 80 mm. */
     public static final int COLUNAS = 48;
 
     public record Loja(String nome, String documento, String endereco, String telefone) {
+    }
+
+    /** Cliente no comprovante (F12.2): nome e CPF já mascarado ({@code ***.456.789-**}); documento vazio se faltar. */
+    public record Cliente(String nome, String documento) {
     }
 
     public record Item(int sequencia, String codigo, String descricao, BigDecimal quantidade, String unidade,
@@ -65,6 +70,13 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         linhas.add(LinhaComprovante.separador());
         linhas.add(LinhaComprovante.negrito("Venda nº " + vendaId, Formatos.dataHora(dataHora)));
         linhas.add(LinhaComprovante.normal("Operador: " + operador, "Terminal: " + terminal));
+        if (cliente != null) {
+            linhas.add(LinhaComprovante.texto("Cliente: " + cliente.nome()));
+            if (!Textos.vazio(cliente.documento())) {
+                linhas.add(LinhaComprovante.texto((cliente.documento().length() == 14 ? "CPF: " : "CNPJ: ")
+                        + cliente.documento()));
+            }
+        }
         if (cancelada()) {
             linhas.add(LinhaComprovante.centroNegrito("VENDA CANCELADA em " + Formatos.dataHora(canceladaEm)));
             linhas.add(LinhaComprovante.texto("Motivo: " + motivoCancelamento));

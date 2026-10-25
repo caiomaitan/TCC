@@ -44,9 +44,10 @@ public class VendaDAO {
     public record ItemVendido(long id, long produtoId, BigDecimal quantidade) {
     }
 
-    /** Cabeçalho do comprovante. */
+    /** Cabeçalho do comprovante; nome e CPF/CNPJ do cliente nulos sem identificação (o CPF pode faltar). */
     public record Cabecalho(long id, OffsetDateTime dataHora, String operador, String terminal, StatusVenda status,
-                            OffsetDateTime canceladaEm, String motivoCancelamento, Totais totais) {
+                            OffsetDateTime canceladaEm, String motivoCancelamento, Totais totais, String clienteNome,
+                            String clienteCpfCnpj) {
     }
 
     /** Pagamento gravado (valor abatido) com o tipo da forma, para devolver o troco ao dinheiro no comprovante. */
@@ -55,14 +56,15 @@ public class VendaDAO {
 
     /**
      * @param descontoLiberadoPor quem autorizou o desconto acima do limite (F10.3); nulo dentro do limite
+     * @param clienteId           cliente identificado (F12.2); nulo sem identificação
      * @return id (número) da venda
      */
     public long inserir(Connection con, long caixaSessaoId, long usuarioId, OffsetDateTime dataHora, Totais t,
-                        Long descontoLiberadoPor) throws SQLException {
+                        Long descontoLiberadoPor, Long clienteId) throws SQLException {
         String sql = """
                 INSERT INTO venda (caixa_sessao_id, usuario_id, data_hora, status, valor_bruto, desconto_itens,
-                                   desconto_venda, valor_total, troco, desconto_liberado_por)
-                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?, ?)
+                                   desconto_venda, valor_total, troco, desconto_liberado_por, cliente_id)
+                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -75,6 +77,7 @@ public class VendaDAO {
             ps.setBigDecimal(7, t.valorTotal());
             ps.setBigDecimal(8, t.troco());
             Jdbc.definirLong(ps, 9, descontoLiberadoPor);
+            Jdbc.definirLong(ps, 10, clienteId);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -221,10 +224,11 @@ public class VendaDAO {
         String sql = """
                 SELECT v.id, v.data_hora, u.nome AS operador, s.terminal, v.status, v.cancelada_em,
                        v.motivo_cancelamento, v.valor_bruto, v.desconto_itens, v.desconto_venda, v.valor_total,
-                       v.troco
+                       v.troco, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpf_cnpj
                   FROM venda v
                   JOIN usuario u      ON u.id = v.usuario_id
                   JOIN caixa_sessao s ON s.id = v.caixa_sessao_id
+                  LEFT JOIN cliente c ON c.id = v.cliente_id
                  WHERE v.id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -239,7 +243,8 @@ public class VendaDAO {
                         rs.getObject("cancelada_em", OffsetDateTime.class), rs.getString("motivo_cancelamento"),
                         new Totais(rs.getBigDecimal("valor_bruto"), rs.getBigDecimal("desconto_itens"),
                                 rs.getBigDecimal("desconto_venda"), rs.getBigDecimal("valor_total"),
-                                rs.getBigDecimal("troco"))));
+                                rs.getBigDecimal("troco")), rs.getString("cliente_nome"),
+                        rs.getString("cliente_cpf_cnpj")));
             }
         }
     }

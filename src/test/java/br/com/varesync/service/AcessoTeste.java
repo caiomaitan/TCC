@@ -5,6 +5,7 @@ import br.com.varesync.RelogioTeste;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
+import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
@@ -63,6 +64,7 @@ final class AcessoTeste {
     final ConsultaAuditoriaService consultaAuditoria;
     final ImportacaoNfeService nfe;
     final UnidadeService unidades;
+    final ClienteService clientes;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -84,7 +86,7 @@ final class AcessoTeste {
         caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
-                relogio);
+                new ClienteDAO(), relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
@@ -101,6 +103,7 @@ final class AcessoTeste {
         consultaAuditoria = new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), relogio);
         nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO, compras, relogio);
         unidades = new UnidadeService(transacao, new UnidadeMedidaDAO());
+        clientes = new ClienteService(transacao, new ClienteDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }
@@ -113,8 +116,8 @@ final class AcessoTeste {
     }
 
     /**
-     * Volta ao estado de primeiro acesso: sem usuários nem nada que dependa deles (produtos, kardex, auditoria, entradas),
-     * sem fornecedores, só as categorias da V2 (todas ativas) e a configuração padrão. Usa TRUNCATE porque o kardex é
+     * Volta ao estado de primeiro acesso: sem usuários nem nada que dependa deles (produtos, kardex, auditoria, entradas,
+     * clientes), sem fornecedores, só as categorias da V2 (todas ativas) e a configuração padrão. Usa TRUNCATE porque o kardex é
      * imutável: o trigger recusa DELETE em {@code movimento_estoque}, mas não age no TRUNCATE.
      */
     void limpar() throws SQLException {

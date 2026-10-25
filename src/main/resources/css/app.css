@@ -193,6 +193,23 @@
     -fx-background-color: -vs-fundo;
 }
 
+/* Clientes: formulário rolável dentro da aba e números do resumo de compras (F12) */
+.rolagem-formulario,
+.rolagem-formulario > .viewport {
+    -fx-background-color: transparent;
+}
+
+.cartao-valor-pequeno {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+/* PDV: cliente identificado (F11) */
+.pdv-painel .pdv-cliente {
+    -fx-font-size: 16px;
+    -fx-text-fill: #90caf9;
+}
+
 /* Estoque: saldo abaixo do mínimo em destaque (âmbar), negativo em vermelho (6.4) */
 /* -fx-background (e não -fx-background-color) para o texto continuar legível na linha selecionada */
 .table-row-cell.abaixo-minimo {

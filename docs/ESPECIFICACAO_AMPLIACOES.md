@@ -273,6 +273,8 @@ Pendência das Fases 5 e 6.
 
 - JaCoCo no perfil `-Pqualidade`, com relatório em `target/site/jacoco`.
 - Metas: 80% das linhas em `util` e 70% em `service`.
+- A cobertura conta os testes unitários e os de integração juntos, porque os services são testados nos `*IT`.
+- Abaixo da meta, escrever os testes que faltam. Não baixar a meta nem tirar classes da conta sem registrar o motivo.
 - O valor medido vai para as Métricas do PROGRESSO.
 
 ### F11.2 Análise estática
@@ -299,6 +301,8 @@ Pendência das Fases 5 e 6.
   - JDK 21;
   - PostgreSQL 16 como serviço, com `POSTGRES_USER=varesync`, `POSTGRES_DB=varesync_test` e `POSTGRES_HOST_AUTH_METHOD=trust` (banco descartável; nenhuma senha real no repositório). `VARESYNC_DB_SENHA` recebe um valor qualquer, que o `trust` ignora;
   - roda `mvn -B verify` e `-Pqualidade`;
+  - como o Linux do CI não tem tela, os testes que abrem o JavaFX rodam com tela virtual (`xvfb-run -a`);
+  - usa o fuso `America/Sao_Paulo` e o idioma pt-BR, como no computador da loja;
   - publica o relatório de cobertura como artefato.
 - O README explica como ativar quando o repositório estiver no GitHub.
 

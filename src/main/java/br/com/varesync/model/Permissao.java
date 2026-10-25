@@ -1,7 +1,7 @@
 package br.com.varesync.model;
 
 /**
- * Rotinas e ações liberáveis por usuário. Os nomes são os códigos da tabela {@code permissao} (V2).
+ * Rotinas e ações liberáveis por usuário. Os nomes são os códigos da tabela {@code permissao} (V2; CLIENTES na V6).
  * Supervisor tem todas.
  */
 public enum Permissao {
@@ -14,7 +14,8 @@ public enum Permissao {
     SANGRIA_SUPRIMENTO("Sangria e suprimento"),
     CANCELAR_VENDA("Cancelar venda"),
     DESCONTO_ACIMA_LIMITE("Desconto acima do limite"),
-    RELATORIOS("Relatórios");
+    RELATORIOS("Relatórios"),
+    CLIENTES("Clientes");
 
     private final String rotulo;
 

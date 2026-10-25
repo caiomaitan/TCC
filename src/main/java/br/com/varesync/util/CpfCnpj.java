@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * CPF e CNPJ do fornecedor (6.10, A.2, A.3). Gravados sem máscara; exibidos com máscara.
+ * CPF e CNPJ do fornecedor e do cliente (6.10, F12.1, A.2, A.3). Gravados sem máscara; exibidos com máscara.
  *
  * <p>CNPJ com 14 posições, numérico ou alfanumérico (novo formato da Receita Federal: letras e números nas 12
  * primeiras posições, dígitos verificadores numéricos). Valor de cada caractere = código ASCII − 48 (dígitos 0–9,
@@ -74,6 +74,17 @@ public final class CpfCnpj {
                     + "/" + documento.substring(8, 12) + "-" + documento.substring(12);
         }
         return documento;
+    }
+
+    /**
+     * CPF mascarado para o comprovante e as listas do PDV (F12.2): "***.982.247-**", só os 6 dígitos do meio. CNPJ é
+     * de empresa e volta inteiro, com máscara; outro tamanho volta como está.
+     */
+    public static String ocultar(String documento) {
+        if (documento != null && documento.length() == 11) {
+            return "***." + documento.substring(3, 6) + "." + documento.substring(6, 9) + "-**";
+        }
+        return formatar(documento);
     }
 
     /** DV do CPF sobre as {@code posicoes} primeiras: pesos de posicoes+1 até 2; (soma × 10) mod 11, 10 vira 0. */

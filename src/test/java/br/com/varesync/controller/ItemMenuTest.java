@@ -38,6 +38,11 @@ class ItemMenuTest {
         Sessao comprador = sessao(false, EnumSet.of(Permissao.COMPRAS, Permissao.FORNECEDORES, Permissao.RELATORIOS));
         assertThat(ItemMenu.visiveis(comprador))
                 .containsExactly(ItemMenu.PAINEL, ItemMenu.COMPRAS, ItemMenu.FORNECEDORES, ItemMenu.RELATORIOS);
+
+        Sessao atendente = sessao(false, EnumSet.of(Permissao.PDV, Permissao.CLIENTES));
+        assertThat(ItemMenu.visiveis(atendente))
+                .containsExactly(ItemMenu.PAINEL, ItemMenu.PDV, ItemMenu.CAIXA, ItemMenu.CLIENTES);
+        assertThat(ItemMenu.CLIENTES.fxml()).isEqualTo("/fxml/clientes.fxml");
     }
 
     @Test

@@ -3,6 +3,7 @@ package br.com.varesync.config;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
+import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.dao.EntradaDAO;
@@ -21,6 +22,7 @@ import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.EntradaService;
@@ -54,7 +56,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
                        ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
-                       ImportacaoNfeService nfe, UnidadeService unidades) {
+                       ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -78,7 +80,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         PromocaoDAO promocaoDAO = new PromocaoDAO();
         FormaPagamentoDAO formaPagamentoDAO = new FormaPagamentoDAO();
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
-                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, clock);
+                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, new ClienteDAO(),
+                clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();
@@ -98,7 +101,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao,
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
                 new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
-                new UnidadeService(transacao, new UnidadeMedidaDAO()));
+                new UnidadeService(transacao, new UnidadeMedidaDAO()),
+                new ClienteService(transacao, new ClienteDAO(), configuracaoDAO, auditoria, clock));
     }
 
     /**

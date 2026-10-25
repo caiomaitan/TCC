@@ -40,6 +40,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,11 @@ class GeradorDemoIT extends IntegracaoBase {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeradorDemoIT.class);
     private static final Clock HOJE = Clock.fixed(Instant.parse("2026-10-17T15:00:00Z"), ZoneId.systemDefault());
+    /**
+     * Relatórios que os dados de demonstração ainda não alimentam: o R18 depende de vendas identificadas, e o gerador
+     * só cria clientes na parte B da Fase 12 (F12.8), que tira o R18 daqui. O tempo deles continua medido.
+     */
+    private static final Set<String> SEM_DADOS_AINDA = Set.of("R18");
 
     private static AcessoTeste t;
     private static Sessao admin;
@@ -355,7 +361,9 @@ class GeradorDemoIT extends IntegracaoBase {
             long ms = (System.nanoTime() - inicio) / 1_000_000;
             LOG.info("{}: {} linhas em {} ms", relatorio.codigo(), r.linhas().size(), ms);
             assertThat(ms).as(relatorio.titulo()).isLessThan(3000);
-            assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            if (!SEM_DADOS_AINDA.contains(relatorio.codigo())) {
+                assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            }
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
     }

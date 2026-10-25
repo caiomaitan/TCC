@@ -190,6 +190,42 @@ class RelatoriosParte2Test {
     void catalogoTemOsRelatoriosNaOrdemDosCodigos() {
         // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
-                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17");
+                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18");
+    }
+
+    @Test
+    void r18ClientesComCpfMascaradoETicketMedioDoAgregado() {
+        ResultadoRelatorio<RelClientes.Linha> r18 = DadosFicticios.r18();
+        assertThat(r18.titulo()).isEqualTo("R18 — Clientes");
+        assertThat(r18.colunas()).extracting(Coluna::titulo).containsExactly("Código", "Cliente", "CPF/CNPJ",
+                "Compras", "Valor", "Ticket médio", "Última compra");
+        RelClientes.Linha maria = r18.linhas().get(0);
+        assertThat(r18.colunas().get(2).formatar(maria)).isEqualTo("***.982.247-**");
+        assertThat(r18.colunas().get(2).formatar(r18.linhas().get(1))).isEqualTo("11.222.333/0001-81");
+        assertThat(r18.colunas().get(5).formatar(maria)).isEqualTo("R$ 33,33");
+        // Ticket médio do total = Σ valor ÷ Σ compras (110 ÷ 4), não a média dos tickets (33,33 e 10,00).
+        assertThat(r18.totais()).containsExactly("Total (2 linhas)", "", "", "4", "R$ 110,00", "R$ 27,50", "");
+    }
+
+    @Test
+    void exportacaoDosDadosDoClienteTemCadastroResumoComprasEProdutos() {
+        ResultadoRelatorio<RelDadosCliente.Linha> dados = DadosFicticios.dadosCliente();
+        assertThat(dados.titulo()).isEqualTo("LGPD — Dados do cliente");
+        assertThat(dados.descricaoFiltros()).isEqualTo("Cliente nº 7 — Maria da Silva · exportação a pedido do "
+                + "titular dos dados (LGPD)");
+        assertThat(dados.linhas()).extracting(RelDadosCliente.Linha::secao).containsSequence(
+                RelDadosCliente.CADASTRO, RelDadosCliente.CADASTRO).contains(RelDadosCliente.RESUMO,
+                RelDadosCliente.COMPRAS, RelDadosCliente.PRODUTOS);
+        assertThat(dados.linhas()).contains(
+                new RelDadosCliente.Linha(RelDadosCliente.CADASTRO, "CPF/CNPJ", "529.982.247-25", null),
+                new RelDadosCliente.Linha(RelDadosCliente.CADASTRO, "Endereço",
+                        "Rua das Flores, 120, apto 3 — Centro — Ribeirão Preto/SP — CEP 14010-000", null),
+                new RelDadosCliente.Linha(RelDadosCliente.RESUMO, "Total gasto", "", d("100.00")),
+                new RelDadosCliente.Linha(RelDadosCliente.RESUMO, "Ticket médio", "", d("50.00")),
+                new RelDadosCliente.Linha(RelDadosCliente.PRODUTOS, "Queijo muçarela", "0,500 KG em 1 compra",
+                        d("19.95")));
+        assertThat(dados.linhas().stream().filter(l -> l.item().equals("Consentimento de marketing")).findFirst()
+                .orElseThrow().detalhe()).startsWith("Sim, desde ");
+        assertThat(dados.temTotais()).as("valores de seções diferentes não se somam").isFalse();
     }
 }

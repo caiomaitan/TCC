@@ -29,7 +29,9 @@ public enum AcaoAuditoria {
     PROMOCAO_ALTERADA("Promoção"),
     CONFIGURACAO_ALTERADA("Configuração alterada"),
     BACKUP_REALIZADO("Backup"),
-    DADOS_DEMO_GERADOS("Dados de demonstração");
+    DADOS_DEMO_GERADOS("Dados de demonstração"),
+    CLIENTE_DADOS_EXPORTADOS("Dados do cliente exportados (LGPD)"),
+    CLIENTE_ANONIMIZADO("Cliente anonimizado (LGPD)");
 
     private final String rotulo;
 

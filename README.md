@@ -98,6 +98,18 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    M, CX, PCT, FD, DZ), cadastre outras com sigla de até 6 letras ou números, descrição e "fracionada" (aceita
    quantidade com casas decimais). A sigla e "fracionada" só mudam, e a unidade só é excluída, enquanto nenhum produto
    a usa; a descrição muda sempre. UN é a unidade padrão e não muda de sigla.
+6. **Clientes** (menu Clientes, com a permissão Clientes):
+   - cadastro com nome, CPF/CNPJ (único, com o dígito verificador conferido), contatos, endereço e o consentimento
+     de marketing, que fica registrado com a data;
+   - aba **Compras**: histórico, total gasto, ticket médio, última compra e produtos mais comprados;
+   - aba **LGPD**: **Exportar** os dados do cliente em PDF ou CSV, a pedido dele (fica na auditoria) e **Anonimizar**
+     (só o supervisor, digitando o nome do cliente para confirmar). Anonimizar apaga os dados pessoais e mantém as
+     vendas, que passam a mostrar "Cliente anonimizado nº X". Não pode ser desfeito.
+
+   No PDV, **F11** identifica o cliente da venda pelo CPF/CNPJ (Enter já identifica) ou pelo nome, com cadastro rápido
+   (nome e CPF), e permite trocar ou remover o cliente até finalizar. Basta a permissão PDV. O comprovante mostra o
+   nome e o CPF mascarado (`***.456.789-**`). O relatório **R18 Clientes** mostra as compras de cada cliente no
+   período.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.

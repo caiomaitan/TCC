@@ -2,6 +2,7 @@ package br.com.varesync.config;
 
 import br.com.varesync.controller.CaixaController;
 import br.com.varesync.controller.CategoriasController;
+import br.com.varesync.controller.ClientesController;
 import br.com.varesync.controller.UnidadesController;
 import br.com.varesync.controller.ComprasController;
 import br.com.varesync.controller.ConfiguracoesController;
@@ -143,8 +144,11 @@ public final class AppContext implements AutoCloseable {
             return new CaixaController(s.caixa(), s.acesso(), fechamentoPdf, sessao);
         }
         if (tipo == PdvController.class) {
-            return new PdvController(s.vendas(), s.caixa(), s.acesso(), comprovantePdf, impressaoComprovante,
-                    fechamentoPdf, sessao);
+            return new PdvController(s.vendas(), s.clientes(), s.caixa(), s.acesso(), comprovantePdf,
+                    impressaoComprovante, fechamentoPdf, sessao);
+        }
+        if (tipo == ClientesController.class) {
+            return new ClientesController(s.clientes(), relatorioPdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
