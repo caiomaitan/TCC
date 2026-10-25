@@ -174,7 +174,7 @@ class InventarioServiceIT extends IntegracaoBase {
                   FROM movimento_estoque m JOIN inventario_item ii ON ii.id = m.inventario_item_id
                  WHERE ii.inventario_id = %d""".formatted(inv)))
                 .containsExactly(Arrays.<Object>asList("INVENTARIO", "-2", "9", "7", "21.5", null));
-        List<MovimentoKardex> kardex = t.estoque.kardex(admin, cafe, t.estoque.periodoPadrao());
+        List<MovimentoKardex> kardex = t.estoque.kardex(admin, cafe, t.estoque.periodoPadrao()).movimentos();
         assertThat(kardex).extracting(MovimentoKardex::tipo).containsExactly(TipoMovimento.AJUSTE_ENTRADA,
                 TipoMovimento.VENDA, TipoMovimento.INVENTARIO);
         assertThat(kardex.get(2).origem()).isEqualTo("Inventário nº " + inv);
@@ -522,5 +522,43 @@ class InventarioServiceIT extends IntegracaoBase {
         }
         assertThat(Arrays.stream(StatusInventario.values()).map(Enum::name).collect(Collectors.toSet()))
                 .isEqualTo(valores);
+    }
+
+    /**
+     * Aceite F10 (inventário grande, F10.8): com 5 mil itens, gravar uma contagem leva menos de 300 ms. A tela grava
+     * a contagem e relê só a linha do inventário na lista; a aba Contagem troca só a linha do item, sem reler os 5 mil
+     * (a releitura inteira, que era feita antes, também é medida, para comparação).
+     */
+    @Test
+    void comCincoMilItensGravarUmaContagemLevaMenosDe300ms() throws Exception {
+        try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
+            st.executeUpdate("INSERT INTO produto (nome, unidade, preco_venda, custo, criado_por, atualizado_por) "
+                    + "SELECT 'Produto ' || g, 'UN', 1.99, 1, " + admin.usuarioId() + ", " + admin.usuarioId()
+                    + " FROM generate_series(1, 5000) g");
+            st.executeUpdate("ANALYZE produto");
+        }
+        long inv = inventarios.criar(admin, "Inventário geral");
+        assertThat(inventarios.incluirTodosAtivos(admin, inv).incluidos()).isEqualTo(5000);
+        List<ItemContagem> itens = inventarios.itensContagem(admin, inv);
+        assertThat(itens).hasSize(5000);
+        inventarios.registrarContagem(admin, inv, itens.get(0).itemId(), v("1")); // aquece conexões e caches
+        inventarios.buscar(admin, inv);
+
+        long maior = 0;
+        for (int i = 1; i <= 20; i++) {
+            long inicio = System.nanoTime();
+            ItemContagem gravado = inventarios.registrarContagem(admin, inv, itens.get(i * 200).itemId(), v("3"));
+            InventarioResumo resumo = inventarios.buscar(admin, inv);
+            maior = Math.max(maior, System.nanoTime() - inicio);
+            assertThat(gravado.contado()).isTrue();
+            assertThat(resumo.itensContados()).isEqualTo(i + 1);
+        }
+        long ms = Duration.ofNanos(maior).toMillis();
+        long inicioReleitura = System.nanoTime();
+        assertThat(inventarios.itensContagem(admin, inv)).hasSize(5000);
+        long releitura = Duration.ofNanos(System.nanoTime() - inicioReleitura).toMillis();
+        System.out.printf("Métrica F10.8: gravar uma contagem com 5 mil itens — pior de 20: %d ms "
+                + "(reler a aba inteira: %d ms)%n", ms, releitura);
+        assertThat(ms).isLessThan(300);
     }
 }

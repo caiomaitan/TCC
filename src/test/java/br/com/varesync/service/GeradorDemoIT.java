@@ -18,12 +18,14 @@ import br.com.varesync.report.RelCancelamentos;
 import br.com.varesync.report.RelComprasFornecedor;
 import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelFormasPagamento;
+import br.com.varesync.report.RelMovimentacao;
 import br.com.varesync.report.RelPerdasAjustes;
 import br.com.varesync.report.RelRentabilidadeCategoria;
 import br.com.varesync.report.RelSemGiro;
 import br.com.varesync.report.RelVendasHoraDia;
 import br.com.varesync.report.RelVendasOperador;
 import br.com.varesync.report.Relatorio;
+import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.RelRentabilidadeProduto;
 import br.com.varesync.report.RelVendasPeriodo;
@@ -356,5 +358,26 @@ class GeradorDemoIT extends IntegracaoBase {
             assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
+    }
+
+    /**
+     * Aceite F10 (PDF grande): o R04 de 60 dias sem filtro de produto passa de 50 páginas e pede confirmação; com um
+     * produto, fica pequeno e não pergunta.
+     */
+    @Test
+    void r04DeSessentaDiasSemProdutoPedeConfirmacaoAntesDoPdf() {
+        ResultadoRelatorio<RelMovimentacao.Linha> todos = t.relatorios.gerar(admin, new RelMovimentacao(), periodo());
+        int paginas = RelatorioPdf.estimarPaginas(todos);
+        LOG.info("R04 de 60 dias sem produto: {} linhas, cerca de {} páginas", todos.linhas().size(), paginas);
+        assertThat(paginas).isGreaterThan(RelatorioPdf.PAGINAS_PARA_CONFIRMAR);
+        assertThat(RelatorioPdf.avisoPdfGrande(todos)).hasValueSatisfying(aviso -> assertThat(aviso)
+                .startsWith("O PDF terá cerca de " + paginas + " páginas")
+                .contains("filtre por um produto, um tipo de movimento ou um período menor"));
+
+        long produto = todos.linhas().get(todos.linhas().size() - 1).produtoId();
+        ResultadoRelatorio<RelMovimentacao.Linha> umProduto = t.relatorios.gerar(admin, new RelMovimentacao(),
+                periodo().comProduto(t.relatorios.produto(admin, String.valueOf(produto))));
+        assertThat(RelatorioPdf.avisoPdfGrande(umProduto)).isEmpty();
+        assertThat(umProduto.linhas().get(0).descricaoTipo()).isEqualTo("Saldo anterior");
     }
 }

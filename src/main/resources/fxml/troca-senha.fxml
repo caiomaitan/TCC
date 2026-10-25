@@ -18,7 +18,7 @@
 
     <Label text="Troca de senha" styleClass="titulo"/>
     <Label fx:id="saudacao" wrapText="true" styleClass="subtitulo"/>
-    <Label text="A senha deve ter ao menos 6 caracteres e ser diferente do login." wrapText="true"
+    <Label fx:id="regraSenha" wrapText="true" minHeight="-Infinity"
            styleClass="subtitulo"/>
 
     <GridPane hgap="12" vgap="10">

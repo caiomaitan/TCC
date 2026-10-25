@@ -6,6 +6,7 @@ import br.com.varesync.dao.UsuarioDAO.Credencial;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.Usuario;
 import br.com.varesync.report.Emissao;
 import br.com.varesync.util.Formatos;
@@ -99,7 +100,7 @@ public class AcessoService implements ConferenciaAcesso {
         }
         String nome = ValidacaoUsuario.nome(dados.nome());
         String login = ValidacaoUsuario.login(dados.login());
-        senhas.validarNova(login, dados.senha(), dados.confirmacao());
+        senhas.validarNova(login, dados.senha(), dados.confirmacao(), politicaSenha());
         String hash = senhas.gerarHash(dados.senha()); // fora da transação: o BCrypt é lento de propósito
 
         return transacao.executar(con -> {
@@ -163,6 +164,14 @@ public class AcessoService implements ConferenciaAcesso {
         return atual;
     }
 
+    /**
+     * Política de senha (F10.6) para o primeiro acesso, a troca obrigatória e a troca pela própria pessoa. Sem
+     * permissão: as telas de entrada a mostram antes do login.
+     */
+    public PoliticaSenha politicaSenha() {
+        return transacao.executar(con -> configuracaoDAO.carregar(con).politicaSenha());
+    }
+
     /** {@code seguranca.inatividade_minutos}: minutos sem uso até bloquear a tela (0 = não bloqueia). */
     public int inatividadeMinutos() {
         return transacao.executar(con -> configuracaoDAO.carregar(con).inatividadeMinutos());
@@ -200,7 +209,7 @@ public class AcessoService implements ConferenciaAcesso {
      * @return nova sessão, já sem a troca obrigatória
      */
     public Sessao trocarSenha(Sessao sessao, String senhaAtual, String novaSenha, String confirmacao) {
-        senhas.validarNova(sessao.usuario().login(), novaSenha, confirmacao);
+        senhas.validarNova(sessao.usuario().login(), novaSenha, confirmacao, politicaSenha());
         if (novaSenha.equals(senhaAtual)) {
             throw new NegocioException("A nova senha deve ser diferente da atual.");
         }

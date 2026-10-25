@@ -88,12 +88,16 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    `src/main/resources/db/migration`). Essa tela volta sempre que a conexão falhar (servidor parado, senha trocada).
 2. **Assistente de primeiro acesso.** Com o banco sem usuários, o sistema pede o **nome da loja** e cria o
    **supervisor** (nome, login, senha e confirmação). Não existe usuário nem senha padrão. A senha tem de 6 a 50
-   caracteres e é diferente do login.
+   caracteres e é diferente do login (a regra pode ficar mais forte depois: veja **Política de senha** abaixo).
 3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor), margem mínima, balança, segurança
-   (bloqueio por inatividade), backup e formas de pagamento.
+   (bloqueio por inatividade e política de senha), backup e formas de pagamento.
+5. **Unidades de medida** (Produtos › *Unidades…*, com a permissão Produtos): além das que vêm prontas (UN, KG, L,
+   M, CX, PCT, FD, DZ), cadastre outras com sigla de até 6 letras ou números, descrição e "fracionada" (aceita
+   quantidade com casas decimais). A sigla e "fracionada" só mudam, e a unidade só é excluída, enquanto nenhum produto
+   a usa; a descrição muda sempre. UN é a unidade padrão e não muda de sigla.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -108,6 +112,10 @@ Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor p
   logado, em qualquer computador. Permissão retirada: a ação é recusada e o menu deixa de mostrar a rotina, sem log
   off. Usuário inativado ou com a senha redefinida: o sistema volta ao login com o aviso "Seu acesso foi alterado pelo
   supervisor" (no PDV, a venda em andamento é abandonada e fica na auditoria).
+- **Política de senha:** em **Configurações › Segurança**, o tamanho mínimo (de 6 a 50; padrão 6) e, se marcado,
+  letras e números obrigatórios. Vale para senhas novas e trocadas (primeiro acesso, troca de senha e senha
+  provisória); as telas mostram a regra, e a senha recusada mostra a regra na mensagem. As senhas atuais continuam
+  valendo até a próxima troca.
 
 ## 5. Configuração local e logs
 
@@ -191,6 +199,9 @@ novo**; o sistema confere antes de começar.
 - **Qual `pg_dump`**: o informado em Configurações › Backup; vazio, o do PATH ou o de
   `C:\Program Files\PostgreSQL\<versão>\bin` (o de versão mais alta).
 - A senha do banco vai para o `pg_dump` pela variável `PGPASSWORD` do processo, nunca na linha de comando.
+- **Backup conferido:** depois do `pg_dump`, o sistema lê o arquivo com o `pg_restore --list` da **mesma pasta** do
+  `pg_dump` (a instalação do PostgreSQL traz os dois). Se o `pg_restore` faltar ou não conseguir ler o arquivo, o
+  backup é descartado, quem fez vê o aviso e ele não conta como "último backup" no Painel.
 - O Painel avisa o supervisor quando o último backup tem mais de 7 dias. Guarde cópias também fora do computador
   (pen drive, nuvem).
 

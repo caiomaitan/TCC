@@ -212,4 +212,11 @@ public class ProdutosController {
         carregarCategorias();
         pesquisar();
     }
+
+    /** Cadastro de unidades de medida (F10.5). */
+    @FXML
+    private void abrirUnidades() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/unidades.fxml", "Unidades de medida",
+                fabricaControllers, (UnidadesController c) -> { });
+    }
 }

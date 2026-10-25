@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
@@ -32,8 +34,15 @@ public class RelatorioPdf {
 
     /** Soma das larguras relativas ({@link TipoColuna#largura()}) que ainda cabe em A4 em pé. */
     static final double LARGURA_MAXIMA_EM_PE = 12;
+    /** Acima disto, a tela pede confirmação antes de gerar o PDF e sugere filtros (F10.7). */
+    public static final int PAGINAS_PARA_CONFIRMAR = 50;
     private static final int MARGEM = 28;
     private static final int RESPIRO = 2;
+    // Alturas das faixas do JRXML gerado (cabeçalho da página, títulos das colunas, linha, rodapé).
+    private static final int ALTURA_CABECALHO = 62;
+    private static final int ALTURA_TITULOS = 18;
+    private static final int ALTURA_LINHA = 13;
+    private static final int ALTURA_RODAPE = 18;
 
     private final Map<String, JasperReport> compilados = new ConcurrentHashMap<>();
 
@@ -71,6 +80,76 @@ public class RelatorioPdf {
                 new JRMapCollectionDataSource(linhas));
     }
 
+    /**
+     * Páginas do PDF estimadas pelo número de linhas (F10.7), com a mesma orientação e as mesmas alturas do JRXML.
+     * Texto longo que quebra a linha aumenta o PDF: a estimativa é o mínimo.
+     */
+    public static <T> int estimarPaginas(List<Coluna<T>> colunas, int linhas) {
+        int alturaPagina = deitado(colunas) ? 595 : 842;
+        int util = alturaPagina - 2 * MARGEM - ALTURA_CABECALHO - ALTURA_TITULOS - ALTURA_RODAPE;
+        int porPagina = util / ALTURA_LINHA;
+        return Math.max(1, (linhas + porPagina - 1) / porPagina);
+    }
+
+    public static int estimarPaginas(ResultadoRelatorio<?> resultado) {
+        return estimarPaginas(resultado.colunas(), resultado.linhas().size());
+    }
+
+    /**
+     * Aviso para confirmar antes do PDF grande (F10.7): vazio até {@value #PAGINAS_PARA_CONFIRMAR} páginas; acima,
+     * o tamanho e os filtros do relatório que ainda podem reduzi-lo.
+     */
+    public static Optional<String> avisoPdfGrande(ResultadoRelatorio<?> resultado) {
+        int paginas = estimarPaginas(resultado);
+        if (paginas <= PAGINAS_PARA_CONFIRMAR) {
+            return Optional.empty();
+        }
+        List<String> sugestoes = sugestoesDeFiltro(resultado.relatorio().filtros(), resultado.filtros());
+        return Optional.of("O PDF terá cerca de " + paginas + " páginas (" + resultado.linhas().size()
+                + " linhas)." + (sugestoes.isEmpty() ? "" : " Para um arquivo menor, filtre por "
+                + juntar(sugestoes) + ".") + " A tela e o CSV mostram tudo sem esse tamanho.\n\n"
+                + "Gerar o PDF mesmo assim?");
+    }
+
+    /** Os filtros do relatório que ainda estão abertos, na ordem da tela. */
+    static List<String> sugestoesDeFiltro(Set<TipoFiltro> usados, Filtros filtros) {
+        List<String> sugestoes = new ArrayList<>();
+        if (usados.contains(TipoFiltro.PRODUTO) && filtros.produto() == null) {
+            sugestoes.add("um produto");
+        }
+        if (usados.contains(TipoFiltro.TIPO_MOVIMENTO) && filtros.tipo() == null) {
+            sugestoes.add("um tipo de movimento");
+        }
+        if (usados.contains(TipoFiltro.CATEGORIA) && filtros.categoria() == null) {
+            sugestoes.add("uma categoria");
+        }
+        if (usados.contains(TipoFiltro.OPERADOR) && filtros.operador() == null) {
+            sugestoes.add("um operador");
+        }
+        if (usados.contains(TipoFiltro.FORNECEDOR) && filtros.fornecedor() == null) {
+            sugestoes.add("um fornecedor");
+        }
+        if (usados.contains(TipoFiltro.DETALHAR_VENDAS) && filtros.detalharVendas()) {
+            sugestoes.add("dia (sem detalhar cada venda)");
+        }
+        if (usados.contains(TipoFiltro.PERIODO)) {
+            sugestoes.add("um período menor");
+        }
+        return sugestoes;
+    }
+
+    /** "a", "a ou b", "a, b ou c". */
+    private static String juntar(List<String> partes) {
+        if (partes.size() == 1) {
+            return partes.get(0);
+        }
+        return String.join(", ", partes.subList(0, partes.size() - 1)) + " ou " + partes.get(partes.size() - 1);
+    }
+
+    private static <T> boolean deitado(List<Coluna<T>> colunas) {
+        return colunas.stream().mapToDouble(Coluna::largura).sum() > LARGURA_MAXIMA_EM_PE;
+    }
+
     public <T> void salvar(ResultadoRelatorio<T> resultado, Path destino) {
         try {
             Files.write(destino, gerar(resultado));
@@ -91,7 +170,7 @@ public class RelatorioPdf {
 
     /** O JRXML da tabela; depende só do número, da largura e do alinhamento das colunas. */
     static <T> String jrxml(List<Coluna<T>> colunas) {
-        boolean deitado = colunas.stream().mapToDouble(Coluna::largura).sum() > LARGURA_MAXIMA_EM_PE;
+        boolean deitado = deitado(colunas);
         int larguraPagina = deitado ? 842 : 595;
         int alturaPagina = deitado ? 595 : 842;
         int util = larguraPagina - 2 * MARGEM;
@@ -127,7 +206,7 @@ public class RelatorioPdf {
             s.append("    <field name=\"c").append(i).append("\" class=\"java.lang.String\"/>\n");
         }
 
-        s.append("    <pageHeader height=\"62\">\n");
+        s.append("    <pageHeader height=\"").append(ALTURA_CABECALHO).append("\">\n");
         texto(s, 0, 0, util, 14, "Left", "fontSize=\"10\" bold=\"true\"", "$P{LOJA}", false);
         texto(s, 0, 14, util, 20, "Left", "fontSize=\"13\" bold=\"true\"", "$P{TITULO}", false);
         // Até duas linhas de filtros (o R13 descreve o inventário, a situação e os não contados).
@@ -135,7 +214,7 @@ public class RelatorioPdf {
         linha(s, 0, 60, util);
         s.append("    </pageHeader>\n");
 
-        s.append("    <columnHeader height=\"18\">\n");
+        s.append("    <columnHeader height=\"").append(ALTURA_TITULOS).append("\">\n");
         s.append("            <element kind=\"rectangle\" x=\"0\" y=\"0\" width=\"").append(util)
                 .append("\" height=\"18\" mode=\"Opaque\" backcolor=\"#E8ECF2\"><pen lineWidth=\"0\"/></element>\n");
         for (int i = 0; i < colunas.size(); i++) {
@@ -144,14 +223,14 @@ public class RelatorioPdf {
         }
         s.append("    </columnHeader>\n");
 
-        s.append("    <detail>\n        <band height=\"13\">\n");
+        s.append("    <detail>\n        <band height=\"").append(ALTURA_LINHA).append("\">\n");
         for (int i = 0; i < colunas.size(); i++) {
             texto(s, x[i] + RESPIRO, 1, w[i] - 2 * RESPIRO, 12, alinhamento(colunas.get(i)), "",
                     "$F{c" + i + "}", true);
         }
         s.append("        </band>\n    </detail>\n");
 
-        s.append("    <pageFooter height=\"18\">\n");
+        s.append("    <pageFooter height=\"").append(ALTURA_RODAPE).append("\">\n");
         linha(s, 0, 2, util);
         texto(s, 0, 5, util - 120, 12, "Left", "fontSize=\"7\"", "$P{EMISSAO}", false);
         texto(s, util - 120, 5, 90, 12, "Right", "fontSize=\"7\"",

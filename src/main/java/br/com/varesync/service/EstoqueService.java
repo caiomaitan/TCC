@@ -6,7 +6,7 @@ import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.MotivoPerda;
-import br.com.varesync.model.MovimentoKardex;
+import br.com.varesync.model.Kardex;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
@@ -121,8 +121,11 @@ public class EstoqueService {
         return new Periodo(hoje.minusDays(DIAS_PERIODO_PADRAO - 1), hoje);
     }
 
-    /** Kardex do produto no período (as duas datas incluídas), do mais antigo para o mais recente. */
-    public List<MovimentoKardex> kardex(Sessao sessao, long produtoId, Periodo periodo) {
+    /**
+     * Kardex do produto no período (as duas datas incluídas), do mais antigo para o mais recente, com o saldo
+     * anterior ao início (F10.4).
+     */
+    public Kardex kardex(Sessao sessao, long produtoId, Periodo periodo) {
         sessao.exigir(Permissao.ESTOQUE);
         if (periodo == null || periodo.inicio() == null || periodo.fim() == null) {
             throw new NegocioException("Informe a data inicial e a data final do período.");
@@ -130,8 +133,9 @@ public class EstoqueService {
         if (periodo.inicio().isAfter(periodo.fim())) {
             throw new NegocioException("A data inicial não pode ser depois da data final.");
         }
-        return transacao.executar(con -> movimentoDAO.listar(con, produtoId, periodo.inicioEm(clock.getZone()),
-                periodo.fimExclusivoEm(clock.getZone())));
+        OffsetDateTime inicio = periodo.inicioEm(clock.getZone());
+        return transacao.executar(con -> new Kardex(inicio, movimentoDAO.saldoAntes(con, produtoId, inicio),
+                movimentoDAO.listar(con, produtoId, inicio, periodo.fimExclusivoEm(clock.getZone()))));
     }
 
     // ----- Ajustes manuais (6.4) -----

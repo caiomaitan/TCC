@@ -3,6 +3,7 @@ package br.com.varesync.report;
 import br.com.varesync.dao.Jdbc;
 import br.com.varesync.model.MovimentoKardex;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.service.NegocioException;
 import br.com.varesync.util.Dinheiro;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -18,7 +19,8 @@ import java.util.Set;
 /**
  * R04 — Movimentação de estoque (7.3): os movimentos do kardex no período, com produto e tipo opcionais. Totais de
  * entradas e saídas valorizadas a custo (quantidade × custo do movimento); a quantidade só é somada com um produto
- * escolhido, porque unidades diferentes não se somam.
+ * escolhido, porque unidades diferentes não se somam. Com um produto escolhido, a primeira linha é o "Saldo
+ * anterior" ao início do período (F10.4), sem tipo, quantidade nem valores.
  */
 public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
 
@@ -26,14 +28,26 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
                         TipoMovimento tipo, BigDecimal quantidade, BigDecimal saldoApos, BigDecimal custo,
                         String usuario, String origem) {
 
-        /** Entrada valorizada a custo; nulo nas saídas. */
-        public BigDecimal entrada() {
-            return quantidade.signum() > 0 ? Dinheiro.multiplicar(quantidade, custo) : null;
+        /** Linha "Saldo anterior" (F10.4): data = início do período, saldo após = saldo anterior. */
+        static Linha saldoAnterior(OffsetDateTime inicio, long produtoId, String produto, String unidade,
+                                   boolean fracionada, BigDecimal saldo) {
+            return new Linha(inicio, produtoId, produto, unidade, fracionada, null, null, saldo, null, "", "");
         }
 
-        /** Saída valorizada a custo (positiva); nulo nas entradas. */
+        /** "Saldo anterior" ou a descrição do tipo. */
+        public String descricaoTipo() {
+            return tipo == null ? MovimentoKardex.SALDO_ANTERIOR : tipo.descricao();
+        }
+
+        /** Entrada valorizada a custo; nulo nas saídas e no saldo anterior. */
+        public BigDecimal entrada() {
+            return quantidade != null && quantidade.signum() > 0 ? Dinheiro.multiplicar(quantidade, custo) : null;
+        }
+
+        /** Saída valorizada a custo (positiva); nulo nas entradas e no saldo anterior. */
         public BigDecimal saida() {
-            return quantidade.signum() < 0 ? Dinheiro.multiplicar(quantidade.negate(), custo) : null;
+            return quantidade != null && quantidade.signum() < 0 ? Dinheiro.multiplicar(quantidade.negate(), custo)
+                    : null;
         }
     }
 
@@ -78,6 +92,9 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
                  ORDER BY m.criado_em, m.id
                 """;
         List<Linha> linhas = new ArrayList<>();
+        if (filtros.produtoId() != null && filtros.periodo() != null) {
+            linhas.add(saldoAnterior(con, filtros.produtoId(), filtros.periodo().inicioEm(parametros.zona())));
+        }
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             Consultas.periodo(ps, 1, filtros, parametros);
             Consultas.opcional(ps, 3, filtros.produtoId());
@@ -98,6 +115,32 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
         return linhas;
     }
 
+    /** O saldo após o último movimento antes do início do período, ou 0 (mesma regra da tela Estoque). */
+    private static Linha saldoAnterior(Connection con, long produtoId, OffsetDateTime inicio) throws SQLException {
+        String sql = """
+                SELECT p.nome, p.unidade, um.fracionada,
+                       coalesce((SELECT m.saldo_posterior
+                                   FROM movimento_estoque m
+                                  WHERE m.produto_id = p.id
+                                    AND m.criado_em < ?
+                                  ORDER BY m.criado_em DESC, m.id DESC
+                                  LIMIT 1), 0) AS saldo
+                  FROM produto p
+                  JOIN unidade_medida um ON um.sigla = p.unidade
+                 WHERE p.id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setObject(1, inicio);
+            ps.setLong(2, produtoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new NegocioException("Produto não encontrado.");
+                }
+                return Linha.saldoAnterior(inicio, produtoId, rs.getString("nome"), rs.getString("unidade"),
+                        rs.getBoolean("fracionada"), rs.getBigDecimal("saldo"));
+            }
+        }
+    }
 
     @Override
     public List<Coluna<Linha>> colunas(Filtros filtros) {
@@ -109,7 +152,7 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
         return List.of(
                 Coluna.<Linha>de("Data/hora", TipoColuna.DATA_HORA, Linha::dataHora),
                 Coluna.texto("Produto", Linha::produto),
-                Coluna.<Linha>texto("Tipo", l -> l.tipo().descricao()).comLargura(1.8),
+                Coluna.<Linha>texto("Tipo", Linha::descricaoTipo).comLargura(1.8),
                 quantidade,
                 saldo,
                 Coluna.<Linha>de("Custo unit.", TipoColuna.CUSTO, Linha::custo),

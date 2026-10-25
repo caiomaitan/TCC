@@ -21,6 +21,7 @@ public class TrocaSenhaController {
 
     @FXML private VBox formulario;
     @FXML private Label saudacao;
+    @FXML private Label regraSenha;
     @FXML private PasswordField campoAtual;
     @FXML private PasswordField campoNova;
     @FXML private PasswordField campoConfirmacao;
@@ -36,6 +37,7 @@ public class TrocaSenhaController {
     private void initialize() {
         saudacao.setText("Olá, " + sessao.usuario().nome() + ". A sua senha é provisória: defina uma senha nova "
                 + "para continuar.");
+        regraSenha.setText(acessoService.politicaSenha().descricao());
         Platform.runLater(campoAtual::requestFocus);
     }
 

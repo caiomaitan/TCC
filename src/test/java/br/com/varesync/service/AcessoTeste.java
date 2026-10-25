@@ -62,6 +62,7 @@ final class AcessoTeste {
     final ImportacaoProdutosService importacao;
     final ConsultaAuditoriaService consultaAuditoria;
     final ImportacaoNfeService nfe;
+    final UnidadeService unidades;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -72,7 +73,7 @@ final class AcessoTeste {
         UsuarioDAO usuarioDAO = new UsuarioDAO();
         AuditoriaService auditoria = new AuditoriaService(new AuditoriaDAO(), relogio, TERMINAL);
         acesso = new AcessoService(transacao, usuarioDAO, new ConfiguracaoDAO(), auditoria, senhas, relogio, TERMINAL);
-        usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas, relogio);
+        usuarios = new UsuarioService(transacao, usuarioDAO, new ConfiguracaoDAO(), auditoria, senhas, relogio);
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
         estoque = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(), auditoria,
@@ -99,6 +100,7 @@ final class AcessoTeste {
                 new UnidadeMedidaDAO());
         consultaAuditoria = new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), relogio);
         nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO, compras, relogio);
+        unidades = new UnidadeService(transacao, new UnidadeMedidaDAO());
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }
@@ -122,6 +124,15 @@ final class AcessoTeste {
             st.executeUpdate("UPDATE categoria SET ativa = TRUE WHERE NOT ativa");
             st.executeUpdate("DELETE FROM forma_pagamento WHERE descricao NOT IN (" + FORMAS_V2 + ")");
             st.executeUpdate("UPDATE forma_pagamento SET ativa = TRUE WHERE NOT ativa");
+            st.executeUpdate("DELETE FROM unidade_medida WHERE sigla NOT IN ('UN', 'KG', 'L', 'M', 'CX', 'PCT', 'FD', "
+                    + "'DZ')");
+            st.executeUpdate("""
+                    INSERT INTO unidade_medida (sigla, descricao, fracionada) VALUES
+                        ('UN', 'Unidade', FALSE), ('KG', 'Quilograma', TRUE), ('L', 'Litro', TRUE),
+                        ('M', 'Metro', TRUE), ('CX', 'Caixa', FALSE), ('PCT', 'Pacote', FALSE),
+                        ('FD', 'Fardo', FALSE), ('DZ', 'Dúzia', FALSE)
+                    ON CONFLICT (sigla) DO UPDATE SET descricao = EXCLUDED.descricao, fracionada = EXCLUDED.fracionada
+                    """);
             try (PreparedStatement ps = con.prepareStatement("UPDATE configuracao SET valor = ? WHERE chave = ?")) {
                 for (var valor : Configuracoes.PADRAO.paraMapa().entrySet()) {
                     ps.setString(1, valor.getValue());

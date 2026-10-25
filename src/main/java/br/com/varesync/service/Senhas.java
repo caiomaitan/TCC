@@ -1,12 +1,14 @@
 package br.com.varesync.service;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
+import br.com.varesync.model.PoliticaSenha;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Hash BCrypt das senhas e regras de senha nova (6.1): mínimo de 6 caracteres e diferente do login.
+ * Hash BCrypt das senhas e regras de senha nova (6.1 e F10.6): a política configurada (tamanho mínimo e, se ligado,
+ * letras e números), no máximo 50 caracteres e diferente do login.
  * A senha em texto nunca é gravada nem registrada no log.
  */
 public final class Senhas {
@@ -14,8 +16,7 @@ public final class Senhas {
     private static final Logger log = LoggerFactory.getLogger(Senhas.class);
 
     public static final int CUSTO_PADRAO = 12;
-    public static final int TAMANHO_MINIMO = 6;
-    public static final int TAMANHO_MAXIMO = 50;
+    public static final int TAMANHO_MAXIMO = PoliticaSenha.TAMANHO_MAXIMO;
     /** Limite do BCrypt (versão 2a): 72 bytes menos o terminador. */
     private static final int BYTES_MAXIMO = 71;
 
@@ -67,14 +68,14 @@ public final class Senhas {
     }
 
     /**
-     * Valida uma senha nova.
+     * Valida uma senha nova pela política configurada (F10.6). Fora da política, a mensagem é a própria regra.
      *
      * @param login login já normalizado do dono da senha
      * @throws NegocioException com a mensagem para o usuário
      */
-    public void validarNova(String login, String senha, String confirmacao) {
-        if (senha == null || senha.length() < TAMANHO_MINIMO) {
-            throw new NegocioException("A senha deve ter ao menos " + TAMANHO_MINIMO + " caracteres.");
+    public void validarNova(String login, String senha, String confirmacao, PoliticaSenha politica) {
+        if (!politica.atende(senha)) {
+            throw new NegocioException(politica.descricao());
         }
         if (senha.length() > TAMANHO_MAXIMO
                 || senha.getBytes(StandardCharsets.UTF_8).length > BYTES_MAXIMO) {

@@ -7,15 +7,14 @@ import java.util.Optional;
 
 /**
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
- * V4: {@code seguranca.inatividade_minutos}, F10.2); uma
- * chave que falta ou tem valor inválido (alterada fora do sistema) volta ao padrão em {@link #de(Map)}.
+ * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6); uma chave que falta ou tem valor inválido (alterada fora do
+ * sistema) volta ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
  * Configurações grava um novo retrato inteiro ({@code ConfiguracaoService.salvar}).
  */
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
-                            Balanca balanca, Backup backup, String rodapeComprovante,
-                            int inatividadeMinutos) {
+                            Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca) {
 
     public static final String EMPRESA_NOME = "empresa.nome";
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
@@ -35,6 +34,8 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String BACKUP_MANTER = "backup.manter_ultimos";
     public static final String COMPROVANTE_RODAPE = "comprovante.rodape";
     public static final String SEGURANCA_INATIVIDADE = "seguranca.inatividade_minutos";
+    public static final String SEGURANCA_SENHA_TAMANHO = "seguranca.senha_tamanho_minimo";
+    public static final String SEGURANCA_SENHA_LETRA_E_NUMERO = "seguranca.senha_letra_e_numero";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
@@ -63,34 +64,59 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public record Backup(String pasta, String pgDump, int manterUltimos) {
     }
 
-    /** Valores da V2. */
+    /** Segurança: bloqueio por inatividade (F10.2) e política de senha (F10.6). */
+    public record Seguranca(int inatividadeMinutos, PoliticaSenha senha) {
+    }
+
+    /** Valores da V2 (e da V4 e V5). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
-            "Obrigado pela preferência!", 15);
+            "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO));
+
+    /** Minutos sem atividade até bloquear a tela (0 = desligado). */
+    public int inatividadeMinutos() {
+        return seguranca.inatividadeMinutos();
+    }
+
+    public PoliticaSenha politicaSenha() {
+        return seguranca.senha();
+    }
 
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                inatividadeMinutos);
+                seguranca);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                inatividadeMinutos);
+                seguranca);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
-        return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante,
-                inatividadeMinutos);
+        return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
-                inatividadeMinutos);
+                seguranca);
     }
 
     public Configuracoes comRodape(String outro) {
-        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, inatividadeMinutos);
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca);
+    }
+
+    public Configuracoes comSeguranca(Seguranca outra) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                outra);
+    }
+
+    public Configuracoes comInatividade(int minutos) {
+        return comSeguranca(new Seguranca(minutos, seguranca.senha()));
+    }
+
+    public Configuracoes comPoliticaSenha(PoliticaSenha outra) {
+        return comSeguranca(new Seguranca(seguranca.inatividadeMinutos(), outra));
     }
 
     /** Lê as linhas da tabela; chave ausente ou valor inválido usa o padrão da V2. */
@@ -112,14 +138,13 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 tipoValor(valores.get(BALANCA_TIPO_VALOR)).orElse(p.balanca.tipoValor()));
         Backup backup = new Backup(texto(valores, BACKUP_PASTA, ""), texto(valores, BACKUP_PG_DUMP, ""),
                 inteiro(valores, BACKUP_MANTER, 1, 999).orElse(p.backup.manterUltimos()));
+        Seguranca seguranca = new Seguranca(
+                inteiro(valores, SEGURANCA_INATIVIDADE, 0, INATIVIDADE_MAXIMA).orElse(p.inatividadeMinutos()),
+                new PoliticaSenha(inteiro(valores, SEGURANCA_SENHA_TAMANHO, PoliticaSenha.TAMANHO_MINIMO,
+                        PoliticaSenha.TAMANHO_MAXIMO).orElse(p.politicaSenha().tamanhoMinimo()),
+                        logico(valores, SEGURANCA_SENHA_LETRA_E_NUMERO, p.politicaSenha().letraENumero())));
         return new Configuracoes(loja, venda, margem, dias, balanca, backup,
-                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante),
-                inteiro(valores, SEGURANCA_INATIVIDADE, 0, INATIVIDADE_MAXIMA).orElse(p.inatividadeMinutos));
-    }
-
-    public Configuracoes comInatividade(int minutos) {
-        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                minutos);
+                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca);
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -142,7 +167,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(BACKUP_PG_DUMP, backup.pgDump());
         m.put(BACKUP_MANTER, String.valueOf(backup.manterUltimos()));
         m.put(COMPROVANTE_RODAPE, rodapeComprovante);
-        m.put(SEGURANCA_INATIVIDADE, String.valueOf(inatividadeMinutos));
+        m.put(SEGURANCA_INATIVIDADE, String.valueOf(seguranca.inatividadeMinutos()));
+        m.put(SEGURANCA_SENHA_TAMANHO, String.valueOf(seguranca.senha().tamanhoMinimo()));
+        m.put(SEGURANCA_SENHA_LETRA_E_NUMERO, String.valueOf(seguranca.senha().letraENumero()));
         return m;
     }
 

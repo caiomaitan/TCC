@@ -354,7 +354,7 @@ Domínios fixos (iguais aos enums Java):
 - **Busca**: texto → nome contém o termo, sem diferenciar acento ou maiúsculas (`nome_busca LIKE '%termo%'`, termo normalizado em Java pela mesma regra: minúsculas e sem acento); só dígitos → código interno ou código de barras exato. Filtros: categoria e situação. Colunas: código, nome, categoria, preço, estoque, última alteração. Duplo clique abre o produto.
 - **Histórico** (aba): data, usuário, preço anterior → novo, custo anterior → novo.
 - **Categorias**: cadastro simples, nome único sem diferenciar maiúsculas; em uso → inativar em vez de excluir.
-- Unidades: só leitura nesta versão (vêm do V2).
+- Unidades: só leitura nesta versão (vêm do V2). A partir da Fase 10, cadastro de unidades: ver F10.5 em `docs/ESPECIFICACAO_AMPLIACOES.md`.
 
 ### 6.4 Estoque
 - `EstoqueService.movimentar(con, produtoId, tipo, quantidadeComSinal, origem, motivo, custoOpcional)` é o **único** caminho para movimentar estoque; todos os módulos o usam.

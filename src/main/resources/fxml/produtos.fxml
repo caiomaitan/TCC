@@ -21,6 +21,7 @@
         <Button text="Promoções…" onAction="#abrirPromocoes"/>
         <Button text="Importar planilha…" onAction="#abrirImportacao"/>
         <Button text="Categorias…" onAction="#abrirCategorias"/>
+        <Button text="Unidades…" onAction="#abrirUnidades"/>
         <Button text="Novo produto (Ctrl+N)" onAction="#novo" styleClass="botao-primario"/>
     </HBox>
 

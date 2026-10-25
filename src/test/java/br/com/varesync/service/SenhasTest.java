@@ -4,11 +4,40 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.varesync.model.PoliticaSenha;
 import org.junit.jupiter.api.Test;
 
 class SenhasTest {
 
     private final Senhas senhas = new Senhas(4);
+
+    /** Com a política padrão (V5: 6 caracteres, sem exigir letras e números). */
+    private void validar(String login, String senha, String confirmacao) {
+        senhas.validarNova(login, senha, confirmacao, PoliticaSenha.PADRAO);
+    }
+
+    /** Aceite F10 (senha): com tamanho mínimo 8, "abc123" é recusada com a regra na mensagem. */
+    @Test
+    void politicaConfiguradaVaiNaMensagem() {
+        PoliticaSenha oito = new PoliticaSenha(8, false);
+        assertThatThrownBy(() -> senhas.validarNova("maria", "abc123", "abc123", oito))
+                .isInstanceOf(NegocioException.class)
+                .hasMessage("A senha deve ter ao menos 8 caracteres e ser diferente do login.");
+        assertThatCode(() -> senhas.validarNova("maria", "abcdefgh", "abcdefgh", oito)).doesNotThrowAnyException();
+
+        PoliticaSenha letraENumero = new PoliticaSenha(8, true);
+        String regra = "A senha deve ter ao menos 8 caracteres, com letras e números, e ser diferente do login.";
+        assertThat(letraENumero.descricao()).isEqualTo(regra);
+        for (String fora : new String[] {"abc123", "abcdefgh", "12345678", "!!!!!!!!"}) {
+            assertThatThrownBy(() -> senhas.validarNova("maria", fora, fora, letraENumero)).as(fora).hasMessage(regra);
+        }
+        assertThatCode(() -> senhas.validarNova("maria", "abcdefg1", "abcdefg1", letraENumero))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> senhas.validarNova("maria", "Ação2026", "Ação2026", letraENumero))
+                .as("letra acentuada conta como letra").doesNotThrowAnyException();
+        assertThatThrownBy(() -> senhas.validarNova("maria", "a1".repeat(26), "a1".repeat(26), letraENumero))
+                .as("o limite de 50 caracteres continua").hasMessageStartingWith("A senha deve ter no máximo 50");
+    }
 
     @Test
     void producaoUsaBcryptComCusto12() {
@@ -37,35 +66,35 @@ class SenhasTest {
 
     @Test
     void senhaNovaTemAoMenosSeisCaracteres() {
-        assertThatThrownBy(() -> senhas.validarNova("maria", "12345", "12345"))
+        assertThatThrownBy(() -> validar("maria", "12345", "12345"))
                 .isInstanceOf(NegocioException.class)
-                .hasMessage("A senha deve ter ao menos 6 caracteres.");
-        assertThatThrownBy(() -> senhas.validarNova("maria", null, null)).isInstanceOf(NegocioException.class);
-        assertThatCode(() -> senhas.validarNova("maria", "123456", "123456")).doesNotThrowAnyException();
+                .hasMessage("A senha deve ter ao menos 6 caracteres e ser diferente do login.");
+        assertThatThrownBy(() -> validar("maria", null, null)).isInstanceOf(NegocioException.class);
+        assertThatCode(() -> validar("maria", "123456", "123456")).doesNotThrowAnyException();
     }
 
     @Test
     void senhaNovaDiferenteDoLoginSemDiferenciarMaiusculas() {
-        assertThatThrownBy(() -> senhas.validarNova("mariana", "MARIANA", "MARIANA"))
+        assertThatThrownBy(() -> validar("mariana", "MARIANA", "MARIANA"))
                 .hasMessage("A senha não pode ser igual ao login.");
-        assertThatThrownBy(() -> senhas.validarNova("mariana", " mariana ", " mariana "))
+        assertThatThrownBy(() -> validar("mariana", " mariana ", " mariana "))
                 .hasMessage("A senha não pode ser igual ao login.");
     }
 
     @Test
     void confirmacaoTemDeConferir() {
-        assertThatThrownBy(() -> senhas.validarNova("maria", "segredo1", "segredo2"))
+        assertThatThrownBy(() -> validar("maria", "segredo1", "segredo2"))
                 .hasMessage("A confirmação não confere com a senha.");
     }
 
     @Test
     void senhaLongaDemaisERecusada() {
-        assertThatThrownBy(() -> senhas.validarNova("maria", "a".repeat(51), "a".repeat(51)))
+        assertThatThrownBy(() -> validar("maria", "a".repeat(51), "a".repeat(51)))
                 .hasMessageStartingWith("A senha deve ter no máximo 50 caracteres");
         // 40 caracteres acentuados ocupam 80 bytes: passa do limite do BCrypt.
-        assertThatThrownBy(() -> senhas.validarNova("maria", "é".repeat(40), "é".repeat(40)))
+        assertThatThrownBy(() -> validar("maria", "é".repeat(40), "é".repeat(40)))
                 .hasMessageStartingWith("A senha deve ter no máximo 50 caracteres");
-        assertThatCode(() -> senhas.validarNova("maria", "a".repeat(50), "a".repeat(50)))
+        assertThatCode(() -> validar("maria", "a".repeat(50), "a".repeat(50)))
                 .doesNotThrowAnyException();
     }
 }

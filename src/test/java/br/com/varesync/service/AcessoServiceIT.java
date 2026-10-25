@@ -82,7 +82,8 @@ class AcessoServiceIT extends IntegracaoBase {
         assertThatThrownBy(() -> acesso.criarPrimeiroSupervisor(new PrimeiroAcesso(
                 "Loja", "Ana", "Ana Maria", "segredo1", "segredo1"))).hasMessageStartingWith("O login deve ter");
         assertThatThrownBy(() -> acesso.criarPrimeiroSupervisor(new PrimeiroAcesso(
-                "Loja", "Ana", "admin", "12345", "12345"))).hasMessageContaining("ao menos 6");
+                "Loja", "Ana", "admin", "12345", "12345")))
+                .hasMessage("A senha deve ter ao menos 6 caracteres e ser diferente do login.");
         assertThatThrownBy(() -> acesso.criarPrimeiroSupervisor(new PrimeiroAcesso(
                 "Loja", "Ana", "admin1", "ADMIN1", "ADMIN1"))).hasMessage("A senha não pode ser igual ao login.");
         assertThatThrownBy(() -> acesso.criarPrimeiroSupervisor(new PrimeiroAcesso(

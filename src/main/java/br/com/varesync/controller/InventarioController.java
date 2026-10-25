@@ -419,11 +419,7 @@ public class InventarioController {
     /** Recarrega a aba Contagem e volta a selecionar o item {@code manterItemId} (se houver). */
     private void carregarContagem(Long manterItemId) {
         tabelaContagem.getItems().setAll(inventarioService.itensContagem(sessao, inventario.id()));
-        long contados = tabelaContagem.getItems().stream().filter(ItemContagem::contado).count();
-        int total = tabelaContagem.getItems().size();
-        resumoContagem.setText(total == 0 ? "" : (total == 1 ? "1 item" : total + " itens") + " · " + contados
-                + (contados == 1 ? " contado" : " contados") + " · " + (total - contados)
-                + (inventario.aberto() ? " a contar" : total - contados == 1 ? " não contado" : " não contados"));
+        atualizarResumoContagem();
         Optional<ItemContagem> mesmo = manterItemId == null ? Optional.empty()
                 : tabelaContagem.getItems().stream().filter(i -> i.itemId() == manterItemId).findFirst();
         if (mesmo.isPresent()) {
@@ -433,6 +429,38 @@ public class InventarioController {
             tabelaContagem.getSelectionModel().clearSelection();
             escolher(null);
         }
+    }
+
+    /** "5.000 itens · 1 contado · 4.999 a contar", pelos itens já na tabela. */
+    private void atualizarResumoContagem() {
+        long contados = tabelaContagem.getItems().stream().filter(ItemContagem::contado).count();
+        int total = tabelaContagem.getItems().size();
+        resumoContagem.setText(total == 0 ? "" : (total == 1 ? "1 item" : total + " itens") + " · " + contados
+                + (contados == 1 ? " contado" : " contados") + " · " + (total - contados)
+                + (inventario.aberto() ? " a contar" : total - contados == 1 ? " não contado" : " não contados"));
+    }
+
+    /**
+     * Troca só a linha do item gravado (F10.8): com milhares de itens, recarregar a aba inteira a cada contagem
+     * pesaria. Se o item não estiver mais na tabela (removido em outro computador), recarrega tudo.
+     */
+    private void atualizarItemContagem(ItemContagem gravado) {
+        List<ItemContagem> itens = tabelaContagem.getItems();
+        int indice = -1;
+        for (int i = 0; i < itens.size(); i++) {
+            if (itens.get(i).itemId() == gravado.itemId()) {
+                indice = i;
+                break;
+            }
+        }
+        if (indice < 0) {
+            carregarContagem(gravado.itemId());
+            return;
+        }
+        itens.set(indice, gravado);
+        atualizarResumoContagem();
+        tabelaContagem.getSelectionModel().clearAndSelect(indice);
+        tabelaContagem.scrollTo(indice);
     }
 
     /**
@@ -511,7 +539,7 @@ public class InventarioController {
             ItemContagem gravado = inventarioService.registrarContagem(sessao, inventario.id(), item.itemId(),
                     CampoNumero.ler(campoQuantidade.getText(), "Quantidade contada"));
             atualizarLinha();
-            carregarContagem(gravado.itemId());
+            atualizarItemContagem(gravado);
             Mensagem.sucesso(mensagem, "Contagem gravada: " + gravado.nome() + " = "
                     + Formatos.quantidade(gravado.quantidadeContada(), gravado.unidadeFracionada()) + " "
                     + gravado.unidade() + ".");
@@ -567,7 +595,9 @@ public class InventarioController {
 
     @FXML
     private void exportarR13Pdf() {
-        escolherEExportarR13("PDF", "pdf");
+        if (inventario != null && RelatoriosController.confirmarPdfGrande(r13())) {
+            escolherEExportarR13("PDF", "pdf");
+        }
     }
 
     private void escolherEExportarR13(String formato, String extensao) {
@@ -582,10 +612,14 @@ public class InventarioController {
      * totais e os não contados valem para o inventário inteiro. O resultado é lido de novo do banco.
      */
     Task<Void> exportarR13(String formato, Path destino) {
-        ResultadoRelatorio<ItemDivergencia> r13 = RelResultadoInventario.exportacao(
-                inventarioService.resultado(sessao, inventario.id()), acessoService.emissao(sessao));
+        ResultadoRelatorio<ItemDivergencia> r13 = r13();
         return Exportacao.gravar(formato, destino, "CSV".equals(formato) ? d -> ExportadorCsv.salvar(r13, d)
                 : d -> relatorioPdf.salvar(r13, d), mensagem, List.of(botaoR13Csv, botaoR13Pdf));
+    }
+
+    private ResultadoRelatorio<ItemDivergencia> r13() {
+        return RelResultadoInventario.exportacao(inventarioService.resultado(sessao, inventario.id()),
+                acessoService.emissao(sessao));
     }
 
     private void limparTotais() {

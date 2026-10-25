@@ -7,6 +7,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
 import br.com.varesync.model.ParametrosVenda;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
@@ -179,10 +180,15 @@ public class ConfiguracaoService {
             throw new NegocioException("O bloqueio por inatividade deve estar entre 0 (desligado) e "
                     + Configuracoes.INATIVIDADE_MAXIMA + " minutos.");
         }
+        int tamanhoSenha = c.politicaSenha().tamanhoMinimo();
+        if (tamanhoSenha < PoliticaSenha.TAMANHO_MINIMO || tamanhoSenha > PoliticaSenha.TAMANHO_MAXIMO) {
+            throw new NegocioException("O tamanho mínimo da senha deve estar entre " + PoliticaSenha.TAMANHO_MINIMO
+                    + " e " + PoliticaSenha.TAMANHO_MAXIMO + " caracteres.");
+        }
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, backup, rodape, c.inatividadeMinutos());
+                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca());
     }
 
     /**
@@ -287,6 +293,10 @@ public class ConfiguracaoService {
         comparar(m, "backups mantidos", String.valueOf(a.backup().manterUltimos()),
                 String.valueOf(n.backup().manterUltimos()));
         comparar(m, "bloqueio por inatividade", inatividade(a.inatividadeMinutos()), inatividade(n.inatividadeMinutos()));
+        comparar(m, "tamanho mínimo da senha", a.politicaSenha().tamanhoMinimo() + " caracteres",
+                n.politicaSenha().tamanhoMinimo() + " caracteres");
+        comparar(m, "senha com letras e números", a.politicaSenha().letraENumero() ? "exigida" : "não exigida",
+                n.politicaSenha().letraENumero() ? "exigida" : "não exigida");
         return m;
     }
 

@@ -53,7 +53,7 @@ class BackupIT extends IntegracaoBase {
         Configuracoes c = t.configuracoes.carregar(admin);
         t.configuracoes.salvar(admin, new Configuracoes(c.loja(), c.venda(), c.margemMinimaPct(), c.diasSemGiro(),
                 c.balanca(), new Configuracoes.Backup("", "", quantos), c.rodapeComprovante(),
-                c.inatividadeMinutos()));
+                c.seguranca()));
     }
 
     @Test
@@ -142,6 +142,72 @@ class BackupIT extends IntegracaoBase {
         assertThatThrownBy(() -> indisponivel.fazer(admin)).hasMessageContaining("não está disponível");
     }
 
+    /**
+     * pg_dump falso que grava um arquivo e pg_restore falso que o lê ({@code leBackup}) ou o recusa.
+     */
+    private static ExecutorProcesso falso(boolean leBackup) {
+        return (comando, ambiente, limite) -> {
+            if (comando.contains("--version")) {
+                return new ExecutorProcesso.Resultado(0, "pg_dump (PostgreSQL) 99.1");
+            }
+            if (comando.contains("--list")) {
+                assertThat(Path.of(comando.get(0)).getFileName().toString()).isEqualTo("pg_restore.exe");
+                assertThat(comando.get(2)).endsWith(".backup.tmp");
+                return leBackup ? new ExecutorProcesso.Resultado(0, ";\n; Archive created at 2026-10-24\n")
+                        : new ExecutorProcesso.Resultado(1,
+                        "pg_restore: error: input file does not appear to be a valid archive");
+            }
+            String arquivo = comando.stream().filter(a -> a.startsWith("--file=")).findFirst().orElseThrow()
+                    .substring("--file=".length());
+            Files.writeString(Path.of(arquivo), "PGDMP de teste");
+            return new ExecutorProcesso.Resultado(0, "");
+        };
+    }
+
+    /** Pasta com pg_dump.exe e, se pedido, pg_restore.exe (arquivos falsos); devolve a pasta para o PATH. */
+    private String programasFalsos(boolean comPgRestore) throws IOException {
+        Path bin = Files.createDirectories(pasta.resolve("bin"));
+        Files.writeString(bin.resolve("pg_dump.exe"), "x");
+        if (comPgRestore) {
+            Files.writeString(bin.resolve("pg_restore.exe"), "x");
+        }
+        return bin.toString();
+    }
+
+    /** Aceite F10 (backup): um backup que o {@code pg_restore --list} não lê é descartado e avisado. */
+    @Test
+    void backupQueOPgRestoreNaoLeEDescartadoEAvisado() throws Exception {
+        BackupService ilegivel = t.backup(falso(false), conexao, pasta, List.of(), programasFalsos(true));
+        assertThatThrownBy(() -> ilegivel.fazer(admin)).isInstanceOf(NegocioException.class)
+                .hasMessage("O backup não foi concluído: o arquivo gerado não passou na conferência "
+                        + "(pg_restore --list) e foi descartado. Os detalhes foram registrados no log.");
+        assertThat(BackupService.arquivos(pasta)).isEmpty();
+        assertThat(Files.list(pasta).filter(p -> p.toString().endsWith(".tmp")).count()).isZero();
+        assertThat(t.auditoria(AcaoAuditoria.BACKUP_REALIZADO)).isEmpty();
+        assertThat(t.painel.carregar(admin).alertas().backupAtrasado().ultimo())
+                .as("o painel continua sem backup").isNull();
+        t.usuarios.criar(admin, "caixa1", "Operador", false, EnumSet.of(Permissao.PDV), "inicial1", "inicial1");
+        Sessao operador = t.acesso.entrar("caixa1", "inicial1");
+        assertThatThrownBy(() -> ilegivel.fazerAutomatico(operador)).hasMessageContaining("não passou na conferência");
+        assertThat(ilegivel.automaticoPendente()).as("o automático tenta de novo na próxima saída").isTrue();
+
+        Files.delete(pasta.resolve("bin/pg_restore.exe"));
+        assertThatThrownBy(() -> ilegivel.fazer(admin))
+                .hasMessageStartingWith("O backup não foi concluído: não encontrei o pg_restore na pasta do pg_dump");
+        assertThat(BackupService.arquivos(pasta)).isEmpty();
+
+        BackupService bom = t.backup(falso(true), conexao, pasta, List.of(), programasFalsos(true));
+        assertThat(bom.fazer(admin).arquivo().getFileName().toString()).matches("varesync_\\d{8}_\\d{4}\\.backup");
+        assertThat(t.auditoria(AcaoAuditoria.BACKUP_REALIZADO)).hasSize(1);
+    }
+
+    @Test
+    void pgRestoreDaMesmaPastaDoPgDump() {
+        assertThat(BackupService.pgRestoreAoLado(Path.of("C:\\PG\\16\\bin\\pg_dump.exe")))
+                .isEqualTo(Path.of("C:\\PG\\16\\bin\\pg_restore.exe"));
+        assertThat(BackupService.pgRestoreAoLado(Path.of("/usr/bin/pg_dump"))).isEqualTo(Path.of("/usr/bin/pg_restore"));
+    }
+
     @Test
     void situacaoParaAAbaBackup() throws IOException {
         Files.writeString(pasta.resolve("varesync_20261001_2200.backup"), "x");
@@ -160,15 +226,7 @@ class BackupIT extends IntegracaoBase {
         assertThat(nunca).isNotNull();
         assertThat(nunca.ultimo()).isNull();
 
-        BackupService backup = t.backup((comando, ambiente, limite) -> {
-            if (comando.contains("--version")) {
-                return new ExecutorProcesso.Resultado(0, "pg_dump (PostgreSQL) 99.1");
-            }
-            String arquivo = comando.stream().filter(a -> a.startsWith("--file=")).findFirst().orElseThrow()
-                    .substring("--file=".length());
-            Files.writeString(Path.of(arquivo), "PGDMP de teste");
-            return new ExecutorProcesso.Resultado(0, "");
-        }, conexao, pasta, List.of(), Files.writeString(pasta.resolve("pg_dump.exe"), "x").getParent().toString());
+        BackupService backup = t.backup(falso(true), conexao, pasta, List.of(), programasFalsos(true));
         backup.fazer(admin);
         assertThat(t.painel.carregar(admin).alertas().backupAtrasado()).isNull();
 

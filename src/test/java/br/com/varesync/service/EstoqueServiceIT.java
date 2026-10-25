@@ -9,6 +9,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.InconsistenciaEstoque;
+import br.com.varesync.model.Kardex;
 import br.com.varesync.model.MovimentoKardex;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.Periodo;
@@ -76,7 +77,11 @@ class EstoqueServiceIT extends IntegracaoBase {
     }
 
     private List<MovimentoKardex> kardex(long produto) {
-        return estoque.kardex(admin, produto, estoque.periodoPadrao());
+        return estoque.kardex(admin, produto, estoque.periodoPadrao()).movimentos();
+    }
+
+    private List<String> origens(long produto, Periodo periodo) {
+        return estoque.kardex(admin, produto, periodo).movimentos().stream().map(MovimentoKardex::origem).toList();
     }
 
     private Sessao operador(String login, Permissao... permissoes) {
@@ -273,13 +278,11 @@ class EstoqueServiceIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofDays(1));
         ajustar(arroz, TipoAjuste.ENTRADA, "1", "dia 3", null);
 
-        assertThat(estoque.kardex(admin, arroz, new Periodo(dia1, dia1))).extracting(MovimentoKardex::origem)
-                .containsExactly("dia 1", "fim do dia 1");
-        assertThat(estoque.kardex(admin, arroz, new Periodo(dia1.plusDays(1), dia1.plusDays(1))))
-                .extracting(MovimentoKardex::origem).containsExactly("início do dia 2");
-        assertThat(estoque.kardex(admin, arroz, new Periodo(dia1.plusDays(1), dia1.plusDays(2))))
-                .extracting(MovimentoKardex::origem).containsExactly("início do dia 2", "dia 3");
-        assertThat(estoque.kardex(admin, arroz, new Periodo(dia1.minusDays(10), dia1.minusDays(1)))).isEmpty();
+        assertThat(origens(arroz, new Periodo(dia1, dia1))).containsExactly("dia 1", "fim do dia 1");
+        assertThat(origens(arroz, new Periodo(dia1.plusDays(1), dia1.plusDays(1)))).containsExactly("início do dia 2");
+        assertThat(origens(arroz, new Periodo(dia1.plusDays(1), dia1.plusDays(2))))
+                .containsExactly("início do dia 2", "dia 3");
+        assertThat(origens(arroz, new Periodo(dia1.minusDays(10), dia1.minusDays(1)))).isEmpty();
 
         Periodo padrao = estoque.periodoPadrao();
         assertThat(padrao.fim()).isEqualTo(dia1.plusDays(2));
@@ -290,6 +293,37 @@ class EstoqueServiceIT extends IntegracaoBase {
                 .hasMessage("A data inicial não pode ser depois da data final.");
         assertThatThrownBy(() -> estoque.kardex(admin, arroz, new Periodo(null, dia1)))
                 .hasMessage("Informe a data inicial e a data final do período.");
+    }
+
+    /** Aceite F10 (kardex): com movimentos antes do período, a primeira linha mostra o saldo anterior certo. */
+    @Test
+    void kardexComecaPeloSaldoAnteriorAoPeriodo() {
+        ZonedDateTime agora = ZonedDateTime.now(t.relogio);
+        LocalDate dia1 = agora.toLocalDate();
+        ajustar(arroz, TipoAjuste.ENTRADA, "10", "dia 1", null);
+        ajustar(arroz, TipoAjuste.SAIDA, "3", "dia 1, saída", null);
+        t.relogio.avancar(Duration.ofDays(1));
+        ajustar(arroz, TipoAjuste.PERDA, "2", "Avaria", null);
+        t.relogio.avancar(Duration.ofDays(1));
+        ajustar(arroz, TipoAjuste.ENTRADA, "4", "dia 3", null);
+
+        Kardex dia2 = estoque.kardex(admin, arroz, new Periodo(dia1.plusDays(1), dia1.plusDays(1)));
+        assertThat(dia2.saldoAnterior()).isEqualByComparingTo("7");
+        assertThat(dia2.inicio()).isEqualTo(dia1.plusDays(1).atStartOfDay(agora.getZone()).toOffsetDateTime());
+        List<MovimentoKardex> linhas = dia2.linhas();
+        assertThat(linhas).extracting(MovimentoKardex::descricaoTipo)
+                .containsExactly("Saldo anterior", TipoMovimento.PERDA.descricao());
+        assertThat(linhas.get(0).linhaSaldoAnterior()).isTrue();
+        assertThat(linhas.get(0).quantidade()).isNull();
+        assertThat(linhas.get(0).saldoPosterior()).isEqualByComparingTo("7");
+        assertThat(linhas.get(1).saldoPosterior()).isEqualByComparingTo("5");
+
+        // Sem movimento antes do início: saldo anterior 0. Depois de tudo: o saldo atual, sem movimentos.
+        assertThat(estoque.kardex(admin, arroz, new Periodo(dia1, dia1.plusDays(2))).saldoAnterior()).isZero();
+        Kardex depois = estoque.kardex(admin, arroz, new Periodo(dia1.plusDays(3), dia1.plusDays(3)));
+        assertThat(depois.saldoAnterior()).isEqualByComparingTo("9");
+        assertThat(depois.movimentos()).isEmpty();
+        assertThat(depois.linhas()).singleElement().satisfies(l -> assertThat(l.linhaSaldoAnterior()).isTrue());
     }
 
     @Test

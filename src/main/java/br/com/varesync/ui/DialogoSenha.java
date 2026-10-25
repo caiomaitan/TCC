@@ -20,10 +20,12 @@ public final class DialogoSenha {
     private DialogoSenha() {
     }
 
-    /** @return true se a senha foi alterada */
-    public static boolean alterarPropria(AlterarPropria acao) {
-        DialogoFormulario formulario = new DialogoFormulario("Alterar minha senha",
-                "A senha deve ter ao menos 6 caracteres e ser diferente do login.", "Alterar");
+    /**
+     * @param regra a política de senha em vigor (F10.6), mostrada no alto do diálogo
+     * @return true se a senha foi alterada
+     */
+    public static boolean alterarPropria(String regra, AlterarPropria acao) {
+        DialogoFormulario formulario = new DialogoFormulario("Alterar minha senha", regra, "Alterar");
         PasswordField atual = new PasswordField();
         PasswordField nova = new PasswordField();
         PasswordField confirmacao = new PasswordField();
@@ -36,10 +38,14 @@ public final class DialogoSenha {
         }, null).isPresent();
     }
 
-    /** @return true se a senha provisória foi gravada */
-    public static boolean definirProvisoria(String usuario, DefinirProvisoria acao) {
+    /**
+     * @param regra a política de senha em vigor (F10.6), mostrada no alto do diálogo
+     * @return true se a senha provisória foi gravada
+     */
+    public static boolean definirProvisoria(String usuario, String regra, DefinirProvisoria acao) {
         DialogoFormulario formulario = new DialogoFormulario("Redefinir senha de " + usuario,
-                "Informe uma senha provisória e passe-a ao usuário. Ele terá de trocá-la ao entrar.", "Redefinir");
+                "Informe uma senha provisória e passe-a ao usuário. Ele terá de trocá-la ao entrar. " + regra,
+                "Redefinir");
         PasswordField nova = new PasswordField();
         PasswordField confirmacao = new PasswordField();
         formulario.adicionarCampo("Senha provisória *", nova);

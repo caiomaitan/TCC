@@ -5,6 +5,7 @@ import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
@@ -129,6 +130,8 @@ public class ConfiguracoesController {
     @FXML private ComboBox<TipoValorBalanca> campoTipoValor;
     @FXML private Label exemploEtiqueta;
     @FXML private TextField campoInatividade;
+    @FXML private TextField campoSenhaTamanho;
+    @FXML private CheckBox campoSenhaLetraENumero;
     @FXML private HBox barraSalvar;
     @FXML private Label mensagemParametros;
     @FXML private Button botaoSalvar;
@@ -267,6 +270,8 @@ public class ConfiguracoesController {
         campoPgDump.setText(c.backup().pgDump());
         campoManterBackups.setText(String.valueOf(c.backup().manterUltimos()));
         campoInatividade.setText(String.valueOf(c.inatividadeMinutos()));
+        campoSenhaTamanho.setText(String.valueOf(c.politicaSenha().tamanhoMinimo()));
+        campoSenhaLetraENumero.setSelected(c.politicaSenha().letraENumero());
         atualizarBalanca();
     }
 
@@ -285,7 +290,9 @@ public class ConfiguracoesController {
                         campoDigitos.getValue() == null ? 0 : campoDigitos.getValue(), campoTipoValor.getValue()),
                 new Configuracoes.Backup(campoPastaBackup.getText(), campoPgDump.getText(),
                         inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText(),
-                inteiro(campoInatividade, "Bloquear a tela depois de"));
+                new Configuracoes.Seguranca(inteiro(campoInatividade, "Bloquear a tela depois de"),
+                        new PoliticaSenha(inteiro(campoSenhaTamanho, "Tamanho mínimo da senha"),
+                                campoSenhaLetraENumero.isSelected())));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {

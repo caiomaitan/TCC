@@ -11,6 +11,23 @@ public record MovimentoKardex(long id, OffsetDateTime criadoEm, TipoMovimento ti
                               BigDecimal saldoAnterior, BigDecimal saldoPosterior, BigDecimal custoUnitario,
                               String usuarioNome, Long vendaId, Long inventarioId, Long entradaId, String motivo) {
 
+    public static final String SALDO_ANTERIOR = "Saldo anterior";
+
+    /** Linha "Saldo anterior" do início do período (F10.4): sem tipo, quantidade nem custo; o saldo após é o saldo. */
+    public static MovimentoKardex saldoAnterior(OffsetDateTime inicio, BigDecimal saldo) {
+        return new MovimentoKardex(0, inicio, null, null, saldo, saldo, null, "", null, null, null, null);
+    }
+
+    /** É a linha "Saldo anterior" (e não um movimento)? */
+    public boolean linhaSaldoAnterior() {
+        return tipo == null;
+    }
+
+    /** "Saldo anterior" ou a descrição do tipo. */
+    public String descricaoTipo() {
+        return tipo == null ? SALDO_ANTERIOR : tipo.descricao();
+    }
+
     /** "Venda nº 123", "Inventário nº 4", "Entrada nº 9" ou o motivo do ajuste. */
     public String origem() {
         if (vendaId != null) {

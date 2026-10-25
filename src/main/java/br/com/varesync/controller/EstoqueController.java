@@ -40,13 +40,15 @@ import javafx.util.StringConverter;
 
 /**
  * Consulta de estoque (6.4, Fig. 17 revisada): busca por código, código de barras ou nome; cabeçalho com saldo,
- * mínimo, custo médio e valor em estoque; kardex por período (padrão: últimos 30 dias); ajustes manuais.
+ * mínimo, custo médio e valor em estoque; kardex por período (padrão: últimos 30 dias), começando pela linha
+ * "Saldo anterior" (F10.4); ajustes manuais.
  * Saldo abaixo do mínimo em destaque e saldo negativo em vermelho.
  */
 public class EstoqueController {
 
     private static final String NEGATIVO = "negativo";
     private static final String ABAIXO_DO_MINIMO = "abaixo-minimo";
+    private static final String SALDO_ANTERIOR = "saldo-anterior";
 
     private final EstoqueService estoqueService;
     private final Sessao sessao;
@@ -123,13 +125,24 @@ public class EstoqueController {
         tabelaProdutos.getSelectionModel().selectedItemProperty()
                 .addListener((obs, anterior, selecionado) -> mostrar(selecionado));
 
+        tabelaKardex.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(MovimentoKardex linha, boolean vazio) {
+                super.updateItem(linha, vazio);
+                getStyleClass().remove(SALDO_ANTERIOR);
+                if (!vazio && linha != null && linha.linhaSaldoAnterior()) {
+                    getStyleClass().add(SALDO_ANTERIOR);
+                }
+            }
+        });
         colunaDataHora.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.dataHora(c.getValue().criadoEm())));
-        colunaTipo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().tipo().descricao()));
+        colunaTipo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().descricaoTipo()));
         colunaQuantidade.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().quantidade()));
         colunaQuantidade.setCellFactory(col -> celulaKardex(true));
         colunaSaldoApos.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().saldoPosterior()));
         colunaSaldoApos.setCellFactory(col -> celulaKardex(false));
-        colunaCusto.setCellValueFactory(c -> new ReadOnlyStringWrapper(custo(c.getValue().custoUnitario())));
+        colunaCusto.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().linhaSaldoAnterior() ? ""
+                : custo(c.getValue().custoUnitario())));
         colunaUsuario.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().usuarioNome()));
         colunaOrigem.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().origem()));
 
@@ -221,7 +234,7 @@ public class EstoqueController {
         }
         try {
             tabelaKardex.getItems().setAll(estoqueService.kardex(sessao, produto.produtoId(),
-                    new Periodo(dataInicio.getValue(), dataFim.getValue())));
+                    new Periodo(dataInicio.getValue(), dataFim.getValue())).linhas());
             semMovimentos.setText("Nenhum movimento no período.");
             Mensagem.limpar(mensagem);
             tabelaKardex.scrollTo(Math.max(0, tabelaKardex.getItems().size() - 1));

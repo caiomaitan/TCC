@@ -7,10 +7,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** Acesso tipado às configurações (5.2): padrão da V2 e da V4, valores inválidos e ida e volta pela tabela. Sem banco. */
+/** Acesso tipado às configurações (5.2): padrão da V2, V4 e V5, valores inválidos e ida e volta pela tabela. Sem banco. */
 class ConfiguracoesTest {
 
-    /** As linhas que a V2 insere, mais a da V4 (bloqueio por inatividade, F10.2). */
+    /** As linhas que a V2 insere, mais a da V4 (bloqueio por inatividade, F10.2) e as da V5 (senha, F10.6). */
     static Map<String, String> v2() {
         Map<String, String> m = new HashMap<>();
         m.put("empresa.nome", "Minha Loja");
@@ -31,6 +31,8 @@ class ConfiguracoesTest {
         m.put("backup.manter_ultimos", "15");
         m.put("comprovante.rodape", "Obrigado pela preferência!");
         m.put("seguranca.inatividade_minutos", "15");
+        m.put("seguranca.senha_tamanho_minimo", "6");
+        m.put("seguranca.senha_letra_e_numero", "false");
         return m;
     }
 
@@ -52,8 +54,11 @@ class ConfiguracoesTest {
         m.put("balanca.digitos_codigo", "7");
         m.put("balanca.tipo_valor", "VOLUME");
         m.put("seguranca.inatividade_minutos", "481");
+        m.put("seguranca.senha_tamanho_minimo", "5");
+        m.put("seguranca.senha_letra_e_numero", "sim");
         assertThat(Configuracoes.de(m)).isEqualTo(Configuracoes.PADRAO);
         m.put("seguranca.inatividade_minutos", "-1");
+        m.put("seguranca.senha_tamanho_minimo", "51");
         assertThat(Configuracoes.de(m)).isEqualTo(Configuracoes.PADRAO);
     }
 
@@ -70,8 +75,11 @@ class ConfiguracoesTest {
         m.put("balanca.digitos_codigo", "4");
         m.put("balanca.tipo_valor", "peso");
         m.put("seguranca.inatividade_minutos", "0");
+        m.put("seguranca.senha_tamanho_minimo", " 8 ");
+        m.put("seguranca.senha_letra_e_numero", "TRUE");
         Configuracoes c = Configuracoes.de(m);
         assertThat(c.inatividadeMinutos()).isZero(); // 0 desliga o bloqueio
+        assertThat(c.politicaSenha()).isEqualTo(new PoliticaSenha(8, true));
         assertThat(c.loja().nome()).isEqualTo("Mercado Bom Preço");
         assertThat(c.venda().permitirEstoqueNegativo()).isFalse();
         assertThat(c.venda().descontoMaximoPct()).isEqualByComparingTo("7.5");
@@ -85,7 +93,9 @@ class ConfiguracoesTest {
         assertThat(gravado).containsEntry("venda.desconto_maximo_operador_pct", "7.5")
                 .containsEntry("relatorio.margem_minima_pct", "12.25")
                 .containsEntry("balanca.tipo_valor", "PESO")
-                .containsEntry("venda.permitir_estoque_negativo", "false");
+                .containsEntry("venda.permitir_estoque_negativo", "false")
+                .containsEntry("seguranca.senha_tamanho_minimo", "8")
+                .containsEntry("seguranca.senha_letra_e_numero", "true");
         assertThat(Configuracoes.de(gravado).paraMapa()).isEqualTo(gravado);
     }
 

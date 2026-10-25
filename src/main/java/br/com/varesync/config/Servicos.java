@@ -37,6 +37,7 @@ import br.com.varesync.service.PromocaoService;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Transacao;
+import br.com.varesync.service.UnidadeService;
 import br.com.varesync.service.UsuarioService;
 import br.com.varesync.service.VendaService;
 import br.com.varesync.util.RelogioAjustavel;
@@ -53,7 +54,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
                        ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
-                       ImportacaoNfeService nfe) {
+                       ImportacaoNfeService nfe, UnidadeService unidades) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -62,7 +63,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         AuditoriaService auditoria = new AuditoriaService(new AuditoriaDAO(), clock, terminalId);
         AcessoService acesso = new AcessoService(transacao, usuarioDAO, configuracaoDAO, auditoria, senhas, clock,
                 terminalId);
-        UsuarioService usuarios = new UsuarioService(transacao, usuarioDAO, auditoria, senhas, clock);
+        UsuarioService usuarios = new UsuarioService(transacao, usuarioDAO, configuracaoDAO, auditoria, senhas,
+                clock);
 
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
@@ -95,7 +97,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
                 inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao,
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
-                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock));
+                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
+                new UnidadeService(transacao, new UnidadeMedidaDAO()));
     }
 
     /**

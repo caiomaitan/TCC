@@ -110,6 +110,13 @@
                     <TextField fx:id="campoInatividade" prefWidth="90" styleClass="campo-numero"/>
                 </HBox>
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Sem teclado nem mouse por esse tempo, a janela principal e o PDV mostram a tela &quot;Sessão bloqueada&quot;: o que estava aberto continua como estava (inclusive a venda em andamento) e só volta com a senha de quem está logado. De 0 (não bloqueia) a 480. Vale a partir do próximo login."/>
+                <Label text="Política de senha" styleClass="titulo-secao"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Tamanho mínimo da senha (caracteres)" minWidth="230"/>
+                    <TextField fx:id="campoSenhaTamanho" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <CheckBox fx:id="campoSenhaLetraENumero" text="Exigir letras e números na senha"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Vale para as senhas novas e trocadas (primeiro acesso, troca de senha e senha provisória do supervisor): de 6 a 50 caracteres e sempre diferente do login. As senhas atuais continuam valendo até a próxima troca."/>
             </VBox>
         </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">

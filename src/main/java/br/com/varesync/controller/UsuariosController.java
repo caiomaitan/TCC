@@ -1,6 +1,7 @@
 package br.com.varesync.controller;
 
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.Usuario;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
@@ -26,6 +27,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 
@@ -134,6 +136,9 @@ public class UsuariosController {
         caixasPermissao.values().forEach(c -> c.setSelected(false));
         campoSenha.clear();
         campoConfirmacao.clear();
+        PoliticaSenha politica = usuarioService.politicaSenha();
+        campoSenha.setPromptText("ao menos " + politica.tamanhoMinimo() + " caracteres");
+        campoSenha.setTooltip(new Tooltip(politica.descricao()));
         painelSenha.setVisible(true);
         situacao.setText("");
         botaoRedefinirSenha.setDisable(true);
@@ -200,7 +205,7 @@ public class UsuariosController {
         }
         long id = emEdicao.id();
         boolean redefinida = DialogoSenha.definirProvisoria(emEdicao.descricao(),
-                (nova, confirmacao) -> usuarioService.redefinirSenha(sessao, id, nova, confirmacao));
+                usuarioService.politicaSenha().descricao(), (nova, confirmacao) -> usuarioService.redefinirSenha(sessao, id, nova, confirmacao));
         if (redefinida) {
             recarregar(id);
             Mensagem.sucesso(mensagem, "Senha provisória definida. O usuário terá de trocá-la ao entrar.");

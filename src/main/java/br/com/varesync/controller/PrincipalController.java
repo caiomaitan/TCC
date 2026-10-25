@@ -300,7 +300,7 @@ public class PrincipalController {
 
     @FXML
     private void alterarSenha() {
-        boolean alterada = DialogoSenha.alterarPropria(
+        boolean alterada = DialogoSenha.alterarPropria(acessoService.politicaSenha().descricao(),
                 (atual, nova, confirmacao) -> acessoService.trocarSenha(sessao, atual, nova, confirmacao));
         if (alterada) {
             Dialogos.alerta(Alert.AlertType.INFORMATION, "Senha alterada.");

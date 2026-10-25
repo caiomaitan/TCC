@@ -16,6 +16,7 @@ import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.ConversorData;
+import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Exportacao;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
@@ -387,7 +388,14 @@ public class RelatoriosController {
 
     @FXML
     private void exportarPdf() {
-        escolherEExportar("PDF", "pdf");
+        if (resultado != null && confirmarPdfGrande(resultado)) {
+            escolherEExportar("PDF", "pdf");
+        }
+    }
+
+    /** Acima de {@value RelatorioPdf#PAGINAS_PARA_CONFIRMAR} páginas estimadas, pede confirmação (F10.7). */
+    static boolean confirmarPdfGrande(ResultadoRelatorio<?> r) {
+        return RelatorioPdf.avisoPdfGrande(r).map(Dialogos::confirmar).orElse(true);
     }
 
     private void escolherEExportar(String formato, String extensao) {

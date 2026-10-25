@@ -10,6 +10,7 @@ import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamentoCadastro;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.report.Filtros;
@@ -145,7 +146,7 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
         Configuracoes c = configuracoes.carregar(admin);
         java.util.function.Function<Configuracoes.Backup, Configuracoes> com = b -> new Configuracoes(c.loja(),
                 c.venda(), c.margemMinimaPct(), c.diasSemGiro(), c.balanca(), b, c.rodapeComprovante(),
-                c.inatividadeMinutos());
+                c.seguranca());
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("backups", "", 15))))
                 .hasMessageContaining("caminho completo");
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("",
@@ -219,5 +220,45 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
         assertThat(t.auditoria(AcaoAuditoria.CONFIGURACAO_ALTERADA))
                 .contains("Forma de pagamento \"Vale presente\" (Outros) criada",
                         "Forma de pagamento \"PIX\" desativada", "Forma de pagamento \"PIX\" ativada");
+    }
+
+    /**
+     * Aceite F10 (senha): com tamanho mínimo 8, "abc123" é recusada com a regra na mensagem, na criação de usuário,
+     * na senha provisória e na troca pela própria pessoa. A senha antiga continua entrando até a próxima troca.
+     */
+    @Test
+    void politicaDeSenhaValeParaSenhasNovasETrocadasEAsAntigasContinuam() throws Exception {
+        t.usuarios.criar(admin, "maria", "Maria", false, EnumSet.of(Permissao.PDV), "inicial1", "inicial1");
+        Sessao maria = t.acesso.entrar("maria", "inicial1");
+        maria = t.acesso.trocarSenha(maria, "inicial1", "maria01", "maria01"); // 7 caracteres, regra antiga
+        assertThat(t.usuarios.politicaSenha()).isEqualTo(PoliticaSenha.PADRAO);
+
+        assertThatThrownBy(() -> configuracoes.salvar(admin, configuracoes.carregar(admin)
+                .comPoliticaSenha(new PoliticaSenha(5, false))))
+                .hasMessage("O tamanho mínimo da senha deve estar entre 6 e 50 caracteres.");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, configuracoes.carregar(admin)
+                .comPoliticaSenha(new PoliticaSenha(51, false)))).hasMessageContaining("entre 6 e 50");
+        List<String> mudancas = configuracoes.salvar(admin, configuracoes.carregar(admin)
+                .comPoliticaSenha(new PoliticaSenha(8, true)));
+        assertThat(mudancas).containsExactly("tamanho mínimo da senha de 6 caracteres para 8 caracteres",
+                "senha com letras e números de não exigida para exigida");
+        assertThat(t.auditoria(AcaoAuditoria.CONFIGURACAO_ALTERADA)).singleElement().asString()
+                .contains("tamanho mínimo da senha de 6 caracteres para 8 caracteres");
+
+        String regra = "A senha deve ter ao menos 8 caracteres, com letras e números, e ser diferente do login.";
+        assertThat(t.acesso.politicaSenha().descricao()).isEqualTo(regra);
+        assertThatThrownBy(() -> t.usuarios.criar(admin, "joao", "João", false, EnumSet.of(Permissao.PDV),
+                "abc123", "abc123")).isInstanceOf(NegocioException.class).hasMessage(regra);
+        long joao = t.usuarios.criar(admin, "joao", "João", false, EnumSet.of(Permissao.PDV), "provisoria1",
+                "provisoria1");
+        assertThatThrownBy(() -> t.usuarios.redefinirSenha(admin, joao, "abcdefgh", "abcdefgh")).hasMessage(regra);
+        Sessao mariaAtual = maria;
+        assertThatThrownBy(() -> t.acesso.trocarSenha(mariaAtual, "maria01", "abc123", "abc123")).hasMessage(regra);
+
+        // A senha de 7 caracteres, gravada antes da regra nova, continua valendo até a próxima troca.
+        Sessao denovo = t.acesso.entrar("maria", "maria01");
+        assertThat(denovo.usuario().login()).isEqualTo("maria");
+        t.acesso.trocarSenha(denovo, "maria01", "nova2026", "nova2026");
+        assertThat(t.acesso.entrar("maria", "nova2026").usuario().login()).isEqualTo("maria");
     }
 }

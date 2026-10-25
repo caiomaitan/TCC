@@ -1,5 +1,6 @@
 package br.com.varesync.controller;
 
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AcessoService.PrimeiroAcesso;
 import br.com.varesync.ui.Dialogos;
@@ -14,6 +15,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 
 /** Assistente de primeiro acesso (6.1): nome da loja e o supervisor. Não existe senha padrão. */
@@ -37,6 +39,9 @@ public class PrimeiroAcessoController {
 
     @FXML
     private void initialize() {
+        PoliticaSenha politica = acessoService.politicaSenha();
+        campoSenha.setPromptText("ao menos " + politica.tamanhoMinimo() + " caracteres");
+        campoSenha.setTooltip(new Tooltip(politica.descricao()));
         Platform.runLater(campoLoja::requestFocus);
     }
 

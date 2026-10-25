@@ -37,7 +37,8 @@ import org.slf4j.LoggerFactory;
  * {@code pg_dump} é o configurado ou, se vazio, o do PATH ou o de {@code C:\Program Files\PostgreSQL\*\bin} (o de
  * versão mais alta). A senha do banco vai na variável {@code PGPASSWORD} do processo, nunca na linha de comando. O
  * arquivo {@code varesync_AAAAMMDD_HHmm.backup} é gravado primeiro como {@code .tmp} e só ganha o nome final se o
- * {@code pg_dump} terminar bem; depois ficam só os últimos {@code backup.manter_ultimos}.
+ * {@code pg_dump} terminar bem e o {@code pg_restore --list} conseguir ler o arquivo (F10.9); depois ficam só os
+ * últimos {@code backup.manter_ultimos}.
  */
 public class BackupService {
 
@@ -50,6 +51,7 @@ public class BackupService {
     private static final List<String> EXECUTAVEIS = List.of("pg_dump.exe", "pg_dump");
     private static final Duration LIMITE_BACKUP = Duration.ofHours(1);
     private static final Duration LIMITE_VERSAO = Duration.ofSeconds(30);
+    private static final Duration LIMITE_CONFERENCIA = Duration.ofMinutes(10);
     private static final Logger log = LoggerFactory.getLogger(BackupService.class);
 
     /** Banco a copiar, lido da configuração local (3.3). {@link #toString()} não mostra a senha. */
@@ -212,6 +214,7 @@ public class BackupService {
             throw new NegocioException("O backup não foi concluído: o pg_dump informou um erro. Os detalhes foram "
                     + "registrados no log.");
         }
+        conferir(pgDump, temporario);
         mover(temporario, destino);
         List<String> removidos = manterUltimos(pasta, config.manterUltimos());
         transacao.executar(con -> {
@@ -223,6 +226,43 @@ public class BackupService {
         });
         log.info("Backup {} gravado em {} ({} bytes)", automatico ? "automático" : "manual", destino, tamanho);
         return new Resultado(destino, tamanho, removidos, automatico);
+    }
+
+    /**
+     * Confere o arquivo recém-gravado (F10.9) com o {@code pg_restore --list} da mesma pasta do {@code pg_dump}, que
+     * só lê o índice do arquivo (não conecta no banco). Se o {@code pg_restore} não existir, não rodar ou não ler o
+     * arquivo, o arquivo é apagado como um backup que falhou: nada de {@code BACKUP_REALIZADO}, e quem fez vê o aviso.
+     */
+    void conferir(Path pgDump, Path arquivo) {
+        Path pgRestore = pgRestoreAoLado(pgDump);
+        if (!Files.isRegularFile(pgRestore)) {
+            apagar(arquivo);
+            log.error("pg_restore não encontrado em {} para conferir o backup", pgRestore);
+            throw new NegocioException("O backup não foi concluído: não encontrei o pg_restore na pasta do pg_dump ("
+                    + pgRestore + "), que confere o arquivo gerado. O arquivo foi descartado.");
+        }
+        ExecutorProcesso.Resultado r;
+        try {
+            r = executor.executar(List.of(pgRestore.toString(), "--list", arquivo.toString()), Map.of(),
+                    LIMITE_CONFERENCIA);
+        } catch (IOException e) {
+            apagar(arquivo);
+            log.error("Falha ao executar o pg_restore {} para conferir o backup", pgRestore, e);
+            throw new NegocioException("O backup não foi concluído: não foi possível conferir o arquivo com o "
+                    + "pg_restore, e ele foi descartado. Os detalhes foram registrados no log.");
+        }
+        if (r.codigo() != 0 || r.saida() == null || r.saida().isBlank()) {
+            apagar(arquivo);
+            log.error("pg_restore --list não leu o backup (código {}): {}", r.codigo(), r.saida());
+            throw new NegocioException("O backup não foi concluído: o arquivo gerado não passou na conferência "
+                    + "(pg_restore --list) e foi descartado. Os detalhes foram registrados no log.");
+        }
+    }
+
+    /** {@code .../bin/pg_dump.exe} → {@code .../bin/pg_restore.exe} (o mesmo para o nome sem {@code .exe}). */
+    static Path pgRestoreAoLado(Path pgDump) {
+        String nome = pgDump.getFileName().toString().replace("pg_dump", "pg_restore");
+        return pgDump.getParent() == null ? Path.of(nome) : pgDump.getParent().resolve(nome);
     }
 
     /** O comando, sem a senha (ela vai em {@code PGPASSWORD}); {@code --no-password} evita o pedido de senha. */

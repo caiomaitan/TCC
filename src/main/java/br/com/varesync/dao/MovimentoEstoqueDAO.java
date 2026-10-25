@@ -99,4 +99,25 @@ public class MovimentoEstoqueDAO {
         return linhas;
     }
 
+    /**
+     * Saldo do produto antes de {@code inicio} (F10.4): o saldo após o último movimento anterior, na mesma ordem do
+     * kardex, ou 0 se não houver.
+     */
+    public BigDecimal saldoAntes(Connection con, long produtoId, OffsetDateTime inicio) throws SQLException {
+        String sql = """
+                SELECT saldo_posterior
+                  FROM movimento_estoque
+                 WHERE produto_id = ?
+                   AND criado_em < ?
+                 ORDER BY criado_em DESC, id DESC
+                 LIMIT 1
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, produtoId);
+            ps.setObject(2, inicio);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBigDecimal(1) : BigDecimal.ZERO;
+            }
+        }
+    }
 }

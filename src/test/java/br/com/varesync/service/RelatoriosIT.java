@@ -285,13 +285,14 @@ class RelatoriosIT extends IntegracaoBase {
         ResultadoRelatorio<RelMovimentacao.Linha> r04 = relatorios.gerar(admin, new RelMovimentacao(),
                 noPeriodo().comProduto(relatorios.produto(admin, "7891000315507")));
 
-        assertThat(r04.linhas()).extracting(RelMovimentacao.Linha::tipo).containsExactly(
+        assertThat(r04.linhas()).extracting(RelMovimentacao.Linha::tipo).containsExactly(null,
                 TipoMovimento.AJUSTE_ENTRADA, TipoMovimento.VENDA, TipoMovimento.VENDA,
                 TipoMovimento.CANCELAMENTO_VENDA);
+        assertThat(r04.linhas().get(0).descricaoTipo()).isEqualTo("Saldo anterior");
         assertThat(r04.linhas()).extracting(RelMovimentacao.Linha::saldoApos).extracting(BigDecimal::intValue)
-                .containsExactly(50, 47, 46, 47);
-        assertThat(r04.linhas().get(1).origem()).startsWith("Venda nº ");
-        assertThat(r04.linhas().get(0).origem()).isEqualTo("Estoque inicial");
+                .containsExactly(0, 50, 47, 46, 47);
+        assertThat(r04.linhas().get(2).origem()).startsWith("Venda nº ");
+        assertThat(r04.linhas().get(1).origem()).isEqualTo("Estoque inicial");
         assertThat(r04.totais().get(3)).isEqualTo("47");
         assertThat(r04.totais().get(6)).isEqualTo("R$ 163,20");
         assertThat(r04.totais().get(7)).isEqualTo("R$ 12,80");
@@ -299,7 +300,30 @@ class RelatoriosIT extends IntegracaoBase {
         ResultadoRelatorio<RelMovimentacao.Linha> soVendas = relatorios.gerar(admin, new RelMovimentacao(),
                 noPeriodo().comTipo(TipoMovimento.VENDA));
         assertThat(soVendas.linhas()).hasSize(5);
+        assertThat(soVendas.linhas()).as("sem produto, sem saldo anterior").allSatisfy(l ->
+                assertThat(l.tipo()).isEqualTo(TipoMovimento.VENDA));
         assertThat(soVendas.totais().get(3)).as("sem produto, quantidades não se somam").isEmpty();
+    }
+
+    /** Aceite F10 (kardex), no R04: com movimentos antes do período, a primeira linha é o saldo anterior. */
+    @Test
+    void r04PorProdutoComecaPeloSaldoAnterior() {
+        ResultadoRelatorio<RelMovimentacao.Linha> r04 = relatorios.gerar(admin, new RelMovimentacao(),
+                Filtros.vazios().comPeriodo(new Periodo(dia1.plusDays(1), dia1.plusDays(1))).comProduto(
+                        relatorios.produto(admin, String.valueOf(queijo))));
+
+        assertThat(r04.linhas()).extracting(RelMovimentacao.Linha::descricaoTipo)
+                .containsExactly("Saldo anterior", TipoMovimento.VENDA.descricao());
+        RelMovimentacao.Linha saldo = r04.linhas().get(0);
+        assertThat(saldo.saldoApos()).isEqualByComparingTo("4.655"); // 5 iniciais − 0,345 vendidos no dia 1
+        assertThat(saldo.produto()).isEqualTo("Queijo muçarela");
+        assertThat(saldo.quantidade()).isNull();
+        assertThat(saldo.entrada()).isNull();
+        assertThat(saldo.saida()).isNull();
+        assertThat(r04.linhas().get(1).saldoApos()).isEqualByComparingTo("3.655");
+        assertThat(r04.colunas().get(2).formatar(saldo)).isEqualTo("Saldo anterior");
+        assertThat(r04.colunas().get(4).formatar(saldo)).isEqualTo("4,655");
+        assertThat(r04.totais().get(3)).as("o saldo anterior não entra na soma das quantidades").isEqualTo("-1");
     }
 
     @Test

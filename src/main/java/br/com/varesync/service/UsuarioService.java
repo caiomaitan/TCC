@@ -1,8 +1,10 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.Usuario;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -24,17 +26,24 @@ public class UsuarioService {
 
     private final Transacao transacao;
     private final UsuarioDAO usuarioDAO;
+    private final ConfiguracaoDAO configuracaoDAO;
     private final AuditoriaService auditoria;
     private final Senhas senhas;
     private final Clock clock;
 
-    public UsuarioService(Transacao transacao, UsuarioDAO usuarioDAO, AuditoriaService auditoria, Senhas senhas,
-                          Clock clock) {
+    public UsuarioService(Transacao transacao, UsuarioDAO usuarioDAO, ConfiguracaoDAO configuracaoDAO,
+                          AuditoriaService auditoria, Senhas senhas, Clock clock) {
         this.transacao = transacao;
         this.usuarioDAO = usuarioDAO;
+        this.configuracaoDAO = configuracaoDAO;
         this.auditoria = auditoria;
         this.senhas = senhas;
         this.clock = clock;
+    }
+
+    /** Regra das senhas provisórias (F10.6), para o diálogo mostrar e para a validação. */
+    public PoliticaSenha politicaSenha() {
+        return transacao.executar(con -> configuracaoDAO.carregar(con).politicaSenha());
     }
 
     public List<Usuario> listar(Sessao sessao) {
@@ -52,7 +61,7 @@ public class UsuarioService {
         sessao.exigirSupervisor();
         String login = ValidacaoUsuario.login(loginDigitado);
         String nome = ValidacaoUsuario.nome(nomeDigitado);
-        senhas.validarNova(login, senhaProvisoria, confirmacao);
+        senhas.validarNova(login, senhaProvisoria, confirmacao, politicaSenha());
         String hash = senhas.gerarHash(senhaProvisoria);
 
         return transacao.executar(con -> {
@@ -130,7 +139,7 @@ public class UsuarioService {
     public void redefinirSenha(Sessao sessao, long id, String senhaProvisoria, String confirmacao) {
         sessao.exigirSupervisor();
         String login = transacao.executar(con -> buscar(con, id).login());
-        senhas.validarNova(login, senhaProvisoria, confirmacao);
+        senhas.validarNova(login, senhaProvisoria, confirmacao, politicaSenha());
         String hash = senhas.gerarHash(senhaProvisoria);
 
         transacao.executar(con -> {

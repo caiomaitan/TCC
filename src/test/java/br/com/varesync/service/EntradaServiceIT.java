@@ -108,7 +108,7 @@ class EntradaServiceIT extends IntegracaoBase {
         assertThat(r.entrada().confirmadoEm()).isEqualTo(OffsetDateTime.now(t.relogio));
         assertThat(r.entrada().confirmadoPorNome()).isEqualTo("Ana Admin");
 
-        List<MovimentoKardex> kardex = t.estoque.kardex(admin, cafe, t.estoque.periodoPadrao());
+        List<MovimentoKardex> kardex = t.estoque.kardex(admin, cafe, t.estoque.periodoPadrao()).movimentos();
         MovimentoKardex entrada = kardex.get(kardex.size() - 1);
         assertThat(entrada.tipo()).isEqualTo(TipoMovimento.ENTRADA_COMPRA);
         assertThat(entrada.quantidade()).isEqualByComparingTo("12");

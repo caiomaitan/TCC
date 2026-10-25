@@ -180,6 +180,11 @@
     -fx-text-fill: white;
 }
 
+/* Kardex: linha "Saldo anterior" do início do período (F10.4) */
+.table-row-cell.saldo-anterior .table-cell {
+    -fx-font-weight: bold;
+}
+
 .produto-contagem {
     -fx-font-weight: bold;
 }
