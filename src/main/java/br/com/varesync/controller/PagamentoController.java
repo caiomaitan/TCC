@@ -26,7 +26,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 /**
- * Pagamento da venda (F10, 6.6): várias formas, total, pago, falta e troco; finaliza quando pago ≥ total. A
+ * Pagamento da venda (F10, 6.6): várias formas, total, pago, falta e troco; finaliza quando pago ≥ total. Com cliente
+ * identificado, mostra o crédito disponível para a forma "Crédito do cliente" (F12.4). A
  * finalização é do {@link VendaService}: se falhar, nada é gravado, a mensagem aparece aqui e o carrinho continua.
  */
 public class PagamentoController {
@@ -56,7 +57,7 @@ public class PagamentoController {
         this.vendaService = vendaService;
         this.sessao = sessao;
         this.carrinho = carrinho;
-        this.recebimento = new Recebimento(carrinho.total());
+        this.recebimento = vendaService.recebimento(sessao, carrinho);
     }
 
     /** A venda finalizada, ou vazio se a pessoa voltou à venda. */
@@ -82,6 +83,8 @@ public class PagamentoController {
             }
         });
         atualizar();
+        recebimento.creditoDisponivel().ifPresent(saldo -> Mensagem.informar(mensagem,
+                "Crédito do cliente disponível: " + Formatos.moeda(saldo) + "."));
     }
 
     @FXML

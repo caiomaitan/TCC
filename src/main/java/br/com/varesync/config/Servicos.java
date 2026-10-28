@@ -5,6 +5,7 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
@@ -25,6 +26,7 @@ import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
+import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.FornecedorService;
@@ -56,7 +58,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        FornecedorService fornecedores, EntradaService compras, RelatorioService relatorios,
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
                        ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
-                       ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes) {
+                       ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes,
+                       CreditoService credito) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -79,9 +82,11 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         CaixaService caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, clock);
         PromocaoDAO promocaoDAO = new PromocaoDAO();
         FormaPagamentoDAO formaPagamentoDAO = new FormaPagamentoDAO();
+        CreditoClienteDAO creditoDAO = new CreditoClienteDAO();
+        CreditoService credito = new CreditoService(transacao, creditoDAO, new ClienteDAO(), auditoria, clock);
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, new ClienteDAO(),
-                clock);
+                creditoDAO, credito, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();
@@ -102,7 +107,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
                 new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
                 new UnidadeService(transacao, new UnidadeMedidaDAO()),
-                new ClienteService(transacao, new ClienteDAO(), configuracaoDAO, auditoria, clock));
+                new ClienteService(transacao, new ClienteDAO(), creditoDAO, configuracaoDAO, auditoria, clock),
+                credito);
     }
 
     /**
@@ -115,7 +121,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         Servicos s = montar(dataSource, relogio, terminalId, senhas);
         return new GeradorDemo(relogio, relogioReal, s.transacao(), s.acesso(), s.usuarios(), s.categorias(),
                 s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), s.fornecedores(), s.compras(),
-                new DemoDAO(), new CaixaDAO(),
+                s.clientes(), new DemoDAO(), new CaixaDAO(),
                 new ConfiguracaoDAO(), new AuditoriaService(new AuditoriaDAO(), relogio, terminalId));
     }
 }

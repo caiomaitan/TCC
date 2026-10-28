@@ -8,6 +8,7 @@ import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.DadosCliente;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.DadosFornecedor;
 import br.com.varesync.model.DadosProduto;
@@ -82,8 +83,14 @@ public class GeradorDemo {
 
     public record Resultado(List<UsuarioDemo> usuarios, int produtos, int vendas, int vendasCanceladas,
                             int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
-                            int fornecedores, int entradas) {
+                            int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito) {
     }
+
+    /** Parte das vendas com cliente identificado (F12.8: cerca de 40%) e, delas, as que tentam usar o crédito. */
+    static final int PCT_VENDAS_COM_CLIENTE = 40;
+    static final int PCT_USA_CREDITO = 25;
+    /** Só usa o crédito a partir deste saldo (alguns centavos de cashback não valem a parcela). */
+    static final BigDecimal CREDITO_MINIMO_PARA_USAR = new BigDecimal("1.00");
 
     /** Andamento, para a barra de progresso da tela. */
     @FunctionalInterface
@@ -91,7 +98,7 @@ public class GeradorDemo {
         void informar(long feito, long total, String mensagem);
     }
 
-    private enum Forma { DINHEIRO, PIX, DEBITO, CREDITO, VALE, PIX_E_DINHEIRO }
+    private enum Forma { DINHEIRO, PIX, DEBITO, CREDITO, VALE, PIX_E_DINHEIRO, CREDITO_CLIENTE }
 
     private record UsuarioPlano(String login, String nome, boolean gerente) {
     }
@@ -140,6 +147,7 @@ public class GeradorDemo {
     private final InventarioService inventarios;
     private final FornecedorService fornecedores;
     private final EntradaService compras;
+    private final ClienteService clientes;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -150,7 +158,7 @@ public class GeradorDemo {
                        UsuarioService usuarios, CategoriaService categorias, ProdutoService produtos,
                        EstoqueService estoque, CaixaService caixa, VendaService vendas,
                        InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
-                       DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
+                       ClienteService clientes, DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
                        AuditoriaService auditoria) {
         this.relogio = relogio;
         this.relogioReal = relogioReal;
@@ -165,6 +173,7 @@ public class GeradorDemo {
         this.inventarios = inventarios;
         this.fornecedores = fornecedores;
         this.compras = compras;
+        this.clientes = clientes;
         this.demoDAO = demoDAO;
         this.caixaDAO = caixaDAO;
         this.configuracaoDAO = configuracaoDAO;
@@ -204,6 +213,11 @@ public class GeradorDemo {
                 throw new NegocioException("Já há fornecedores com os CNPJs dos dados de demonstração. Use um banco "
                         + "separado.");
             }
+            if (!demoDAO.documentosDeClientesExistentes(con, CatalogoDemo.clientes().stream()
+                    .map(CatalogoDemo.ClienteDemo::cpf).toList()).isEmpty()) {
+                throw new NegocioException("Já há clientes com os CPFs dos dados de demonstração. Use um banco "
+                        + "separado.");
+            }
             return null;
         });
         caixa.caixaAberto(sessao).ifPresent(c -> {
@@ -228,8 +242,9 @@ public class GeradorDemo {
                 demandaDia, inicio);
         Map<Integer, List<CompraPlano>> comprasPorDia = comprasPlano.stream()
                 .collect(Collectors.groupingBy(CompraPlano::dia, LinkedHashMap::new, Collectors.toList()));
+        List<CatalogoDemo.ClienteDemo> clientesDemo = CatalogoDemo.clientes();
         long totalPassos = catalogo.size() + dias.stream().mapToLong(d -> d.vendas().size()).sum()
-                + comprasPlano.size();
+                + comprasPlano.size() + clientesDemo.size();
         long[] feito = {0};
 
         // Véspera do primeiro dia: balança, usuários e produtos.
@@ -265,6 +280,19 @@ public class GeradorDemo {
             progresso.informar(++feito[0], totalPassos, "Cadastrando produtos (" + (i + 1) + " de "
                     + catalogo.size() + ")");
         }
+        // Clientes e fidelidade (F12.8): 150 clientes na véspera e cashback de 1% ligado.
+        ligarFidelidade(supervisor);
+        List<Long> clienteIds = new ArrayList<>();
+        for (int i = 0; i < clientesDemo.size(); i++) {
+            CatalogoDemo.ClienteDemo c = clientesDemo.get(i);
+            posicionar(vespera, LocalTime.of(10, 0).plusSeconds(10L * i), zona);
+            clienteIds.add(clientes.criar(supervisor, new DadosCliente(c.nome(), c.cpf(), c.telefone(), null, null,
+                    null, null, null, null, null, "Ribeirão Preto", "SP", null, c.consentimento())));
+            progresso.informar(++feito[0], totalPassos, "Cadastrando clientes (" + (i + 1) + " de "
+                    + clientesDemo.size() + ")");
+        }
+        Random fidelidade = new Random(SEMENTE + 4);
+
         Map<Long, ProdutoVenda> paraVenda = new LinkedHashMap<>();
         for (int i = 0; i < produtoIds.size(); i++) {
             if (catalogo.get(i).popularidade() > 0) {
@@ -274,6 +302,8 @@ public class GeradorDemo {
         Map<Forma, List<FormaPagamento>> formas = formas(supervisor);
 
         int vendasFeitas = 0;
+        int vendasComCliente = 0;
+        int usosDeCredito = 0;
         int canceladas = 0;
         int itensCancelados = 0;
         long inventarioId = 0;
@@ -315,9 +345,14 @@ public class GeradorDemo {
                     sangria(gerente, aberto.id());
                 }
                 Sessao operador = venda.hora().getHour() < 14 ? manha : tarde;
+                Long clienteId = fidelidade.nextInt(100) < PCT_VENDAS_COM_CLIENTE
+                        ? clienteIds.get(fidelidade.nextInt(clienteIds.size())) : null;
+                boolean usarCredito = clienteId != null && fidelidade.nextInt(100) < PCT_USA_CREDITO;
                 Venda feita = vender(operador, venda, produtoIds, paraVenda, formas, execucao, dia.data(), zona,
-                        liberaCancelamento, liberaDesconto);
+                        liberaCancelamento, liberaDesconto, clienteId, usarCredito);
                 vendasFeitas++;
+                vendasComCliente += clienteId == null ? 0 : 1;
+                usosDeCredito += feita.usouCredito() ? 1 : 0;
                 itensCancelados += feita.itensCancelados();
                 if (venda.cancelar()) {
                     posicionar(dia.data(), venda.hora().plusMinutes(3), zona);
@@ -335,13 +370,15 @@ public class GeradorDemo {
 
         relogio.ajustar(relogioReal.instant());
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
-                inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas);
+                inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
+                vendasComCliente, usosDeCredito);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
                             + " produtos, usuários " + criados.stream().map(UsuarioDemo::login)
                             .collect(Collectors.joining(", ")) + ", " + resultado.vendas() + " vendas ("
-                            + resultado.vendasCanceladas() + " canceladas), " + resultado.fornecedores()
+                            + resultado.vendasCanceladas() + " canceladas, " + resultado.vendasComCliente()
+                            + " com cliente), " + resultado.clientes() + " clientes, " + resultado.fornecedores()
                             + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
@@ -689,15 +726,33 @@ public class GeradorDemo {
         formas.put(Forma.CREDITO, List.of(porTipo.getOrDefault(TipoFormaPagamento.CARTAO_CREDITO, dinheiro)));
         formas.put(Forma.VALE, List.of(porTipo.getOrDefault(TipoFormaPagamento.OUTROS, dinheiro)));
         formas.put(Forma.PIX_E_DINHEIRO, List.of(porTipo.getOrDefault(TipoFormaPagamento.PIX, dinheiro), dinheiro));
+        // Desativada, as vendas não usam o crédito do cliente (o cashback continua).
+        FormaPagamento credito = porTipo.get(TipoFormaPagamento.CREDITO_CLIENTE);
+        formas.put(Forma.CREDITO_CLIENTE, credito == null ? List.of() : List.of(credito));
         return formas;
     }
 
-    private record Venda(long vendaId, int itensCancelados) {
+    /** Fidelidade (F12.8): ligada com 1% de cashback e sem compra mínima. */
+    private void ligarFidelidade(Sessao supervisor) {
+        transacao.executar(con -> {
+            if (!configuracaoDAO.carregar(con).fidelidade().ativo()) {
+                configuracaoDAO.gravar(con, Configuracoes.FIDELIDADE_ATIVO, "true");
+                configuracaoDAO.gravar(con, Configuracoes.FIDELIDADE_CASHBACK, "1");
+                configuracaoDAO.gravar(con, Configuracoes.FIDELIDADE_COMPRA_MINIMA, "0");
+                auditoria.registrar(con, supervisor, AcaoAuditoria.CONFIGURACAO_ALTERADA, "configuracao", null,
+                        "Fidelidade ligada pelo gerador de dados de demonstração (cashback de 1%, sem compra mínima)");
+            }
+            return null;
+        });
+    }
+
+    private record Venda(long vendaId, int itensCancelados, boolean usouCredito) {
     }
 
     private Venda vender(Sessao operador, VendaPlano plano, List<Long> produtoIds, Map<Long, ProdutoVenda> paraVenda,
                          Map<Forma, List<FormaPagamento>> formas, Random r, LocalDate data, ZoneId zona,
-                         Liberacao liberaCancelamento, Liberacao liberaDesconto) {
+                         Liberacao liberaCancelamento, Liberacao liberaDesconto, Long clienteId,
+                         boolean usarCredito) {
         Carrinho carrinho = new Carrinho();
         int cancelados = 0;
         LocalTime hora = plano.hora();
@@ -720,11 +775,23 @@ public class GeradorDemo {
             vendas.aplicarDescontoVenda(operador, carrinho, TipoDesconto.PERCENTUAL,
                     BigDecimal.valueOf(plano.descontoVendaPct()), liberaDesconto);
         }
-        Recebimento recebimento = new Recebimento(carrinho.total());
+        if (clienteId != null) {
+            vendas.identificarCliente(operador, carrinho, clienteId);
+        }
+        Recebimento recebimento = vendas.recebimento(operador, carrinho);
+        // Uso do crédito (F12.8): parte da venda paga com o saldo do cliente, o resto pela forma planejada.
+        boolean usouCredito = false;
+        FormaPagamento credito = formas.get(Forma.CREDITO_CLIENTE).stream().findFirst().orElse(null);
+        BigDecimal disponivel = recebimento.creditoDisponivel().orElse(Dinheiro.ZERO);
+        if (usarCredito && credito != null && carrinho.total().signum() > 0
+                && disponivel.compareTo(CREDITO_MINIMO_PARA_USAR) >= 0) {
+            recebimento.adicionar(credito, disponivel.min(carrinho.total()));
+            usouCredito = true;
+        }
         List<FormaPagamento> usar = formas.get(plano.forma());
-        if (carrinho.total().signum() > 0) {
-            if (usar.size() == 2 && carrinho.total().compareTo(BigDecimal.valueOf(4)) > 0) {
-                BigDecimal parte = carrinho.total().divide(BigDecimal.valueOf(2), 0, RoundingMode.DOWN)
+        if (!recebimento.quitado()) {
+            if (usar.size() == 2 && recebimento.falta().compareTo(BigDecimal.valueOf(4)) > 0) {
+                BigDecimal parte = recebimento.falta().divide(BigDecimal.valueOf(2), 0, RoundingMode.DOWN)
                         .setScale(2);
                 recebimento.adicionar(usar.get(0), parte);
                 recebimento.adicionar(usar.get(1), notas(recebimento.falta(), r));
@@ -735,7 +802,7 @@ public class GeradorDemo {
             }
         }
         long vendaId = vendas.finalizar(operador, carrinho, recebimento).vendaId();
-        return new Venda(vendaId, cancelados);
+        return new Venda(vendaId, cancelados, usouCredito);
     }
 
     /** O que o cliente entrega em dinheiro: o valor exato ou a nota de 5, 10, 20, 50 ou 100 seguinte. */

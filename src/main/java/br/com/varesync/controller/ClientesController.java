@@ -2,12 +2,15 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.Cliente;
 import br.com.varesync.model.DadosCliente;
+import br.com.varesync.model.ExtratoCredito;
 import br.com.varesync.model.HistoricoCliente;
+import br.com.varesync.model.MovimentoCredito;
 import br.com.varesync.report.ExportadorCsv;
 import br.com.varesync.report.RelDadosCliente;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.service.ClienteService;
+import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RegistroEmUsoException;
 import br.com.varesync.service.Sessao;
@@ -19,8 +22,11 @@ import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import javafx.application.Platform;
@@ -45,8 +51,9 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 
 /**
- * Clientes (F12.1, F12.2, F12.6): lista com busca à esquerda e, à direita, as abas Cadastro, Compras (histórico,
- * total gasto, ticket médio, última compra e produtos mais comprados) e LGPD (exportar os dados, anonimizar).
+ * Clientes (F12.1, F12.2, F12.3, F12.6): lista com busca à esquerda e, à direita, as abas Cadastro, Compras
+ * (histórico, total gasto, ticket médio, última compra e produtos mais comprados), Crédito (saldo, extrato e ajuste,
+ * só o supervisor) e LGPD (exportar os dados, anonimizar).
  * CPF/CNPJ, telefone e CEP ganham a máscara ao sair do campo; o {@link ClienteService} grava sem máscara e confere a
  * permissão CLIENTES (anonimizar, só o supervisor).
  */
@@ -56,6 +63,7 @@ public class ClientesController {
     private static final ConversorData DATA = new ConversorData();
 
     private final ClienteService clienteService;
+    private final CreditoService creditoService;
     private final RelatorioPdf relatorioPdf;
     private final Sessao sessao;
     /** Cliente em edição; nulo no cadastro novo. */
@@ -105,6 +113,16 @@ public class ClientesController {
     @FXML private TableColumn<HistoricoCliente.ProdutoComprado, String> colunaVezes;
     @FXML private TableColumn<HistoricoCliente.ProdutoComprado, String> colunaQuantidade;
     @FXML private TableColumn<HistoricoCliente.ProdutoComprado, String> colunaValorProduto;
+    @FXML private Tab abaCredito;
+    @FXML private Label saldoCredito;
+    @FXML private Button botaoAjustarCredito;
+    @FXML private TableView<MovimentoCredito> tabelaCredito;
+    @FXML private TableColumn<MovimentoCredito, String> colunaCreditoData;
+    @FXML private TableColumn<MovimentoCredito, String> colunaCreditoTipo;
+    @FXML private TableColumn<MovimentoCredito, String> colunaCreditoOrigem;
+    @FXML private TableColumn<MovimentoCredito, String> colunaCreditoValor;
+    @FXML private TableColumn<MovimentoCredito, String> colunaCreditoSaldo;
+    @FXML private Label detalheCredito;
     @FXML private Label lgpdConsentimento;
     @FXML private Button botaoExportarPdf;
     @FXML private Button botaoExportarCsv;
@@ -115,8 +133,10 @@ public class ClientesController {
     @FXML private Button botaoSituacao;
     @FXML private Button botaoSalvar;
 
-    public ClientesController(ClienteService clienteService, RelatorioPdf relatorioPdf, Sessao sessao) {
+    public ClientesController(ClienteService clienteService, CreditoService creditoService, RelatorioPdf relatorioPdf,
+                              Sessao sessao) {
         this.clienteService = clienteService;
+        this.creditoService = creditoService;
         this.relatorioPdf = relatorioPdf;
         this.sessao = sessao;
     }
@@ -152,6 +172,29 @@ public class ClientesController {
         colunaQuantidade.setCellValueFactory(c -> celula(Formatos.quantidade(c.getValue().quantidade(),
                 c.getValue().fracionada()) + " " + c.getValue().unidade()));
         colunaValorProduto.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().valor())));
+        colunaCreditoData.setCellValueFactory(c -> celula(Formatos.dataHora(c.getValue().criadoEm())));
+        colunaCreditoTipo.setCellValueFactory(c -> celula(c.getValue().tipo().rotulo()));
+        colunaCreditoOrigem.setCellValueFactory(c -> celula(c.getValue().origem()));
+        colunaCreditoValor.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().valor())));
+        colunaCreditoSaldo.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().saldoPosterior())));
+        // O painel é estreito: a linha selecionada aparece inteira abaixo, com quem fez o movimento.
+        tabelaCredito.getSelectionModel().selectedItemProperty().addListener((o, a, m) -> detalheCredito.setText(
+                m == null ? "Selecione um movimento para ver o detalhe." : Formatos.dataHora(m.criadoEm()) + " — "
+                        + m.tipo().rotulo() + " de " + Formatos.moeda(m.valor()) + " (" + m.origem() + "), saldo "
+                        + Formatos.moeda(m.saldoAnterior()) + " → " + Formatos.moeda(m.saldoPosterior()) + ", por "
+                        + m.usuario() + "."));
+        tabelaCredito.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(MovimentoCredito m, boolean vazio) {
+                super.updateItem(m, vazio);
+                getStyleClass().remove("negativo");
+                if (!vazio && m != null && m.saldoPosterior().signum() < 0) {
+                    getStyleClass().add("negativo");
+                }
+            }
+        });
+        botaoAjustarCredito.setVisible(sessao.supervisor());
+        botaoAjustarCredito.setManaged(sessao.supervisor());
 
         campoUf.getItems().setAll(FornecedoresController.UFS);
         aoSairDoCampo(campoDocumento, this::mascararDocumento);
@@ -223,6 +266,7 @@ public class ClientesController {
         botaoSituacao.setDisable(true);
         botaoSituacao.setText("Inativar");
         abaCompras.setDisable(true);
+        abaCredito.setDisable(true);
         abaLgpd.setDisable(true);
         abas.getSelectionModel().select(abaCadastro);
         Mensagem.limpar(mensagem);
@@ -261,9 +305,39 @@ public class ClientesController {
         botaoSituacao.setText(c.ativo() ? "Inativar" : "Reativar");
         botaoAnonimizar.setDisable(c.anonimizado());
         abaCompras.setDisable(false);
+        abaCredito.setDisable(false);
         abaLgpd.setDisable(false);
+        botaoAjustarCredito.setDisable(c.anonimizado());
         mostrarHistorico(clienteService.historico(sessao, c.id()));
+        mostrarCredito(creditoService.extrato(sessao, c.id()));
         Mensagem.limpar(mensagem);
+    }
+
+    /** Aba Crédito (F12.3): saldo (negativo em vermelho) e o extrato, do mais recente para o mais antigo. */
+    private void mostrarCredito(ExtratoCredito extrato) {
+        saldoCredito.setText(Formatos.moeda(extrato.saldo()));
+        saldoCredito.getStyleClass().remove("negativo");
+        if (extrato.saldo().signum() < 0) {
+            saldoCredito.getStyleClass().add("negativo");
+        }
+        List<MovimentoCredito> recentesPrimeiro = new ArrayList<>(extrato.movimentos());
+        Collections.reverse(recentesPrimeiro);
+        tabelaCredito.getItems().setAll(recentesPrimeiro);
+        detalheCredito.setText(recentesPrimeiro.isEmpty() ? "" : "Selecione um movimento para ver o detalhe.");
+    }
+
+    @FXML
+    private void ajustarCredito() {
+        Cliente c = emEdicao;
+        if (c == null) {
+            return;
+        }
+        BigDecimal saldo = creditoService.extrato(sessao, c.id()).saldo();
+        DialogosCliente.ajustarCredito(c.id(), c.nome(), saldo,
+                (valor, motivo) -> creditoService.ajustar(sessao, c.id(), valor, motivo)).ifPresent(novo -> {
+                    mostrarCredito(creditoService.extrato(sessao, c.id()));
+                    Mensagem.sucesso(mensagem, "Crédito ajustado. Saldo atual: " + Formatos.moeda(novo) + ".");
+                });
     }
 
     private void mostrarHistorico(HistoricoCliente h) {

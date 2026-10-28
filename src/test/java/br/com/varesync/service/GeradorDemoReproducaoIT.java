@@ -25,6 +25,8 @@ class GeradorDemoReproducaoIT extends IntegracaoBase {
                    (SELECT sum(quantidade) FROM produto_estoque) || '|' ||
                    (SELECT sum(valor_contado) FROM caixa_sessao) || '|' ||
                    (SELECT count(*) FROM movimento_estoque) || '|' ||
+                   (SELECT count(*) FROM venda WHERE cliente_id IS NOT NULL) || '|' ||
+                   (SELECT string_agg(tipo || ':' || valor, ',' ORDER BY id) FROM cliente_credito_movimento) || '|' ||
                    (SELECT string_agg(to_char(data_hora, 'YYYY-MM-DD HH24:MI:SS'), ',' ORDER BY id) FROM venda)
             """;
 

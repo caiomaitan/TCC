@@ -42,6 +42,13 @@ public class DemoDAO {
                 "varchar", documentos);
     }
 
+    /** Dos CPFs/CNPJs informados, os que já pertencem a algum cliente. */
+    public List<String> documentosDeClientesExistentes(Connection con, Collection<String> documentos)
+            throws SQLException {
+        return existentes(con, "SELECT cpf_cnpj FROM cliente WHERE cpf_cnpj = ANY (?) ORDER BY cpf_cnpj",
+                "varchar", documentos);
+    }
+
     private static List<String> existentes(Connection con, String sql, String tipo, Collection<?> valores)
             throws SQLException {
         List<String> encontrados = new ArrayList<>();

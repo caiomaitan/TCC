@@ -44,10 +44,10 @@ public class VendaDAO {
     public record ItemVendido(long id, long produtoId, BigDecimal quantidade) {
     }
 
-    /** Cabeçalho do comprovante; nome e CPF/CNPJ do cliente nulos sem identificação (o CPF pode faltar). */
+    /** Cabeçalho do comprovante; cliente, nome e CPF/CNPJ nulos sem identificação (o CPF pode faltar). */
     public record Cabecalho(long id, OffsetDateTime dataHora, String operador, String terminal, StatusVenda status,
-                            OffsetDateTime canceladaEm, String motivoCancelamento, Totais totais, String clienteNome,
-                            String clienteCpfCnpj) {
+                            OffsetDateTime canceladaEm, String motivoCancelamento, Totais totais, Long clienteId,
+                            String clienteNome, String clienteCpfCnpj) {
     }
 
     /** Pagamento gravado (valor abatido) com o tipo da forma, para devolver o troco ao dinheiro no comprovante. */
@@ -224,7 +224,7 @@ public class VendaDAO {
         String sql = """
                 SELECT v.id, v.data_hora, u.nome AS operador, s.terminal, v.status, v.cancelada_em,
                        v.motivo_cancelamento, v.valor_bruto, v.desconto_itens, v.desconto_venda, v.valor_total,
-                       v.troco, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpf_cnpj
+                       v.troco, v.cliente_id, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpf_cnpj
                   FROM venda v
                   JOIN usuario u      ON u.id = v.usuario_id
                   JOIN caixa_sessao s ON s.id = v.caixa_sessao_id
@@ -243,8 +243,8 @@ public class VendaDAO {
                         rs.getObject("cancelada_em", OffsetDateTime.class), rs.getString("motivo_cancelamento"),
                         new Totais(rs.getBigDecimal("valor_bruto"), rs.getBigDecimal("desconto_itens"),
                                 rs.getBigDecimal("desconto_venda"), rs.getBigDecimal("valor_total"),
-                                rs.getBigDecimal("troco")), rs.getString("cliente_nome"),
-                        rs.getString("cliente_cpf_cnpj")));
+                                rs.getBigDecimal("troco")), Jdbc.lerLong(rs, "cliente_id"),
+                        rs.getString("cliente_nome"), rs.getString("cliente_cpf_cnpj")));
             }
         }
     }

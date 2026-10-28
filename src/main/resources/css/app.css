@@ -210,6 +210,11 @@
     -fx-text-fill: #90caf9;
 }
 
+/* Saldo de crédito negativo (depois de um estorno, F12.3) */
+.pdv-painel .pdv-cliente.negativo {
+    -fx-text-fill: #ef9a9a;
+}
+
 /* Estoque: saldo abaixo do mínimo em destaque (âmbar), negativo em vermelho (6.4) */
 /* -fx-background (e não -fx-background-color) para o texto continuar legível na linha selecionada */
 .table-row-cell.abaixo-minimo {

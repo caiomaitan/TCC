@@ -500,7 +500,8 @@ public class PdvController {
         quantidadeProxima = null;
         atualizarTela();
         Mensagem.sucesso(mensagem, "Venda nº " + venda.vendaId() + " finalizada. Troco: "
-                + Formatos.moeda(venda.troco()) + ".");
+                + Formatos.moeda(venda.troco()) + "." + (venda.cashback().signum() > 0
+                ? " Cashback para o cliente: " + Formatos.moeda(venda.cashback()) + "." : ""));
         if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco())) {
             mostrarComprovante(venda.comprovante());
         }
@@ -531,7 +532,8 @@ public class PdvController {
                     } else {
                         ClienteVenda identificado = vendaService.identificarCliente(sessao, carrinho,
                                 escolha.cliente().id());
-                        Mensagem.sucesso(mensagem, "Cliente identificado: " + identificado.nome() + ".");
+                        Mensagem.sucesso(mensagem, "Cliente identificado: " + identificado.nome()
+                                + ". Saldo de crédito: " + Formatos.moeda(identificado.saldoCredito()) + ".");
                     }
                     atualizarTela();
                 });
@@ -562,7 +564,12 @@ public class PdvController {
     // ----- Tela -----
 
     private void atualizarTela() {
-        cliente.setText(carrinho.cliente().map(c -> "Cliente: " + c.descricao()).orElse("Sem cliente (F11)"));
+        cliente.setText(carrinho.cliente().map(c -> "Cliente: " + c.descricao() + " · crédito "
+                + Formatos.moeda(c.saldoCredito())).orElse("Sem cliente (F11)"));
+        cliente.getStyleClass().remove("negativo");
+        if (carrinho.cliente().map(c -> c.saldoCredito().signum() < 0).orElse(false)) {
+            cliente.getStyleClass().add("negativo");
+        }
         tabelaItens.getItems().setAll(carrinho.itens());
         tabelaItens.refresh();
         Optional<ItemCarrinho> ultimo = carrinho.ultimoItem();

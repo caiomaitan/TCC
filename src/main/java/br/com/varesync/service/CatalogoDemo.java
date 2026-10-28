@@ -153,6 +153,41 @@ final class CatalogoDemo {
                         List.of("Limpeza", "Higiene e perfumaria"), DayOfWeek.WEDNESDAY, 30455));
     }
 
+    /** Cliente de demonstração (F12.8): todos com CPF fictício válido; parte com telefone e consentimento. */
+    record ClienteDemo(String nome, String cpf, String telefone, boolean consentimento) {
+    }
+
+    public static final int CLIENTES = 150;
+    private static final List<String> PRENOMES = List.of("Ana", "Bruno", "Camila", "Daniel", "Eduarda", "Felipe",
+            "Gabriela", "Henrique", "Isabela", "João", "Larissa", "Marcos", "Natália", "Otávio", "Patrícia");
+    private static final List<String> SOBRENOMES = List.of("Almeida", "Barbosa", "Cardoso", "Duarte", "Ferreira",
+            "Gomes", "Lopes", "Moreira", "Nunes", "Ribeiro");
+
+    /** 150 clientes, cada combinação de prenome e sobrenome uma vez; CPF 4xx.xxx.xxx-DV (base fixa pelo índice). */
+    static List<ClienteDemo> clientes() {
+        List<ClienteDemo> clientes = new ArrayList<>();
+        for (int i = 0; i < CLIENTES; i++) {
+            String nome = PRENOMES.get(i % PRENOMES.size()) + " " + SOBRENOMES.get(i / PRENOMES.size());
+            String telefone = i % 3 == 0 ? null : String.format("169%08d", 81_000_000 + i * 137);
+            clientes.add(new ClienteDemo(nome, cpf(400_000_000 + i * 3_571), telefone, i % 4 == 0));
+        }
+        return clientes;
+    }
+
+    /** CPF com os 9 dígitos da base e os dois dígitos verificadores. */
+    static String cpf(int base) {
+        String digitos = String.format("%09d", base);
+        for (int dv = 0; dv < 2; dv++) {
+            int soma = 0;
+            for (int i = 0; i < digitos.length(); i++) {
+                soma += (digitos.charAt(i) - '0') * (digitos.length() + 1 - i);
+            }
+            int resto = soma % 11;
+            digitos += resto < 2 ? 0 : 11 - resto;
+        }
+        return digitos;
+    }
+
     /** EAN-13 fictício: 789 + 6543 + sequência de 5 dígitos + dígito verificador. */
     static String gtin(int sequencia) {
         String semDigito = PREFIXO_GTIN + String.format("%05d", sequencia);

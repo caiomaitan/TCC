@@ -1,5 +1,6 @@
 package br.com.varesync.model;
 
+import br.com.varesync.util.Dinheiro;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -7,14 +8,15 @@ import java.util.Optional;
 
 /**
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
- * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6); uma chave que falta ou tem valor inválido (alterada fora do
+ * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; e da V7: {@code fidelidade.*}, F12.5); uma chave que falta ou tem valor inválido (alterada fora do
  * sistema) volta ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
  * Configurações grava um novo retrato inteiro ({@code ConfiguracaoService.salvar}).
  */
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
-                            Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca) {
+                            Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
+                            Fidelidade fidelidade) {
 
     public static final String EMPRESA_NOME = "empresa.nome";
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
@@ -36,6 +38,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String SEGURANCA_INATIVIDADE = "seguranca.inatividade_minutos";
     public static final String SEGURANCA_SENHA_TAMANHO = "seguranca.senha_tamanho_minimo";
     public static final String SEGURANCA_SENHA_LETRA_E_NUMERO = "seguranca.senha_letra_e_numero";
+    public static final String FIDELIDADE_ATIVO = "fidelidade.ativo";
+    public static final String FIDELIDADE_CASHBACK = "fidelidade.cashback_pct";
+    public static final String FIDELIDADE_COMPRA_MINIMA = "fidelidade.compra_minima";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
@@ -68,11 +73,28 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public record Seguranca(int inatividadeMinutos, PoliticaSenha senha) {
     }
 
-    /** Valores da V2 (e da V4 e V5). */
+    /**
+     * Fidelidade (F12.5): com {@code ativo}, a venda com cliente identificado gera cashback de {@code cashbackPct}% da
+     * base (total − crédito usado), se a base for ≥ {@code compraMinima}.
+     */
+    public record Fidelidade(boolean ativo, BigDecimal cashbackPct, BigDecimal compraMinima) {
+
+        public static final Fidelidade PADRAO = new Fidelidade(false, BigDecimal.ONE, BigDecimal.ZERO);
+
+        /** round(base × % ÷ 100, 2), ou zero se desligada ou se a base ficar abaixo da compra mínima. */
+        public BigDecimal cashback(BigDecimal base) {
+            if (!ativo || base.signum() <= 0 || base.compareTo(compraMinima) < 0) {
+                return Dinheiro.ZERO;
+            }
+            return base.multiply(cashbackPct).divide(CEM, Dinheiro.ESCALA_DINHEIRO, Dinheiro.ARREDONDAMENTO);
+        }
+    }
+
+    /** Valores da V2 (e da V4, V5 e V7). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
-            "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO));
+            "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO), Fidelidade.PADRAO);
 
     /** Minutos sem atividade até bloquear a tela (0 = desligado). */
     public int inatividadeMinutos() {
@@ -85,30 +107,42 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca);
+                seguranca, fidelidade);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca);
+                seguranca, fidelidade);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
-        return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca);
+        return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca,
+                fidelidade);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
-                seguranca);
+                seguranca, fidelidade);
+    }
+
+    public Configuracoes comBackup(Backup outro) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, outro, rodapeComprovante,
+                seguranca, fidelidade);
     }
 
     public Configuracoes comRodape(String outro) {
-        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca);
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca,
+                fidelidade);
     }
 
     public Configuracoes comSeguranca(Seguranca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                outra);
+                outra, fidelidade);
+    }
+
+    public Configuracoes comFidelidade(Fidelidade outra) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, outra);
     }
 
     public Configuracoes comInatividade(int minutos) {
@@ -143,8 +177,11 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 new PoliticaSenha(inteiro(valores, SEGURANCA_SENHA_TAMANHO, PoliticaSenha.TAMANHO_MINIMO,
                         PoliticaSenha.TAMANHO_MAXIMO).orElse(p.politicaSenha().tamanhoMinimo()),
                         logico(valores, SEGURANCA_SENHA_LETRA_E_NUMERO, p.politicaSenha().letraENumero())));
+        Fidelidade fidelidade = new Fidelidade(logico(valores, FIDELIDADE_ATIVO, p.fidelidade.ativo()),
+                percentual(valores, FIDELIDADE_CASHBACK, true).orElse(p.fidelidade.cashbackPct()),
+                naoNegativo(valores, FIDELIDADE_COMPRA_MINIMA).orElse(p.fidelidade.compraMinima()));
         return new Configuracoes(loja, venda, margem, dias, balanca, backup,
-                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca);
+                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca, fidelidade);
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -170,6 +207,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(SEGURANCA_INATIVIDADE, String.valueOf(seguranca.inatividadeMinutos()));
         m.put(SEGURANCA_SENHA_TAMANHO, String.valueOf(seguranca.senha().tamanhoMinimo()));
         m.put(SEGURANCA_SENHA_LETRA_E_NUMERO, String.valueOf(seguranca.senha().letraENumero()));
+        m.put(FIDELIDADE_ATIVO, String.valueOf(fidelidade.ativo()));
+        m.put(FIDELIDADE_CASHBACK, numero(fidelidade.cashbackPct()));
+        m.put(FIDELIDADE_COMPRA_MINIMA, numero(fidelidade.compraMinima()));
         return m;
     }
 
@@ -202,6 +242,20 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
             BigDecimal v = new BigDecimal(valor.strip().replace(',', '.'));
             boolean dentro = v.signum() >= 0 && (aceitaCem ? v.compareTo(CEM) <= 0 : v.compareTo(CEM) < 0);
             return dentro ? Optional.of(v) : Optional.empty();
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /** Valor ≥ 0, com ponto ou vírgula decimal (compra mínima da fidelidade). */
+    private static Optional<BigDecimal> naoNegativo(Map<String, String> valores, String chave) {
+        String valor = valores.get(chave);
+        if (valor == null) {
+            return Optional.empty();
+        }
+        try {
+            BigDecimal v = new BigDecimal(valor.strip().replace(',', '.'));
+            return v.signum() >= 0 ? Optional.of(v) : Optional.empty();
         } catch (NumberFormatException e) {
             return Optional.empty();
         }

@@ -3,6 +3,8 @@ package br.com.varesync.ui;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.util.CpfCnpj;
+import br.com.varesync.util.Formatos;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -61,7 +63,7 @@ public final class DialogosCliente {
         dialogo.getDialogPane().getButtonTypes().add(new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE));
 
         Label situacao = new Label(atual == null ? "Nenhum cliente identificado nesta venda."
-                : "Cliente desta venda: " + atual.descricao());
+                : "Cliente desta venda: " + atual.descricao() + " · crédito " + Formatos.moeda(atual.saldoCredito()));
         TextField termo = new TextField();
         termo.setPromptText("CPF/CNPJ (Enter identifica) ou nome do cliente");
         Label mensagem = new Label();
@@ -70,10 +72,11 @@ public final class DialogosCliente {
         mensagem.getStyleClass().add("mensagem-erro");
         TableView<ClienteVenda> tabela = new TableView<>();
         tabela.setPlaceholder(new Label("Digite o CPF/CNPJ ou o nome e tecle Enter."));
-        tabela.setPrefSize(580, 280);
+        tabela.setPrefSize(680, 280);
         tabela.getColumns().add(coluna("Código", 70, c -> String.valueOf(c.id()), true));
         tabela.getColumns().add(coluna("Nome", 320, ClienteVenda::nome, false));
         tabela.getColumns().add(coluna("CPF/CNPJ", 160, ClienteVenda::documentoOculto, false));
+        tabela.getColumns().add(coluna("Crédito", 100, c -> Formatos.moeda(c.saldoCredito()), true));
         tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Runnable pesquisar = () -> {
@@ -167,6 +170,26 @@ public final class DialogosCliente {
             anonimizar.accept(campo.getText());
             return Boolean.TRUE;
         }, null).orElse(false);
+    }
+
+    /**
+     * Ajuste manual do crédito (F12.3, só o supervisor): valor positivo credita, negativo debita; motivo obrigatório.
+     *
+     * @param ajustar (valor, motivo) → novo saldo; {@code NegocioException} aparece no diálogo
+     * @return o novo saldo, ou vazio se cancelado
+     */
+    public static Optional<BigDecimal> ajustarCredito(long id, String nome, BigDecimal saldo,
+                                                      BiFunction<BigDecimal, String, BigDecimal> ajustar) {
+        DialogoFormulario formulario = new DialogoFormulario("Ajustar o crédito do cliente nº " + id,
+                nome + " tem saldo de " + Formatos.moeda(saldo) + ". Valor positivo credita e negativo debita (ex.: "
+                        + "-5,00). O ajuste fica no extrato e na auditoria.", "Ajustar");
+        TextField valor = new TextField();
+        valor.setPromptText("Ex.: 5,00 ou -5,00");
+        TextField motivo = new TextField();
+        formulario.adicionarCampo("Valor (R$) *", valor);
+        formulario.adicionarCampo("Motivo *", motivo);
+        return formulario.mostrar(() -> ajustar.apply(CampoNumero.ler(valor.getText(), "Valor"), motivo.getText()),
+                null);
     }
 
     private static boolean documentoCompleto(String texto) {

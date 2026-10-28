@@ -50,6 +50,12 @@ public class ClienteDAO {
               JOIN usuario ua ON ua.id = c.atualizado_por
             """;
 
+    private static final String COLUNAS_VENDA = """
+            SELECT c.id, c.nome, c.cpf_cnpj, c.ativo, coalesce(cc.saldo, 0) AS saldo_credito
+              FROM cliente c
+              LEFT JOIN cliente_credito cc ON cc.cliente_id = c.id
+            """;
+
     /**
      * @param consentimentoEm nulo sem consentimento de marketing
      * @return código (id) do cliente
@@ -157,7 +163,21 @@ public class ClienteDAO {
      * ordenada pelo nome. Sem {@code incluirInativos}, só os ativos.
      */
     public List<Cliente> pesquisar(Connection con, Busca b) throws SQLException {
-        String sql = COLUNAS + """
+        return pesquisar(con, b, COLUNAS, ClienteDAO::ler);
+    }
+
+    /** A mesma busca, com o cliente como o PDV o vê (com o saldo de crédito, F12.2). */
+    public List<ClienteVenda> pesquisarParaVenda(Connection con, Busca b) throws SQLException {
+        return pesquisar(con, b, COLUNAS_VENDA, ClienteDAO::lerVenda);
+    }
+
+    private interface Leitor<T> {
+        T ler(ResultSet rs) throws SQLException;
+    }
+
+    private static <T> List<T> pesquisar(Connection con, Busca b, String colunas, Leitor<T> leitor)
+            throws SQLException {
+        String sql = colunas + """
                  WHERE (? OR c.ativo)
                    AND ((CAST(? AS TEXT) IS NULL AND CAST(? AS TEXT) IS NULL AND CAST(? AS TEXT) IS NULL)
                         OR c.nome_busca LIKE ? ESCAPE '\\'
@@ -165,7 +185,7 @@ public class ClienteDAO {
                         OR c.telefone LIKE ? ESCAPE '\\')
                  ORDER BY c.nome_busca, c.id
                 """;
-        List<Cliente> clientes = new ArrayList<>();
+        List<T> clientes = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setBoolean(1, b.incluirInativos());
             String[] termos = {b.nome(), b.documento(), b.telefone()};
@@ -179,7 +199,7 @@ public class ClienteDAO {
             }
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    clientes.add(ler(rs));
+                    clientes.add(leitor.ler(rs));
                 }
             }
         }
@@ -188,8 +208,7 @@ public class ClienteDAO {
 
     /** Cliente pelo CPF/CNPJ exato (sem máscara), em qualquer situação. */
     public Optional<ClienteVenda> buscarPorDocumento(Connection con, String cpfCnpj) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement(
-                "SELECT id, nome, cpf_cnpj, ativo FROM cliente WHERE cpf_cnpj = ?")) {
+        try (PreparedStatement ps = con.prepareStatement(COLUNAS_VENDA + " WHERE c.cpf_cnpj = ?")) {
             ps.setString(1, cpfCnpj);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(lerVenda(rs)) : Optional.empty();
@@ -199,8 +218,7 @@ public class ClienteDAO {
 
     /** O cliente como o PDV o vê, em qualquer situação. */
     public Optional<ClienteVenda> buscarParaVenda(Connection con, long id) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement(
-                "SELECT id, nome, cpf_cnpj, ativo FROM cliente WHERE id = ?")) {
+        try (PreparedStatement ps = con.prepareStatement(COLUNAS_VENDA + " WHERE c.id = ?")) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(lerVenda(rs)) : Optional.empty();
@@ -328,6 +346,6 @@ public class ClienteDAO {
 
     private static ClienteVenda lerVenda(ResultSet rs) throws SQLException {
         return new ClienteVenda(rs.getLong("id"), rs.getString("nome"), rs.getString("cpf_cnpj"),
-                rs.getBoolean("ativo"));
+                rs.getBoolean("ativo"), rs.getBigDecimal("saldo_credito"));
     }
 }

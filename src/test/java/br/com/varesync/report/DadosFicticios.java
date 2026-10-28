@@ -1,12 +1,15 @@
 package br.com.varesync.report;
 
 import br.com.varesync.model.Cliente;
+import br.com.varesync.model.ExtratoCredito;
 import br.com.varesync.model.HistoricoCliente;
 import br.com.varesync.model.InventarioResumo;
 import br.com.varesync.model.ItemDivergencia;
+import br.com.varesync.model.MovimentoCredito;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.ResultadoInventario;
 import br.com.varesync.model.StatusInventario;
+import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoMovimento;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -210,12 +213,27 @@ final class DadosFicticios {
                 new HistoricoCliente.Compra(9, EMISSAO.minusDays(5), 1, d("50.00"))), List.of(
                 new HistoricoCliente.ProdutoComprado(1, "Refrigerante cola 2 L", "UN", false, 2, d("6"), d("32.94")),
                 new HistoricoCliente.ProdutoComprado(2, "Queijo muçarela", "KG", true, 1, d("0.500"), d("19.95"))));
-        return RelDadosCliente.exportacao(maria, historico, new Emissao("Mercado Bom Preço", "Ana Admin", EMISSAO));
+        ExtratoCredito extrato = new ExtratoCredito(d("0.50"), List.of(
+                new MovimentoCredito(1, EMISSAO.minusDays(5), TipoCreditoCliente.CASHBACK, d("0.50"), d("0.00"),
+                        d("0.50"), 9L, null, "Ana Admin"),
+                new MovimentoCredito(2, EMISSAO.minusDays(1), TipoCreditoCliente.CASHBACK, d("0.50"), d("0.50"),
+                        d("1.00"), 12L, null, "Ana Admin"),
+                new MovimentoCredito(3, EMISSAO.minusDays(1), TipoCreditoCliente.AJUSTE, d("-0.50"), d("1.00"),
+                        d("0.50"), null, "Correção de cashback", "Ana Admin")));
+        return RelDadosCliente.exportacao(maria, historico, extrato,
+                new Emissao("Mercado Bom Preço", "Ana Admin", EMISSAO));
+    }
+
+    /** R19: dois clientes com saldo, um deles negativo depois de um estorno. */
+    static ResultadoRelatorio<RelSaldosCredito.Linha> r19() {
+        return resultado(new RelSaldosCredito(), Filtros.vazios(), List.of(
+                new RelSaldosCredito.Linha(7, "Maria da Silva", "52998224725", true, d("12.50"), EMISSAO.minusDays(2)),
+                new RelSaldosCredito.Linha(9, "João Pereira", null, false, d("-0.30"), EMISSAO.minusDays(20))));
     }
 
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
                 r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
-                dadosCliente());
+                r19(), dadosCliente());
     }
 }

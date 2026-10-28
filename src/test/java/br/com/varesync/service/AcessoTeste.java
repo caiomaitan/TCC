@@ -7,6 +7,7 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
@@ -42,7 +43,7 @@ final class AcessoTeste {
     private static final String CATEGORIAS_V2 = "'Mercearia', 'Bebidas', 'Hortifruti', 'Frios e laticínios', "
             + "'Açougue', 'Padaria', 'Limpeza', 'Higiene e perfumaria', 'Outros'";
     private static final String FORMAS_V2 = "'Dinheiro', 'PIX', 'Cartão de débito', 'Cartão de crédito', "
-            + "'Vale-alimentação'";
+            + "'Vale-alimentação', 'Crédito do cliente'";
 
     final RelogioTeste relogio = new RelogioTeste(Instant.parse("2026-10-06T13:00:00Z"));
     final Senhas senhas = new Senhas(CUSTO_BCRYPT_TESTE);
@@ -65,6 +66,7 @@ final class AcessoTeste {
     final ImportacaoNfeService nfe;
     final UnidadeService unidades;
     final ClienteService clientes;
+    final CreditoService credito;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -84,9 +86,10 @@ final class AcessoTeste {
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
         caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
+        credito = new CreditoService(transacao, new CreditoClienteDAO(), new ClienteDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
-                new ClienteDAO(), relogio);
+                new ClienteDAO(), new CreditoClienteDAO(), credito, relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
@@ -103,7 +106,8 @@ final class AcessoTeste {
         consultaAuditoria = new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), relogio);
         nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO, compras, relogio);
         unidades = new UnidadeService(transacao, new UnidadeMedidaDAO());
-        clientes = new ClienteService(transacao, new ClienteDAO(), new ConfiguracaoDAO(), auditoria, relogio);
+        clientes = new ClienteService(transacao, new ClienteDAO(), new CreditoClienteDAO(), new ConfiguracaoDAO(),
+                auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

@@ -148,11 +148,11 @@ public final class AppContext implements AutoCloseable {
                     impressaoComprovante, fechamentoPdf, sessao);
         }
         if (tipo == ClientesController.class) {
-            return new ClientesController(s.clientes(), relatorioPdf, sessao);
+            return new ClientesController(s.clientes(), s.credito(), relatorioPdf, sessao);
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    geradorDemo, sessao);
+                    s.credito(), geradorDemo, sessao);
         }
         if (tipo == PromocoesController.class) {
             return new PromocoesController(s.promocoes(), s.produtos(), sessao);

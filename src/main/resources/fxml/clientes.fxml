@@ -141,20 +141,48 @@
                 </VBox>
             </Tab>
 
+            <Tab fx:id="abaCredito" text="Crédito">
+                <VBox spacing="8">
+                    <padding><Insets top="10" right="2" bottom="4" left="2"/></padding>
+                    <HBox spacing="14" alignment="CENTER_LEFT">
+                        <VBox spacing="4">
+                            <Label text="Saldo de crédito" styleClass="subtitulo"/>
+                            <Label fx:id="saldoCredito" styleClass="cartao-valor-pequeno"/>
+                        </VBox>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="botaoAjustarCredito" text="Ajustar…" onAction="#ajustarCredito"/>
+                    </HBox>
+                    <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo"
+                           text="Cashback das compras, uso no pagamento e estornos do cancelamento. Um estorno pode deixar o saldo negativo (em vermelho), abatido pelos próximos créditos. O ajuste é só do supervisor."/>
+                    <TableView fx:id="tabelaCredito" VBox.vgrow="ALWAYS" prefHeight="300">
+                        <placeholder><Label text="Nenhum movimento de crédito."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaCreditoData" text="Data/hora" prefWidth="112" minWidth="112"/>
+                            <TableColumn fx:id="colunaCreditoTipo" text="Tipo" prefWidth="100"/>
+                            <TableColumn fx:id="colunaCreditoOrigem" text="Origem" prefWidth="80"/>
+                            <TableColumn fx:id="colunaCreditoValor" text="Valor" prefWidth="64" minWidth="64" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaCreditoSaldo" text="Saldo" prefWidth="64" minWidth="64" styleClass="coluna-numero"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
+                    <Label fx:id="detalheCredito" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
+                </VBox>
+            </Tab>
+
             <Tab fx:id="abaLgpd" text="LGPD">
                 <VBox spacing="10">
                     <padding><Insets top="12" right="4" bottom="4" left="4"/></padding>
                     <Label text="Dados pessoais do cliente" styleClass="titulo-secao"/>
                     <Label fx:id="lgpdConsentimento" wrapText="true"/>
                     <Label wrapText="true" styleClass="subtitulo"
-                           text="Exportar entrega ao cliente o cadastro, as compras e os produtos comprados, em PDF ou CSV. A exportação fica registrada na auditoria."/>
+                           text="Exportar entrega ao cliente o cadastro, as compras, os produtos comprados e o extrato de crédito, em PDF ou CSV. A exportação fica registrada na auditoria."/>
                     <HBox spacing="8">
                         <Button fx:id="botaoExportarPdf" text="Exportar PDF…" onAction="#exportarPdf"/>
                         <Button fx:id="botaoExportarCsv" text="Exportar CSV…" onAction="#exportarCsv"/>
                     </HBox>
                     <Separator/>
                     <Label wrapText="true" styleClass="subtitulo"
-                           text="Anonimizar apaga o nome, o CPF/CNPJ, os contatos, o endereço, a data de nascimento e a observação, e inativa o cliente. As vendas continuam, como &quot;Cliente anonimizado nº X&quot;. Não pode ser desfeito. Só o supervisor pode anonimizar."/>
+                           text="Anonimizar apaga o nome, o CPF/CNPJ, os contatos, o endereço, a data de nascimento e a observação, e inativa o cliente. As vendas e o extrato de crédito continuam, como &quot;Cliente anonimizado nº X&quot;. Só com saldo de crédito zero. Não pode ser desfeito. Só o supervisor pode anonimizar."/>
                     <HBox>
                         <Button fx:id="botaoAnonimizar" text="Anonimizar…" onAction="#anonimizar"/>
                     </HBox>

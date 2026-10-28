@@ -2,17 +2,22 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Cliente;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.DadosCliente;
+import br.com.varesync.model.ExtratoCredito;
 import br.com.varesync.model.HistoricoCliente;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.report.Emissao;
 import br.com.varesync.report.RelDadosCliente;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.util.CpfCnpj;
+import br.com.varesync.util.Dinheiro;
+import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -37,14 +42,16 @@ public class ClienteService {
 
     private final Transacao transacao;
     private final ClienteDAO dao;
+    private final CreditoClienteDAO creditoDAO;
     private final ConfiguracaoDAO configuracaoDAO;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
-    public ClienteService(Transacao transacao, ClienteDAO dao, ConfiguracaoDAO configuracaoDAO,
-                          AuditoriaService auditoria, Clock clock) {
+    public ClienteService(Transacao transacao, ClienteDAO dao, CreditoClienteDAO creditoDAO,
+                          ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria, Clock clock) {
         this.transacao = transacao;
         this.dao = dao;
+        this.creditoDAO = creditoDAO;
         this.configuracaoDAO = configuracaoDAO;
         this.auditoria = auditoria;
         this.clock = clock;
@@ -116,6 +123,10 @@ public class ClienteService {
                         + "tem " + (vendas == 1 ? "1 venda" : vendas + " vendas") + ". Você pode inativá-lo: ele sai "
                         + "da identificação no PDV, mas continua nas vendas e nos relatórios.");
             }
+            if (creditoDAO.contarMovimentos(con, id) > 0) {
+                throw new RegistroEmUsoException("O cliente \"" + atual.nome() + "\" não pode ser excluído porque "
+                        + "tem movimentos de crédito. Você pode inativá-lo: o extrato continua guardado.");
+            }
             dao.excluir(con, id);
             return null;
         });
@@ -142,12 +153,15 @@ public class ClienteService {
         return transacao.executar(con -> {
             Cliente cliente = buscar(con, id);
             HistoricoCliente historico = new HistoricoCliente(dao.compras(con, id), dao.produtos(con, id, null));
+            ExtratoCredito extrato = new ExtratoCredito(creditoDAO.saldo(con, id).orElse(Dinheiro.ZERO),
+                    creditoDAO.movimentos(con, id));
             auditoria.registrar(con, sessao, AcaoAuditoria.CLIENTE_DADOS_EXPORTADOS, ENTIDADE_CLIENTE, id,
-                    "Dados do cliente nº " + id + " exportados a pedido do titular (cadastro e "
+                    "Dados do cliente nº " + id + " exportados a pedido do titular (cadastro, "
                             + (historico.compras().size() == 1 ? "1 compra" : historico.compras().size() + " compras")
-                            + ")");
+                            + " e " + (extrato.movimentos().size() == 1 ? "1 movimento"
+                            : extrato.movimentos().size() + " movimentos") + " de crédito)");
             String loja = configuracaoDAO.carregar(con).loja().nome();
-            return RelDadosCliente.exportacao(cliente, historico,
+            return RelDadosCliente.exportacao(cliente, historico, extrato,
                     new Emissao(loja.isBlank() ? "VareSync" : loja, sessao.usuario().nome(), agora));
         });
     }
@@ -155,13 +169,20 @@ public class ClienteService {
     /**
      * Anonimiza o cliente (F12.6, só o supervisor): confirmação pelo nome digitado; nome trocado por "Cliente
      * anonimizado nº X"; CPF/CNPJ, contatos, endereço, nascimento, observação e consentimento apagados; inativo. As
-     * vendas continuam. A auditoria não guarda o nome antigo.
+     * vendas e o extrato de crédito continuam. Com saldo de crédito diferente de zero, é recusado. A auditoria não
+     * guarda o nome antigo.
      */
     public void anonimizar(Sessao sessao, long id, String nomeDigitado) {
         sessao.exigirSupervisor();
         transacao.executar(con -> {
             Cliente atual = travar(con, id);
             exigirNaoAnonimizado(atual);
+            BigDecimal saldo = creditoDAO.travarSaldo(con, id).orElse(Dinheiro.ZERO);
+            if (saldo.signum() != 0) {
+                throw new NegocioException("O cliente tem saldo de crédito de " + Formatos.moeda(saldo) + " e não "
+                        + "pode ser anonimizado. Use o saldo numa venda ou zere-o por um ajuste (aba Crédito, só o "
+                        + "supervisor) antes.");
+            }
             if (!Textos.normalizarEspacos(nomeDigitado).equalsIgnoreCase(atual.nome())) {
                 throw new NegocioException("Para confirmar, digite o nome do cliente exatamente como está no "
                         + "cadastro.");
@@ -193,8 +214,7 @@ public class ClienteService {
             if (documento.isPresent()) {
                 return dao.buscarPorDocumento(con, documento.get()).filter(ClienteVenda::ativo).stream().toList();
             }
-            return dao.pesquisar(con, busca(texto, false)).stream()
-                    .map(c -> new ClienteVenda(c.id(), c.nome(), c.cpfCnpj(), c.ativo())).toList();
+            return dao.pesquisarParaVenda(con, busca(texto, false));
         });
     }
 

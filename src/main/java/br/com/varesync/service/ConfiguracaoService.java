@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 /**
  * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima, dias sem giro, balança,
- * bloqueio por inatividade (F10.2) e formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
+ * bloqueio por inatividade (F10.2), fidelidade (F12.5) e formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
  * anterior e o novo.
  */
 public class ConfiguracaoService {
@@ -108,6 +108,10 @@ public class ConfiguracaoService {
         if (tipo == null) {
             throw new NegocioException("Escolha o tipo da forma de pagamento.");
         }
+        if (tipo == TipoFormaPagamento.CREDITO_CLIENTE) {
+            throw new NegocioException("Só pode existir uma forma do tipo " + tipo.rotulo() + ", e ela já vem "
+                    + "cadastrada (\"Crédito do cliente\"). Ative-a se estiver desativada.");
+        }
         return transacao.executar(con -> {
             formaPagamentoDAO.buscarPorDescricao(con, descricao).ifPresent(f -> {
                 throw new NegocioException("Já existe a forma de pagamento \"" + f.descricao() + "\""
@@ -120,7 +124,10 @@ public class ConfiguracaoService {
         });
     }
 
-    /** Ativa ou desativa; sempre fica ao menos uma forma ativa (sem nenhuma, o PDV não recebe). */
+    /**
+     * Ativa ou desativa; sempre fica ao menos uma forma ativa além do crédito do cliente (sem nenhuma, o PDV não
+     * recebe).
+     */
     public void alterarSituacaoForma(Sessao sessao, int id, boolean ativa) {
         sessao.exigirSupervisor();
         transacao.executar(con -> {
@@ -130,7 +137,9 @@ public class ConfiguracaoService {
             if (forma.ativa() == ativa) {
                 return null;
             }
-            if (!ativa && formas.stream().filter(FormaPagamentoCadastro::ativa).count() == 1) {
+            // O crédito do cliente não conta: sem cliente identificado, a venda não teria como ser paga (F12.4).
+            if (!ativa && forma.tipo() != TipoFormaPagamento.CREDITO_CLIENTE && formas.stream()
+                    .filter(f -> f.ativa() && f.tipo() != TipoFormaPagamento.CREDITO_CLIENTE).count() == 1) {
                 throw new NegocioException("\"" + forma.descricao() + "\" é a única forma de pagamento ativa. Ative "
                         + "outra antes de desativar esta.");
             }
@@ -185,10 +194,24 @@ public class ConfiguracaoService {
             throw new NegocioException("O tamanho mínimo da senha deve estar entre " + PoliticaSenha.TAMANHO_MINIMO
                     + " e " + PoliticaSenha.TAMANHO_MAXIMO + " caracteres.");
         }
+        Configuracoes.Fidelidade fidelidade = fidelidade(c.fidelidade());
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca());
+                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade);
+    }
+
+    /** Fidelidade (F12.5): cashback de 0 a 100% (maior que zero com ela ligada) e compra mínima ≥ 0, em reais. */
+    static Configuracoes.Fidelidade fidelidade(Configuracoes.Fidelidade f) {
+        BigDecimal pct = percentual(f.cashbackPct(), "O percentual de cashback", true);
+        if (f.ativo() && pct.signum() == 0) {
+            throw new NegocioException("Com a fidelidade ligada, o percentual de cashback deve ser maior que zero.");
+        }
+        if (f.compraMinima() != null && f.compraMinima().signum() < 0) {
+            throw new NegocioException("A compra mínima para o cashback não pode ser negativa.");
+        }
+        BigDecimal minima = CaixaService.valor(f.compraMinima(), "a compra mínima para o cashback", true);
+        return new Configuracoes.Fidelidade(f.ativo(), pct, minima);
     }
 
     /**
@@ -297,6 +320,12 @@ public class ConfiguracaoService {
                 n.politicaSenha().tamanhoMinimo() + " caracteres");
         comparar(m, "senha com letras e números", a.politicaSenha().letraENumero() ? "exigida" : "não exigida",
                 n.politicaSenha().letraENumero() ? "exigida" : "não exigida");
+        comparar(m, "cashback", a.fidelidade().ativo() ? "ligado" : "desligado",
+                n.fidelidade().ativo() ? "ligado" : "desligado");
+        comparar(m, "percentual de cashback", Formatos.percentual(a.fidelidade().cashbackPct()),
+                Formatos.percentual(n.fidelidade().cashbackPct()));
+        comparar(m, "compra mínima para o cashback", Formatos.moeda(a.fidelidade().compraMinima()),
+                Formatos.moeda(n.fidelidade().compraMinima()));
         return m;
     }
 

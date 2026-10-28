@@ -7,6 +7,7 @@ import br.com.varesync.BancoTeste;
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.config.Servicos;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DiaPainel;
 import br.com.varesync.model.Painel;
 import br.com.varesync.model.Periodo;
@@ -15,6 +16,7 @@ import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.RelAlteracoesPreco;
 import br.com.varesync.report.RelCancelamentos;
+import br.com.varesync.report.RelClientes;
 import br.com.varesync.report.RelComprasFornecedor;
 import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelFormasPagamento;
@@ -28,6 +30,7 @@ import br.com.varesync.report.Relatorio;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.RelRentabilidadeProduto;
+import br.com.varesync.report.RelSaldosCredito;
 import br.com.varesync.report.RelVendasPeriodo;
 import br.com.varesync.report.ResultadoRelatorio;
 import java.math.BigDecimal;
@@ -57,11 +60,6 @@ class GeradorDemoIT extends IntegracaoBase {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeradorDemoIT.class);
     private static final Clock HOJE = Clock.fixed(Instant.parse("2026-10-17T15:00:00Z"), ZoneId.systemDefault());
-    /**
-     * Relatórios que os dados de demonstração ainda não alimentam: o R18 depende de vendas identificadas, e o gerador
-     * só cria clientes na parte B da Fase 12 (F12.8), que tira o R18 daqui. O tempo deles continua medido.
-     */
-    private static final Set<String> SEM_DADOS_AINDA = Set.of("R18");
 
     private static AcessoTeste t;
     private static Sessao admin;
@@ -121,7 +119,8 @@ class GeradorDemoIT extends IntegracaoBase {
     void criaSessentaDiasTerminandoOntem() throws Exception {
         assertThat(resultado.inicio()).isEqualTo(LocalDate.of(2026, 8, 18));
         assertThat(resultado.fim()).isEqualTo(LocalDate.of(2026, 10, 16));
-        assertThat(passos).isEqualTo(resultado.produtos() + resultado.vendas() + resultado.entradas());
+        assertThat(passos).isEqualTo(resultado.produtos() + resultado.vendas() + resultado.entradas()
+                + resultado.clientes());
         assertThat(contar("SELECT count(*) FROM caixa_sessao")).isEqualTo(GeradorDemo.DIAS);
         assertThat(contar("SELECT count(*) FROM caixa_sessao WHERE status <> 'FECHADO'")).isZero();
         assertThat(contar("SELECT count(*) FROM caixa_sessao WHERE diferenca <> 0"))
@@ -147,7 +146,7 @@ class GeradorDemoIT extends IntegracaoBase {
         long itensCancelados = contar("SELECT count(*) FROM venda_item WHERE cancelado");
         assertThat(itensCancelados).isEqualTo(resultado.itensCancelados()).isBetween(itens / 200, itens / 20);
         assertThat(coluna("SELECT count(DISTINCT vp.forma_pagamento_id) FROM venda_pagamento vp"))
-                .containsExactly(5L);
+                .as("as 5 formas da V2 e o crédito do cliente").containsExactly(6L);
         assertThat(contar("SELECT count(*) FROM venda WHERE desconto_venda > 0 OR desconto_itens > 0"))
                 .isGreaterThan(vendas / 50);
         // Picos entre 11h–13h e 17h–19h
@@ -218,6 +217,35 @@ class GeradorDemoIT extends IntegracaoBase {
                 .isEqualByComparingTo(umValor("SELECT sum(valor_total_nota) FROM entrada_mercadoria"));
     }
 
+    /** F12.8: 150 clientes, cerca de 40% das vendas identificadas, fidelidade ligada com 1% e alguns usos de crédito. */
+    @Test
+    void clientesFidelidadeECreditoDaFase12() throws Exception {
+        assertThat(resultado.clientes()).isEqualTo(150);
+        assertThat(contar("SELECT count(*) FROM cliente")).isEqualTo(150);
+        long vendas = contar("SELECT count(*) FROM venda");
+        long identificadas = contar("SELECT count(*) FROM venda WHERE cliente_id IS NOT NULL");
+        assertThat(identificadas).isEqualTo(resultado.vendasComCliente()).isBetween(vendas * 35 / 100,
+                vendas * 45 / 100);
+        assertThat(contar("SELECT count(DISTINCT cliente_id) FROM venda")).as("quase todos compraram")
+                .isGreaterThan(140);
+        Configuracoes c = t.configuracoes.carregar(admin);
+        assertThat(c.fidelidade()).isEqualTo(new Configuracoes.Fidelidade(true, BigDecimal.ONE, BigDecimal.ZERO));
+        long usos = contar("SELECT count(*) FROM cliente_credito_movimento WHERE tipo = 'USO_EM_VENDA'");
+        assertThat(usos).isEqualTo(resultado.usosDeCredito()).isBetween(20L, identificadas / 4);
+        assertThat(contar("SELECT count(*) FROM cliente_credito_movimento WHERE tipo = 'CASHBACK'"))
+                .as("uma por venda identificada com valor a pagar").isGreaterThan(identificadas * 9 / 10);
+        assertThat(contar("SELECT count(*) FROM cliente_credito_movimento WHERE tipo LIKE 'ESTORNO%'"))
+                .as("vendas identificadas canceladas").isPositive();
+        // Saldo = cashback − uso ± estornos, conferido pela view; o R19 soma o mesmo que a tabela de saldos.
+        assertThat(contar("SELECT count(*) FROM vw_cliente_credito_inconsistente")).isZero();
+        ResultadoRelatorio<RelSaldosCredito.Linha> r19 = t.relatorios.gerar(admin, new RelSaldosCredito(),
+                Filtros.vazios());
+        assertThat(Coluna.soma(r19.linhas(), RelSaldosCredito.Linha::saldo))
+                .isEqualByComparingTo(umValor("SELECT sum(saldo) FROM cliente_credito"));
+        ResultadoRelatorio<RelClientes.Linha> r18 = t.relatorios.gerar(admin, new RelClientes(), periodo());
+        assertThat(r18.linhas()).hasSizeGreaterThan(140);
+    }
+
     @Test
     void recusaBancoComVendasESoOSupervisorGera() {
         assertThatThrownBy(() -> gerador.conferir(admin)).isInstanceOf(NegocioException.class)
@@ -279,7 +307,7 @@ class GeradorDemoIT extends IntegracaoBase {
 
         ResultadoRelatorio<RelFormasPagamento.Linha> r08 = t.relatorios.gerar(admin, new RelFormasPagamento(),
                 periodo());
-        assertThat(r08.linhas()).hasSize(5);
+        assertThat(r08.linhas()).hasSize(6);
         assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor)).isEqualByComparingTo(receita);
         assertThat(r08.linhas().get(0).vendasNoPeriodo()).isEqualTo(vendas);
 
@@ -361,9 +389,7 @@ class GeradorDemoIT extends IntegracaoBase {
             long ms = (System.nanoTime() - inicio) / 1_000_000;
             LOG.info("{}: {} linhas em {} ms", relatorio.codigo(), r.linhas().size(), ms);
             assertThat(ms).as(relatorio.titulo()).isLessThan(3000);
-            if (!SEM_DADOS_AINDA.contains(relatorio.codigo())) {
-                assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
-            }
+            assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
     }

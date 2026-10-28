@@ -1,7 +1,9 @@
 package br.com.varesync.report;
 
 import br.com.varesync.model.Cliente;
+import br.com.varesync.model.ExtratoCredito;
 import br.com.varesync.model.HistoricoCliente;
+import br.com.varesync.model.MovimentoCredito;
 import br.com.varesync.util.Formatos;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -11,7 +13,7 @@ import java.util.Set;
 
 /**
  * Exportação dos dados do cliente a pedido do titular (F12.6, LGPD), em CSV e PDF pela infraestrutura genérica: uma
- * tabela de seções (cadastro, resumo das compras, compras e produtos comprados). O cliente vai no cabeçalho, no lugar
+ * tabela de seções (cadastro, resumo das compras, compras, produtos comprados e extrato de crédito). O cliente vai no cabeçalho, no lugar
  * dos filtros. Não fica no catálogo da tela Relatórios: as linhas vêm do {@code ClienteService} (permissão CLIENTES).
  */
 public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
@@ -20,6 +22,7 @@ public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
     public static final String RESUMO = "Resumo das compras";
     public static final String COMPRAS = "Compras";
     public static final String PRODUTOS = "Produtos comprados";
+    public static final String CREDITO = "Extrato de crédito";
 
     /** Uma linha: seção, item, detalhe e, nas compras e nos produtos, o valor. */
     public record Linha(String secao, String item, String detalhe, BigDecimal valor) {
@@ -32,12 +35,13 @@ public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
     }
 
     /** Os dados do cliente prontos para exportar. */
-    public static ResultadoRelatorio<Linha> exportacao(Cliente cliente, HistoricoCliente historico, Emissao emissao) {
-        return ResultadoRelatorio.de(new RelDadosCliente(cliente), Filtros.vazios(), linhas(cliente, historico),
-                emissao);
+    public static ResultadoRelatorio<Linha> exportacao(Cliente cliente, HistoricoCliente historico,
+                                                       ExtratoCredito extrato, Emissao emissao) {
+        return ResultadoRelatorio.de(new RelDadosCliente(cliente), Filtros.vazios(),
+                linhas(cliente, historico, extrato), emissao);
     }
 
-    static List<Linha> linhas(Cliente c, HistoricoCliente historico) {
+    static List<Linha> linhas(Cliente c, HistoricoCliente historico, ExtratoCredito extrato) {
         List<Linha> linhas = new ArrayList<>();
         cadastro(linhas, "Código", String.valueOf(c.id()));
         cadastro(linhas, "Nome", c.nome());
@@ -68,6 +72,11 @@ public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
             linhas.add(new Linha(PRODUTOS, p.nome(), Formatos.quantidade(p.quantidade(), p.fracionada()) + " "
                     + p.unidade() + " em " + (p.compras() == 1 ? "1 compra" : p.compras() + " compras"), p.valor()));
         }
+        linhas.add(new Linha(CREDITO, "Saldo atual", "", extrato.saldo()));
+        for (MovimentoCredito m : extrato.movimentos()) {
+            linhas.add(new Linha(CREDITO, m.tipo().rotulo(), Formatos.dataHora(m.criadoEm()) + " — " + m.origem()
+                    + " — saldo " + Formatos.moeda(m.saldoPosterior()), m.valor()));
+        }
         return linhas;
     }
 
@@ -87,7 +96,7 @@ public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
 
     @Override
     public String descricao() {
-        return "Cadastro, compras e produtos comprados do cliente, a pedido do titular dos dados.";
+        return "Cadastro, compras, produtos comprados e extrato de crédito do cliente, a pedido do titular dos dados.";
     }
 
     @Override

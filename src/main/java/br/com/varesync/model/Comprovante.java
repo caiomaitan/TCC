@@ -13,12 +13,13 @@ import java.util.List;
  *
  * @param pagamentos valor entregue por forma (no dinheiro, já com o troco somado)
  * @param cliente    cliente identificado (F12.2), ou nulo
+ * @param credito    cashback gerado e saldo de crédito atual do cliente (F12.5), ou nulo
  */
 public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
                           StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento,
                           List<Item> itens, BigDecimal valorBruto, BigDecimal descontoItens,
                           BigDecimal descontoVenda, BigDecimal total, List<Pagamento> pagamentos, BigDecimal troco,
-                          String rodape, Cliente cliente) {
+                          String rodape, Cliente cliente, Credito credito) {
 
     public static final String NAO_FISCAL = "NÃO É DOCUMENTO FISCAL";
     /** Largura do comprovante em tela, como numa impressora de 80 mm. */
@@ -29,6 +30,10 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
 
     /** Cliente no comprovante (F12.2): nome e CPF já mascarado ({@code ***.456.789-**}); documento vazio se faltar. */
     public record Cliente(String nome, String documento) {
+    }
+
+    /** Crédito do cliente no comprovante (F12.5): cashback gerado por esta venda e o saldo no momento da emissão. */
+    public record Credito(BigDecimal cashback, BigDecimal saldo) {
     }
 
     public record Item(int sequencia, String codigo, String descricao, BigDecimal quantidade, String unidade,
@@ -110,6 +115,14 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         }
         if (troco.signum() > 0) {
             linhas.add(LinhaComprovante.negrito("Troco", Formatos.moeda(troco)));
+        }
+        if (credito != null) {
+            linhas.add(LinhaComprovante.separador());
+            if (credito.cashback().signum() != 0) {
+                linhas.add(LinhaComprovante.normal(cancelada() ? "Cashback (estornado)" : "Cashback gerado",
+                        Formatos.moeda(credito.cashback())));
+            }
+            linhas.add(LinhaComprovante.normal("Saldo de crédito", Formatos.moeda(credito.saldo())));
         }
         if (!Textos.vazio(rodape)) {
             linhas.add(LinhaComprovante.separador());

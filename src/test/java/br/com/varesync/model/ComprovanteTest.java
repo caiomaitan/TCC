@@ -20,6 +20,10 @@ public class ComprovanteTest {
     }
 
     static Comprovante exemplo(StatusVenda status, Comprovante.Cliente cliente) {
+        return exemplo(status, cliente, null);
+    }
+
+    static Comprovante exemplo(StatusVenda status, Comprovante.Cliente cliente, Comprovante.Credito credito) {
         Comprovante.Loja loja = new Comprovante.Loja("Mercado Bom Preço", "11.222.333/0001-81", "Rua A, 10",
                 "(16) 3333-4444");
         List<Comprovante.Item> itens = List.of(
@@ -35,7 +39,21 @@ public class ComprovanteTest {
                 status == StatusVenda.CANCELADA ? "Cliente desistiu" : null, itens, v("30.24"), v("0.00"),
                 v("1.51"), v("28.73"), List.of(new Comprovante.Pagamento("PIX", v("10.00")),
                 new Comprovante.Pagamento("Dinheiro", v("50.00"))), v("31.27"), "Obrigado pela preferência!",
-                cliente);
+                cliente, credito);
+    }
+
+    /** F12.5: o comprovante mostra o cashback gerado e o saldo atual; sem cashback, só o saldo. */
+    @Test
+    void cashbackESaldoDeCreditoNoComprovante() {
+        Comprovante.Cliente maria = new Comprovante.Cliente("Maria da Silva", "***.982.247-**");
+        String texto = exemplo(StatusVenda.FINALIZADA, maria, new Comprovante.Credito(v("0.29"), v("1.29")))
+                .texto();
+        assertThat(texto).containsPattern("Cashback gerado +R\\$ 0,29").containsPattern("Saldo de crédito +R\\$ 1,29");
+        assertThat(exemplo(StatusVenda.FINALIZADA, maria, new Comprovante.Credito(v("0.00"), v("-0.10"))).texto())
+                .doesNotContain("Cashback").containsPattern("Saldo de crédito +-R\\$ 0,10");
+        assertThat(exemplo(StatusVenda.CANCELADA, maria, new Comprovante.Credito(v("0.29"), v("0.00"))).texto())
+                .contains("Cashback (estornado)");
+        assertThat(exemplo(StatusVenda.FINALIZADA, maria).texto()).doesNotContain("Saldo de crédito");
     }
 
     @Test

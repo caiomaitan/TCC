@@ -33,7 +33,29 @@ class ConfiguracoesTest {
         m.put("seguranca.inatividade_minutos", "15");
         m.put("seguranca.senha_tamanho_minimo", "6");
         m.put("seguranca.senha_letra_e_numero", "false");
+        m.put("fidelidade.ativo", "false");
+        m.put("fidelidade.cashback_pct", "1");
+        m.put("fidelidade.compra_minima", "0");
         return m;
+    }
+
+    /** V7 (F12.5): fidelidade desligada, 1% e sem compra mínima; percentual acima de 100 ou negativo volta ao padrão. */
+    @Test
+    void fidelidadeDaV7() {
+        Map<String, String> m = v2();
+        m.put("fidelidade.ativo", "true");
+        m.put("fidelidade.cashback_pct", "2,5");
+        m.put("fidelidade.compra_minima", "20.00");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.fidelidade().ativo()).isTrue();
+        assertThat(c.fidelidade().cashbackPct()).isEqualByComparingTo("2.5");
+        assertThat(c.fidelidade().compraMinima()).isEqualByComparingTo("20");
+        assertThat(c.paraMapa()).containsEntry("fidelidade.cashback_pct", "2.5")
+                .containsEntry("fidelidade.compra_minima", "20");
+        m.put("fidelidade.cashback_pct", "101");
+        m.put("fidelidade.compra_minima", "-1");
+        assertThat(Configuracoes.de(m).fidelidade()).isEqualTo(new Configuracoes.Fidelidade(true, BigDecimal.ONE,
+                BigDecimal.ZERO));
     }
 
     @Test

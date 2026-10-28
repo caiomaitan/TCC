@@ -79,6 +79,38 @@ class RecebimentoTest {
         assertThat(r.falta()).isEqualByComparingTo("10.00");
     }
 
+    static final FormaPagamento CREDITO = new FormaPagamento(6, "Crédito do cliente",
+            TipoFormaPagamento.CREDITO_CLIENTE);
+
+    /** Aceite F12: com saldo de R$ 1,00, venda de R$ 10,00 paga com R$ 1,00 de crédito e R$ 9,00 em dinheiro. */
+    @Test
+    void creditoDoClienteAteOSaldoESemTroco() {
+        Recebimento r = new Recebimento(v("10.00"), v("1.00"));
+        assertThat(r.creditoDisponivel()).hasValueSatisfying(s -> assertThat(s).isEqualByComparingTo("1.00"));
+        assertThatThrownBy(() -> r.adicionar(CREDITO, v("1.01")))
+                .hasMessage("Saldo de crédito insuficiente: o cliente tem R$ 1,00 disponível.");
+        r.adicionar(CREDITO, v("1.00"));
+        r.adicionar(DINHEIRO, v("10"));
+        assertThat(r.creditoUsado()).isEqualByComparingTo("1.00");
+        assertThat(r.troco()).isEqualByComparingTo("1.00");
+        assertThat(r.valoresAbatidos()).as("o troco sai do dinheiro, nunca do crédito").containsExactly(
+                new Recebimento.Parcela(CREDITO, v("1.00")), new Recebimento.Parcela(DINHEIRO, v("9.00")));
+    }
+
+    @Test
+    void creditoDoClienteNaoPassaDoQueFaltaNemSemCliente() {
+        Recebimento comSaldo = new Recebimento(v("5.00"), v("20.00"));
+        assertThatThrownBy(() -> comSaldo.adicionar(CREDITO, v("5.01")))
+                .hasMessageContaining("Só o pagamento em dinheiro pode passar do que falta");
+        Recebimento semCliente = new Recebimento(v("5.00"));
+        assertThat(semCliente.creditoDisponivel()).isEmpty();
+        assertThatThrownBy(() -> semCliente.adicionar(CREDITO, v("1.00")))
+                .hasMessage("Para pagar com o crédito do cliente, identifique o cliente (F11).");
+        Recebimento negativo = new Recebimento(v("5.00"), v("-0.91"));
+        assertThat(negativo.creditoDisponivel()).as("saldo negativo não é usado")
+                .hasValueSatisfying(s -> assertThat(s).isEqualByComparingTo("0"));
+    }
+
     @Test
     void totalZeroDispensaPagamento() {
         Recebimento r = new Recebimento(v("0"));

@@ -190,7 +190,18 @@ class RelatoriosParte2Test {
     void catalogoTemOsRelatoriosNaOrdemDosCodigos() {
         // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
-                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18");
+                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19");
+    }
+
+    @Test
+    void r19SaldosDeCreditoComOTotalDevidoAosClientes() {
+        ResultadoRelatorio<RelSaldosCredito.Linha> r19 = DadosFicticios.r19();
+        assertThat(r19.titulo()).isEqualTo("R19 — Saldos de crédito");
+        assertThat(r19.colunas()).extracting(Coluna::titulo).containsExactly("Código", "Cliente", "CPF/CNPJ",
+                "Situação", "Saldo", "Último movimento");
+        assertThat(r19.colunas().get(2).formatar(r19.linhas().get(0))).isEqualTo("***.982.247-**");
+        assertThat(r19.colunas().get(4).formatar(r19.linhas().get(1))).isEqualTo("-R$ 0,30");
+        assertThat(r19.totais()).containsExactly("Total (2 linhas)", "", "", "", "R$ 12,20", "");
     }
 
     @Test
@@ -226,6 +237,15 @@ class RelatoriosParte2Test {
                         d("19.95")));
         assertThat(dados.linhas().stream().filter(l -> l.item().equals("Consentimento de marketing")).findFirst()
                 .orElseThrow().detalhe()).startsWith("Sim, desde ");
+        // Extrato de crédito (parte B): saldo atual e cada movimento, com a origem e o saldo depois dele.
+        assertThat(dados.linhas()).contains(
+                new RelDadosCliente.Linha(RelDadosCliente.CREDITO, "Saldo atual", "", d("0.50")));
+        assertThat(dados.linhas().stream().filter(l -> l.secao().equals(RelDadosCliente.CREDITO)).toList())
+                .hasSize(4).last().satisfies(l -> {
+                    assertThat(l.item()).isEqualTo("Ajuste");
+                    assertThat(l.detalhe()).endsWith("— Correção de cashback — saldo R$ 0,50");
+                    assertThat(l.valor()).isEqualByComparingTo("-0.50");
+                });
         assertThat(dados.temTotais()).as("valores de seções diferentes não se somam").isFalse();
     }
 }

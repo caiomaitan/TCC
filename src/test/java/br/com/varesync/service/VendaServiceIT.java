@@ -16,6 +16,7 @@ import br.com.varesync.model.StatusVenda;
 import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
 import br.com.varesync.model.TipoDesconto;
+import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.VendaResumo;
 import java.math.BigDecimal;
@@ -558,6 +559,7 @@ class VendaServiceIT extends IntegracaoBase {
     void enumsDaVendaIguaisAosChecksDoBanco() throws Exception {
         assertThat(nomes(StatusVenda.values())).isEqualTo(valoresDoCheck("ck_venda_status"));
         assertThat(nomes(TipoFormaPagamento.values())).isEqualTo(valoresDoCheck("ck_forma_pagamento_tipo"));
+        assertThat(nomes(TipoCreditoCliente.values())).isEqualTo(valoresDoCheck("ck_ccm_tipo"));
     }
 
     // ----- Métrica 9.4 -----

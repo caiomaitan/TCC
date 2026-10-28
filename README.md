@@ -102,14 +102,24 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    - cadastro com nome, CPF/CNPJ (único, com o dígito verificador conferido), contatos, endereço e o consentimento
      de marketing, que fica registrado com a data;
    - aba **Compras**: histórico, total gasto, ticket médio, última compra e produtos mais comprados;
-   - aba **LGPD**: **Exportar** os dados do cliente em PDF ou CSV, a pedido dele (fica na auditoria) e **Anonimizar**
-     (só o supervisor, digitando o nome do cliente para confirmar). Anonimizar apaga os dados pessoais e mantém as
-     vendas, que passam a mostrar "Cliente anonimizado nº X". Não pode ser desfeito.
+   - aba **Crédito**: saldo de crédito do cliente e o extrato (cashback, uso no pagamento, estornos e ajustes). O
+     supervisor faz **Ajustar…** (valor positivo credita, negativo debita, com motivo; fica na auditoria);
+   - aba **LGPD**: **Exportar** os dados do cliente em PDF ou CSV, a pedido dele (cadastro, compras e extrato de
+     crédito; fica na auditoria) e **Anonimizar** (só o supervisor, digitando o nome do cliente para confirmar).
+     Anonimizar apaga os dados pessoais e mantém as vendas e o extrato, que passam a mostrar "Cliente anonimizado nº X".
+     Só é possível com o saldo de crédito em zero. Não pode ser desfeito.
 
    No PDV, **F11** identifica o cliente da venda pelo CPF/CNPJ (Enter já identifica) ou pelo nome, com cadastro rápido
-   (nome e CPF), e permite trocar ou remover o cliente até finalizar. Basta a permissão PDV. O comprovante mostra o
-   nome e o CPF mascarado (`***.456.789-**`). O relatório **R18 Clientes** mostra as compras de cada cliente no
-   período.
+   (nome e CPF), e permite trocar ou remover o cliente até finalizar. Basta a permissão PDV. O F11 e o painel do PDV
+   mostram o saldo de crédito. O comprovante mostra o nome e o CPF mascarado (`***.456.789-**`). O relatório **R18
+   Clientes** mostra as compras de cada cliente no período.
+7. **Cashback e crédito do cliente:** em **Configurações › Fidelidade** (só o supervisor), ligue o cashback e defina o
+   percentual (padrão 1%) e a compra mínima. Com ele ligado, a venda com cliente identificado gera crédito: o
+   percentual do total sem o que foi pago com crédito, se esse valor alcançar a compra mínima. No pagamento (F10), a
+   forma **Crédito do cliente** usa o saldo, até o saldo e até o que falta, sem troco; ela não entra no dinheiro da
+   gaveta. Cancelar a venda devolve o crédito usado e estorna o cashback (o saldo pode ficar negativo e é abatido
+   pelos próximos créditos). O comprovante mostra o cashback gerado e o saldo. O relatório **R19 Saldos de crédito**
+   lista quem tem saldo e o total devido aos clientes; **Configurações › Diagnóstico** confere os saldos.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -156,7 +166,8 @@ mostra só a mensagem para o usuário.
 O gerador de dados de demonstração (**Configurações › Dados de demonstração**, só para o supervisor) preenche um banco
 com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80 produtos (12 pesáveis, com PLU), 3
 usuários, 3 fornecedores com uma entrada de mercadoria por semana, um caixa por dia com vendas, sangrias e fechamento,
-descontos, cancelamentos, perdas, reajustes de preço e um inventário aplicado. Ele **recusa** um banco que já tenha
+descontos, cancelamentos, perdas, reajustes de preço e um inventário aplicado, 150 clientes (cerca de 40% das vendas
+identificadas, com cashback de 1% e alguns pagamentos com o crédito). Ele **recusa** um banco que já tenha
 vendas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
@@ -186,7 +197,7 @@ no primeiro login):
 | `carlos` | Carlos Pereira | Gerente (todas as permissões, sem ser supervisor) | `demo6999` |
 
 O supervisor é o criado por você no assistente. Os dados de demonstração também ativam a balança (prefixo 2, 5
-dígitos, valor em preço).
+dígitos, valor em preço) e a fidelidade (cashback de 1%, sem compra mínima).
 
 Para recomeçar a demonstração do zero (ou se a geração for interrompida no meio, o que deixa dados pela metade), com o
 sistema fechado:

@@ -223,7 +223,8 @@ class ClienteServiceIT extends IntegracaoBase {
                         new BigDecimal("10.00")));
         assertThat(dados.linhas()).anySatisfy(l -> assertThat(l.item()).isEqualTo("Venda nº " + venda));
         assertThat(t.auditoria(AcaoAuditoria.CLIENTE_DADOS_EXPORTADOS)).singleElement().satisfies(d -> assertThat(d)
-                .isEqualTo("Dados do cliente nº " + maria + " exportados a pedido do titular (cadastro e 1 compra)")
+                .isEqualTo("Dados do cliente nº " + maria + " exportados a pedido do titular (cadastro, 1 compra e "
+                        + "0 movimentos de crédito)")
                 .doesNotContain("Maria", "529"));
     }
 

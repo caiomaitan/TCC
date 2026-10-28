@@ -9,10 +9,12 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Pagamento da venda (F10, 6.6): combina várias formas e mostra total, pago, falta e troco. Só dinheiro pode passar
- * do que falta (gera troco); as demais formas ficam limitadas ao que falta. Quitado quando pago ≥ total.
+ * do que falta (gera troco); as demais formas ficam limitadas ao que falta. Quitado quando pago ≥ total. O crédito do
+ * cliente (F12.4) exige cliente identificado e fica limitado também ao saldo disponível.
  */
 public final class Recebimento {
 
@@ -21,16 +23,26 @@ public final class Recebimento {
     }
 
     private final BigDecimal total;
+    /** Saldo de crédito que o cliente pode usar; nulo sem cliente identificado. */
+    private final BigDecimal creditoDisponivel;
     private final List<Parcela> parcelas = new ArrayList<>();
 
+    /** Venda sem cliente identificado: não aceita o crédito do cliente. */
     public Recebimento(BigDecimal total) {
+        this(total, null);
+    }
+
+    /** @param creditoDisponivel saldo de crédito do cliente identificado (negativo vale zero); nulo sem cliente */
+    public Recebimento(BigDecimal total, BigDecimal creditoDisponivel) {
         this.total = Dinheiro.dinheiro(total);
+        this.creditoDisponivel = creditoDisponivel == null ? null : creditoDisponivel.max(Dinheiro.ZERO);
     }
 
     /**
      * Registra o valor entregue na forma escolhida.
      *
-     * @throws NegocioException valor inválido, venda já paga ou forma que não aceita troco passando do que falta
+     * @throws NegocioException valor inválido, venda já paga, forma que não aceita troco passando do que falta ou
+     *                          crédito do cliente sem cliente ou acima do saldo
      */
     public void adicionar(FormaPagamento forma, BigDecimal valor) {
         if (forma == null) {
@@ -40,11 +52,32 @@ public final class Recebimento {
         if (quitado()) {
             throw new NegocioException("A venda já está paga. Finalize a venda.");
         }
+        if (forma.creditoCliente()) {
+            if (creditoDisponivel == null) {
+                throw new NegocioException("Para pagar com o crédito do cliente, identifique o cliente (F11).");
+            }
+            BigDecimal restante = creditoDisponivel.subtract(creditoUsado());
+            if (quantia.compareTo(restante) > 0) {
+                throw new NegocioException("Saldo de crédito insuficiente: o cliente tem "
+                        + Formatos.moeda(restante) + " disponível.");
+            }
+        }
         if (!forma.dinheiro() && quantia.compareTo(falta()) > 0) {
             throw new NegocioException("Só o pagamento em dinheiro pode passar do que falta. Em " + forma.descricao()
                     + ", informe até " + Formatos.moeda(falta()) + ".");
         }
         parcelas.add(new Parcela(forma, quantia));
+    }
+
+    /** Saldo de crédito do cliente para esta venda; vazio sem cliente identificado. */
+    public Optional<BigDecimal> creditoDisponivel() {
+        return Optional.ofNullable(creditoDisponivel);
+    }
+
+    /** Quanto foi pago com o crédito do cliente (nunca gera troco). */
+    public BigDecimal creditoUsado() {
+        return parcelas.stream().filter(p -> p.forma().creditoCliente()).map(Parcela::valor)
+                .reduce(Dinheiro.ZERO, BigDecimal::add);
     }
 
     public void remover(int indice) {

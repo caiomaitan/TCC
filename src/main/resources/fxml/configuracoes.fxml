@@ -119,6 +119,21 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Vale para as senhas novas e trocadas (primeiro acesso, troca de senha e senha provisória do supervisor): de 6 a 50 caracteres e sempre diferente do login. As senhas atuais continuam valendo até a próxima troca."/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaFidelidade" text="Fidelidade">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <CheckBox fx:id="campoFidelidadeAtiva" text="Gerar cashback nas vendas com cliente identificado (F11)"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Cashback (% da venda)" minWidth="230"/>
+                    <TextField fx:id="campoCashback" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Compra mínima (R$)" minWidth="230"/>
+                    <TextField fx:id="campoCompraMinima" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O cashback vira crédito do cliente na finalização: o percentual sobre o total da venda, sem o que foi pago com o próprio crédito, e só se esse valor for igual ou maior que a compra mínima. O cliente usa o crédito no pagamento, pela forma &quot;Crédito do cliente&quot;. Cancelar a venda estorna o cashback e devolve o crédito usado."/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
@@ -219,10 +234,10 @@
                 <Label fx:id="resumoAuditoria" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
             </VBox>
         </Tab>
-        <Tab text="Diagnóstico do estoque">
+        <Tab text="Diagnóstico">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque. O esperado é não haver nenhuma diferença: o saldo só muda por movimento."/>
+                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque, e o saldo de crédito de cada cliente, à soma do seu extrato. O esperado é não haver nenhuma diferença: os saldos só mudam por movimento."/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Button fx:id="botaoVerificar" text="Verificar agora" onAction="#verificar"
                             styleClass="botao-primario"/>
@@ -238,6 +253,21 @@
                         <TableColumn fx:id="colunaMovimentos" text="Soma dos movimentos" prefWidth="160"
                                      styleClass="coluna-numero"/>
                         <TableColumn fx:id="colunaDiferenca" text="Diferença" prefWidth="120"
+                                     styleClass="coluna-numero"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <Label text="Crédito dos clientes" styleClass="titulo-secao"/>
+                <Label fx:id="resultadoCredito" wrapText="true" minHeight="-Infinity"/>
+                <TableView fx:id="tabelaCredito" VBox.vgrow="ALWAYS" minHeight="120" prefHeight="160">
+                    <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaCreditoCliente" text="Cliente" prefWidth="320"/>
+                        <TableColumn fx:id="colunaCreditoRegistrado" text="Saldo registrado" prefWidth="140"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaCreditoMovimentos" text="Soma do extrato" prefWidth="160"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaCreditoDiferenca" text="Diferença" prefWidth="120"
                                      styleClass="coluna-numero"/>
                     </columns>
                     <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>

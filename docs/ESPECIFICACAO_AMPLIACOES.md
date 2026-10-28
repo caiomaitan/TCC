@@ -467,7 +467,10 @@ Testes de integração com duas conexões simultâneas:
 - **Movimento de estoque novo:** DEVOLUCAO_VENDA (+):
   - origem pela coluna nova `movimento_estoque.devolucao_item_id`, com FK e índice único com o tipo;
   - altera `ck_me_tipo`, `ck_me_sinal` e `ck_me_origem`; os tipos existentes passam a exigir `devolucao_item_id` nulo.
-- Nova coluna `cliente_credito_movimento.devolucao_id` (FK).
+- **Crédito do cliente (tabelas da V7):**
+  - nova coluna `cliente_credito_movimento.devolucao_id` (FK);
+  - CREDITO_DEVOLUCAO passa a exigir `devolucao_id` (altera `ck_ccm_origem`);
+  - uma venda pode ter várias devoluções parciais, e cada uma estorna a sua parte do cashback. Por isso o índice único `ux_ccm_venda_tipo` passa a valer só para movimentos sem devolução, e os movimentos de devolução ficam únicos por (`devolucao_id`, tipo).
 - `vw_caixa_resumo` ganha `devolucoes_dinheiro`, no fim, e o `dinheiro_esperado` passa a descontá-la.
 
 ### F13.2 Regras
@@ -501,10 +504,10 @@ Testes de integração com duas conexões simultâneas:
 
 ### F13.3 Resultado comercial
 
-- Nova view `vw_resultado_item`, com produto, categoria e operador em cada linha:
+- Nova view `vw_resultado_item`, com produto, categoria, operador e cliente em cada linha:
   - **linhas de venda:** itens não cancelados de vendas finalizadas, na data da venda, com sinal +;
   - **linhas de devolução:** na data da devolução, com quantidade, receita e CMV com sinal − e o operador da venda original.
-- R01, R02, R05, R06, R07, R09, R10 e o painel passam a usar essa view: receita = vendas − devoluções.
+- R01, R02, R05, R06, R07, R09, R10, R18, a tela do cliente (histórico, total gasto e produtos mais comprados) e o painel passam a usar essa view: receita = vendas − devoluções.
 - **R01:** ganha as colunas "Devoluções" e "Receita líquida". O nº de vendas e o ticket médio continuam calculados só sobre as vendas.
 - **Painel:** o faturamento é a receita líquida (bate com o R01).
 - **R08:** mostra as vendas por forma de pagamento e, à parte, os reembolsos por forma.

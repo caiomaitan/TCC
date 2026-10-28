@@ -7,7 +7,10 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 
-/** Base dos testes de integração: banco de teste migrado e estoque consistente ao fim de cada teste (9.2). */
+/**
+ * Base dos testes de integração: banco de teste migrado e, ao fim de cada teste, estoque (9.2) e crédito dos clientes
+ * (F12.3) consistentes.
+ */
 public abstract class IntegracaoBase {
 
     protected static DataSource dataSource;
@@ -22,6 +25,9 @@ public abstract class IntegracaoBase {
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_estoque_inconsistente"))
                     .as("vw_estoque_inconsistente deve estar vazia")
+                    .isZero();
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_cliente_credito_inconsistente"))
+                    .as("vw_cliente_credito_inconsistente deve estar vazia (0.2 das ampliações)")
                     .isZero();
         }
     }

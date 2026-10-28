@@ -144,9 +144,7 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
     void camposDeBackupValidadosEGravados(@org.junit.jupiter.api.io.TempDir java.nio.file.Path pasta)
             throws Exception {
         Configuracoes c = configuracoes.carregar(admin);
-        java.util.function.Function<Configuracoes.Backup, Configuracoes> com = b -> new Configuracoes(c.loja(),
-                c.venda(), c.margemMinimaPct(), c.diasSemGiro(), c.balanca(), b, c.rodapeComprovante(),
-                c.seguranca());
+        java.util.function.Function<Configuracoes.Backup, Configuracoes> com = c::comBackup;
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("backups", "", 15))))
                 .hasMessageContaining("caminho completo");
         assertThatThrownBy(() -> configuracoes.salvar(admin, com.apply(new Configuracoes.Backup("",
@@ -187,7 +185,8 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
     @Test
     void formasDePagamentoCriarDesativarEAoMenosUmaAtiva() throws Exception {
         assertThat(configuracoes.formasPagamento(admin)).extracting(FormaPagamentoCadastro::descricao)
-                .containsExactly("Dinheiro", "PIX", "Cartão de débito", "Cartão de crédito", "Vale-alimentação");
+                .containsExactly("Dinheiro", "PIX", "Cartão de débito", "Cartão de crédito", "Vale-alimentação",
+                        "Crédito do cliente");
 
         int fiado = configuracoes.criarForma(admin, "  Vale  presente ", TipoFormaPagamento.OUTROS);
         assertThat(configuracoes.formasPagamento(admin)).last()
@@ -213,6 +212,13 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
         int dinheiro = configuracoes.formasPagamento(admin).get(0).id();
         assertThatThrownBy(() -> configuracoes.alterarSituacaoForma(admin, dinheiro, false))
                 .hasMessageContaining("única forma de pagamento ativa");
+        // O crédito do cliente não conta: sem cliente identificado, a venda não teria como ser paga (F12.4).
+        int credito = configuracoes.formasPagamento(admin).stream()
+                .filter(f -> f.tipo() == TipoFormaPagamento.CREDITO_CLIENTE).findFirst().orElseThrow().id();
+        configuracoes.alterarSituacaoForma(admin, credito, true);
+        assertThatThrownBy(() -> configuracoes.alterarSituacaoForma(admin, dinheiro, false))
+                .hasMessageContaining("única forma de pagamento ativa");
+        configuracoes.alterarSituacaoForma(admin, credito, false);
         configuracoes.alterarSituacaoForma(admin, pix, true);
         configuracoes.alterarSituacaoForma(admin, dinheiro, false);
         assertThat(t.vendas.formasAtivas(admin)).extracting(f -> f.descricao()).containsExactly("PIX");
@@ -226,6 +232,31 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
      * Aceite F10 (senha): com tamanho mínimo 8, "abc123" é recusada com a regra na mensagem, na criação de usuário,
      * na senha provisória e na troca pela própria pessoa. A senha antiga continua entrando até a próxima troca.
      */
+    /** F12.5 (0.4): a aba Fidelidade valida o percentual e a compra mínima e audita a mudança. */
+    @Test
+    void fidelidadeValidadaEAuditada() throws Exception {
+        Configuracoes c = configuracoes.carregar(admin);
+        assertThat(c.fidelidade()).isEqualTo(Configuracoes.Fidelidade.PADRAO);
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comFidelidade(
+                new Configuracoes.Fidelidade(true, BigDecimal.ZERO, BigDecimal.ZERO))))
+                .hasMessage("Com a fidelidade ligada, o percentual de cashback deve ser maior que zero.");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comFidelidade(
+                new Configuracoes.Fidelidade(true, new BigDecimal("100.01"), BigDecimal.ZERO))))
+                .hasMessageContaining("entre 0 e 100");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comFidelidade(
+                new Configuracoes.Fidelidade(true, BigDecimal.ONE, new BigDecimal("-1")))))
+                .hasMessage("A compra mínima para o cashback não pode ser negativa.");
+        List<String> mudancas = configuracoes.salvar(admin, c.comFidelidade(
+                new Configuracoes.Fidelidade(true, new BigDecimal("2.5"), new BigDecimal("20"))));
+        assertThat(mudancas).containsExactly("cashback de desligado para ligado",
+                "percentual de cashback de 1,00% para 2,50%",
+                "compra mínima para o cashback de R$ 0,00 para R$ 20,00");
+        assertThat(configuracoes.carregar(admin).fidelidade()).isEqualTo(new Configuracoes.Fidelidade(true,
+                new BigDecimal("2.5"), new BigDecimal("20")));
+        assertThat(t.auditoria(AcaoAuditoria.CONFIGURACAO_ALTERADA)).singleElement().asString()
+                .contains("cashback de desligado para ligado");
+    }
+
     @Test
     void politicaDeSenhaValeParaSenhasNovasETrocadasEAsAntigasContinuam() throws Exception {
         t.usuarios.criar(admin, "maria", "Maria", false, EnumSet.of(Permissao.PDV), "inicial1", "inicial1");

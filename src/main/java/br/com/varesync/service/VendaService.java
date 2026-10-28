@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.ProdutoDAO;
@@ -19,6 +20,7 @@ import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.SituacaoProduto;
 import br.com.varesync.model.StatusVenda;
+import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
@@ -67,20 +69,24 @@ public class VendaService {
     private final PrecoService precoService;
     private final AuditoriaService auditoria;
     private final ClienteDAO clienteDAO;
+    private final CreditoClienteDAO creditoDAO;
+    private final CreditoService creditoService;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
     public record Inclusao(ItemCarrinho item, String aviso) {
     }
 
-    /** Resultado da finalização: número da venda, troco e o comprovante. */
-    public record VendaFinalizada(long vendaId, BigDecimal total, BigDecimal troco, Comprovante comprovante) {
+    /** Resultado da finalização: número da venda, troco, cashback gerado (F12.5; zero sem ele) e o comprovante. */
+    public record VendaFinalizada(long vendaId, BigDecimal total, BigDecimal troco, BigDecimal cashback,
+                                  Comprovante comprovante) {
     }
 
     public VendaService(Transacao transacao, ProdutoDAO produtoDAO, VendaDAO vendaDAO,
                         FormaPagamentoDAO formaPagamentoDAO, ConfiguracaoDAO configuracaoDAO, EstoqueDAO estoqueDAO,
                         EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
-                        AuditoriaService auditoria, ClienteDAO clienteDAO, Clock clock) {
+                        AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
+                        CreditoService creditoService, Clock clock) {
         this.transacao = transacao;
         this.produtoDAO = produtoDAO;
         this.vendaDAO = vendaDAO;
@@ -92,6 +98,8 @@ public class VendaService {
         this.precoService = precoService;
         this.auditoria = auditoria;
         this.clienteDAO = clienteDAO;
+        this.creditoDAO = creditoDAO;
+        this.creditoService = creditoService;
         this.clock = clock;
     }
 
@@ -356,6 +364,20 @@ public class VendaService {
         return cliente;
     }
 
+    /**
+     * Pagamento da venda em andamento (F10): com cliente identificado, o saldo de crédito lido agora (F12.4) pode ser
+     * usado; sem cliente, o crédito do cliente é recusado.
+     */
+    public Recebimento recebimento(Sessao sessao, Carrinho carrinho) {
+        sessao.exigir(Permissao.PDV);
+        if (carrinho.cliente().isEmpty()) {
+            return new Recebimento(carrinho.total());
+        }
+        long clienteId = carrinho.cliente().get().id();
+        BigDecimal saldo = transacao.executar(con -> creditoDAO.saldo(con, clienteId)).orElse(Dinheiro.ZERO);
+        return new Recebimento(carrinho.total(), saldo);
+    }
+
     public List<FormaPagamento> formasAtivas(Sessao sessao) {
         sessao.exigir(Permissao.PDV);
         return transacao.executar(formaPagamentoDAO::listarAtivas);
@@ -366,8 +388,9 @@ public class VendaService {
     /**
      * Finaliza a venda numa única transação (6.6): reconfere caixa aberto, produtos ativos, regra de estoque, limite
      * de desconto e formas de pagamento; grava {@code venda} → {@code venda_item} (com cancelados, na ordem) →
-     * {@code venda_pagamento} → um movimento {@code VENDA} por item não cancelado. Em falha, nada é gravado e o
-     * carrinho continua como estava.
+     * {@code venda_pagamento} → um movimento {@code VENDA} por item não cancelado → com cliente, {@code USO_EM_VENDA}
+     * do crédito usado (saldo travado e conferido) e o {@code CASHBACK} (F12.4 e F12.5). Em falha, nada é gravado e
+     * o carrinho continua como estava.
      */
     public VendaFinalizada finalizar(Sessao sessao, Carrinho carrinho, Recebimento recebimento) {
         Sessao conferida = sessao.exigir(Permissao.PDV);
@@ -439,6 +462,19 @@ public class VendaService {
             if (carrinho.cliente().isPresent()) {
                 clienteId = clienteAtivo(con, carrinho.cliente().get().id()).id();
             }
+            // Crédito do cliente (F12.4): o saldo é conferido com a linha travada (pode ter mudado noutro caixa).
+            BigDecimal creditoUsado = recebimento.creditoUsado();
+            if (creditoUsado.signum() > 0) {
+                if (clienteId == null) {
+                    throw new NegocioException("Para pagar com o crédito do cliente, identifique o cliente (F11).");
+                }
+                BigDecimal saldo = creditoDAO.travarSaldo(con, clienteId).orElse(Dinheiro.ZERO);
+                if (saldo.compareTo(creditoUsado) < 0) {
+                    throw new NegocioException("Saldo de crédito insuficiente: o cliente tem "
+                            + Formatos.moeda(saldo.max(Dinheiro.ZERO)) + " e o pagamento usa "
+                            + Formatos.moeda(creditoUsado) + ". Refaça o pagamento.");
+                }
+            }
 
             Map<Integer, BigDecimal> rateio = carrinho.rateio();
             BigDecimal troco = recebimento.troco();
@@ -472,6 +508,19 @@ public class VendaService {
                 estoqueService.movimentar(con, sessao, v.item().produto().id(), TipoMovimento.VENDA,
                         v.item().quantidade().negate(), OrigemMovimento.vendaItem(v.itemId()), null, null);
             }
+            BigDecimal cashback = Dinheiro.ZERO;
+            if (clienteId != null) {
+                if (creditoUsado.signum() > 0) {
+                    creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.USO_EM_VENDA,
+                            creditoUsado.negate(), vendaId, null);
+                }
+                // Cashback (F12.5) sobre o que não foi pago com crédito.
+                cashback = configuracaoDAO.carregar(con).fidelidade().cashback(total.subtract(creditoUsado));
+                if (cashback.signum() > 0) {
+                    creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.CASHBACK, cashback,
+                            vendaId, null);
+                }
+            }
 
             if (acimaDoLimite) {
                 auditoria.registrar(con, sessao, AcaoAuditoria.DESCONTO_LIBERADO, ENTIDADE_VENDA, vendaId,
@@ -482,7 +531,7 @@ public class VendaService {
                                 + (liberacaoDesconto == null ? "permissão de " + sessao.usuario().descricao()
                                 : liberacaoDesconto.descricao()) + ")");
             }
-            return new VendaFinalizada(vendaId, total, troco, montarComprovante(con, vendaId));
+            return new VendaFinalizada(vendaId, total, troco, cashback, montarComprovante(con, vendaId));
         });
     }
 
@@ -500,7 +549,8 @@ public class VendaService {
     /**
      * Cancela uma venda finalizada da sessão aberta (6.6): CANCELAR_VENDA ou liberação; motivo obrigatório. Numa
      * transação: status {@code CANCELADA} com quem autorizou, quem executou (F10.3), quando e o motivo;
-     * {@code CANCELAMENTO_VENDA} para cada item não cancelado; auditoria com o operador e quem liberou.
+     * {@code CANCELAMENTO_VENDA} para cada item não cancelado; {@code ESTORNO_USO} e {@code ESTORNO_CASHBACK} do
+     * crédito do cliente (os estornos podem deixar o saldo negativo); auditoria com o operador e quem liberou.
      */
     public void cancelar(Sessao sessao, long vendaId, String motivo, Liberacao liberacao) {
         sessao.exigir(Permissao.PDV);
@@ -533,10 +583,24 @@ public class VendaService {
                 estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.CANCELAMENTO_VENDA,
                         item.quantidade(), OrigemMovimento.vendaItem(item.id()), null, null);
             }
+            // Crédito do cliente (F12.4 e F12.5): devolve o crédito usado e retira o cashback gerado.
+            List<String> estornos = new ArrayList<>();
+            for (CreditoClienteDAO.DaVenda m : creditoDAO.daVenda(con, vendaId)) {
+                TipoCreditoCliente estorno = switch (m.tipo()) {
+                    case USO_EM_VENDA -> TipoCreditoCliente.ESTORNO_USO;
+                    case CASHBACK -> TipoCreditoCliente.ESTORNO_CASHBACK;
+                    default -> null;
+                };
+                if (estorno != null) {
+                    creditoService.movimentar(con, sessao, m.clienteId(), estorno, m.valor().negate(), vendaId, null);
+                    estornos.add(estorno.rotulo().toLowerCase() + " de " + Formatos.moeda(m.valor().abs()));
+                }
+            }
             auditoria.registrar(con, sessao, AcaoAuditoria.VENDA_CANCELADA, ENTIDADE_VENDA, vendaId,
                     "Venda nº " + vendaId + " de " + Formatos.moeda(venda.valorTotal()) + " cancelada no caixa nº "
                             + caixa.id() + ". Motivo: " + motivoFinal
-                            + (liberou == null ? "" : " (" + liberou.descricao() + ")"));
+                            + (liberou == null ? "" : " (" + liberou.descricao() + ")")
+                            + (estornos.isEmpty() ? "" : ". Crédito do cliente: " + String.join(" e ", estornos)));
             return null;
         });
     }
@@ -660,11 +724,22 @@ public class VendaService {
         Configuracoes config = configuracaoDAO.carregar(con);
         Comprovante.Loja loja = new Comprovante.Loja(config.loja().nome(), config.loja().documento(),
                 config.loja().endereco(), config.loja().telefone());
+        // Cashback e saldo (F12.5): com a fidelidade ligada ou quando a venda mexeu no crédito do cliente.
+        Comprovante.Credito credito = null;
+        if (c.clienteId() != null) {
+            List<CreditoClienteDAO.DaVenda> movimentos = creditoDAO.daVenda(con, vendaId);
+            if (config.fidelidade().ativo() || !movimentos.isEmpty()) {
+                BigDecimal cashback = movimentos.stream().filter(m -> m.tipo() == TipoCreditoCliente.CASHBACK)
+                        .map(CreditoClienteDAO.DaVenda::valor).findFirst().orElse(Dinheiro.ZERO);
+                credito = new Comprovante.Credito(cashback,
+                        creditoDAO.saldo(con, c.clienteId()).orElse(Dinheiro.ZERO));
+            }
+        }
         return new Comprovante(loja, c.id(), c.dataHora(), c.operador(), c.terminal(), c.status(), c.canceladaEm(),
                 c.motivoCancelamento(), vendaDAO.itensComprovante(con, vendaId), c.totais().valorBruto(),
                 c.totais().descontoItens(), c.totais().descontoVenda(), c.totais().valorTotal(), pagamentos,
                 c.totais().troco(), config.rodapeComprovante(), c.clienteNome() == null ? null
-                : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())));
+                : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())), credito);
     }
 
     private static String descrever(ItemCarrinho item) {

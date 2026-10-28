@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.InconsistenciaCredito;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.PoliticaSenha;
@@ -13,6 +14,7 @@ import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.service.BackupService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
+import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.GeradorDemo;
 import br.com.varesync.service.NegocioException;
@@ -74,6 +76,7 @@ public class ConfiguracoesController {
     /** A aba Auditoria carrega a lista de usuários e a primeira consulta só quando é aberta. */
     private boolean auditoriaPreparada;
     private final EstoqueService estoqueService;
+    private final CreditoService creditoService;
     private final GeradorDemo geradorDemo;
     private final Sessao sessao;
     /** O que está gravado (base do "Desfazer" e do que não é editado aqui, como o backup). */
@@ -132,6 +135,16 @@ public class ConfiguracoesController {
     @FXML private TextField campoInatividade;
     @FXML private TextField campoSenhaTamanho;
     @FXML private CheckBox campoSenhaLetraENumero;
+    @FXML private Tab abaFidelidade;
+    @FXML private CheckBox campoFidelidadeAtiva;
+    @FXML private TextField campoCashback;
+    @FXML private TextField campoCompraMinima;
+    @FXML private Label resultadoCredito;
+    @FXML private TableView<InconsistenciaCredito> tabelaCredito;
+    @FXML private TableColumn<InconsistenciaCredito, String> colunaCreditoCliente;
+    @FXML private TableColumn<InconsistenciaCredito, String> colunaCreditoRegistrado;
+    @FXML private TableColumn<InconsistenciaCredito, String> colunaCreditoMovimentos;
+    @FXML private TableColumn<InconsistenciaCredito, String> colunaCreditoDiferenca;
     @FXML private HBox barraSalvar;
     @FXML private Label mensagemParametros;
     @FXML private Button botaoSalvar;
@@ -158,13 +171,14 @@ public class ConfiguracoesController {
 
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
-                                   EstoqueService estoqueService,
+                                   EstoqueService estoqueService, CreditoService creditoService,
                                    GeradorDemo geradorDemo, Sessao sessao) {
         this.configuracaoService = configuracaoService;
         this.backupService = backupService;
         this.auditoriaService = auditoriaService;
         this.usuarioService = usuarioService;
         this.estoqueService = estoqueService;
+        this.creditoService = creditoService;
         this.geradorDemo = geradorDemo;
         this.sessao = sessao;
     }
@@ -189,7 +203,17 @@ public class ConfiguracoesController {
             }
         });
 
-        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaBackup);
+        colunaCreditoCliente.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().nome() + " (código "
+                + c.getValue().clienteId() + ")"));
+        colunaCreditoRegistrado.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().saldoRegistrado())));
+        colunaCreditoMovimentos.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().saldoPelosMovimentos())));
+        colunaCreditoDiferenca.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().diferenca())));
+
+        Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
+                abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -220,7 +244,9 @@ public class ConfiguracoesController {
             botaoSituacaoForma.setText(f == null || f.ativa() ? "Desativar" : "Ativar");
         });
         botaoSituacaoForma.setDisable(true);
-        campoTipoForma.getItems().setAll(TipoFormaPagamento.values());
+        // O crédito do cliente tem uma forma só, criada pela V7 (F12.4).
+        campoTipoForma.getItems().setAll(Arrays.stream(TipoFormaPagamento.values())
+                .filter(t -> t != TipoFormaPagamento.CREDITO_CLIENTE).toList());
         campoTipoForma.setConverter(new StringConverter<>() {
             @Override
             public String toString(TipoFormaPagamento tipo) {
@@ -272,6 +298,9 @@ public class ConfiguracoesController {
         campoInatividade.setText(String.valueOf(c.inatividadeMinutos()));
         campoSenhaTamanho.setText(String.valueOf(c.politicaSenha().tamanhoMinimo()));
         campoSenhaLetraENumero.setSelected(c.politicaSenha().letraENumero());
+        campoFidelidadeAtiva.setSelected(c.fidelidade().ativo());
+        campoCashback.setText(Formatos.numero(c.fidelidade().cashbackPct(), Dinheiro.ESCALA_PERCENTUAL));
+        campoCompraMinima.setText(Formatos.numero(c.fidelidade().compraMinima(), Dinheiro.ESCALA_DINHEIRO));
         atualizarBalanca();
     }
 
@@ -292,7 +321,9 @@ public class ConfiguracoesController {
                         inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText(),
                 new Configuracoes.Seguranca(inteiro(campoInatividade, "Bloquear a tela depois de"),
                         new PoliticaSenha(inteiro(campoSenhaTamanho, "Tamanho mínimo da senha"),
-                                campoSenhaLetraENumero.isSelected())));
+                                campoSenhaLetraENumero.isSelected())),
+                new Configuracoes.Fidelidade(campoFidelidadeAtiva.isSelected(),
+                        numero(campoCashback, "Cashback"), numero(campoCompraMinima, "Compra mínima")));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -619,20 +650,25 @@ public class ConfiguracoesController {
         return Formatos.numero(valor, Dinheiro.ESCALA_QUANTIDADE);
     }
 
+    /** Estoque (6.4) e crédito dos clientes (F12.3): as duas views de inconsistência precisam vir vazias. */
+    private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito) {
+    }
+
     @FXML
     private void verificar() {
-        Task<List<InconsistenciaEstoque>> tarefa = new Task<>() {
+        Task<Diagnostico> tarefa = new Task<>() {
             @Override
-            protected List<InconsistenciaEstoque> call() {
-                return estoqueService.diagnostico(sessao);
+            protected Diagnostico call() {
+                return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao));
             }
         };
         botaoVerificar.setDisable(true);
         progresso.setVisible(true);
         Mensagem.informar(resultado, "Verificando…");
+        Mensagem.limpar(resultadoCredito);
         tarefa.setOnSucceeded(e -> {
             concluir();
-            List<InconsistenciaEstoque> linhas = tarefa.getValue();
+            List<InconsistenciaEstoque> linhas = tarefa.getValue().estoque();
             tabelaInconsistencias.getItems().setAll(linhas);
             if (linhas.isEmpty()) {
                 Mensagem.sucesso(resultado, "Tudo certo: o saldo de todos os produtos confere com a soma dos "
@@ -641,6 +677,16 @@ public class ConfiguracoesController {
                 Mensagem.erro(resultado, (linhas.size() == 1 ? "1 produto tem" : linhas.size() + " produtos têm")
                         + " saldo diferente da soma dos movimentos. Isso indica alteração feita fora do sistema; "
                         + "anote os produtos e procure o suporte.");
+            }
+            List<InconsistenciaCredito> credito = tarefa.getValue().credito();
+            tabelaCredito.getItems().setAll(credito);
+            if (credito.isEmpty()) {
+                Mensagem.sucesso(resultadoCredito, "Tudo certo: o saldo de crédito de todos os clientes confere com "
+                        + "a soma do extrato.");
+            } else {
+                Mensagem.erro(resultadoCredito, (credito.size() == 1 ? "1 cliente tem" : credito.size()
+                        + " clientes têm") + " saldo de crédito diferente da soma do extrato. Isso indica alteração "
+                        + "feita fora do sistema; anote os clientes e procure o suporte.");
             }
         });
         tarefa.setOnFailed(e -> {
@@ -668,8 +714,9 @@ public class ConfiguracoesController {
             return;
         }
         if (!Dialogos.confirmar("Gerar os dados de demonstração neste banco? Serão criados usuários, fornecedores, "
-                + "cerca de 80 produtos e " + GeradorDemo.DIAS + " dias de vendas, compras, caixas e movimentos de "
-                + "estoque. Isso leva alguns minutos e não pode ser desfeito.")) {
+                + "cerca de 80 produtos, 150 clientes e " + GeradorDemo.DIAS + " dias de vendas, compras, caixas e "
+                + "movimentos de estoque, com a fidelidade (cashback) ligada. Isso leva alguns minutos e não pode ser "
+                + "desfeito.")) {
             return;
         }
         Task<GeradorDemo.Resultado> tarefa = new Task<>() {
@@ -723,6 +770,9 @@ public class ConfiguracoesController {
                 .append(" canceladas, ").append(r.itensCancelados()).append(" itens cancelados durante a venda)")
                 .append("\nFornecedores: ").append(r.fornecedores()).append(" (").append(r.entradas())
                 .append(" entradas de mercadoria confirmadas)")
+                .append("\nClientes: ").append(r.clientes()).append(" (").append(r.vendasComCliente())
+                .append(" vendas identificadas, ").append(r.usosDeCredito())
+                .append(" com uso de crédito; fidelidade ligada com 1% de cashback)")
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();
