@@ -205,10 +205,10 @@ public class ClienteService {
 
     /**
      * Busca do F11: CPF/CNPJ completo e válido → o cliente dono dele (ou nenhum); senão, como a busca do cadastro.
-     * Só clientes ativos.
+     * Só clientes ativos. Também no vale-troca da devolução (F13.2): PDV ou DEVOLUCAO.
      */
     public List<ClienteVenda> pesquisarParaVenda(Sessao sessao, String texto) {
-        sessao.exigir(Permissao.PDV);
+        sessao.exigirUma(Permissao.PDV, Permissao.DEVOLUCAO);
         return transacao.executar(con -> {
             Optional<String> documento = documentoCompleto(texto);
             if (documento.isPresent()) {
@@ -218,9 +218,14 @@ public class ClienteService {
         });
     }
 
-    /** Cadastro rápido no PDV (F12.2): nome e CPF/CNPJ, com a permissão PDV. @return o cliente para identificar */
+    /**
+     * Cadastro rápido no PDV (F12.2) ou no vale-troca da devolução (F13.2): nome e CPF/CNPJ, com a permissão PDV ou
+     * DEVOLUCAO.
+     *
+     * @return o cliente para identificar
+     */
     public ClienteVenda cadastrarRapido(Sessao sessao, String nome, String cpfCnpj) {
-        sessao.exigir(Permissao.PDV);
+        sessao.exigirUma(Permissao.PDV, Permissao.DEVOLUCAO);
         long id = inserir(sessao, DadosCliente.rapido(nome, cpfCnpj));
         return transacao.executar(con -> dao.buscarParaVenda(con, id)).orElseThrow();
     }

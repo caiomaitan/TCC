@@ -195,10 +195,14 @@ public class ConfiguracaoService {
                     + " e " + PoliticaSenha.TAMANHO_MAXIMO + " caracteres.");
         }
         Configuracoes.Fidelidade fidelidade = fidelidade(c.fidelidade());
+        if (c.devolucaoPrazoDias() < 0 || c.devolucaoPrazoDias() > Configuracoes.DEVOLUCAO_PRAZO_MAXIMO) {
+            throw new NegocioException("O prazo de devolução deve estar entre 0 (sempre pede liberação) e "
+                    + Configuracoes.DEVOLUCAO_PRAZO_MAXIMO + " dias.");
+        }
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade);
+                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias());
     }
 
     /** Fidelidade (F12.5): cashback de 0 a 100% (maior que zero com ela ligada) e compra mínima ≥ 0, em reais. */
@@ -326,6 +330,7 @@ public class ConfiguracaoService {
                 Formatos.percentual(n.fidelidade().cashbackPct()));
         comparar(m, "compra mínima para o cashback", Formatos.moeda(a.fidelidade().compraMinima()),
                 Formatos.moeda(n.fidelidade().compraMinima()));
+        comparar(m, "prazo de devolução", a.devolucaoPrazoDias() + " dias", n.devolucaoPrazoDias() + " dias");
         return m;
     }
 

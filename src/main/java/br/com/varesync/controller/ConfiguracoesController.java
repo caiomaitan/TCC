@@ -125,6 +125,7 @@ public class ConfiguracoesController {
     @FXML private CheckBox campoEstoqueNegativo;
     @FXML private TextField campoDescontoMaximo;
     @FXML private CheckBox campoCancelarItem;
+    @FXML private TextField campoPrazoDevolucao;
     @FXML private TextField campoMargemMinima;
     @FXML private TextField campoDiasSemGiro;
     @FXML private CheckBox campoBalancaAtiva;
@@ -286,6 +287,7 @@ public class ConfiguracoesController {
         campoEstoqueNegativo.setSelected(c.venda().permitirEstoqueNegativo());
         campoDescontoMaximo.setText(Formatos.numero(c.venda().descontoMaximoPct(), Dinheiro.ESCALA_PERCENTUAL));
         campoCancelarItem.setSelected(c.venda().cancelarItemExigeSupervisor());
+        campoPrazoDevolucao.setText(String.valueOf(c.devolucaoPrazoDias()));
         campoMargemMinima.setText(Formatos.numero(c.margemMinimaPct(), Dinheiro.ESCALA_PERCENTUAL));
         campoDiasSemGiro.setText(String.valueOf(c.diasSemGiro()));
         campoBalancaAtiva.setSelected(c.balanca().ativo());
@@ -323,7 +325,8 @@ public class ConfiguracoesController {
                         new PoliticaSenha(inteiro(campoSenhaTamanho, "Tamanho mínimo da senha"),
                                 campoSenhaLetraENumero.isSelected())),
                 new Configuracoes.Fidelidade(campoFidelidadeAtiva.isSelected(),
-                        numero(campoCashback, "Cashback"), numero(campoCompraMinima, "Compra mínima")));
+                        numero(campoCashback, "Cashback"), numero(campoCompraMinima, "Compra mínima")),
+                inteiro(campoPrazoDevolucao, "Prazo de devolução"));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {

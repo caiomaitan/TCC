@@ -14,6 +14,7 @@ public enum ItemMenu {
     PDV("PDV", Permissao.PDV, false, "/fxml/pdv.fxml", true),
     CAIXA("Caixa", Permissao.PDV, false, "/fxml/caixa.fxml", false),
     CLIENTES("Clientes", Permissao.CLIENTES, false, "/fxml/clientes.fxml", false),
+    DEVOLUCOES("Devoluções", Permissao.DEVOLUCAO, false, "/fxml/devolucoes.fxml", false),
     PRODUTOS("Produtos", Permissao.PRODUTOS, false, "/fxml/produtos.fxml", false),
     ESTOQUE("Estoque", Permissao.ESTOQUE, false, "/fxml/estoque.fxml", false),
     INVENTARIO("Inventário", Permissao.INVENTARIO, false, "/fxml/inventario.fxml", false),

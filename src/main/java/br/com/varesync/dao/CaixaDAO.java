@@ -91,7 +91,7 @@ public class CaixaDAO {
     public CaixaResumo resumo(Connection con, long caixaSessaoId) throws SQLException {
         String sql = """
                 SELECT caixa_sessao_id, valor_abertura, suprimentos, sangrias, vendas_dinheiro, qtd_vendas,
-                       total_vendido, qtd_canceladas, dinheiro_esperado
+                       total_vendido, qtd_canceladas, dinheiro_esperado, devolucoes_dinheiro
                   FROM vw_caixa_resumo
                  WHERE caixa_sessao_id = ?
                 """;
@@ -105,7 +105,7 @@ public class CaixaDAO {
                         rs.getBigDecimal("suprimentos"), rs.getBigDecimal("sangrias"),
                         rs.getBigDecimal("vendas_dinheiro"), rs.getLong("qtd_vendas"),
                         rs.getBigDecimal("total_vendido"), rs.getLong("qtd_canceladas"),
-                        rs.getBigDecimal("dinheiro_esperado"));
+                        rs.getBigDecimal("dinheiro_esperado"), rs.getBigDecimal("devolucoes_dinheiro"));
             }
         }
     }

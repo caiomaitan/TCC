@@ -8,15 +8,16 @@ import java.util.Optional;
 
 /**
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
- * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; e da V7: {@code fidelidade.*}, F12.5); uma chave que falta ou tem valor inválido (alterada fora do
- * sistema) volta ao padrão em {@link #de(Map)}.
+ * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
+ * {@code devolucao.prazo_dias}, F13.2); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
+ * ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
  * Configurações grava um novo retrato inteiro ({@code ConfiguracaoService.salvar}).
  */
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
                             Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
-                            Fidelidade fidelidade) {
+                            Fidelidade fidelidade, int devolucaoPrazoDias) {
 
     public static final String EMPRESA_NOME = "empresa.nome";
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
@@ -41,12 +42,16 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String FIDELIDADE_ATIVO = "fidelidade.ativo";
     public static final String FIDELIDADE_CASHBACK = "fidelidade.cashback_pct";
     public static final String FIDELIDADE_COMPRA_MINIMA = "fidelidade.compra_minima";
+    public static final String DEVOLUCAO_PRAZO = "devolucao.prazo_dias";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
     public static final int INATIVIDADE_MAXIMA = 480;
     public static final int DIGITOS_PLU_MINIMO = 4;
     public static final int DIGITOS_PLU_MAXIMO = 6;
+    /** Prazo de devolução sem liberação (F13.2): de 0 (sempre pede liberação) a um ano; padrão da V8. */
+    public static final int DEVOLUCAO_PRAZO_PADRAO = 30;
+    public static final int DEVOLUCAO_PRAZO_MAXIMO = 365;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
 
     /** Dados da loja (comprovante, relatórios, título). Documento e telefone gravados sem máscara. */
@@ -90,11 +95,12 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         }
     }
 
-    /** Valores da V2 (e da V4, V5 e V7). */
+    /** Valores da V2 (e da V4, V5, V7 e V8). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
-            "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO), Fidelidade.PADRAO);
+            "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO), Fidelidade.PADRAO,
+            DEVOLUCAO_PRAZO_PADRAO);
 
     /** Minutos sem atividade até bloquear a tela (0 = desligado). */
     public int inatividadeMinutos() {
@@ -107,42 +113,47 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade);
+                seguranca, fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade);
+                seguranca, fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
         return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca,
-                fidelidade);
+                fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
-                seguranca, fidelidade);
+                seguranca, fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comBackup(Backup outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, outro, rodapeComprovante,
-                seguranca, fidelidade);
+                seguranca, fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comRodape(String outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca,
-                fidelidade);
+                fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comSeguranca(Seguranca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                outra, fidelidade);
+                outra, fidelidade, devolucaoPrazoDias);
     }
 
     public Configuracoes comFidelidade(Fidelidade outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, outra);
+                seguranca, outra, devolucaoPrazoDias);
+    }
+
+    public Configuracoes comDevolucaoPrazo(int dias) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, fidelidade, dias);
     }
 
     public Configuracoes comInatividade(int minutos) {
@@ -181,7 +192,8 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 percentual(valores, FIDELIDADE_CASHBACK, true).orElse(p.fidelidade.cashbackPct()),
                 naoNegativo(valores, FIDELIDADE_COMPRA_MINIMA).orElse(p.fidelidade.compraMinima()));
         return new Configuracoes(loja, venda, margem, dias, balanca, backup,
-                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca, fidelidade);
+                texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca, fidelidade,
+                inteiro(valores, DEVOLUCAO_PRAZO, 0, DEVOLUCAO_PRAZO_MAXIMO).orElse(p.devolucaoPrazoDias));
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -210,6 +222,7 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(FIDELIDADE_ATIVO, String.valueOf(fidelidade.ativo()));
         m.put(FIDELIDADE_CASHBACK, numero(fidelidade.cashbackPct()));
         m.put(FIDELIDADE_COMPRA_MINIMA, numero(fidelidade.compraMinima()));
+        m.put(DEVOLUCAO_PRAZO, String.valueOf(devolucaoPrazoDias));
         return m;
     }
 

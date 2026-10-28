@@ -307,7 +307,6 @@ public class ClientesController {
         abaCompras.setDisable(false);
         abaCredito.setDisable(false);
         abaLgpd.setDisable(false);
-        botaoAjustarCredito.setDisable(c.anonimizado());
         mostrarHistorico(clienteService.historico(sessao, c.id()));
         mostrarCredito(creditoService.extrato(sessao, c.id()));
         Mensagem.limpar(mensagem);
@@ -315,6 +314,8 @@ public class ClientesController {
 
     /** Aba Crédito (F12.3): saldo (negativo em vermelho) e o extrato, do mais recente para o mais antigo. */
     private void mostrarCredito(ExtratoCredito extrato) {
+        // No anonimizado, o ajuste só serve para zerar o saldo que sobrou (F13.2).
+        botaoAjustarCredito.setDisable(emEdicao != null && emEdicao.anonimizado() && extrato.saldo().signum() == 0);
         saldoCredito.setText(Formatos.moeda(extrato.saldo()));
         saldoCredito.getStyleClass().remove("negativo");
         if (extrato.saldo().signum() < 0) {
@@ -333,7 +334,7 @@ public class ClientesController {
             return;
         }
         BigDecimal saldo = creditoService.extrato(sessao, c.id()).saldo();
-        DialogosCliente.ajustarCredito(c.id(), c.nome(), saldo,
+        DialogosCliente.ajustarCredito(c.id(), c.nome(), saldo, c.anonimizado(),
                 (valor, motivo) -> creditoService.ajustar(sessao, c.id(), valor, motivo)).ifPresent(novo -> {
                     mostrarCredito(creditoService.extrato(sessao, c.id()));
                     Mensagem.sucesso(mensagem, "Crédito ajustado. Saldo atual: " + Formatos.moeda(novo) + ".");

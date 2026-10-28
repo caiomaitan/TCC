@@ -550,7 +550,8 @@ public class VendaService {
      * Cancela uma venda finalizada da sessão aberta (6.6): CANCELAR_VENDA ou liberação; motivo obrigatório. Numa
      * transação: status {@code CANCELADA} com quem autorizou, quem executou (F10.3), quando e o motivo;
      * {@code CANCELAMENTO_VENDA} para cada item não cancelado; {@code ESTORNO_USO} e {@code ESTORNO_CASHBACK} do
-     * crédito do cliente (os estornos podem deixar o saldo negativo); auditoria com o operador e quem liberou.
+     * crédito do cliente (os estornos podem deixar o saldo negativo); auditoria com o operador e quem liberou. Venda com
+     * devolução (F13) não pode mais ser cancelada.
      */
     public void cancelar(Sessao sessao, long vendaId, String motivo, Liberacao liberacao) {
         sessao.exigir(Permissao.PDV);
@@ -574,6 +575,10 @@ public class VendaService {
             }
             if (venda.status() == StatusVenda.CANCELADA) {
                 throw new NegocioException("A venda nº " + vendaId + " já está cancelada.");
+            }
+            if (vendaDAO.temDevolucao(con, vendaId)) {
+                throw new NegocioException("A venda nº " + vendaId + " tem devolução e não pode mais ser cancelada. "
+                        + "Para desfazê-la por inteiro, devolva os itens que faltam (Devolver itens).");
             }
             long autorizou = liberou == null ? sessao.usuarioId() : liberou.usuarioId();
             vendaDAO.cancelar(con, vendaId, agora, autorizou, sessao.usuarioId(), motivoFinal);

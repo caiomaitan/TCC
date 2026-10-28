@@ -8,6 +8,7 @@ import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
+import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
@@ -67,6 +68,7 @@ final class AcessoTeste {
     final UnidadeService unidades;
     final ClienteService clientes;
     final CreditoService credito;
+    final DevolucaoService devolucoes;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -108,6 +110,8 @@ final class AcessoTeste {
         unidades = new UnidadeService(transacao, new UnidadeMedidaDAO());
         clientes = new ClienteService(transacao, new ClienteDAO(), new CreditoClienteDAO(), new ConfiguracaoDAO(),
                 auditoria, relogio);
+        devolucoes = new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), new CreditoClienteDAO(),
+                usuarioDAO, new ConfiguracaoDAO(), estoque, caixa, credito, auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

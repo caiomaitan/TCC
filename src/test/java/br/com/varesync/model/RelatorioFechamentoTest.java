@@ -14,7 +14,7 @@ class RelatorioFechamentoTest {
         CaixaSessao sessao = new CaixaSessao(1, "CAIXA-01", StatusCaixa.FECHADO, 1, "Ana", agora.minusHours(8),
                 new BigDecimal("100.00"), "Ana", agora, new BigDecimal(esperado), new BigDecimal(contado), null);
         CaixaResumo resumo = new CaixaResumo(1, new BigDecimal("100.00"), BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, 0, BigDecimal.ZERO, 0, new BigDecimal(esperado));
+                BigDecimal.ZERO, 0, BigDecimal.ZERO, 0, new BigDecimal(esperado), BigDecimal.ZERO);
         return new RelatorioFechamento(sessao, resumo, List.of(), List.of(), BigDecimal.ZERO);
     }
 

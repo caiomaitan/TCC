@@ -48,6 +48,16 @@ public class CreditoService {
      */
     public void movimentar(Connection con, Sessao sessao, long clienteId, TipoCreditoCliente tipo, BigDecimal valor,
                            Long vendaId, String motivo) throws SQLException {
+        movimentar(con, sessao, clienteId, tipo, valor, vendaId, null, motivo);
+    }
+
+    /**
+     * Como {@link #movimentar(Connection, Sessao, long, TipoCreditoCliente, BigDecimal, Long, String)}, com a devolução
+     * que gerou o movimento (F13): o vale-troca ({@code CREDITO_DEVOLUCAO}) exige a devolução, e o estorno parcial do
+     * cashback a leva.
+     */
+    public void movimentar(Connection con, Sessao sessao, long clienteId, TipoCreditoCliente tipo, BigDecimal valor,
+                           Long vendaId, Long devolucaoId, String motivo) throws SQLException {
         if (valor == null || valor.signum() == 0) {
             throw new IllegalArgumentException("Movimento de crédito sem valor");
         }
@@ -57,13 +67,18 @@ public class CreditoService {
         if (tipo.exigeVenda() != (vendaId != null)) {
             throw new IllegalArgumentException("Venda do movimento não confere com o tipo " + tipo);
         }
-        dao.inserir(con, clienteId, tipo, Dinheiro.dinheiro(valor), vendaId, motivo, sessao.usuarioId(),
+        if ((tipo == TipoCreditoCliente.CREDITO_DEVOLUCAO) != (devolucaoId != null)
+                && !(tipo == TipoCreditoCliente.ESTORNO_CASHBACK && devolucaoId != null)) {
+            throw new IllegalArgumentException("Devolução do movimento não confere com o tipo " + tipo);
+        }
+        dao.inserir(con, clienteId, tipo, Dinheiro.dinheiro(valor), vendaId, devolucaoId, motivo, sessao.usuarioId(),
                 OffsetDateTime.now(clock));
     }
 
     /**
      * Ajuste manual (só o supervisor): valor positivo credita, negativo debita (pode deixar o saldo negativo, como os
      * estornos); motivo obrigatório; auditoria {@code CREDITO_AJUSTADO} com o saldo antes e depois.
+     * No cliente anonimizado, só o ajuste que zera o saldo (F13.2).
      *
      * @return o novo saldo
      */
@@ -84,11 +99,13 @@ public class CreditoService {
         return transacao.executar(con -> {
             Cliente cliente = clienteDAO.buscar(con, clienteId)
                     .orElseThrow(() -> new NegocioException("Cliente não encontrado."));
-            if (cliente.anonimizado()) {
-                throw new NegocioException("O cliente nº " + clienteId + " foi anonimizado (LGPD) e não recebe "
-                        + "ajuste de crédito.");
-            }
             BigDecimal antes = dao.travarSaldo(con, clienteId).orElseThrow();
+            // Cliente anonimizado (F13.2): o ajuste só zera o saldo que sobrou de uma venda cancelada ou devolvida.
+            if (cliente.anonimizado() && antes.add(ajuste).signum() != 0) {
+                throw new NegocioException("O cliente nº " + clienteId + " foi anonimizado (LGPD): o ajuste só pode "
+                        + "zerar o saldo de " + Formatos.moeda(antes) + (antes.signum() == 0 ? "" : " (valor "
+                        + sinal(antes.negate()) + ")") + ".");
+            }
             movimentar(con, sessao, clienteId, TipoCreditoCliente.AJUSTE, ajuste, null, motivoFinal);
             BigDecimal depois = antes.add(ajuste);
             auditoria.registrar(con, sessao, AcaoAuditoria.CREDITO_AJUSTADO, ClienteService.ENTIDADE_CLIENTE,

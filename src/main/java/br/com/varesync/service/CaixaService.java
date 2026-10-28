@@ -182,6 +182,11 @@ public class CaixaService {
         });
     }
 
+    /** Dinheiro que deveria estar na gaveta agora ({@code vw_caixa_resumo}), na transação de quem chama. */
+    public BigDecimal dinheiroEsperado(Connection con, long caixaSessaoId) throws SQLException {
+        return caixaDAO.resumo(con, caixaSessaoId).dinheiroEsperado();
+    }
+
     /**
      * Para o PDV: na transação de quem chama, devolve a sessão aberta neste terminal com a linha travada.
      *

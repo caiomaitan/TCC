@@ -36,6 +36,7 @@ class ConfiguracoesTest {
         m.put("fidelidade.ativo", "false");
         m.put("fidelidade.cashback_pct", "1");
         m.put("fidelidade.compra_minima", "0");
+        m.put("devolucao.prazo_dias", "30");
         return m;
     }
 
@@ -56,6 +57,17 @@ class ConfiguracoesTest {
         m.put("fidelidade.compra_minima", "-1");
         assertThat(Configuracoes.de(m).fidelidade()).isEqualTo(new Configuracoes.Fidelidade(true, BigDecimal.ONE,
                 BigDecimal.ZERO));
+    }
+
+    /** V8 (F13.2): prazo de devolução de 30 dias; fora de 0 a 365 volta ao padrão. */
+    @Test
+    void prazoDeDevolucaoDaV8() {
+        Map<String, String> m = v2();
+        m.put("devolucao.prazo_dias", "0");
+        assertThat(Configuracoes.de(m).devolucaoPrazoDias()).isZero();
+        m.put("devolucao.prazo_dias", "366");
+        assertThat(Configuracoes.de(m).devolucaoPrazoDias()).isEqualTo(30);
+        assertThat(Configuracoes.PADRAO.comDevolucaoPrazo(7).paraMapa()).containsEntry("devolucao.prazo_dias", "7");
     }
 
     @Test

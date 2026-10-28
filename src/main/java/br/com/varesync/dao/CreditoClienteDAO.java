@@ -21,10 +21,12 @@ public class CreditoClienteDAO {
 
     /** @return id do movimento */
     public long inserir(Connection con, long clienteId, TipoCreditoCliente tipo, BigDecimal valor, Long vendaId,
-                        String motivo, long usuarioId, OffsetDateTime criadoEm) throws SQLException {
+                        Long devolucaoId, String motivo, long usuarioId, OffsetDateTime criadoEm)
+            throws SQLException {
         String sql = """
-                INSERT INTO cliente_credito_movimento (cliente_id, tipo, valor, venda_id, motivo, usuario_id, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO cliente_credito_movimento (cliente_id, tipo, valor, venda_id, devolucao_id, motivo,
+                                                       usuario_id, criado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -32,9 +34,10 @@ public class CreditoClienteDAO {
             ps.setString(2, tipo.name());
             ps.setBigDecimal(3, valor);
             Jdbc.definirLong(ps, 4, vendaId);
-            ps.setString(5, motivo);
-            ps.setLong(6, usuarioId);
-            ps.setObject(7, criadoEm);
+            Jdbc.definirLong(ps, 5, devolucaoId);
+            ps.setString(6, motivo);
+            ps.setLong(7, usuarioId);
+            ps.setObject(8, criadoEm);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -91,11 +94,16 @@ public class CreditoClienteDAO {
     public record DaVenda(long clienteId, TipoCreditoCliente tipo, BigDecimal valor) {
     }
 
-    /** Movimentos de crédito da venda, na ordem de gravação (no máximo um por tipo, {@code ux_ccm_venda_tipo}). */
+    /**
+     * Movimentos de crédito gravados pela própria venda (sem os das devoluções, F13), na ordem de gravação (no máximo
+     * um por tipo, {@code ux_ccm_venda_tipo}).
+     */
     public List<DaVenda> daVenda(Connection con, long vendaId) throws SQLException {
         List<DaVenda> movimentos = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement("""
-                SELECT cliente_id, tipo, valor FROM cliente_credito_movimento WHERE venda_id = ? ORDER BY id
+                SELECT cliente_id, tipo, valor FROM cliente_credito_movimento
+                 WHERE venda_id = ? AND devolucao_id IS NULL
+                 ORDER BY id
                 """)) {
             ps.setLong(1, vendaId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -106,6 +114,37 @@ public class CreditoClienteDAO {
             }
         }
         return movimentos;
+    }
+
+    /** Movimentos de crédito gravados por uma devolução (vale-troca e estorno do cashback), na ordem de gravação. */
+    public List<DaVenda> daDevolucao(Connection con, long devolucaoId) throws SQLException {
+        List<DaVenda> movimentos = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT cliente_id, tipo, valor FROM cliente_credito_movimento WHERE devolucao_id = ? ORDER BY id
+                """)) {
+            ps.setLong(1, devolucaoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    movimentos.add(new DaVenda(rs.getLong(1), TipoCreditoCliente.valueOf(rs.getString(2)),
+                            rs.getBigDecimal(3)));
+                }
+            }
+        }
+        return movimentos;
+    }
+
+    /** Cashback da venda já estornado pelas devoluções dela (valor positivo; zero sem estorno). */
+    public BigDecimal cashbackEstornadoEmDevolucoes(Connection con, long vendaId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT coalesce(-sum(valor), 0) FROM cliente_credito_movimento
+                 WHERE venda_id = ? AND tipo = 'ESTORNO_CASHBACK' AND devolucao_id IS NOT NULL
+                """)) {
+            ps.setLong(1, vendaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getBigDecimal(1);
+            }
+        }
     }
 
     /** Quantos movimentos de crédito o cliente tem: com algum, ele não pode ser excluído. */

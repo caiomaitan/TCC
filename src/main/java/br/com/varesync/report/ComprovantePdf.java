@@ -1,6 +1,6 @@
 package br.com.varesync.report;
 
-import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.ComprovanteImpresso;
 import br.com.varesync.model.LinhaComprovante;
 import br.com.varesync.service.ErroInesperadoException;
 import java.io.IOException;
@@ -20,8 +20,8 @@ import net.sf.jasperreports.engine.data.JRMapCollectionDataSource;
 
 /**
  * PDF do comprovante não fiscal (6.6), com o layout de {@code reports/comprovante.jrxml} (bobina de 80 mm) e as
- * mesmas linhas da tela ({@link Comprovante#linhas()}). O JRXML é compilado uma vez, no primeiro uso; a primeira
- * geração demora mais, por isso a tela chama em {@code Task}.
+ * mesmas linhas da tela ({@link ComprovanteImpresso#linhas()}), para o comprovante da venda e o da devolução. O
+ * JRXML é compilado uma vez, no primeiro uso; a primeira geração demora mais, por isso a tela chama em {@code Task}.
  */
 public class ComprovantePdf {
 
@@ -30,7 +30,7 @@ public class ComprovantePdf {
     private JasperReport compilado;
 
     /** @return o PDF em bytes */
-    public byte[] gerar(Comprovante comprovante) {
+    public byte[] gerar(ComprovanteImpresso comprovante) {
         try {
             return JasperExportManager.exportReportToPdf(preencher(comprovante));
         } catch (JRException e) {
@@ -39,7 +39,7 @@ public class ComprovantePdf {
     }
 
     /** O comprovante preenchido no layout de 80 mm (o mesmo para o PDF e para a impressora). */
-    public JasperPrint preencher(Comprovante comprovante) {
+    public JasperPrint preencher(ComprovanteImpresso comprovante) {
         List<Map<String, ?>> linhas = comprovante.linhas().stream().map(ComprovantePdf::campos).toList();
         try {
             return JasperFillManager.fillReport(modelo(), new HashMap<>(), new JRMapCollectionDataSource(linhas));
@@ -48,7 +48,7 @@ public class ComprovantePdf {
         }
     }
 
-    public void salvar(Comprovante comprovante, Path destino) {
+    public void salvar(ComprovanteImpresso comprovante, Path destino) {
         try {
             Files.write(destino, gerar(comprovante));
         } catch (IOException e) {

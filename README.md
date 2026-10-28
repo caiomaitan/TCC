@@ -92,8 +92,8 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
 3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
-   negativo, desconto máximo do operador, cancelamento de item com supervisor), margem mínima, balança, segurança
-   (bloqueio por inatividade e política de senha), backup e formas de pagamento.
+   negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,
+   balança, segurança (bloqueio por inatividade e política de senha), backup e formas de pagamento.
 5. **Unidades de medida** (Produtos › *Unidades…*, com a permissão Produtos): além das que vêm prontas (UN, KG, L,
    M, CX, PCT, FD, DZ), cadastre outras com sigla de até 6 letras ou números, descrição e "fracionada" (aceita
    quantidade com casas decimais). A sigla e "fracionada" só mudam, e a unidade só é excluída, enquanto nenhum produto
@@ -120,6 +120,24 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    gaveta. Cancelar a venda devolve o crédito usado e estorna o cashback (o saldo pode ficar negativo e é abatido
    pelos próximos créditos). O comprovante mostra o cashback gerado e o saldo. O relatório **R19 Saldos de crédito**
    lista quem tem saldo e o total devido aos clientes; **Configurações › Diagnóstico** confere os saldos.
+8. **Devoluções e trocas** (menu Devoluções, com a permissão Devoluções e trocas; no PDV, **F9 › Devolver itens…**,
+   Ctrl+D, para quem tem a permissão PDV, com liberação de quem tem Devoluções e trocas):
+   - localize a venda pelo número, pelo período (padrão: os últimos 30 dias) ou pelo cliente (nome ou CPF/CNPJ) e
+     clique em **Devolver itens…**;
+   - informe a quantidade de cada item (até o que foi vendido menos o já devolvido; inteira em unidade como UN) e
+     marque **Avariado** no item que não volta para a prateleira (ele entra e sai do estoque como perda, com o motivo
+     "Devolução nº X — avariado: …"); o valor é o proporcional do item, com os descontos, e a última devolução do item
+     leva o restante;
+   - escolha o motivo e a forma de reembolso: **Dinheiro** (sai da gaveta do caixa aberto neste terminal e aparece no
+     fechamento), **Vale-troca** (vira crédito do cliente; numa venda sem cliente, identifique ou cadastre na hora) ou
+     **Outro** (estorno feito fora do sistema, no cartão ou no PIX);
+   - o cashback da venda é estornado na proporção do valor devolvido; o comprovante de devolução mostra os itens, o
+     reembolso e, quando há cliente, o saldo de crédito;
+   - depois de **Configurações › Venda › Prazo de devolução** (padrão 30 dias; 0 = sempre), a devolução pede a
+     liberação de um supervisor. Venda com devolução não pode mais ser cancelada: para desfazê-la, devolva os itens
+     que faltam. Cliente anonimizado não recebe vale-troca; o saldo que sobrar dele o supervisor zera em **Clientes ›
+     Crédito › Ajustar…**;
+   - o relatório **R20 Devoluções** lista as devoluções do período, com os itens, o motivo e a forma de reembolso.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.

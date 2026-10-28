@@ -1,8 +1,9 @@
 package br.com.varesync.controller;
 
-import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.ComprovanteImpresso;
 import br.com.varesync.report.ComprovantePdf;
 import br.com.varesync.report.ImpressaoComprovante;
+import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -19,9 +20,11 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /**
- * Comprovante não fiscal em tela (texto de largura fixa), Imprimir na impressora padrão (F5) e "Salvar PDF…" (6.6).
+ * Comprovante não fiscal em tela (texto de largura fixa), Imprimir na impressora padrão (F5) e "Salvar PDF…" (6.6),
+ * da venda ou da devolução (F13.2).
  * Impressão e PDF rodam em {@link Task}:
  * na primeira vez o JasperReports compila o modelo.
  */
@@ -29,7 +32,7 @@ public class ComprovanteController {
 
     private final ComprovantePdf comprovantePdf;
     private final ImpressaoComprovante impressao;
-    private Comprovante comprovante;
+    private ComprovanteImpresso comprovante;
 
     @FXML private VBox raiz;
     @FXML private TextArea texto;
@@ -44,9 +47,17 @@ public class ComprovanteController {
         this.comprovantePdf = comprovantePdf;
     }
 
-    public void mostrar(Comprovante comprovanteVenda) {
-        this.comprovante = comprovanteVenda;
-        texto.setText(comprovanteVenda.texto());
+    /** Abre o comprovante (da venda ou da devolução) numa janela modal e espera ela fechar. */
+    public static void abrir(Window dona, ComprovanteImpresso comprovante, ComprovantePdf comprovantePdf,
+                             ImpressaoComprovante impressao) {
+        Janelas.abrirModal(dona, "/fxml/comprovante.fxml", comprovante.titulo(),
+                tipo -> new ComprovanteController(comprovantePdf, impressao),
+                (ComprovanteController c) -> c.mostrar(comprovante));
+    }
+
+    public void mostrar(ComprovanteImpresso exibido) {
+        this.comprovante = exibido;
+        texto.setText(exibido.texto());
         raiz.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.F5) {
                 e.consume();
@@ -88,7 +99,7 @@ public class ComprovanteController {
     private void salvarPdf() {
         FileChooser escolha = new FileChooser();
         escolha.setTitle("Salvar comprovante em PDF");
-        escolha.setInitialFileName("comprovante-venda-" + comprovante.vendaId() + ".pdf");
+        escolha.setInitialFileName(comprovante.nomeArquivo());
         escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
         File arquivo = escolha.showSaveDialog(raiz.getScene().getWindow());
         if (arquivo == null) {

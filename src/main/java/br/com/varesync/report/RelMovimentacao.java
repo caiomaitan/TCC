@@ -63,8 +63,8 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
 
     @Override
     public String descricao() {
-        return "Movimentos do estoque no período (vendas, cancelamentos, ajustes, perdas, inventários), com saldo "
-                + "após cada um e o valor a custo das entradas e saídas.";
+        return "Movimentos do estoque no período (vendas, cancelamentos, devoluções, ajustes, perdas, inventários), "
+                + "com saldo após cada um e o valor a custo das entradas e saídas.";
     }
 
     @Override
@@ -78,7 +78,7 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
         String sql = """
                 SELECT m.criado_em, m.produto_id, p.nome AS produto, p.unidade, um.fracionada, m.tipo, m.quantidade,
                        m.saldo_posterior, coalesce(m.custo_unitario, 0) AS custo, u.nome AS usuario,
-                       vi.venda_id, ii.inventario_id, ei.entrada_id, m.motivo
+                       vi.venda_id, ii.inventario_id, ei.entrada_id, m.motivo, di.devolucao_id
                   FROM movimento_estoque m
                   JOIN produto p                       ON p.id = m.produto_id
                   JOIN unidade_medida um               ON um.sigla = p.unidade
@@ -86,6 +86,7 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
                   LEFT JOIN venda_item vi              ON vi.id = m.venda_item_id
                   LEFT JOIN inventario_item ii         ON ii.id = m.inventario_item_id
                   LEFT JOIN entrada_mercadoria_item ei ON ei.id = m.entrada_item_id
+                  LEFT JOIN devolucao_item di          ON di.id = m.devolucao_item_id
                  WHERE m.criado_em >= ? AND m.criado_em < ?
                    AND (CAST(? AS BIGINT) IS NULL OR m.produto_id = ?)
                    AND (CAST(? AS VARCHAR) IS NULL OR m.tipo = ?)
@@ -104,7 +105,8 @@ public final class RelMovimentacao implements Relatorio<RelMovimentacao.Linha> {
                     MovimentoKardex kardex = new MovimentoKardex(0, null, TipoMovimento.valueOf(rs.getString("tipo")),
                             rs.getBigDecimal("quantidade"), null, rs.getBigDecimal("saldo_posterior"),
                             rs.getBigDecimal("custo"), rs.getString("usuario"), Jdbc.lerLong(rs, "venda_id"),
-                            Jdbc.lerLong(rs, "inventario_id"), Jdbc.lerLong(rs, "entrada_id"), rs.getString("motivo"));
+                            Jdbc.lerLong(rs, "inventario_id"), Jdbc.lerLong(rs, "entrada_id"), rs.getString("motivo"),
+                            Jdbc.lerLong(rs, "devolucao_id"));
                     linhas.add(new Linha(rs.getObject("criado_em", OffsetDateTime.class), rs.getLong("produto_id"),
                             rs.getString("produto"), rs.getString("unidade"), rs.getBoolean("fracionada"),
                             kardex.tipo(), kardex.quantidade(), kardex.saldoPosterior(), kardex.custoUnitario(),

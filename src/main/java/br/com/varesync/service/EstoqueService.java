@@ -87,7 +87,8 @@ public class EstoqueService {
         ValidacaoProduto.quantidade(quantidadeComSinal.abs(), "A quantidade", fracionada);
 
         return movimentoDAO.inserir(con, produtoId, tipo, quantidadeComSinal, custoOpcional,
-                origem.vendaItemId(), origem.inventarioItemId(), origem.entradaItemId(), motivoNormalizado,
+                origem.vendaItemId(), origem.inventarioItemId(), origem.entradaItemId(), origem.devolucaoItemId(),
+                motivoNormalizado,
                 sessao.usuarioId(), OffsetDateTime.now(clock));
     }
 

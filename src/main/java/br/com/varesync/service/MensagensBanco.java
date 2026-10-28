@@ -73,7 +73,14 @@ public final class MensagensBanco {
             Map.entry("ck_me_origem", "Informe o motivo do ajuste"),
             Map.entry("ux_me_venda_item", "Este item de venda já movimentou o estoque"),
             Map.entry("ux_me_inventario_item", "Este item de inventário já foi aplicado ao estoque"),
-            Map.entry("ux_me_entrada_item", "Este item de entrada já foi lançado no estoque"));
+            Map.entry("ux_me_entrada_item", "Este item de entrada já foi lançado no estoque"),
+            Map.entry("ux_me_devolucao_item", "Este item de devolução já movimentou o estoque"),
+            Map.entry("ck_dev_motivo", "Informe o motivo da devolução"),
+            Map.entry("ck_dev_valor", "O valor da devolução não pode ser negativo"),
+            Map.entry("ck_dev_caixa", "O reembolso em dinheiro exige o caixa aberto"),
+            Map.entry("ck_dev_cliente", "O vale-troca exige o cliente"),
+            Map.entry("ck_di_quantidade", "A quantidade devolvida deve ser maior que zero"),
+            Map.entry("ck_di_valores", "O valor e o custo devolvidos não podem ser negativos"));
 
     private MensagensBanco() {
     }

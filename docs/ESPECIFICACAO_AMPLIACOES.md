@@ -499,6 +499,9 @@ Testes de integração com duas conexões simultâneas:
   - grava CREDITO_DEVOLUCAO.
 - **Reembolso OUTRO:** estorno feito fora do sistema (cartão ou PIX); o sistema só registra.
 - **Cashback:** a devolução estorna o cashback da venda na proporção do valor devolvido: round(cashback × valor devolvido ÷ valor_total da venda, 2). Na devolução que completa a venda, estorna o restante.
+- **Cliente anonimizado:**
+  - a devolução de uma venda dele não reembolsa em crédito, só em dinheiro ou OUTRO: não há mais a quem dar o vale-troca;
+  - o supervisor pode fazer um AJUSTE no crédito de um cliente anonimizado, só para zerar o saldo e com motivo. Isso resolve o saldo que sobra quando uma venda dele é cancelada ou devolvida depois da anonimização (pendência registrada na F12).
 - **Cancelamento:** venda com devolução não pode mais ser cancelada; para desfazê-la por inteiro, devolvem-se todos os itens.
 - **Comprovante de devolução:** em tela, PDF e impressão, com o saldo do vale-troca quando houver.
 
@@ -531,6 +534,7 @@ Testes de integração com duas conexões simultâneas:
 - **Vale-troca:** aumenta o saldo do cliente e paga outra venda.
 - **Cashback:** venda de R$ 100,00 com cashback de R$ 1,00; devolver R$ 40,00 estorna R$ 0,40.
 - **Cancelamento:** venda com devolução não pode ser cancelada.
+- **Cliente anonimizado:** a devolução não oferece vale-troca, e o supervisor zera o saldo que sobrar com um ajuste; um ajuste que não zera o saldo é recusado.
 - **Consistência:** R01 e R05 continuam batendo; `vw_estoque_inconsistente` e `vw_cliente_credito_inconsistente` ficam vazias.
 
 ---

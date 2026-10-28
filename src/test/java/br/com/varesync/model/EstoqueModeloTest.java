@@ -14,7 +14,7 @@ class EstoqueModeloTest {
     private static MovimentoKardex movimento(Long venda, Long inventario, Long entrada, String motivo) {
         return new MovimentoKardex(1, OffsetDateTime.parse("2026-10-13T10:00:00-03:00"), TipoMovimento.VENDA,
                 BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, "Ana", venda, inventario, entrada,
-                motivo);
+                motivo, null);
     }
 
     @Test
@@ -24,6 +24,8 @@ class EstoqueModeloTest {
         assertThat(movimento(null, null, 9L, null).origem()).isEqualTo("Entrada nº 9");
         assertThat(movimento(null, null, null, "Avaria: embalagem").origem()).isEqualTo("Avaria: embalagem");
         assertThat(movimento(null, null, null, null).origem()).isEmpty();
+        assertThat(new MovimentoKardex(2, null, TipoMovimento.DEVOLUCAO_VENDA, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ONE, BigDecimal.ONE, "Ana", null, null, null, null, 2L).origem()).isEqualTo("Devolução nº 2");
     }
 
     @Test

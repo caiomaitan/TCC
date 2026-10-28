@@ -43,6 +43,12 @@ class ItemMenuTest {
         assertThat(ItemMenu.visiveis(atendente))
                 .containsExactly(ItemMenu.PAINEL, ItemMenu.PDV, ItemMenu.CAIXA, ItemMenu.CLIENTES);
         assertThat(ItemMenu.CLIENTES.fxml()).isEqualTo("/fxml/clientes.fxml");
+
+        // F13.4: Devoluções com a permissão DEVOLUCAO (no PDV, o F9 devolve com liberação).
+        Sessao trocas = sessao(false, EnumSet.of(Permissao.PDV, Permissao.DEVOLUCAO));
+        assertThat(ItemMenu.visiveis(trocas))
+                .containsExactly(ItemMenu.PAINEL, ItemMenu.PDV, ItemMenu.CAIXA, ItemMenu.DEVOLUCOES);
+        assertThat(ItemMenu.DEVOLUCOES.fxml()).isEqualTo("/fxml/devolucoes.fxml");
     }
 
     @Test

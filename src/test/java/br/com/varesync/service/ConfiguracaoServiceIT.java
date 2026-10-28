@@ -257,6 +257,18 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
                 .contains("cashback de desligado para ligado");
     }
 
+    /** F13.2: prazo de devolução de 0 a 365 dias, auditado. */
+    @Test
+    void prazoDeDevolucaoValidadoEAuditado() throws Exception {
+        Configuracoes c = configuracoes.carregar(admin);
+        assertThat(c.devolucaoPrazoDias()).isEqualTo(30);
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comDevolucaoPrazo(366)))
+                .hasMessage("O prazo de devolução deve estar entre 0 (sempre pede liberação) e 365 dias.");
+        assertThat(configuracoes.salvar(admin, c.comDevolucaoPrazo(7)))
+                .containsExactly("prazo de devolução de 30 dias para 7 dias");
+        assertThat(configuracoes.carregar(admin).devolucaoPrazoDias()).isEqualTo(7);
+    }
+
     @Test
     void politicaDeSenhaValeParaSenhasNovasETrocadasEAsAntigasContinuam() throws Exception {
         t.usuarios.criar(admin, "maria", "Maria", false, EnumSet.of(Permissao.PDV), "inicial1", "inicial1");

@@ -5,17 +5,18 @@ import java.time.OffsetDateTime;
 
 /**
  * Linha do kardex (6.4): data/hora, tipo, quantidade com sinal, saldo após, custo, usuário e o documento de origem.
- * Os ids de venda, inventário e entrada são os números dos documentos (não os ids dos itens).
+ * Os ids de venda, inventário, entrada e devolução são os números dos documentos (não os ids dos itens).
  */
 public record MovimentoKardex(long id, OffsetDateTime criadoEm, TipoMovimento tipo, BigDecimal quantidade,
                               BigDecimal saldoAnterior, BigDecimal saldoPosterior, BigDecimal custoUnitario,
-                              String usuarioNome, Long vendaId, Long inventarioId, Long entradaId, String motivo) {
+                              String usuarioNome, Long vendaId, Long inventarioId, Long entradaId, String motivo,
+                              Long devolucaoId) {
 
     public static final String SALDO_ANTERIOR = "Saldo anterior";
 
     /** Linha "Saldo anterior" do início do período (F10.4): sem tipo, quantidade nem custo; o saldo após é o saldo. */
     public static MovimentoKardex saldoAnterior(OffsetDateTime inicio, BigDecimal saldo) {
-        return new MovimentoKardex(0, inicio, null, null, saldo, saldo, null, "", null, null, null, null);
+        return new MovimentoKardex(0, inicio, null, null, saldo, saldo, null, "", null, null, null, null, null);
     }
 
     /** É a linha "Saldo anterior" (e não um movimento)? */
@@ -28,7 +29,7 @@ public record MovimentoKardex(long id, OffsetDateTime criadoEm, TipoMovimento ti
         return tipo == null ? SALDO_ANTERIOR : tipo.descricao();
     }
 
-    /** "Venda nº 123", "Inventário nº 4", "Entrada nº 9" ou o motivo do ajuste. */
+    /** "Venda nº 123", "Inventário nº 4", "Entrada nº 9", "Devolução nº 2" ou o motivo do ajuste. */
     public String origem() {
         if (vendaId != null) {
             return "Venda nº " + vendaId;
@@ -38,6 +39,9 @@ public record MovimentoKardex(long id, OffsetDateTime criadoEm, TipoMovimento ti
         }
         if (entradaId != null) {
             return "Entrada nº " + entradaId;
+        }
+        if (devolucaoId != null) {
+            return "Devolução nº " + devolucaoId;
         }
         return motivo == null ? "" : motivo;
     }

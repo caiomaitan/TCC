@@ -262,6 +262,26 @@ public class AcessoService implements ConferenciaAcesso {
     }
 
     /**
+     * Liberação que só um supervisor pode dar (devolução fora do prazo, F13.2), registrada para a permissão
+     * {@code permissao}. Mesma conferência de senha e bloqueio de {@link #liberar}.
+     */
+    public Liberacao liberarSupervisor(String loginDigitado, String senha, Permissao permissao) {
+        String login = Textos.normalizarLogin(loginDigitado);
+        if (login.isEmpty() || senha == null || senha.isEmpty()) {
+            throw new NegocioException("Informe o usuário e a senha do supervisor que vai liberar.");
+        }
+        Conferencia conferencia = transacao.executar(con -> conferir(con, login, senha, "Liberação"));
+        Usuario autorizador = conferencia.usuario();
+        if (autorizador == null) {
+            throw new NegocioException(conferencia.recusa());
+        }
+        if (!autorizador.supervisor()) {
+            throw new NegocioException("Esta liberação precisa de um supervisor.");
+        }
+        return new Liberacao(autorizador.id(), autorizador.login(), autorizador.nome(), permissao);
+    }
+
+    /**
      * Confere login e senha, contando falhas e bloqueando na quinta seguida.
      * Grava falhas e auditoria na transação recebida; não lança exceção na recusa, para que essa gravação persista.
      */

@@ -1,9 +1,10 @@
 package br.com.varesync.controller;
 
-import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.ComprovanteImpresso;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.VendaResumo;
 import br.com.varesync.service.AcessoService;
+import br.com.varesync.service.DevolucaoService;
 import br.com.varesync.service.Liberacao;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
@@ -28,11 +29,12 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /**
- * Vendas da sessão de caixa aberta (F9, 6.6): ver/reimprimir o comprovante e cancelar a venda finalizada, com
- * CANCELAR_VENDA ou a liberação de supervisor e motivo obrigatório. A venda cancelada sai do faturamento e do dinheiro
- * esperado, e os itens voltam ao estoque.
+ * Vendas da sessão de caixa aberta (F9, 6.6): ver/reimprimir o comprovante, cancelar a venda finalizada, com
+ * CANCELAR_VENDA ou a liberação de supervisor e motivo obrigatório, e devolver itens (F13.4). A venda cancelada sai do
+ * faturamento e do dinheiro esperado, e os itens voltam ao estoque; venda com devolução não pode mais ser cancelada.
  */
 public class VendasSessaoController {
 
@@ -41,7 +43,14 @@ public class VendasSessaoController {
     private final VendaService vendaService;
     private final AcessoService acessoService;
     private final Sessao sessao;
-    private final Consumer<Comprovante> mostrarComprovante;
+    private final Consumer<ComprovanteImpresso> mostrarComprovante;
+    private final Devolver devolverItens;
+
+    /** Abre a devolução da venda sobre a janela dona; devolve a devolução feita, ou vazio. */
+    @FunctionalInterface
+    public interface Devolver {
+        Optional<DevolucaoService.DevolucaoRegistrada> devolver(Window dona, long vendaId);
+    }
 
     @FXML private VBox raiz;
     @FXML private Label titulo;
@@ -54,14 +63,17 @@ public class VendasSessaoController {
     @FXML private TableColumn<VendaResumo, String> colunaSituacao;
     @FXML private Button botaoComprovante;
     @FXML private Button botaoCancelar;
+    @FXML private Button botaoDevolver;
     @FXML private Label mensagem;
 
     public VendasSessaoController(VendaService vendaService, AcessoService acessoService, Sessao sessao,
-                                  Consumer<Comprovante> mostrarComprovante) {
+                                  Consumer<ComprovanteImpresso> mostrarComprovante,
+                                  Devolver devolverItens) {
         this.vendaService = vendaService;
         this.acessoService = acessoService;
         this.sessao = sessao;
         this.mostrarComprovante = mostrarComprovante;
+        this.devolverItens = devolverItens;
     }
 
     @FXML
@@ -92,6 +104,7 @@ public class VendasSessaoController {
         });
         botaoComprovante.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
         botaoCancelar.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
+        botaoDevolver.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
         tabelaVendas.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (e.getCode() == KeyCode.ENTER) {
                 e.consume();
@@ -99,6 +112,9 @@ public class VendasSessaoController {
             } else if (e.getCode() == KeyCode.DELETE) {
                 e.consume();
                 cancelarVenda();
+            } else if (e.getCode() == KeyCode.D && e.isControlDown()) {
+                e.consume();
+                devolver();
             }
         });
         carregar();
@@ -161,6 +177,27 @@ public class VendasSessaoController {
             }
         } catch (NegocioException e) {
             Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
+    /** Devolver itens da venda selecionada (F13.4): mesma devolução da tela Devoluções. */
+    @FXML
+    private void devolver() {
+        VendaResumo venda = tabelaVendas.getSelectionModel().getSelectedItem();
+        if (venda == null) {
+            return;
+        }
+        if (venda.cancelada()) {
+            Mensagem.erro(mensagem, "A venda nº " + venda.id() + " está cancelada: só vendas finalizadas têm "
+                    + "devolução.");
+            return;
+        }
+        try {
+            devolverItens.devolver(raiz.getScene().getWindow(), venda.id()).ifPresent(d -> Mensagem.sucesso(mensagem,
+                    "Devolução nº " + d.id() + " da venda nº " + venda.id() + " registrada: "
+                            + Formatos.moeda(d.valor()) + "."));
+        } catch (RuntimeException e) {
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
         }
     }
 

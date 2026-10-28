@@ -7,6 +7,7 @@ import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.DemoDAO;
+import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
@@ -27,6 +28,7 @@ import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.CreditoService;
+import br.com.varesync.service.DevolucaoService;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.FornecedorService;
@@ -59,7 +61,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
                        ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
                        ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes,
-                       CreditoService credito) {
+                       CreditoService credito, DevolucaoService devolucoes) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -108,7 +110,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
                 new UnidadeService(transacao, new UnidadeMedidaDAO()),
                 new ClienteService(transacao, new ClienteDAO(), creditoDAO, configuracaoDAO, auditoria, clock),
-                credito);
+                credito, new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), creditoDAO, usuarioDAO,
+                        configuracaoDAO, estoque, caixa, credito, auditoria, clock));
     }
 
     /**

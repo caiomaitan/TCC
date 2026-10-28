@@ -175,6 +175,18 @@ public class VendaDAO {
         }
     }
 
+    /** A venda tem devolução (F13)? Com devolução, ela não pode mais ser cancelada. */
+    public boolean temDevolucao(Connection con, long vendaId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT EXISTS (SELECT 1 FROM devolucao WHERE venda_id = ?)")) {
+            ps.setLong(1, vendaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getBoolean(1);
+            }
+        }
+    }
+
     /** Itens não cancelados da venda, na ordem da sequência. */
     public List<ItemVendido> itensVendidos(Connection con, long vendaId) throws SQLException {
         String sql = """

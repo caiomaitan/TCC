@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Devolver itens de uma venda (F13.2): quantidade e avariado por item, motivo, forma de reembolso e, no vale-troca
+     de uma venda sem cliente, o cliente (F11). F10 registra; Esc fecha sem gravar. -->
+<VBox fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.DevolucaoController"
+      spacing="10" styleClass="tela-cadastro" prefWidth="900" prefHeight="620">
+    <padding><Insets top="16" right="16" bottom="16" left="16"/></padding>
+
+    <Label fx:id="titulo" styleClass="titulo"/>
+    <Label fx:id="cabecalho" wrapText="true" minHeight="-Infinity"/>
+    <Label fx:id="aviso" wrapText="true" minHeight="-Infinity" styleClass="mensagem-erro" managed="false" visible="false"/>
+
+    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
+        <GridPane fx:id="gradeItens" hgap="12" vgap="6" styleClass="painel-formulario">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+        </GridPane>
+    </ScrollPane>
+
+    <GridPane hgap="10" vgap="8">
+        <Label text="Motivo *" GridPane.rowIndex="0" GridPane.columnIndex="0" minWidth="150"/>
+        <ComboBox fx:id="campoMotivo" editable="true" prefWidth="420" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+        <Label text="Reembolso *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <ComboBox fx:id="campoForma" prefWidth="420" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        <Label text="Cliente" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <HBox spacing="10" alignment="CENTER_LEFT" GridPane.rowIndex="2" GridPane.columnIndex="1">
+            <Label fx:id="cliente" wrapText="true"/>
+            <Button fx:id="botaoCliente" text="Identificar cliente… (F11)" onAction="#identificarCliente"/>
+        </HBox>
+        <Label text="Observação" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoObservacao" prefWidth="420" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Total a devolver:"/>
+        <Label fx:id="total" styleClass="valor-destaque"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="botaoRegistrar" text="Registrar devolução (F10)" onAction="#registrar" defaultButton="true"/>
+        <Button text="Fechar (Esc)" onAction="#fechar" cancelButton="true"/>
+    </HBox>
+    <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity"/>
+</VBox>

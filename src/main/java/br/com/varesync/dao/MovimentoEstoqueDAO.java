@@ -24,11 +24,13 @@ public class MovimentoEstoqueDAO {
      */
     public long inserir(Connection con, long produtoId, TipoMovimento tipo, BigDecimal quantidade,
                         BigDecimal custoUnitario, Long vendaItemId, Long inventarioItemId, Long entradaItemId,
-                        String motivo, long usuarioId, OffsetDateTime criadoEm) throws SQLException {
+                        Long devolucaoItemId, String motivo, long usuarioId, OffsetDateTime criadoEm)
+            throws SQLException {
         String sql = """
                 INSERT INTO movimento_estoque (produto_id, tipo, quantidade, custo_unitario, venda_item_id,
-                                               inventario_item_id, entrada_item_id, motivo, usuario_id, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               inventario_item_id, entrada_item_id, devolucao_item_id, motivo,
+                                               usuario_id, criado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -43,9 +45,10 @@ public class MovimentoEstoqueDAO {
             Jdbc.definirLong(ps, 5, vendaItemId);
             Jdbc.definirLong(ps, 6, inventarioItemId);
             Jdbc.definirLong(ps, 7, entradaItemId);
-            ps.setString(8, motivo);
-            ps.setLong(9, usuarioId);
-            ps.setObject(10, criadoEm);
+            Jdbc.definirLong(ps, 8, devolucaoItemId);
+            ps.setString(9, motivo);
+            ps.setLong(10, usuarioId);
+            ps.setObject(11, criadoEm);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -55,19 +58,20 @@ public class MovimentoEstoqueDAO {
 
     /**
      * Kardex de um produto no período {@code [inicio, fimExclusivo)}, do mais antigo para o mais recente,
-     * com o número do documento de origem (venda, inventário ou entrada).
+     * com o número do documento de origem (venda, inventário, entrada ou devolução).
      */
     public List<MovimentoKardex> listar(Connection con, long produtoId, OffsetDateTime inicio,
                                         OffsetDateTime fimExclusivo) throws SQLException {
         String sql = """
                 SELECT m.id, m.criado_em, m.tipo, m.quantidade, m.saldo_anterior, m.saldo_posterior,
                        m.custo_unitario, u.nome AS usuario_nome, vi.venda_id, ii.inventario_id, ei.entrada_id,
-                       m.motivo
+                       m.motivo, di.devolucao_id
                   FROM movimento_estoque m
                   JOIN usuario u                       ON u.id = m.usuario_id
                   LEFT JOIN venda_item vi              ON vi.id = m.venda_item_id
                   LEFT JOIN inventario_item ii         ON ii.id = m.inventario_item_id
                   LEFT JOIN entrada_mercadoria_item ei ON ei.id = m.entrada_item_id
+                  LEFT JOIN devolucao_item di          ON di.id = m.devolucao_item_id
                  WHERE m.produto_id = ?
                    AND m.criado_em >= ?
                    AND m.criado_em < ?
@@ -92,7 +96,8 @@ public class MovimentoEstoqueDAO {
                             Jdbc.lerLong(rs, "venda_id"),
                             Jdbc.lerLong(rs, "inventario_id"),
                             Jdbc.lerLong(rs, "entrada_id"),
-                            rs.getString("motivo")));
+                            rs.getString("motivo"),
+                            Jdbc.lerLong(rs, "devolucao_id")));
                 }
             }
         }

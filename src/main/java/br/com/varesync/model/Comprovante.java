@@ -19,7 +19,7 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
                           StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento,
                           List<Item> itens, BigDecimal valorBruto, BigDecimal descontoItens,
                           BigDecimal descontoVenda, BigDecimal total, List<Pagamento> pagamentos, BigDecimal troco,
-                          String rodape, Cliente cliente, Credito credito) {
+                          String rodape, Cliente cliente, Credito credito) implements ComprovanteImpresso {
 
     public static final String NAO_FISCAL = "NÃO É DOCUMENTO FISCAL";
     /** Largura do comprovante em tela, como numa impressora de 80 mm. */
@@ -57,22 +57,21 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         return status == StatusVenda.CANCELADA;
     }
 
+    @Override
+    public String titulo() {
+        return "Comprovante da venda nº " + vendaId;
+    }
+
+    @Override
+    public String nomeArquivo() {
+        return "comprovante-venda-" + vendaId + ".pdf";
+    }
+
     /** Linhas na ordem de impressão. */
+    @Override
     public List<LinhaComprovante> linhas() {
         List<LinhaComprovante> linhas = new ArrayList<>();
-        linhas.add(LinhaComprovante.centroNegrito(loja.nome()));
-        if (!Textos.vazio(loja.documento())) {
-            linhas.add(LinhaComprovante.centro("CNPJ/CPF: " + loja.documento()));
-        }
-        if (!Textos.vazio(loja.endereco())) {
-            linhas.add(LinhaComprovante.centro(loja.endereco()));
-        }
-        if (!Textos.vazio(loja.telefone())) {
-            linhas.add(LinhaComprovante.centro("Telefone: " + loja.telefone()));
-        }
-        linhas.add(LinhaComprovante.separador());
-        linhas.add(LinhaComprovante.centroNegrito(NAO_FISCAL));
-        linhas.add(LinhaComprovante.separador());
+        cabecalho(linhas, loja);
         linhas.add(LinhaComprovante.negrito("Venda nº " + vendaId, Formatos.dataHora(dataHora)));
         linhas.add(LinhaComprovante.normal("Operador: " + operador, "Terminal: " + terminal));
         if (cliente != null) {
@@ -131,13 +130,21 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         return linhas;
     }
 
-    /** Texto de largura fixa para a tela (fonte monoespaçada). */
-    public String texto() {
-        StringBuilder texto = new StringBuilder();
-        for (LinhaComprovante linha : linhas()) {
-            texto.append(formatar(linha, COLUNAS)).append('\n');
+    /** Dados da loja e "NÃO É DOCUMENTO FISCAL", no alto de todo comprovante (também o da devolução). */
+    static void cabecalho(List<LinhaComprovante> linhas, Loja loja) {
+        linhas.add(LinhaComprovante.centroNegrito(loja.nome()));
+        if (!Textos.vazio(loja.documento())) {
+            linhas.add(LinhaComprovante.centro("CNPJ/CPF: " + loja.documento()));
         }
-        return texto.toString();
+        if (!Textos.vazio(loja.endereco())) {
+            linhas.add(LinhaComprovante.centro(loja.endereco()));
+        }
+        if (!Textos.vazio(loja.telefone())) {
+            linhas.add(LinhaComprovante.centro("Telefone: " + loja.telefone()));
+        }
+        linhas.add(LinhaComprovante.separador());
+        linhas.add(LinhaComprovante.centroNegrito(NAO_FISCAL));
+        linhas.add(LinhaComprovante.separador());
     }
 
     static String formatar(LinhaComprovante linha, int colunas) {

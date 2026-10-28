@@ -3,6 +3,7 @@ package br.com.varesync.ui;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.util.CpfCnpj;
+import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import java.math.BigDecimal;
 import java.util.List;
@@ -178,13 +179,18 @@ public final class DialogosCliente {
      * @param ajustar (valor, motivo) → novo saldo; {@code NegocioException} aparece no diálogo
      * @return o novo saldo, ou vazio se cancelado
      */
-    public static Optional<BigDecimal> ajustarCredito(long id, String nome, BigDecimal saldo,
+    public static Optional<BigDecimal> ajustarCredito(long id, String nome, BigDecimal saldo, boolean anonimizado,
                                                       BiFunction<BigDecimal, String, BigDecimal> ajustar) {
         DialogoFormulario formulario = new DialogoFormulario("Ajustar o crédito do cliente nº " + id,
-                nome + " tem saldo de " + Formatos.moeda(saldo) + ". Valor positivo credita e negativo debita (ex.: "
-                        + "-5,00). O ajuste fica no extrato e na auditoria.", "Ajustar");
+                nome + " tem saldo de " + Formatos.moeda(saldo) + ". " + (anonimizado
+                        ? "O cliente foi anonimizado (LGPD): o ajuste só pode zerar o saldo."
+                        : "Valor positivo credita e negativo debita (ex.: -5,00).")
+                        + " O ajuste fica no extrato e na auditoria.", "Ajustar");
         TextField valor = new TextField();
         valor.setPromptText("Ex.: 5,00 ou -5,00");
+        if (anonimizado) {
+            valor.setText(Formatos.numero(saldo.negate(), Dinheiro.ESCALA_DINHEIRO));
+        }
         TextField motivo = new TextField();
         formulario.adicionarCampo("Valor (R$) *", valor);
         formulario.adicionarCampo("Motivo *", motivo);

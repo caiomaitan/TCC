@@ -33,7 +33,7 @@ class FechamentoCaixaExportacaoTest {
                 FECHADO.minusHours(8), new BigDecimal("100.00"), "José Santos", FECHADO, new BigDecimal("56.00"),
                 new BigDecimal("55.00"), new BigDecimal("-1.00"));
         CaixaResumo resumo = new CaixaResumo(12, new BigDecimal("100.00"), BigDecimal.ZERO, new BigDecimal("50.00"),
-                new BigDecimal("6.00"), 1, new BigDecimal("16.00"), 1, new BigDecimal("56.00"));
+                new BigDecimal("6.00"), 1, new BigDecimal("16.00"), 1, new BigDecimal("56.00"), BigDecimal.ZERO);
         return new RelatorioFechamento(sessao, resumo,
                 List.of(new VendasPorForma("Dinheiro", 1, new BigDecimal("6.00")),
                         new VendasPorForma("PIX", 1, new BigDecimal("10.00"))),

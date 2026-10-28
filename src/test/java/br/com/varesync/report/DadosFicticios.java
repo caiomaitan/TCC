@@ -6,6 +6,7 @@ import br.com.varesync.model.HistoricoCliente;
 import br.com.varesync.model.InventarioResumo;
 import br.com.varesync.model.ItemDivergencia;
 import br.com.varesync.model.MovimentoCredito;
+import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.ResultadoInventario;
 import br.com.varesync.model.StatusInventario;
@@ -231,9 +232,19 @@ final class DadosFicticios {
                 new RelSaldosCredito.Linha(9, "João Pereira", null, false, d("-0.30"), EMISSAO.minusDays(20))));
     }
 
+    /** R20: uma devolução em dinheiro com item avariado e liberação, outra em vale-troca. */
+    static ResultadoRelatorio<RelDevolucoes.Linha> r20() {
+        return resultado(new RelDevolucoes(), Filtros.vazios().comPeriodo(FILTROS.periodo()), List.of(
+                new RelDevolucoes.Linha(EMISSAO.minusDays(3), 4, 1201, "Maria Oliveira", "Maria da Silva (***.982.247-**)",
+                        "2 UN x Refrigerante cola 2 L (avariado); 0,250 KG x Queijo minas", "Defeito",
+                        FormaReembolso.DINHEIRO, d("14.97")),
+                new RelDevolucoes.Linha(EMISSAO.minusDays(1), 5, 1250, "José Santos", "", "1 UN x Arroz 5 kg",
+                        "Arrependimento", FormaReembolso.CREDITO_CLIENTE, d("24.90"))));
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
                 r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
-                r19(), dadosCliente());
+                r19(), r20(), dadosCliente());
     }
 }

@@ -81,6 +81,7 @@ public final class FechamentoCaixaExportacao {
         par(linhas, "(+) Vendas em dinheiro", moeda(resumo.vendasDinheiro(), csv));
         par(linhas, "(+) Suprimentos", moeda(resumo.suprimentos(), csv));
         par(linhas, "(−) Sangrias", moeda(resumo.sangrias(), csv));
+        par(linhas, "(−) Devoluções em dinheiro", moeda(resumo.devolucoesDinheiro(), csv));
         par(linhas, "(=) Dinheiro esperado", moeda(s.valorEsperado(), csv));
         par(linhas, "Dinheiro contado", moeda(s.valorContado(), csv));
         if (s.valorContado() != null && s.valorEsperado() != null) {

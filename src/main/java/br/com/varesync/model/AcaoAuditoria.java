@@ -32,7 +32,8 @@ public enum AcaoAuditoria {
     DADOS_DEMO_GERADOS("Dados de demonstração"),
     CLIENTE_DADOS_EXPORTADOS("Dados do cliente exportados (LGPD)"),
     CLIENTE_ANONIMIZADO("Cliente anonimizado (LGPD)"),
-    CREDITO_AJUSTADO("Crédito do cliente ajustado");
+    CREDITO_AJUSTADO("Crédito do cliente ajustado"),
+    DEVOLUCAO_REGISTRADA("Devolução de venda");
 
     private final String rotulo;
 

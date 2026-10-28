@@ -111,6 +111,20 @@ public final class Sessao {
     }
 
     /**
+     * Rotina que aceita qualquer uma de duas permissões (ex.: identificar o cliente na venda, PDV, ou no vale-troca da
+     * devolução, DEVOLUCAO). Sem nenhuma, a mensagem cita a primeira.
+     *
+     * @return a sessão conferida com o banco
+     */
+    public Sessao exigirUma(Permissao primeira, Permissao segunda) {
+        Sessao atual = conferida();
+        if (!atual.pode(segunda)) {
+            atual.exigirNaSessao(primeira);
+        }
+        return atual;
+    }
+
+    /**
      * Ação que exige a permissão ou a liberação de quem a tem (6.2): sangria, cancelamento, desconto acima do limite.
      * A liberação só vale se quem liberou continua ativo e com a permissão (F10.1), como {@code AcessoService.liberar}
      * conferiu ao concedê-la.

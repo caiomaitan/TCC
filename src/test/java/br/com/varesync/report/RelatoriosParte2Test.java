@@ -190,7 +190,18 @@ class RelatoriosParte2Test {
     void catalogoTemOsRelatoriosNaOrdemDosCodigos() {
         // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
-                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19");
+                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19", "R20");
+    }
+
+    @Test
+    void r20DevolucoesComItensFormaETotal() {
+        ResultadoRelatorio<RelDevolucoes.Linha> r20 = DadosFicticios.r20();
+        assertThat(r20.titulo()).isEqualTo("R20 — Devoluções");
+        assertThat(r20.colunas()).extracting(Coluna::titulo).containsExactly("Data/hora", "Devolução", "Venda",
+                "Registrada por", "Cliente", "Itens", "Motivo", "Reembolso", "Valor");
+        assertThat(r20.colunas().get(2).formatar(r20.linhas().get(0))).isEqualTo("1201");
+        assertThat(r20.colunas().get(7).formatar(r20.linhas().get(1))).isEqualTo("Vale-troca");
+        assertThat(r20.totais()).endsWith("R$ 39,87");
     }
 
     @Test

@@ -2,7 +2,7 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ClienteVenda;
-import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.ComprovanteImpresso;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
@@ -14,6 +14,7 @@ import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.Carrinho;
 import br.com.varesync.service.ClienteService;
+import br.com.varesync.service.DevolucaoService;
 import br.com.varesync.service.EntradaPdv;
 import br.com.varesync.service.ItemCarrinho;
 import br.com.varesync.service.Liberacao;
@@ -81,6 +82,7 @@ public class PdvController {
 
     private final VendaService vendaService;
     private final ClienteService clienteService;
+    private final DevolucaoService devolucaoService;
     private final CaixaService caixaService;
     private final AcessoService acessoService;
     private final ComprovantePdf comprovantePdf;
@@ -115,11 +117,12 @@ public class PdvController {
     @FXML private Label mensagem;
     @FXML private TextField entrada;
 
-    public PdvController(VendaService vendaService, ClienteService clienteService, CaixaService caixaService,
-                         AcessoService acessoService, ComprovantePdf comprovantePdf, ImpressaoComprovante impressao,
-                         FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
+    public PdvController(VendaService vendaService, ClienteService clienteService, DevolucaoService devolucaoService,
+                         CaixaService caixaService, AcessoService acessoService, ComprovantePdf comprovantePdf,
+                         ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
         this.vendaService = vendaService;
         this.clienteService = clienteService;
+        this.devolucaoService = devolucaoService;
         this.caixaService = caixaService;
         this.acessoService = acessoService;
         this.comprovantePdf = comprovantePdf;
@@ -507,16 +510,34 @@ public class PdvController {
         }
     }
 
-    private void mostrarComprovante(Comprovante comprovante) {
-        Janelas.abrirModal(janela, "/fxml/comprovante.fxml", "Comprovante da venda nº " + comprovante.vendaId(),
-                tipo -> new ComprovanteController(comprovantePdf, impressao),
-                (ComprovanteController c) -> c.mostrar(comprovante));
+    private void mostrarComprovante(ComprovanteImpresso comprovante) {
+        ComprovanteController.abrir(janela, comprovante, comprovantePdf, impressao);
     }
 
     private void vendasDaSessao() {
         Janelas.abrirModal(janela, "/fxml/vendas-sessao.fxml", "Vendas da sessão",
-                tipo -> new VendasSessaoController(vendaService, acessoService, sessao, this::mostrarComprovante),
+                tipo -> new VendasSessaoController(vendaService, acessoService, sessao, this::mostrarComprovante,
+                        this::devolverItens),
                 (VendasSessaoController c) -> { });
+    }
+
+    /**
+     * "Devolver itens" do F9 (F13.4): a mesma devolução da tela Devoluções, aberta sobre a janela das vendas da
+     * sessão.
+     *
+     * @return a devolução registrada, ou vazio
+     */
+    private Optional<DevolucaoService.DevolucaoRegistrada> devolverItens(Window dona, long vendaId) {
+        Optional<DevolucaoService.DevolucaoRegistrada> feita = DevolucaoController.abrir(dona, devolucaoService,
+                clienteService, acessoService, sessao, vendaId);
+        feita.ifPresent(d -> {
+            atualizarTela();
+            if (Dialogos.confirmar(dona, "Devolução nº " + d.id() + " registrada: " + Formatos.moeda(d.valor())
+                    + " em " + d.comprovante().forma().rotulo().toLowerCase() + ". Mostrar o comprovante?")) {
+                ComprovanteController.abrir(dona, d.comprovante(), comprovantePdf, impressao);
+            }
+        });
+        return feita;
     }
 
     // ----- Cliente (F11) -----

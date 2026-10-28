@@ -60,6 +60,9 @@ class GeradorDemoIT extends IntegracaoBase {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeradorDemoIT.class);
     private static final Clock HOJE = Clock.fixed(Instant.parse("2026-10-17T15:00:00Z"), ZoneId.systemDefault());
+    /** Relatórios que os dados de demonstração ainda não alimentam: as devoluções (R20) entram no gerador da parte B
+     * da F13. O tempo deles é medido do mesmo jeito. */
+    private static final Set<String> SEM_DADOS_AINDA = Set.of("R20");
 
     private static AcessoTeste t;
     private static Sessao admin;
@@ -389,7 +392,9 @@ class GeradorDemoIT extends IntegracaoBase {
             long ms = (System.nanoTime() - inicio) / 1_000_000;
             LOG.info("{}: {} linhas em {} ms", relatorio.codigo(), r.linhas().size(), ms);
             assertThat(ms).as(relatorio.titulo()).isLessThan(3000);
-            assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            if (!SEM_DADOS_AINDA.contains(relatorio.codigo())) {
+                assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            }
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
     }

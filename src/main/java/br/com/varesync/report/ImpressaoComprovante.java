@@ -1,6 +1,6 @@
 package br.com.varesync.report;
 
-import br.com.varesync.model.Comprovante;
+import br.com.varesync.model.ComprovanteImpresso;
 import br.com.varesync.service.ErroInesperadoException;
 import br.com.varesync.service.NegocioException;
 import java.util.function.Supplier;
@@ -43,7 +43,7 @@ public class ImpressaoComprovante {
      * @return o nome da impressora usada
      * @throws NegocioException sem impressora padrão no sistema
      */
-    public String imprimir(Comprovante comprovante) {
+    public String imprimir(ComprovanteImpresso comprovante) {
         PrintService impressora = impressoraPadrao.get();
         if (impressora == null) {
             throw new NegocioException("Nenhuma impressora padrão está configurada no Windows. Defina uma em "

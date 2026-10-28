@@ -485,3 +485,8 @@
     -fx-padding: 28 32 24 32;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 18, 0, 0, 4);
 }
+
+/* Devoluções (F13): cabeçalho da grade de itens */
+.cabecalho-grade {
+    -fx-font-weight: bold;
+}

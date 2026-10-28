@@ -10,7 +10,8 @@
 <?import javafx.scene.layout.VBox?>
 
 <!-- Vendas da sessão de caixa aberta (F9, 6.6): reimprimir o comprovante ou cancelar a venda (CANCELAR_VENDA ou
-     liberação de supervisor, motivo obrigatório). Enter abre o comprovante; Delete cancela; Esc fecha. -->
+     liberação de supervisor, motivo obrigatório) ou devolver itens (F13.4). Enter abre o comprovante; Delete
+     cancela; Ctrl+D devolve itens; Esc fecha. -->
 <VBox fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.VendasSessaoController"
       spacing="10" styleClass="tela-cadastro" prefWidth="760" prefHeight="480">
@@ -32,6 +33,7 @@
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Button fx:id="botaoComprovante" text="Ver comprovante (Enter)" onAction="#verComprovante"/>
         <Button fx:id="botaoCancelar" text="Cancelar venda… (Delete)" onAction="#cancelarVenda"/>
+        <Button fx:id="botaoDevolver" text="Devolver itens… (Ctrl+D)" onAction="#devolver"/>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Fechar (Esc)" onAction="#fechar" cancelButton="true"/>
     </HBox>

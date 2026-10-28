@@ -46,6 +46,7 @@ public class FechamentoCaixaController {
     @FXML private Label vendasDinheiro;
     @FXML private Label suprimentos;
     @FXML private Label sangrias;
+    @FXML private Label devolucoes;
     @FXML private Label esperado;
     @FXML private Label contado;
     @FXML private Label diferenca;
@@ -100,6 +101,7 @@ public class FechamentoCaixaController {
         vendasDinheiro.setText(Formatos.moeda(resumo.vendasDinheiro()));
         suprimentos.setText(Formatos.moeda(resumo.suprimentos()));
         sangrias.setText(Formatos.moeda(resumo.sangrias()));
+        devolucoes.setText(Formatos.moeda(resumo.devolucoesDinheiro()));
         esperado.setText(Formatos.moeda(sessao.valorEsperado()));
         contado.setText(Formatos.moeda(sessao.valorContado()));
         diferenca.setText(relatorio.situacao());

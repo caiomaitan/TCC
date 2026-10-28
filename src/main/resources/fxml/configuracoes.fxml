@@ -65,6 +65,11 @@
                 </HBox>
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Acima deste percentual da venda, o desconto pede a liberação de quem tem a permissão &quot;Desconto acima do limite&quot;."/>
                 <CheckBox fx:id="campoCancelarItem" text="Cancelar item no PDV pede liberação de supervisor"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Prazo de devolução (dias)" minWidth="230"/>
+                    <TextField fx:id="campoPrazoDevolucao" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Depois deste prazo, contado da data da venda, a devolução pede a liberação de um supervisor (0 = sempre pede)."/>
             </VBox>
         </Tab>
         <Tab fx:id="abaRelatorios" text="Relatórios">

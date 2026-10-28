@@ -11,7 +11,8 @@ public enum TipoMovimento {
     AJUSTE_ENTRADA("Ajuste de entrada", 1),
     AJUSTE_SAIDA("Ajuste de saída", -1),
     PERDA("Perda", -1),
-    INVENTARIO("Inventário", 0);
+    INVENTARIO("Inventário", 0),
+    DEVOLUCAO_VENDA("Devolução de venda", 1);
 
     private final String descricao;
     /** 1 = só entra, −1 = só sai, 0 = qualquer sinal (diferente de zero). */
