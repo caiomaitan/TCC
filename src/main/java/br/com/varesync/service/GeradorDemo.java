@@ -9,11 +9,14 @@ import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.DadosCliente;
+import br.com.varesync.model.DadosDevolucao;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.DadosFornecedor;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamento;
+import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.ItemContagem;
+import br.com.varesync.model.ItemDevolucao;
 import br.com.varesync.model.MotivoPerda;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Produto;
@@ -22,6 +25,7 @@ import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.model.VendaDevolucao;
 import br.com.varesync.service.CatalogoDemo.FornecedorDemo;
 import br.com.varesync.service.CatalogoDemo.ItemCatalogo;
 import br.com.varesync.util.Dinheiro;
@@ -57,7 +61,8 @@ import java.util.stream.Collectors;
  * <p>Primeiro o gerador planeja tudo em memória (vendas, itens, perdas e, desde a fase 7, as compras); a demanda
  * planejada define o estoque inicial de cada produto e a quantidade de cada entrada semanal dos fornecedores (a
  * demanda dos 7 dias seguintes, com o custo variando um pouco para cima), para que o saldo não fique negativo.
- * Depois executa o plano. Como cada service grava na própria
+ * Depois executa o plano. As devoluções (F13: cerca de 0,5% dos itens) são sorteadas depois de cada venda, com uma
+ * semente própria, e feitas de 1 a 5 dias depois dela, com o caixa do dia aberto. Como cada service grava na própria
  * transação, uma falha no meio deixa o que já foi gravado; nesse caso, o banco deve ser recriado (README).
  */
 public class GeradorDemo {
@@ -83,7 +88,23 @@ public class GeradorDemo {
 
     public record Resultado(List<UsuarioDemo> usuarios, int produtos, int vendas, int vendasCanceladas,
                             int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
-                            int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito) {
+                            int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
+                            int devolucoes) {
+    }
+
+    /** Itens devolvidos, por mil itens vendidos (F13.4: cerca de 0,5%). */
+    static final int POR_MIL_ITENS_DEVOLVIDOS = 5;
+    /** A devolução acontece de 1 a este número de dias depois da venda (dentro do prazo de 30 dias). */
+    static final int DIAS_ATE_DEVOLVER = 5;
+    private static final List<String> MOTIVOS_DEVOLUCAO = List.of("Produto com defeito", "Cliente desistiu",
+            "Produto errado", "Embalagem violada", "Comprou a mais");
+
+    /**
+     * Devolução sorteada depois de uma venda: os itens (posição na venda), quais voltam avariados, a forma pedida e o
+     * motivo. Dinheiro acima do esperado do caixa vira {@code OUTRO}; vale-troca só em venda com cliente.
+     */
+    private record DevolucaoPlano(long vendaId, LocalTime hora, List<Integer> itens, List<Boolean> avariados,
+                                  FormaReembolso forma, String motivo) {
     }
 
     /** Parte das vendas com cliente identificado (F12.8: cerca de 40%) e, delas, as que tentam usar o crédito. */
@@ -148,6 +169,7 @@ public class GeradorDemo {
     private final FornecedorService fornecedores;
     private final EntradaService compras;
     private final ClienteService clientes;
+    private final DevolucaoService devolucoes;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -158,8 +180,8 @@ public class GeradorDemo {
                        UsuarioService usuarios, CategoriaService categorias, ProdutoService produtos,
                        EstoqueService estoque, CaixaService caixa, VendaService vendas,
                        InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
-                       ClienteService clientes, DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
-                       AuditoriaService auditoria) {
+                       ClienteService clientes, DevolucaoService devolucoes, DemoDAO demoDAO, CaixaDAO caixaDAO,
+                       ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria) {
         this.relogio = relogio;
         this.relogioReal = relogioReal;
         this.transacao = transacao;
@@ -174,6 +196,7 @@ public class GeradorDemo {
         this.fornecedores = fornecedores;
         this.compras = compras;
         this.clientes = clientes;
+        this.devolucoes = devolucoes;
         this.demoDAO = demoDAO;
         this.caixaDAO = caixaDAO;
         this.configuracaoDAO = configuracaoDAO;
@@ -292,6 +315,10 @@ public class GeradorDemo {
                     + clientesDemo.size() + ")");
         }
         Random fidelidade = new Random(SEMENTE + 4);
+        // Devoluções (F13): semente própria, para não mudar o resto dos dados de demonstração.
+        Random devolucao = new Random(SEMENTE + 5);
+        Map<Integer, List<DevolucaoPlano>> devolucoesPorDia = new LinkedHashMap<>();
+        int devolucoesFeitas = 0;
 
         Map<Long, ProdutoVenda> paraVenda = new LinkedHashMap<>();
         for (int i = 0; i < produtoIds.size(); i++) {
@@ -338,11 +365,20 @@ public class GeradorDemo {
             posicionar(dia.data(), LocalTime.of(7, 45), zona);
             CaixaSessao aberto = caixa.abrir(manha, FUNDO_DE_TROCO);
             List<LocalTime> sangrias = new ArrayList<>(dia.sangrias());
+            List<DevolucaoPlano> devolverHoje = new ArrayList<>(devolucoesPorDia.getOrDefault(dia.numero(),
+                    List.of()));
+            devolverHoje.sort((a, b) -> a.hora().compareTo(b.hora()));
             for (int v = 0; v < dia.vendas().size(); v++) {
                 VendaPlano venda = dia.vendas().get(v);
                 while (!sangrias.isEmpty() && !sangrias.get(0).isAfter(venda.hora())) {
                     posicionar(dia.data(), sangrias.remove(0), zona);
                     sangria(gerente, aberto.id());
+                }
+                while (!devolverHoje.isEmpty() && !devolverHoje.get(0).hora().isAfter(venda.hora())) {
+                    DevolucaoPlano d = devolverHoje.remove(0);
+                    posicionar(dia.data(), d.hora(), zona);
+                    devolver(gerente, d, aberto.id());
+                    devolucoesFeitas++;
                 }
                 Sessao operador = venda.hora().getHour() < 14 ? manha : tarde;
                 Long clienteId = fidelidade.nextInt(100) < PCT_VENDAS_COM_CLIENTE
@@ -359,10 +395,21 @@ public class GeradorDemo {
                     vendas.cancelar(operador, feita.vendaId(), execucao.nextBoolean()
                             ? "Cliente desistiu da compra" : "Erro na forma de pagamento", liberaCancelamento);
                     canceladas++;
+                } else {
+                    int diaDevolucao = dia.numero() + 1 + devolucao.nextInt(DIAS_ATE_DEVOLVER);
+                    DevolucaoPlano d = planejarDevolucao(devolucao, venda, feita.vendaId(), clienteId != null);
+                    if (d != null && diaDevolucao <= DIAS) {
+                        devolucoesPorDia.computeIfAbsent(diaDevolucao, k -> new ArrayList<>()).add(d);
+                    }
                 }
                 progresso.informar(++feito[0], totalPassos, "Dia " + dia.numero() + " de " + DIAS + " ("
                         + Formatos.data(dia.data()) + "): venda " + (v + 1) + " de "
                         + dia.vendas().size());
+            }
+            for (DevolucaoPlano d : devolverHoje) {
+                posicionar(dia.data(), d.hora(), zona);
+                devolver(gerente, d, aberto.id());
+                devolucoesFeitas++;
             }
             posicionar(dia.data(), LocalTime.of(20, 10), zona);
             caixa.fechar(tarde, contado(aberto.id(), execucao));
@@ -371,14 +418,15 @@ public class GeradorDemo {
         relogio.ajustar(relogioReal.instant());
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
-                vendasComCliente, usosDeCredito);
+                vendasComCliente, usosDeCredito, devolucoesFeitas);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
                             + " produtos, usuários " + criados.stream().map(UsuarioDemo::login)
                             .collect(Collectors.joining(", ")) + ", " + resultado.vendas() + " vendas ("
                             + resultado.vendasCanceladas() + " canceladas, " + resultado.vendasComCliente()
-                            + " com cliente), " + resultado.clientes() + " clientes, " + resultado.fornecedores()
+                            + " com cliente), " + resultado.devolucoes() + " devoluções, " + resultado.clientes()
+                            + " clientes, " + resultado.fornecedores()
                             + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
@@ -815,6 +863,56 @@ public class GeradorDemo {
         BigDecimal nota = BigDecimal.valueOf(escolha);
         BigDecimal valor = falta.divide(nota, 0, RoundingMode.CEILING).multiply(nota);
         return valor.setScale(Dinheiro.ESCALA_DINHEIRO);
+    }
+
+    /**
+     * Sorteia a devolução de uma venda finalizada: cada item não cancelado tem {@value #POR_MIL_ITENS_DEVOLVIDOS} em
+     * mil de ser devolvido, e um em quatro volta avariado. Vale-troca em metade das vendas com cliente; nas demais,
+     * dinheiro (60%) ou outro. Nulo se nenhum item foi sorteado.
+     */
+    private static DevolucaoPlano planejarDevolucao(Random r, VendaPlano venda, long vendaId, boolean comCliente) {
+        List<Integer> itens = new ArrayList<>();
+        List<Boolean> avariados = new ArrayList<>();
+        for (int i = 0; i < venda.itens().size(); i++) {
+            if (!venda.itens().get(i).cancelar() && r.nextInt(1000) < POR_MIL_ITENS_DEVOLVIDOS) {
+                itens.add(i);
+                avariados.add(r.nextInt(4) == 0);
+            }
+        }
+        if (itens.isEmpty()) {
+            return null;
+        }
+        FormaReembolso forma = comCliente && r.nextBoolean() ? FormaReembolso.CREDITO_CLIENTE
+                : r.nextInt(10) < 6 ? FormaReembolso.DINHEIRO : FormaReembolso.OUTRO;
+        LocalTime hora = LocalTime.of(9 + r.nextInt(10), r.nextInt(60));
+        return new DevolucaoPlano(vendaId, hora, itens, avariados, forma,
+                MOTIVOS_DEVOLUCAO.get(r.nextInt(MOTIVOS_DEVOLUCAO.size())));
+    }
+
+    /**
+     * Devolução pelo {@link DevolucaoService} (regras valendo), registrada pelo gerente: 1 unidade do item de unidade
+     * inteira vendido em mais de uma, ou o item inteiro. Reembolso em dinheiro acima do esperado do caixa vira outro.
+     */
+    private void devolver(Sessao gerente, DevolucaoPlano plano, long caixaId) {
+        VendaDevolucao venda = devolucoes.venda(gerente, plano.vendaId());
+        List<DadosDevolucao.Item> itens = new ArrayList<>();
+        BigDecimal total = Dinheiro.ZERO;
+        for (int k = 0; k < plano.itens().size(); k++) {
+            ItemDevolucao item = venda.itens().get(plano.itens().get(k));
+            BigDecimal q = !item.fracionada() && item.quantidade().compareTo(BigDecimal.ONE) > 0 ? BigDecimal.ONE
+                    : item.disponivel();
+            itens.add(new DadosDevolucao.Item(item.vendaItemId(), q, plano.avariados().get(k)));
+            total = total.add(item.valor(q));
+        }
+        FormaReembolso forma = plano.forma();
+        if (forma == FormaReembolso.DINHEIRO) {
+            BigDecimal esperado = transacao.executar(con -> caixaDAO.resumo(con, caixaId).dinheiroEsperado());
+            if (total.compareTo(esperado) > 0) {
+                forma = FormaReembolso.OUTRO;
+            }
+        }
+        devolucoes.registrar(gerente, new DadosDevolucao(plano.vendaId(), itens, plano.motivo(), forma, null, null),
+                null);
     }
 
     /** Sangria (6.5) deixando o fundo de troco na gaveta, em múltiplos de R$ 50,00. */

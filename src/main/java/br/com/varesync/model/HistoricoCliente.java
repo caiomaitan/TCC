@@ -7,19 +7,28 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Compras do cliente (F12.2), de {@code vw_venda_item_rentabilidade}: só vendas finalizadas e itens não cancelados.
- * Total gasto = soma das compras; ticket médio = total ÷ número de compras.
+ * Compras do cliente (F12.2 e F13.3), de {@code vw_resultado_item}: só vendas finalizadas e itens não cancelados,
+ * menos o que foi devolvido de cada uma. Total gasto = soma das compras já sem as devoluções; ticket médio = valor
+ * comprado ÷ número de compras (só as vendas, como no R01 e no R18).
  *
  * @param compras  da mais recente para a mais antiga
  * @param produtos do mais comprado (em número de compras) para o menos
  */
 public record HistoricoCliente(List<Compra> compras, List<ProdutoComprado> produtos) {
 
-    /** Uma venda do cliente: número, data/hora, itens (linhas não canceladas) e valor (receita). */
-    public record Compra(long vendaId, OffsetDateTime dataHora, int itens, BigDecimal valor) {
+    /**
+     * Uma venda do cliente: número, data/hora, itens (linhas não canceladas), valor comprado e o que dele já foi
+     * devolvido (em qualquer data).
+     */
+    public record Compra(long vendaId, OffsetDateTime dataHora, int itens, BigDecimal comprado, BigDecimal devolvido) {
+
+        /** Valor da compra já sem as devoluções. */
+        public BigDecimal valor() {
+            return comprado.subtract(devolvido);
+        }
     }
 
-    /** Produto comprado: em quantas compras, a quantidade somada e o valor. */
+    /** Produto comprado: em quantas compras, a quantidade e o valor, já sem as devoluções. */
     public record ProdutoComprado(long produtoId, String nome, String unidade, boolean fracionada, int compras,
                                   BigDecimal quantidade, BigDecimal valor) {
     }
@@ -35,7 +44,8 @@ public record HistoricoCliente(List<Compra> compras, List<ProdutoComprado> produ
 
     /** Vazio sem compras. */
     public Optional<BigDecimal> ticketMedio() {
-        return Dinheiro.dividir(totalGasto(), BigDecimal.valueOf(compras.size()), Dinheiro.ESCALA_DINHEIRO);
+        BigDecimal comprado = compras.stream().map(Compra::comprado).reduce(Dinheiro.ZERO, BigDecimal::add);
+        return Dinheiro.dividir(comprado, BigDecimal.valueOf(compras.size()), Dinheiro.ESCALA_DINHEIRO);
     }
 
     public Optional<OffsetDateTime> ultimaCompra() {

@@ -776,6 +776,7 @@ public class ConfiguracoesController {
                 .append("\nClientes: ").append(r.clientes()).append(" (").append(r.vendasComCliente())
                 .append(" vendas identificadas, ").append(r.usosDeCredito())
                 .append(" com uso de crédito; fidelidade ligada com 1% de cashback)")
+                .append("\nDevoluções: ").append(r.devolucoes())
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();

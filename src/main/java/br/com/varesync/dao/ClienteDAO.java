@@ -16,7 +16,7 @@ import java.util.Optional;
 
 /**
  * Clientes ({@code cliente}, F12). Os horários vêm do Clock (V3: o trigger só usa {@code now()} fora do sistema). As
- * compras saem de {@code vw_venda_item_rentabilidade} (só vendas finalizadas e itens não cancelados).
+ * compras saem de {@code vw_resultado_item} (vendas finalizadas e itens não cancelados, menos as devoluções).
  */
 public class ClienteDAO {
 
@@ -252,14 +252,17 @@ public class ClienteDAO {
         }
     }
 
-    /** Compras do cliente, da mais recente para a mais antiga. */
+    /** Compras do cliente, da mais recente para a mais antiga, cada uma com o que dela já foi devolvido. */
     public List<HistoricoCliente.Compra> compras(Connection con, long id) throws SQLException {
         String sql = """
-                SELECT r.venda_id, r.data_hora, count(*) AS itens, sum(r.receita) AS valor
-                  FROM vw_venda_item_rentabilidade r
+                SELECT r.venda_id, max(r.data_hora) FILTER (WHERE r.tipo = 'VENDA') AS data_hora,
+                       count(*) FILTER (WHERE r.tipo = 'VENDA') AS itens,
+                       coalesce(sum(r.receita) FILTER (WHERE r.tipo = 'VENDA'), 0) AS comprado,
+                       coalesce(-sum(r.receita) FILTER (WHERE r.tipo = 'DEVOLUCAO'), 0) AS devolvido
+                  FROM vw_resultado_item r
                  WHERE r.cliente_id = ?
-                 GROUP BY r.venda_id, r.data_hora
-                 ORDER BY r.data_hora DESC, r.venda_id DESC
+                 GROUP BY r.venda_id
+                 ORDER BY data_hora DESC, r.venda_id DESC
                 """;
         List<HistoricoCliente.Compra> compras = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -268,7 +271,7 @@ public class ClienteDAO {
                 while (rs.next()) {
                     compras.add(new HistoricoCliente.Compra(rs.getLong("venda_id"),
                             rs.getObject("data_hora", OffsetDateTime.class), rs.getInt("itens"),
-                            rs.getBigDecimal("valor")));
+                            rs.getBigDecimal("comprado"), rs.getBigDecimal("devolvido")));
                 }
             }
         }
@@ -276,20 +279,23 @@ public class ClienteDAO {
     }
 
     /**
-     * Produtos comprados pelo cliente: em quantas compras cada um aparece, a quantidade e o valor; do que aparece em
-     * mais compras para o que aparece em menos (empate: maior valor, depois o nome).
+     * Produtos comprados pelo cliente: em quantas compras cada um aparece, a quantidade e o valor já sem as devoluções
+     * (o produto devolvido por inteiro sai da lista); do que aparece em mais compras para o que aparece em menos
+     * (empate: maior valor, depois o nome).
      *
      * @param limite nulo = todos
      */
     public List<HistoricoCliente.ProdutoComprado> produtos(Connection con, long id, Integer limite)
             throws SQLException {
         String sql = """
-                SELECT r.produto_id, r.produto_nome, r.unidade, u.fracionada, count(DISTINCT r.venda_id) AS compras,
+                SELECT r.produto_id, r.produto_nome, r.unidade, u.fracionada,
+                       count(DISTINCT r.venda_id) FILTER (WHERE r.tipo = 'VENDA') AS compras,
                        sum(r.quantidade) AS quantidade, sum(r.receita) AS valor
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                   JOIN unidade_medida u ON u.sigla = r.unidade
                  WHERE r.cliente_id = ?
                  GROUP BY r.produto_id, r.produto_nome, r.unidade, u.fracionada
+                HAVING sum(r.quantidade) > 0
                  ORDER BY compras DESC, valor DESC, lower(r.produto_nome)
                  LIMIT ?
                 """;

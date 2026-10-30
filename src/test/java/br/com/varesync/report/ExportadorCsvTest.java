@@ -27,8 +27,10 @@ class ExportadorCsvTest {
     @Test
     void percentualEDataSemSimbolos() {
         String csv = ExportadorCsv.gerar(DadosFicticios.r01(true));
-        assertThat(csv).contains("101;01/09/2026 11:05;Maria Oliveira;100,00;2,50;50,00;50,00;50,00\r\n");
-        assertThat(csv).endsWith("Total;;;1100,00;2,50;950,00;150,00;13,64\r\n");
+        assertThat(csv).contains("101;;01/09/2026 11:05;Maria Oliveira;100,00;0,00;100,00;2,50;50,00;50,00;50,00\r\n");
+        // Devolução (F13.3): receita, CMV e lucro negativos, na linha própria com o número dela.
+        assertThat(csv).contains("101;5;02/09/2026 13:05;Maria Oliveira;0,00;10,00;-10,00;0,00;-5,00;-5,00;50,00\r\n");
+        assertThat(csv).endsWith("Total;;;;1100,00;10,00;1090,00;2,50;945,00;145,00;13,30\r\n");
     }
 
     @Test

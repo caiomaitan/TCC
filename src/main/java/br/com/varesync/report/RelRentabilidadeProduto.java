@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * R05 — Rentabilidade por produto (7.3), de {@code vw_venda_item_rentabilidade}: receita, CMV (custo gravado na
+ * R05 — Rentabilidade por produto (7.3), de {@code vw_resultado_item}: receita (vendas − devoluções), CMV (custo gravado na
  * venda), lucro, margem (lucro ÷ receita), markup (lucro ÷ CMV) e a situação: negativa (lucro &lt; 0), baixa
  * (0 ≤ margem &lt; {@code relatorio.margem_minima_pct}) ou ok. Do maior para o menor lucro.
  */
@@ -63,7 +63,7 @@ public final class RelRentabilidadeProduto implements Relatorio<RelRentabilidade
                 SELECT r.produto_id, r.produto_nome, r.categoria_nome, r.unidade, um.fracionada,
                        sum(r.quantidade) AS quantidade, sum(r.receita) AS receita, sum(r.cmv) AS cmv,
                        sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                   JOIN unidade_medida um ON um.sigla = r.unidade
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                    AND (CAST(? AS BIGINT) IS NULL OR r.categoria_id = ?)

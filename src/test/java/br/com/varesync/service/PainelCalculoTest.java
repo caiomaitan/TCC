@@ -66,6 +66,21 @@ class PainelCalculoTest {
         assertThat(PainelService.somar(vendas, inicio, inicio.plusDays(1)).lucro()).isEqualByComparingTo("8.00");
     }
 
+    /** F13.3: a devolução tira do faturamento e do lucro, mas não do nº de vendas nem do ticket médio. */
+    @Test
+    void devolucaoEntraNaReceitaLiquidaSemContarComoVenda() {
+        List<PainelDAO.VendaPainel> vendas = List.of(venda(HOJE, 9, "16.47", "6.87"), venda(HOJE, 10, "4.00", "1.00"),
+                new PainelDAO.VendaPainel(HOJE.atTime(11, 0).atOffset(FUSO), new BigDecimal("-5.49"),
+                        new BigDecimal("-2.29"), false));
+        OffsetDateTime inicio = HOJE.atStartOfDay().atOffset(FUSO);
+        IndicadoresDia dia = PainelService.somar(vendas, inicio, inicio.plusDays(1));
+        assertThat(dia.receita()).isEqualByComparingTo("14.98");
+        assertThat(dia.lucro()).isEqualByComparingTo("5.58");
+        assertThat(dia.vendas()).isEqualTo(2);
+        assertThat(dia.ticketMedio()).hasValueSatisfying(v -> assertThat(v).isEqualByComparingTo("10.24"));
+        assertThat(PainelService.porDia(vendas, HOJE, FUSO).get(29).receita()).isEqualByComparingTo("14.98");
+    }
+
     @Test
     void graficoTemOsTrintaDiasAteHojeComZeroNosDiasSemVenda() {
         List<DiaPainel> dias = PainelService.porDia(List.of(venda(HOJE, 10, "10.00", "4.00"),

@@ -66,7 +66,9 @@ public final class RelDadosCliente implements Relatorio<RelDadosCliente.Linha> {
 
         for (HistoricoCliente.Compra compra : historico.compras()) {
             linhas.add(new Linha(COMPRAS, "Venda nº " + compra.vendaId(), Formatos.dataHora(compra.dataHora()) + " — "
-                    + (compra.itens() == 1 ? "1 item" : compra.itens() + " itens"), compra.valor()));
+                    + (compra.itens() == 1 ? "1 item" : compra.itens() + " itens")
+                    + (compra.devolvido().signum() == 0 ? ""
+                            : " — " + Formatos.moeda(compra.devolvido()) + " devolvido"), compra.valor()));
         }
         for (HistoricoCliente.ProdutoComprado p : historico.produtos()) {
             linhas.add(new Linha(PRODUTOS, p.nome(), Formatos.quantidade(p.quantidade(), p.fracionada()) + " "

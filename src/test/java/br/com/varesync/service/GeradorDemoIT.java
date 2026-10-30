@@ -19,6 +19,7 @@ import br.com.varesync.report.RelCancelamentos;
 import br.com.varesync.report.RelClientes;
 import br.com.varesync.report.RelComprasFornecedor;
 import br.com.varesync.report.RelCurvaAbc;
+import br.com.varesync.report.RelDevolucoes;
 import br.com.varesync.report.RelFormasPagamento;
 import br.com.varesync.report.RelMovimentacao;
 import br.com.varesync.report.RelPerdasAjustes;
@@ -43,7 +44,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -52,17 +52,14 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Gerador de dados de demonstração (6.14), rodado uma vez para a classe toda (60 dias, pelos próprios services):
- * o que a especificação pede foi criado, o banco recusa uma segunda geração, só o supervisor gera, R01 e R05 batem
- * no período e o relatório de 60 dias fica abaixo de 3 s (9.4). O estoque continua consistente
- * ({@link IntegracaoBase}).
+ * o que a especificação pede foi criado (inclusive as devoluções da F13), o banco recusa uma segunda geração, só o
+ * supervisor gera, R01 e R05 batem no período e o relatório de 60 dias fica abaixo de 3 s (9.4). O estoque continua
+ * consistente ({@link IntegracaoBase}).
  */
 class GeradorDemoIT extends IntegracaoBase {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeradorDemoIT.class);
     private static final Clock HOJE = Clock.fixed(Instant.parse("2026-10-17T15:00:00Z"), ZoneId.systemDefault());
-    /** Relatórios que os dados de demonstração ainda não alimentam: as devoluções (R20) entram no gerador da parte B
-     * da F13. O tempo deles é medido do mesmo jeito. */
-    private static final Set<String> SEM_DADOS_AINDA = Set.of("R20");
 
     private static AcessoTeste t;
     private static Sessao admin;
@@ -249,6 +246,35 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(r18.linhas()).hasSizeGreaterThan(140);
     }
 
+    /** F13.4: cerca de 0,5% dos itens devolvidos, com formas de reembolso variadas e alguns avariados. */
+    @Test
+    void devolucoesDaFase13() throws Exception {
+        long devolucoes = contar("SELECT count(*) FROM devolucao");
+        assertThat(devolucoes).isEqualTo(resultado.devolucoes()).isPositive();
+        long itensVendidos = contar("SELECT count(*) FROM venda_item vi JOIN venda v ON v.id = vi.venda_id "
+                + "WHERE v.status = 'FINALIZADA' AND NOT vi.cancelado");
+        long itensDevolvidos = contar("SELECT count(*) FROM devolucao_item");
+        assertThat(itensDevolvidos).as("cerca de 0,5% dos itens").isBetween(itensVendidos / 400, itensVendidos / 100);
+        assertThat(coluna("SELECT count(DISTINCT forma_reembolso) FROM devolucao")).containsExactly(3L);
+        assertThat(contar("SELECT count(*) FROM devolucao_item WHERE NOT volta_estoque")).as("avariados")
+                .isPositive();
+        assertThat(contar("SELECT count(*) FROM movimento_estoque WHERE tipo = 'DEVOLUCAO_VENDA'"))
+                .isEqualTo(itensDevolvidos);
+        assertThat(contar("SELECT count(*) FROM cliente_credito_movimento WHERE tipo = 'CREDITO_DEVOLUCAO'"))
+                .as("vale-troca").isEqualTo(contar("SELECT count(*) FROM devolucao WHERE forma_reembolso = "
+                        + "'CREDITO_CLIENTE'"));
+        assertThat(contar("""
+                SELECT count(*) FROM devolucao d JOIN venda v ON v.id = d.venda_id
+                 WHERE d.data_hora::date - v.data_hora::date NOT BETWEEN 1 AND 5
+                """)).as("de 1 a 5 dias depois da venda").isZero();
+        assertThat(contar("SELECT count(*) FROM devolucao WHERE data_hora >= TIMESTAMPTZ '2026-10-17 00:00'"))
+                .as("todas no período").isZero();
+        // O R20 lista todas, e a soma das devoluções do R01 é a mesma.
+        ResultadoRelatorio<RelDevolucoes.Linha> r20 = t.relatorios.gerar(admin, new RelDevolucoes(), periodo());
+        assertThat(r20.linhas()).hasSize((int) devolucoes);
+        assertThat(t.auditoria(AcaoAuditoria.DEVOLUCAO_REGISTRADA)).hasSize((int) devolucoes);
+    }
+
     @Test
     void recusaBancoComVendasESoOSupervisorGera() {
         assertThatThrownBy(() -> gerador.conferir(admin)).isInstanceOf(NegocioException.class)
@@ -274,15 +300,20 @@ class GeradorDemoIT extends IntegracaoBase {
                 .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo(receita);
         assertThat(r05.linhas().stream().map(RelRentabilidadeProduto.Linha::lucro)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo(lucro);
-        assertThat(r05.totais().get(7)).isEqualTo(r01.totais().get(6));
+        assertThat(r05.totais().get(7)).isEqualTo(r01.totais().get(8));
 
-        assertThat(receita).isEqualByComparingTo(
+        // F13.3: "Vendas" = vendas finalizadas; "Devoluções" = devoluções do período; receita líquida = a diferença.
+        BigDecimal vendido = Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::vendido);
+        BigDecimal devolvido = Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::devolvido);
+        assertThat(vendido).isEqualByComparingTo(
                 umValor("SELECT sum(valor_total) FROM venda WHERE status = 'FINALIZADA'"));
-        assertThat(receita).isLessThan(umValor("SELECT sum(valor_total) FROM venda"));
+        assertThat(vendido).isLessThan(umValor("SELECT sum(valor_total) FROM venda"));
+        assertThat(devolvido).isPositive().isEqualByComparingTo(umValor("SELECT sum(valor_total) FROM devolucao"));
+        assertThat(receita).isEqualByComparingTo(vendido.subtract(devolvido));
         BigDecimal lucroDasTabelas = umValor("""
                 SELECT sum(vi.valor_liquido - vi.custo_total) FROM venda_item vi JOIN venda v ON v.id = vi.venda_id
                  WHERE v.status = 'FINALIZADA' AND NOT vi.cancelado
-                """);
+                """).subtract(umValor("SELECT sum(valor - custo_total) FROM devolucao_item"));
         assertThat(lucro).isEqualByComparingTo(lucroDasTabelas);
         long vendasR01 = r01.linhas().stream().mapToLong(RelVendasPeriodo.Linha::vendas).sum();
         assertThat(vendasR01).isEqualTo(resultado.vendas() - resultado.vendasCanceladas());
@@ -302,7 +333,7 @@ class GeradorDemoIT extends IntegracaoBase {
         ResultadoRelatorio<RelRentabilidadeCategoria.Linha> r06 = t.relatorios.gerar(admin,
                 new RelRentabilidadeCategoria(), periodo());
         assertThat(Coluna.soma(r06.linhas(), RelRentabilidadeCategoria.Linha::lucro)).isEqualByComparingTo(lucro);
-        assertThat(r06.totais().get(4)).as("margem do período, igual à do R01").isEqualTo(r01.totais().get(6));
+        assertThat(r06.totais().get(4)).as("margem do período, igual à do R01").isEqualTo(r01.totais().get(8));
 
         ResultadoRelatorio<RelCurvaAbc.Linha> r07 = t.relatorios.gerar(admin, new RelCurvaAbc(), periodo());
         assertThat(Coluna.soma(r07.linhas(), RelCurvaAbc.Linha::valor)).isEqualByComparingTo(receita);
@@ -310,8 +341,13 @@ class GeradorDemoIT extends IntegracaoBase {
 
         ResultadoRelatorio<RelFormasPagamento.Linha> r08 = t.relatorios.gerar(admin, new RelFormasPagamento(),
                 periodo());
-        assertThat(r08.linhas()).hasSize(6);
-        assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor)).isEqualByComparingTo(receita);
+        // 6 formas de pagamento e, à parte, as 3 formas de reembolso; batem com as colunas Vendas e Devoluções do R01.
+        assertThat(r08.linhas()).hasSize(9);
+        assertThat(r08.linhas().stream().filter(RelFormasPagamento.Linha::ehReembolso)).hasSize(3);
+        assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor))
+                .isEqualByComparingTo(Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::vendido));
+        assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::reembolsos))
+                .isEqualByComparingTo(Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::devolvido));
         assertThat(r08.linhas().get(0).vendasNoPeriodo()).isEqualTo(vendas);
 
         ResultadoRelatorio<RelVendasOperador.Linha> r09 = t.relatorios.gerar(admin, new RelVendasOperador(),
@@ -392,9 +428,7 @@ class GeradorDemoIT extends IntegracaoBase {
             long ms = (System.nanoTime() - inicio) / 1_000_000;
             LOG.info("{}: {} linhas em {} ms", relatorio.codigo(), r.linhas().size(), ms);
             assertThat(ms).as(relatorio.titulo()).isLessThan(3000);
-            if (!SEM_DADOS_AINDA.contains(relatorio.codigo())) {
-                assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
-            }
+            assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
     }

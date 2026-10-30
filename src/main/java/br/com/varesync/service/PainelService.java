@@ -106,12 +106,13 @@ public class PainelService {
         return dias > BackupService.DIAS_ALERTA ? new AlertasPainel.BackupAtrasado(ultimo.get(), dias) : null;
     }
 
-    /** Vendas com {@code inicio <= data_hora < fim}. */
+    /** Vendas e devoluções com {@code inicio <= data_hora < fim}. */
     static IndicadoresDia somar(List<PainelDAO.VendaPainel> vendas, OffsetDateTime inicio, OffsetDateTime fim) {
         IndicadoresDia total = IndicadoresDia.VAZIO;
         for (PainelDAO.VendaPainel v : vendas) {
             if (!v.dataHora().isBefore(inicio) && v.dataHora().isBefore(fim)) {
-                total = total.somar(v.receita(), v.lucro());
+                total = v.venda() ? total.somar(v.receita(), v.lucro())
+                        : total.somarDevolucao(v.receita(), v.lucro());
             }
         }
         return total;

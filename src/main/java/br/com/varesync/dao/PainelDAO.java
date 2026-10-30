@@ -11,22 +11,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Consultas do painel (7.5). Vendas e lucro de {@code vw_venda_item_rentabilidade}, como os relatórios, para que o
- * painel bata com o R01 e o R05.
+ * Consultas do painel (7.5). Vendas, devoluções e lucro de {@code vw_resultado_item}, como os relatórios, para que o
+ * painel bata com o R01 e o R05 (F13.3).
  */
 public class PainelDAO {
 
-    /** Receita e lucro de uma venda finalizada. */
-    public record VendaPainel(OffsetDateTime dataHora, BigDecimal receita, BigDecimal lucro) {
+    /**
+     * Receita e lucro de uma venda finalizada ou de uma devolução.
+     *
+     * @param venda falso na devolução (receita e lucro negativos, na data da devolução)
+     */
+    public record VendaPainel(OffsetDateTime dataHora, BigDecimal receita, BigDecimal lucro, boolean venda) {
+
+        public VendaPainel(OffsetDateTime dataHora, BigDecimal receita, BigDecimal lucro) {
+            this(dataHora, receita, lucro, true);
+        }
     }
 
-    /** Vendas com {@code data_hora >= inicio AND data_hora < fim}, uma linha por venda. */
+    /** Vendas e devoluções com {@code data_hora >= inicio AND data_hora < fim}, uma linha por venda ou devolução. */
     public List<VendaPainel> vendas(Connection con, OffsetDateTime inicio, OffsetDateTime fim) throws SQLException {
         String sql = """
-                SELECT r.venda_id, r.data_hora, sum(r.receita) AS receita, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                SELECT r.tipo, r.venda_id, r.devolucao_id, r.data_hora, sum(r.receita) AS receita,
+                       sum(r.lucro_bruto) AS lucro
+                  FROM vw_resultado_item r
                  WHERE r.data_hora >= ? AND r.data_hora < ?
-                 GROUP BY r.venda_id, r.data_hora
+                 GROUP BY r.tipo, r.venda_id, r.devolucao_id, r.data_hora
                  ORDER BY r.data_hora
                 """;
         List<VendaPainel> vendas = new ArrayList<>();
@@ -36,7 +45,8 @@ public class PainelDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     vendas.add(new VendaPainel(rs.getObject("data_hora", OffsetDateTime.class),
-                            rs.getBigDecimal("receita"), rs.getBigDecimal("lucro")));
+                            rs.getBigDecimal("receita"), rs.getBigDecimal("lucro"),
+                            "VENDA".equals(rs.getString("tipo"))));
                 }
             }
         }
@@ -48,7 +58,7 @@ public class PainelDAO {
             throws SQLException {
         String sql = """
                 SELECT r.produto_id, r.produto_nome, sum(r.receita) AS receita, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                  GROUP BY r.produto_id, r.produto_nome
                  ORDER BY sum(r.lucro_bruto) DESC, r.produto_nome

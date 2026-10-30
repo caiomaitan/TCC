@@ -16,27 +16,39 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * R01 — Vendas por período (7.3): por dia, nº de vendas, receita, descontos, CMV, lucro, margem e ticket médio; com
- * "detalhar por venda", uma linha por venda. Parte de {@code vw_venda_item_rentabilidade} (só vendas finalizadas e
- * itens não cancelados). Os dias são agrupados no Java, no fuso do sistema, a partir das vendas: o total por dia é
- * exatamente a soma das vendas do dia.
+ * R01 — Vendas por período (7.3 e F13.3): por dia, nº de vendas, vendas, devoluções, receita líquida, descontos, CMV,
+ * lucro, margem e ticket médio; com "detalhar por venda", uma linha por venda e uma por devolução. Parte de
+ * {@code vw_resultado_item} (itens não cancelados de vendas finalizadas, menos as devoluções na data delas). O nº de
+ * vendas e o ticket médio contam só as vendas. Os dias são agrupados no Java, no fuso do sistema: o total por dia é
+ * exatamente a soma das vendas e devoluções do dia.
  */
 public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha> {
 
     /**
-     * Um dia (vendaId nulo) ou uma venda.
+     * Um dia (vendaId nulo), uma venda ou uma devolução (devolucaoId preenchido).
      *
-     * @param descontos desconto no item + rateio do desconto da venda
+     * @param vendido   receita das vendas
+     * @param devolvido valor das devoluções (positivo)
+     * @param descontos desconto no item + rateio do desconto da venda (só das vendas)
+     * @param cmv       CMV das vendas menos o das devoluções
+     * @param lucro     receita líquida − CMV
      */
-    public record Linha(LocalDate dia, Long vendaId, OffsetDateTime dataHora, String operador, long vendas,
-                        BigDecimal receita, BigDecimal descontos, BigDecimal cmv, BigDecimal lucro) {
+    public record Linha(LocalDate dia, Long vendaId, Long devolucaoId, OffsetDateTime dataHora, String operador,
+                        long vendas, BigDecimal vendido, BigDecimal devolvido, BigDecimal descontos, BigDecimal cmv,
+                        BigDecimal lucro) {
 
-        public BigDecimal margem() {
-            return Dinheiro.percentualDe(lucro, receita).orElse(null);
+        /** Receita líquida = vendas − devoluções. */
+        public BigDecimal receita() {
+            return vendido.subtract(devolvido);
         }
 
+        public BigDecimal margem() {
+            return Dinheiro.percentualDe(lucro, receita()).orElse(null);
+        }
+
+        /** Só sobre as vendas (F13.3). */
         public BigDecimal ticketMedio() {
-            return Dinheiro.dividir(receita, BigDecimal.valueOf(vendas), Dinheiro.ESCALA_DINHEIRO).orElse(null);
+            return Dinheiro.dividir(vendido, BigDecimal.valueOf(vendas), Dinheiro.ESCALA_DINHEIRO).orElse(null);
         }
     }
 
@@ -52,8 +64,8 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
 
     @Override
     public String descricao() {
-        return "Por dia: número de vendas, receita, descontos, CMV, lucro, margem e ticket médio. Vendas e itens "
-                + "cancelados ficam de fora.";
+        return "Por dia: número de vendas, vendas, devoluções, receita líquida, descontos, CMV, lucro, margem e ticket "
+                + "médio. Vendas e itens cancelados ficam de fora; as devoluções entram na data em que foram feitas.";
     }
 
     @Override
@@ -65,14 +77,14 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
     public List<Linha> consultar(Connection con, Filtros filtros, ParametrosRelatorio parametros)
             throws SQLException {
         String sql = """
-                SELECT r.venda_id, r.data_hora, u.nome AS operador, sum(r.receita) AS receita,
+                SELECT r.tipo, r.venda_id, r.devolucao_id, r.data_hora, u.nome AS operador, sum(r.receita) AS receita,
                        sum(r.desconto_total) AS descontos, sum(r.cmv) AS cmv, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                   JOIN usuario u ON u.id = r.usuario_id
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                    AND (CAST(? AS BIGINT) IS NULL OR r.usuario_id = ?)
-                 GROUP BY r.venda_id, r.data_hora, u.nome
-                 ORDER BY r.data_hora, r.venda_id
+                 GROUP BY r.tipo, r.venda_id, r.devolucao_id, r.data_hora, u.nome
+                 ORDER BY r.data_hora, r.venda_id, r.devolucao_id NULLS FIRST
                 """;
         List<Linha> porVenda = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -81,10 +93,13 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     OffsetDateTime dataHora = rs.getObject("data_hora", OffsetDateTime.class);
-                    porVenda.add(new Linha(dataHora.atZoneSameInstant(parametros.zona()).toLocalDate(),
-                            rs.getLong("venda_id"), dataHora, rs.getString("operador"), 1,
-                            rs.getBigDecimal("receita"), rs.getBigDecimal("descontos"), rs.getBigDecimal("cmv"),
-                            rs.getBigDecimal("lucro")));
+                    LocalDate dia = dataHora.atZoneSameInstant(parametros.zona()).toLocalDate();
+                    BigDecimal receita = rs.getBigDecimal("receita");
+                    boolean venda = "VENDA".equals(rs.getString("tipo"));
+                    porVenda.add(new Linha(dia, rs.getLong("venda_id"),
+                            venda ? null : rs.getLong("devolucao_id"), dataHora, rs.getString("operador"),
+                            venda ? 1 : 0, venda ? receita : Dinheiro.ZERO, venda ? Dinheiro.ZERO : receita.negate(),
+                            rs.getBigDecimal("descontos"), rs.getBigDecimal("cmv"), rs.getBigDecimal("lucro")));
                 }
             }
         }
@@ -94,14 +109,13 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
     static List<Linha> porDia(List<Linha> vendas) {
         Map<LocalDate, Linha> dias = new LinkedHashMap<>();
         for (Linha v : vendas) {
-            dias.merge(v.dia(), v, (a, b) -> new Linha(a.dia(), null, null, null, a.vendas() + b.vendas(),
-                    a.receita().add(b.receita()), a.descontos().add(b.descontos()), a.cmv().add(b.cmv()),
-                    a.lucro().add(b.lucro())));
+            Linha dia = new Linha(v.dia(), null, null, null, null, v.vendas(), v.vendido(), v.devolvido(),
+                    v.descontos(), v.cmv(), v.lucro());
+            dias.merge(v.dia(), dia, (a, b) -> new Linha(a.dia(), null, null, null, null, a.vendas() + b.vendas(),
+                    a.vendido().add(b.vendido()), a.devolvido().add(b.devolvido()), a.descontos().add(b.descontos()),
+                    a.cmv().add(b.cmv()), a.lucro().add(b.lucro())));
         }
-        return dias.values().stream()
-                .map(d -> d.vendaId() == null ? d : new Linha(d.dia(), null, null, null, d.vendas(), d.receita(),
-                        d.descontos(), d.cmv(), d.lucro()))
-                .toList();
+        return List.copyOf(dias.values());
     }
 
     @Override
@@ -109,13 +123,16 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
         List<Coluna<Linha>> colunas = new ArrayList<>();
         if (filtros.detalharVendas()) {
             colunas.add(Coluna.<Linha>codigo("Venda nº", Linha::vendaId).comLargura(0.9));
+            colunas.add(Coluna.<Linha>codigo("Devolução nº", Linha::devolucaoId).comLargura(1.0));
             colunas.add(Coluna.<Linha>de("Data/hora", TipoColuna.DATA_HORA, Linha::dataHora));
-            colunas.add(Coluna.<Linha>texto("Operador", Linha::operador).comLargura(2));
+            colunas.add(Coluna.<Linha>texto("Operador", Linha::operador).comLargura(1.8));
         } else {
             colunas.add(Coluna.<Linha>de("Dia", TipoColuna.DATA, Linha::dia));
-            colunas.add(Coluna.inteiro("Vendas", Linha::vendas));
+            colunas.add(Coluna.<Linha>inteiro("Nº vendas", Linha::vendas).comLargura(1.1));
         }
-        colunas.add(Coluna.moeda("Receita", Linha::receita));
+        colunas.add(Coluna.moeda("Vendas", Linha::vendido));
+        colunas.add(Coluna.moeda("Devoluções", Linha::devolvido));
+        colunas.add(Coluna.moeda("Receita líquida", Linha::receita));
         colunas.add(Coluna.moeda("Descontos", Linha::descontos));
         colunas.add(Coluna.moeda("CMV", Linha::cmv));
         colunas.add(Coluna.moeda("Lucro", Linha::lucro));
@@ -127,16 +144,16 @@ public final class RelVendasPeriodo implements Relatorio<RelVendasPeriodo.Linha>
         return colunas;
     }
 
-    /** Σ lucro ÷ Σ receita × 100 (A.6). */
+    /** Σ lucro ÷ Σ receita líquida × 100 (A.6). */
     static BigDecimal margemTotal(List<Linha> linhas) {
         return Dinheiro.percentualDe(Coluna.soma(linhas, Linha::lucro), Coluna.soma(linhas, Linha::receita))
                 .orElse(null);
     }
 
-    /** Σ receita ÷ Σ vendas. */
+    /** Σ vendas ÷ Σ nº de vendas (só as vendas). */
     static BigDecimal ticketTotal(List<Linha> linhas) {
         long vendas = linhas.stream().mapToLong(Linha::vendas).sum();
-        return Dinheiro.dividir(Coluna.soma(linhas, Linha::receita), BigDecimal.valueOf(vendas),
+        return Dinheiro.dividir(Coluna.soma(linhas, Linha::vendido), BigDecimal.valueOf(vendas),
                 Dinheiro.ESCALA_DINHEIRO).orElse(null);
     }
 }

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * R07 — Curva ABC (7.1, 7.3, A.9): produtos do período ordenados por receita ou lucro, do maior para o menor. Classe
+ * R07 — Curva ABC (7.1, 7.3, A.9), de {@code vw_resultado_item} (vendas − devoluções): produtos do período ordenados por receita ou lucro, do maior para o menor. Classe
  * pelo % acumulado <b>antes</b> do produto: &lt; 80% → A; &lt; 95% → B; senão C. A coluna "% acumulado" mostra o
  * acumulado já com o produto (A até 80%, B até 95%).
  *
@@ -64,7 +64,7 @@ public final class RelCurvaAbc implements Relatorio<RelCurvaAbc.Linha> {
             throws SQLException {
         String sql = """
                 SELECT r.produto_id, r.produto_nome, sum(r.receita) AS receita, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                  GROUP BY r.produto_id, r.produto_nome
                 """;

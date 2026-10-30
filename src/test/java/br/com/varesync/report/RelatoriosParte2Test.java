@@ -69,16 +69,25 @@ class RelatoriosParte2Test {
     void r08TotalContaCadaVendaUmaVez() {
         ResultadoRelatorio<RelFormasPagamento.Linha> r08 = DadosFicticios.r08();
         assertThat(r08.linhas().get(0).percentual()).isEqualByComparingTo("75.00");
-        // 6 + 5 = 11 nas formas, mas são 10 vendas: uma foi paga em dinheiro e PIX.
-        assertThat(r08.totais()).containsExactly("Total (2 linhas)", "10", "R$ 400,00", "100,00%");
+        assertThat(r08.colunas()).extracting(Coluna::titulo).containsExactly("Forma", "Nº de vendas", "Vendas", "%",
+                "Nº de devoluções", "Reembolsos");
+        // 6 + 5 = 11 nas formas, mas são 10 vendas: uma foi paga em dinheiro e PIX. Os reembolsos ficam à parte.
+        assertThat(r08.totais()).containsExactly("Total (3 linhas)", "10", "R$ 400,00", "100,00%", "2",
+                "R$ 15,00");
+        RelFormasPagamento.Linha reembolso = r08.linhas().get(2);
+        assertThat(reembolso.forma()).isEqualTo("Reembolso: Dinheiro");
+        assertThat(r08.colunas().get(2).formatar(reembolso)).isEqualTo("—");
+        assertThat(r08.colunas().get(5).formatar(reembolso)).isEqualTo("R$ 15,00");
+        assertThat(r08.colunas().get(2).csv(reembolso)).isEmpty();
     }
 
     @Test
     void r09TicketMedioDoTotalESomaDaReceitaSobreAsVendas() {
         ResultadoRelatorio<RelVendasOperador.Linha> r09 = DadosFicticios.r09();
-        assertThat(r09.linhas().get(0).ticketMedio()).isEqualByComparingTo("30.00");
-        assertThat(r09.totais()).containsExactly("Total (2 linhas)", "4", "R$ 100,00", "R$ 25,00", "R$ 4,50", "1",
-                "2");
+        assertThat(r09.linhas().get(0).ticketMedio()).as("90 ÷ 3, sem as devoluções").isEqualByComparingTo("30.00");
+        assertThat(r09.linhas().get(0).receita()).isEqualByComparingTo("85.00");
+        assertThat(r09.totais()).containsExactly("Total (2 linhas)", "4", "R$ 100,00", "R$ 5,00", "R$ 95,00",
+                "R$ 25,00", "R$ 4,50", "1", "2");
     }
 
     @Test
@@ -95,6 +104,18 @@ class RelatoriosParte2Test {
 
         ResultadoRelatorio<RelVendasHoraDia.Linha> vendas = DadosFicticios.r10(Criterio.VENDAS);
         assertThat(vendas.totais()).containsExactly("Total (3 linhas)", "1", "0", "2", "0", "0", "0", "0", "3");
+    }
+
+    @Test
+    void r10DevolucaoDescontaAReceitaDaHoraSemContarComoVenda() {
+        java.time.ZoneOffset fuso = java.time.ZoneOffset.ofHours(-3);
+        List<RelVendasHoraDia.Linha> grade = RelVendasHoraDia.grade(List.of(
+                new RelVendasHoraDia.Venda(java.time.OffsetDateTime.of(2026, 9, 1, 11, 10, 0, 0, fuso), d("10.00")),
+                new RelVendasHoraDia.Venda(java.time.OffsetDateTime.of(2026, 9, 1, 11, 40, 0, 0, fuso), d("-4.00"),
+                        false)), fuso);
+        assertThat(grade).hasSize(1);
+        assertThat(grade.get(0).receitaTotal()).isEqualByComparingTo("6.00");
+        assertThat(grade.get(0).vendasTotal()).isEqualTo(1);
     }
 
     @Test
@@ -220,13 +241,16 @@ class RelatoriosParte2Test {
         ResultadoRelatorio<RelClientes.Linha> r18 = DadosFicticios.r18();
         assertThat(r18.titulo()).isEqualTo("R18 — Clientes");
         assertThat(r18.colunas()).extracting(Coluna::titulo).containsExactly("Código", "Cliente", "CPF/CNPJ",
-                "Compras", "Valor", "Ticket médio", "Última compra");
+                "Compras", "Comprado", "Devoluções", "Valor líquido", "Ticket médio", "Última compra");
         RelClientes.Linha maria = r18.linhas().get(0);
         assertThat(r18.colunas().get(2).formatar(maria)).isEqualTo("***.982.247-**");
         assertThat(r18.colunas().get(2).formatar(r18.linhas().get(1))).isEqualTo("11.222.333/0001-81");
-        assertThat(r18.colunas().get(5).formatar(maria)).isEqualTo("R$ 33,33");
-        // Ticket médio do total = Σ valor ÷ Σ compras (110 ÷ 4), não a média dos tickets (33,33 e 10,00).
-        assertThat(r18.totais()).containsExactly("Total (2 linhas)", "", "", "4", "R$ 110,00", "R$ 27,50", "");
+        assertThat(r18.colunas().get(6).formatar(maria)).isEqualTo("R$ 90,00");
+        assertThat(r18.colunas().get(7).formatar(maria)).isEqualTo("R$ 33,33");
+        // Ticket médio do total = Σ comprado ÷ Σ compras (110 ÷ 4), não a média dos tickets (33,33 e 10,00); as
+        // devoluções saem do valor líquido, não do ticket (como no R01).
+        assertThat(r18.totais()).containsExactly("Total (2 linhas)", "", "", "4", "R$ 110,00", "R$ 10,00",
+                "R$ 100,00", "R$ 27,50", "");
     }
 
     @Test
@@ -242,10 +266,15 @@ class RelatoriosParte2Test {
                 new RelDadosCliente.Linha(RelDadosCliente.CADASTRO, "CPF/CNPJ", "529.982.247-25", null),
                 new RelDadosCliente.Linha(RelDadosCliente.CADASTRO, "Endereço",
                         "Rua das Flores, 120, apto 3 — Centro — Ribeirão Preto/SP — CEP 14010-000", null),
-                new RelDadosCliente.Linha(RelDadosCliente.RESUMO, "Total gasto", "", d("100.00")),
+                new RelDadosCliente.Linha(RelDadosCliente.RESUMO, "Total gasto", "", d("95.00")),
                 new RelDadosCliente.Linha(RelDadosCliente.RESUMO, "Ticket médio", "", d("50.00")),
                 new RelDadosCliente.Linha(RelDadosCliente.PRODUTOS, "Queijo muçarela", "0,500 KG em 1 compra",
                         d("19.95")));
+        // F13.3: a compra mostra o que foi devolvido e vale já sem a devolução.
+        RelDadosCliente.Linha venda9 = dados.linhas().stream().filter(l -> l.item().equals("Venda nº 9")).findFirst()
+                .orElseThrow();
+        assertThat(venda9.detalhe()).endsWith("— 1 item — R$ 5,00 devolvido");
+        assertThat(venda9.valor()).isEqualByComparingTo("45.00");
         assertThat(dados.linhas().stream().filter(l -> l.item().equals("Consentimento de marketing")).findFirst()
                 .orElseThrow().detalhe()).startsWith("Sim, desde ");
         // Extrato de crédito (parte B): saldo atual e cada movimento, com a origem e o saldo depois dele.

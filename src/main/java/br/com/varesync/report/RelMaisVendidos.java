@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * R02 — Produtos mais vendidos (7.3): ranking por quantidade, receita ou lucro, com o % de cada produto na receita
+ * R02 — Produtos mais vendidos (7.3), de {@code vw_resultado_item} (vendas − devoluções): ranking por quantidade, receita ou lucro, com o % de cada produto na receita
  * do período (de todos os produtos do filtro, não só dos que entraram no top N).
  */
 public final class RelMaisVendidos implements Relatorio<RelMaisVendidos.Linha> {
@@ -53,7 +53,7 @@ public final class RelMaisVendidos implements Relatorio<RelMaisVendidos.Linha> {
         String sql = """
                 SELECT r.produto_id, r.produto_nome, r.unidade, um.fracionada, sum(r.quantidade) AS quantidade,
                        sum(r.receita) AS receita, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                   JOIN unidade_medida um ON um.sigla = r.unidade
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                    AND (CAST(? AS BIGINT) IS NULL OR r.categoria_id = ?)

@@ -107,6 +107,7 @@ public class ClientesController {
     @FXML private TableColumn<HistoricoCliente.Compra, String> colunaVenda;
     @FXML private TableColumn<HistoricoCliente.Compra, String> colunaData;
     @FXML private TableColumn<HistoricoCliente.Compra, String> colunaItens;
+    @FXML private TableColumn<HistoricoCliente.Compra, String> colunaDevolvido;
     @FXML private TableColumn<HistoricoCliente.Compra, String> colunaValor;
     @FXML private TableView<HistoricoCliente.ProdutoComprado> tabelaProdutos;
     @FXML private TableColumn<HistoricoCliente.ProdutoComprado, String> colunaProduto;
@@ -166,6 +167,8 @@ public class ClientesController {
         colunaVenda.setCellValueFactory(c -> celula(String.valueOf(c.getValue().vendaId())));
         colunaData.setCellValueFactory(c -> celula(Formatos.dataHora(c.getValue().dataHora())));
         colunaItens.setCellValueFactory(c -> celula(String.valueOf(c.getValue().itens())));
+        colunaDevolvido.setCellValueFactory(c -> celula(c.getValue().devolvido().signum() == 0 ? ""
+                : Formatos.moeda(c.getValue().devolvido())));
         colunaValor.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().valor())));
         colunaProduto.setCellValueFactory(c -> celula(c.getValue().nome()));
         colunaVezes.setCellValueFactory(c -> celula(String.valueOf(c.getValue().compras())));

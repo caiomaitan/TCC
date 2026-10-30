@@ -137,7 +137,11 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      liberação de um supervisor. Venda com devolução não pode mais ser cancelada: para desfazê-la, devolva os itens
      que faltam. Cliente anonimizado não recebe vale-troca; o saldo que sobrar dele o supervisor zera em **Clientes ›
      Crédito › Ajustar…**;
-   - o relatório **R20 Devoluções** lista as devoluções do período, com os itens, o motivo e a forma de reembolso.
+   - o relatório **R20 Devoluções** lista as devoluções do período, com os itens, o motivo e a forma de reembolso;
+   - os relatórios de venda e lucro (R01, R02, R05 a R10, R18), o painel e a aba **Compras** do cliente descontam as
+     devoluções na data em que foram feitas: receita líquida = vendas − devoluções. O R01 mostra as colunas Vendas,
+     Devoluções e Receita líquida (o nº de vendas e o ticket médio contam só as vendas), e o R08 mostra, à parte, os
+     reembolsos por forma.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -185,7 +189,8 @@ O gerador de dados de demonstração (**Configurações › Dados de demonstraç
 com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80 produtos (12 pesáveis, com PLU), 3
 usuários, 3 fornecedores com uma entrada de mercadoria por semana, um caixa por dia com vendas, sangrias e fechamento,
 descontos, cancelamentos, perdas, reajustes de preço e um inventário aplicado, 150 clientes (cerca de 40% das vendas
-identificadas, com cashback de 1% e alguns pagamentos com o crédito). Ele **recusa** um banco que já tenha
+identificadas, com cashback de 1% e alguns pagamentos com o crédito) e cerca de 0,5% dos itens devolvidos de 1 a 5
+dias depois da venda, em dinheiro, vale-troca ou outro, alguns avariados. Ele **recusa** um banco que já tenha
 vendas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):

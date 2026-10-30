@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Linhas fictícias de cada relatório, para testar tabela, CSV e PDF sem banco. */
@@ -38,11 +39,15 @@ final class DadosFicticios {
         Filtros f = FILTROS.comDetalhe(detalhar);
         OffsetDateTime hora = OffsetDateTime.of(2026, 9, 1, 11, 5, 0, 0, ZoneOffset.ofHours(-3));
         List<RelVendasPeriodo.Linha> linhas = List.of(
-                new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 101L, hora, "Maria Oliveira", 1,
-                        d("100.00"), d("2.50"), d("50.00"), d("50.00")),
-                new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 2), 102L, hora.plusDays(1), "José Santos", 1,
-                        d("1000.00"), d("0.00"), d("900.00"), d("100.00")));
-        return new ResultadoRelatorio<>(r, f, r.colunas(f), linhas, "Mercado Bom Preço", "Ana Admin", EMISSAO);
+                new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 101L, null, hora, "Maria Oliveira", 1,
+                        d("100.00"), d("0.00"), d("2.50"), d("50.00"), d("50.00")),
+                new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 2), 102L, null, hora.plusDays(1), "José Santos", 1,
+                        d("1000.00"), d("0.00"), d("0.00"), d("900.00"), d("100.00")),
+                // Devolução de R$ 10,00 da venda 101 no dia seguinte (CMV de R$ 5,00 volta).
+                new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 2), 101L, 5L, hora.plusDays(1).plusHours(2),
+                        "Maria Oliveira", 0, d("0.00"), d("10.00"), d("0.00"), d("-5.00"), d("-5.00")));
+        return new ResultadoRelatorio<>(r, f, r.colunas(f), detalhar ? linhas : RelVendasPeriodo.porDia(linhas),
+                "Mercado Bom Preço", "Ana Admin", EMISSAO);
     }
 
     static ResultadoRelatorio<RelMaisVendidos.Linha> r02() {
@@ -115,17 +120,22 @@ final class DadosFicticios {
                 new RelCurvaAbc.Valor(3, "Produto C", d("100.00")))));
     }
 
-    /** 10 vendas no período; a venda paga em dinheiro e PIX conta nas duas formas. */
+    /**
+     * 10 vendas no período; a venda paga em dinheiro e PIX conta nas duas formas. À parte, 2 devoluções reembolsadas em
+     * dinheiro (F13.3).
+     */
     static ResultadoRelatorio<RelFormasPagamento.Linha> r08() {
-        return resultado(new RelFormasPagamento(), FILTROS, RelFormasPagamento.comPercentual(List.of(
-                new RelFormasPagamento.Linha("Dinheiro", 6, d("300.00"), null, 10),
-                new RelFormasPagamento.Linha("PIX", 5, d("100.00"), null, 10))));
+        List<RelFormasPagamento.Linha> linhas = new ArrayList<>(RelFormasPagamento.comPercentual(List.of(
+                RelFormasPagamento.Linha.venda("Dinheiro", 6, d("300.00"), 10),
+                RelFormasPagamento.Linha.venda("PIX", 5, d("100.00"), 10))));
+        linhas.add(RelFormasPagamento.Linha.reembolso(FormaReembolso.DINHEIRO, 2, d("15.00"), 10));
+        return resultado(new RelFormasPagamento(), FILTROS, linhas);
     }
 
     static ResultadoRelatorio<RelVendasOperador.Linha> r09() {
         return resultado(new RelVendasOperador(), FILTROS, List.of(
-                new RelVendasOperador.Linha("Maria Oliveira", 3, d("90.00"), d("4.50"), 1, 2),
-                new RelVendasOperador.Linha("José Santos", 1, d("10.00"), d("0.00"), 0, 0)));
+                new RelVendasOperador.Linha("Maria Oliveira", 3, d("90.00"), d("5.00"), d("4.50"), 1, 2),
+                new RelVendasOperador.Linha("José Santos", 1, d("10.00"), d("0.00"), d("0.00"), 0, 0)));
     }
 
     static ResultadoRelatorio<RelVendasHoraDia.Linha> r10(Criterio criterio) {
@@ -198,20 +208,21 @@ final class DadosFicticios {
 
     static ResultadoRelatorio<RelClientes.Linha> r18() {
         return resultado(new RelClientes(), FILTROS, List.of(
-                new RelClientes.Linha(7, "Maria da Silva", "52998224725", 3, d("100.00"), EMISSAO.minusDays(2)),
-                new RelClientes.Linha(8, "Padaria Boa Massa", "11222333000181", 1, d("10.00"),
+                new RelClientes.Linha(7, "Maria da Silva", "52998224725", 3, d("100.00"), d("10.00"),
+                        EMISSAO.minusDays(2)),
+                new RelClientes.Linha(8, "Padaria Boa Massa", "11222333000181", 1, d("10.00"), d("0.00"),
                         EMISSAO.minusDays(9))));
     }
 
-    /** Maria da Silva: duas compras de R$ 50,00, com consentimento de marketing. */
+    /** Maria da Silva: duas compras de R$ 50,00 (R$ 5,00 devolvidos da segunda), com consentimento de marketing. */
     static ResultadoRelatorio<RelDadosCliente.Linha> dadosCliente() {
         Cliente maria = new Cliente(7, "Maria da Silva", "52998224725", "16999998888", "maria@exemplo.com.br",
                 LocalDate.of(1985, 3, 25), "14010000", "Rua das Flores", "120", "apto 3", "Centro", "Ribeirão Preto",
                 "SP", "Prefere PIX", true, EMISSAO.minusDays(30), false, true, EMISSAO.minusDays(30), "Ana Admin",
                 EMISSAO.minusDays(1), "Ana Admin");
         HistoricoCliente historico = new HistoricoCliente(List.of(
-                new HistoricoCliente.Compra(12, EMISSAO.minusDays(1), 2, d("50.00")),
-                new HistoricoCliente.Compra(9, EMISSAO.minusDays(5), 1, d("50.00"))), List.of(
+                new HistoricoCliente.Compra(12, EMISSAO.minusDays(1), 2, d("50.00"), d("0.00")),
+                new HistoricoCliente.Compra(9, EMISSAO.minusDays(5), 1, d("50.00"), d("5.00"))), List.of(
                 new HistoricoCliente.ProdutoComprado(1, "Refrigerante cola 2 L", "UN", false, 2, d("6"), d("32.94")),
                 new HistoricoCliente.ProdutoComprado(2, "Queijo muçarela", "KG", true, 1, d("0.500"), d("19.95"))));
         ExtratoCredito extrato = new ExtratoCredito(d("0.50"), List.of(

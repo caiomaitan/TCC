@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * R06 — Rentabilidade por categoria (7.3), de {@code vw_venda_item_rentabilidade}: receita, CMV, lucro, margem e o %
+ * R06 — Rentabilidade por categoria (7.3), de {@code vw_resultado_item}: receita (vendas − devoluções), CMV, lucro, margem e o %
  * de cada categoria no lucro total do período. Produto sem categoria entra em "Sem categoria". Do maior para o
  * menor lucro.
  */
@@ -54,7 +54,7 @@ public final class RelRentabilidadeCategoria implements Relatorio<RelRentabilida
             throws SQLException {
         String sql = """
                 SELECT r.categoria_nome, sum(r.receita) AS receita, sum(r.cmv) AS cmv, sum(r.lucro_bruto) AS lucro
-                  FROM vw_venda_item_rentabilidade r
+                  FROM vw_resultado_item r
                  WHERE r.data_hora >= ? AND r.data_hora < ?
                  GROUP BY r.categoria_id, r.categoria_nome
                  ORDER BY sum(r.lucro_bruto) DESC, r.categoria_nome NULLS LAST

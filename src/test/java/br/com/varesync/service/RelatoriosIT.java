@@ -172,8 +172,8 @@ class RelatoriosIT extends IntegracaoBase {
         assertThat(d1.lucro()).isEqualByComparingTo("9.27");
         assertThat(d1.margem()).isEqualByComparingTo("24.20");
         assertThat(d1.ticketMedio()).isEqualByComparingTo("19.16");
-        assertThat(r01.totais()).containsExactly("Total (2 linhas)", "3", "R$ 78,21", "R$ 1,51", "R$ 57,04",
-                "R$ 21,17", "27,07%", "R$ 26,07");
+        assertThat(r01.totais()).containsExactly("Total (2 linhas)", "3", "R$ 78,21", "R$ 0,00", "R$ 78,21",
+                "R$ 1,51", "R$ 57,04", "R$ 21,17", "27,07%", "R$ 26,07");
 
         BigDecimal finalizadas = umValor("SELECT sum(valor_total) FROM venda WHERE status = 'FINALIZADA'");
         BigDecimal todas = umValor("SELECT sum(valor_total) FROM venda");
@@ -228,7 +228,7 @@ class RelatoriosIT extends IntegracaoBase {
                 .containsExactly("OK", "OK", "Negativa");
         // Margem do período = 21,17 ÷ 78,21 (não a média das três margens)
         assertThat(r05.totais().get(7)).isEqualTo("27,07%");
-        assertThat(r05.totais().get(7)).isEqualTo(r01.totais().get(6));
+        assertThat(r05.totais().get(7)).isEqualTo(r01.totais().get(8));
     }
 
     @Test
@@ -424,7 +424,7 @@ class RelatoriosIT extends IntegracaoBase {
         assertThat(r08.linhas().get(0).valor()).isEqualByComparingTo("81.00");
         assertThat(r08.linhas().get(1).vendas()).isEqualTo(1);
         assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor)).isEqualByComparingTo(receitaDoR01());
-        assertThat(r08.totais()).containsExactly("Total (2 linhas)", "4", "R$ 83,00", "100,00%");
+        assertThat(r08.totais()).containsExactly("Total (2 linhas)", "4", "R$ 83,00", "100,00%", "0", "R$ 0,00");
     }
 
     @Test
@@ -438,8 +438,8 @@ class RelatoriosIT extends IntegracaoBase {
         assertThat(ana.receita()).isEqualByComparingTo("38.31");
         assertThat(ana.descontos()).isEqualByComparingTo("1.51");
         assertThat(ana.vendasCanceladas()).isEqualTo(1);
-        assertThat(r09.totais()).containsExactly("Total (2 linhas)", "3", "R$ 78,21", "R$ 26,07", "R$ 1,51", "1",
-                "0");
+        assertThat(r09.totais()).containsExactly("Total (2 linhas)", "3", "R$ 78,21", "R$ 0,00", "R$ 78,21",
+                "R$ 26,07", "R$ 1,51", "1", "0");
     }
 
     @Test

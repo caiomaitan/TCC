@@ -37,9 +37,11 @@ class RelatorioPdfTest {
 
     @Test
     void muitasColunasViramPaginaDeitada() {
+        // R04 e, com as colunas de devolução (F13.3), o R01 saem deitados; o R06 cabe em pé.
         assertThat(RelatorioPdf.jrxml(DadosFicticios.r04().colunas())).contains("orientation=\"Landscape\"")
                 .contains("pageWidth=\"842\"");
-        assertThat(RelatorioPdf.jrxml(DadosFicticios.r01(false).colunas())).doesNotContain("Landscape")
+        assertThat(RelatorioPdf.jrxml(DadosFicticios.r01(false).colunas())).contains("orientation=\"Landscape\"");
+        assertThat(RelatorioPdf.jrxml(DadosFicticios.r06().colunas())).doesNotContain("Landscape")
                 .contains("pageWidth=\"595\"");
     }
 
@@ -74,13 +76,13 @@ class RelatorioPdfTest {
             ResultadoRelatorio<RelMovimentacao.Linha> deitado = comLinhas(DadosFicticios.r04(), quantas);
             assertThat(RelatorioPdf.estimarPaginas(deitado)).as("R04 com %d linhas", quantas)
                     .isEqualTo(pdf.preencher(deitado).getPages().size());
-            ResultadoRelatorio<RelVendasPeriodo.Linha> emPe = comLinhas(DadosFicticios.r01(false), quantas);
-            assertThat(RelatorioPdf.estimarPaginas(emPe)).as("R01 com %d linhas", quantas)
+            ResultadoRelatorio<RelRentabilidadeCategoria.Linha> emPe = comLinhas(DadosFicticios.r06(), quantas);
+            assertThat(RelatorioPdf.estimarPaginas(emPe)).as("R06 com %d linhas", quantas)
                     .isEqualTo(pdf.preencher(emPe).getPages().size());
         }
         assertThat(RelatorioPdf.estimarPaginas(DadosFicticios.r04().colunas(), 33)).isEqualTo(1);
         assertThat(RelatorioPdf.estimarPaginas(DadosFicticios.r04().colunas(), 34)).isEqualTo(2);
-        assertThat(RelatorioPdf.estimarPaginas(DadosFicticios.r01(false).colunas(), 52)).isEqualTo(1);
+        assertThat(RelatorioPdf.estimarPaginas(DadosFicticios.r06().colunas(), 52)).isEqualTo(1);
     }
 
     /** F10.7: acima de 50 páginas, aviso com o tamanho e os filtros que ainda reduzem o PDF. */

@@ -18,8 +18,9 @@ import java.util.Set;
 /**
  * R10 — Vendas por hora e dia da semana (7.3): grade com uma linha por hora (da primeira à última hora com venda no
  * período) e uma coluna por dia da semana, mais o total da hora. O critério escolhe o que aparece nas células:
- * receita ou nº de vendas. Vendas finalizadas, de {@code vw_venda_item_rentabilidade}; a hora e o dia são os do
- * fuso do sistema, calculados no Java a partir de cada venda (como no R01).
+ * receita ou nº de vendas. De {@code vw_resultado_item}: vendas finalizadas e, na hora em que foram feitas, as
+ * devoluções (descontam a receita, não o nº de vendas); a hora e o dia são os do fuso do sistema, calculados no Java a
+ * partir de cada venda ou devolução (como no R01).
  */
 public final class RelVendasHoraDia implements Relatorio<RelVendasHoraDia.Linha> {
 
@@ -55,8 +56,17 @@ public final class RelVendasHoraDia implements Relatorio<RelVendasHoraDia.Linha>
         }
     }
 
-    /** Uma venda: quando e quanto. */
-    record Venda(OffsetDateTime dataHora, BigDecimal receita) {
+    /**
+     * Uma venda ou uma devolução: quando e quanto.
+     *
+     * @param receita negativa na devolução
+     * @param venda   falso na devolução, que entra na receita da hora mas não no nº de vendas
+     */
+    record Venda(OffsetDateTime dataHora, BigDecimal receita, boolean venda) {
+
+        Venda(OffsetDateTime dataHora, BigDecimal receita) {
+            this(dataHora, receita, true);
+        }
     }
 
     @Override
@@ -88,10 +98,10 @@ public final class RelVendasHoraDia implements Relatorio<RelVendasHoraDia.Linha>
     public List<Linha> consultar(Connection con, Filtros filtros, ParametrosRelatorio parametros)
             throws SQLException {
         String sql = """
-                SELECT r.venda_id, r.data_hora, sum(r.receita) AS receita
-                  FROM vw_venda_item_rentabilidade r
+                SELECT r.tipo, r.venda_id, r.devolucao_id, r.data_hora, sum(r.receita) AS receita
+                  FROM vw_resultado_item r
                  WHERE r.data_hora >= ? AND r.data_hora < ?
-                 GROUP BY r.venda_id, r.data_hora
+                 GROUP BY r.tipo, r.venda_id, r.devolucao_id, r.data_hora
                 """;
         List<Venda> vendas = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -99,7 +109,7 @@ public final class RelVendasHoraDia implements Relatorio<RelVendasHoraDia.Linha>
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     vendas.add(new Venda(rs.getObject("data_hora", OffsetDateTime.class),
-                            rs.getBigDecimal("receita")));
+                            rs.getBigDecimal("receita"), "VENDA".equals(rs.getString("tipo"))));
                 }
             }
         }
@@ -120,7 +130,9 @@ public final class RelVendasHoraDia implements Relatorio<RelVendasHoraDia.Linha>
             int hora = local.getHour();
             int dia = DIAS.indexOf(local.getDayOfWeek());
             receitas[hora][dia] = receitas[hora][dia].add(v.receita());
-            quantidades[hora][dia]++;
+            if (v.venda()) {
+                quantidades[hora][dia]++;
+            }
             primeira = Math.min(primeira, hora);
             ultima = Math.max(ultima, hora);
         }

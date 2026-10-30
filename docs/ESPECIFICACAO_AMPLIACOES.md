@@ -513,7 +513,7 @@ Testes de integração com duas conexões simultâneas:
 - R01, R02, R05, R06, R07, R09, R10, R18, a tela do cliente (histórico, total gasto e produtos mais comprados) e o painel passam a usar essa view: receita = vendas − devoluções.
 - **R01:** ganha as colunas "Devoluções" e "Receita líquida". O nº de vendas e o ticket médio continuam calculados só sobre as vendas.
 - **Painel:** o faturamento é a receita líquida (bate com o R01).
-- **R08:** mostra as vendas por forma de pagamento e, à parte, os reembolsos por forma.
+- **R08:** mostra as vendas por forma de pagamento e, à parte, os reembolsos por forma. As vendas por forma continuam batendo com a coluna "Vendas" do R01, e os reembolsos somam a coluna "Devoluções".
 
 ### F13.4 Telas e relatórios
 
@@ -535,7 +535,7 @@ Testes de integração com duas conexões simultâneas:
 - **Cashback:** venda de R$ 100,00 com cashback de R$ 1,00; devolver R$ 40,00 estorna R$ 0,40.
 - **Cancelamento:** venda com devolução não pode ser cancelada.
 - **Cliente anonimizado:** a devolução não oferece vale-troca, e o supervisor zera o saldo que sobrar com um ajuste; um ajuste que não zera o saldo é recusado.
-- **Consistência:** R01 e R05 continuam batendo; `vw_estoque_inconsistente` e `vw_cliente_credito_inconsistente` ficam vazias.
+- **Consistência:** R01 e R05 continuam batendo, o R08 bate com as colunas "Vendas" e "Devoluções" do R01, e `vw_estoque_inconsistente` e `vw_cliente_credito_inconsistente` ficam vazias.
 
 ---
 

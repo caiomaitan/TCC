@@ -124,7 +124,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         Servicos s = montar(dataSource, relogio, terminalId, senhas);
         return new GeradorDemo(relogio, relogioReal, s.transacao(), s.acesso(), s.usuarios(), s.categorias(),
                 s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), s.fornecedores(), s.compras(),
-                s.clientes(), new DemoDAO(), new CaixaDAO(),
+                s.clientes(), s.devolucoes(), new DemoDAO(), new CaixaDAO(),
                 new ConfiguracaoDAO(), new AuditoriaService(new AuditoriaDAO(), relogio, terminalId));
     }
 }

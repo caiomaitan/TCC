@@ -25,26 +25,31 @@ class RelatoriosTest {
     @Test
     void r01TotaisUsamAsFormulasDoAgregado() {
         ResultadoRelatorio<RelVendasPeriodo.Linha> r01 = DadosFicticios.r01(false);
-        assertThat(r01.colunas()).extracting(Coluna::titulo).containsExactly("Dia", "Vendas", "Receita",
-                "Descontos", "CMV", "Lucro", "Margem %", "Ticket médio");
-        assertThat(r01.totais()).containsExactly("Total (2 linhas)", "2", "R$ 1.100,00", "R$ 2,50", "R$ 950,00",
-                "R$ 150,00", "13,64%", "R$ 550,00");
+        assertThat(r01.colunas()).extracting(Coluna::titulo).containsExactly("Dia", "Nº vendas", "Vendas",
+                "Devoluções", "Receita líquida", "Descontos", "CMV", "Lucro", "Margem %", "Ticket médio");
+        // Margem = 145 ÷ 1.090 (receita líquida); ticket médio = 1.100 ÷ 2 (só as vendas, F13.3).
+        assertThat(r01.totais()).containsExactly("Total (2 linhas)", "2", "R$ 1.100,00", "R$ 10,00",
+                "R$ 1.090,00", "R$ 2,50", "R$ 945,00", "R$ 145,00", "13,30%", "R$ 550,00");
 
         ResultadoRelatorio<RelVendasPeriodo.Linha> detalhe = DadosFicticios.r01(true);
-        assertThat(detalhe.colunas()).extracting(Coluna::titulo).containsExactly("Venda nº", "Data/hora",
-                "Operador", "Receita", "Descontos", "CMV", "Lucro", "Margem %");
+        assertThat(detalhe.colunas()).extracting(Coluna::titulo).containsExactly("Venda nº", "Devolução nº",
+                "Data/hora", "Operador", "Vendas", "Devoluções", "Receita líquida", "Descontos", "CMV", "Lucro",
+                "Margem %");
+        assertThat(detalhe.linhas()).hasSize(3);
     }
 
     @Test
-    void r01AgrupaAsVendasPorDia() {
-        RelVendasPeriodo.Linha a = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 1L, null, "Maria", 1,
-                d("10.00"), d("1.00"), d("6.00"), d("4.00"));
-        RelVendasPeriodo.Linha b = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 2L, null, "José", 1,
-                d("30.00"), d("0.00"), d("20.00"), d("10.00"));
-        RelVendasPeriodo.Linha c = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 3), 3L, null, "Maria", 1,
-                d("5.00"), d("0.00"), d("5.50"), d("-0.50"));
+    void r01AgrupaAsVendasEDevolucoesPorDia() {
+        RelVendasPeriodo.Linha a = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 1L, null, null, "Maria", 1,
+                d("10.00"), d("0.00"), d("1.00"), d("6.00"), d("4.00"));
+        RelVendasPeriodo.Linha b = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 1), 2L, null, null, "José", 1,
+                d("30.00"), d("0.00"), d("0.00"), d("20.00"), d("10.00"));
+        RelVendasPeriodo.Linha c = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 3), 3L, null, null, "Maria", 1,
+                d("5.00"), d("0.00"), d("0.00"), d("5.50"), d("-0.50"));
+        RelVendasPeriodo.Linha devolucao = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 3), 1L, 7L, null,
+                "Maria", 0, d("0.00"), d("2.00"), d("0.00"), d("-1.00"), d("-1.00"));
 
-        List<RelVendasPeriodo.Linha> dias = RelVendasPeriodo.porDia(List.of(a, b, c));
+        List<RelVendasPeriodo.Linha> dias = RelVendasPeriodo.porDia(List.of(a, b, c, devolucao));
 
         assertThat(dias).hasSize(2);
         assertThat(dias.get(0).vendaId()).isNull();
@@ -52,8 +57,26 @@ class RelatoriosTest {
         assertThat(dias.get(0).receita()).isEqualByComparingTo("40.00");
         assertThat(dias.get(0).ticketMedio()).isEqualByComparingTo("20.00");
         assertThat(dias.get(0).margem()).isEqualByComparingTo("35.00");
-        assertThat(dias.get(1).vendaId()).isNull();
-        assertThat(dias.get(1).margem()).isEqualByComparingTo("-10.00");
+        RelVendasPeriodo.Linha dia3 = dias.get(1);
+        assertThat(dia3.vendaId()).isNull();
+        assertThat(dia3.devolucaoId()).isNull();
+        assertThat(dia3.vendas()).isEqualTo(1);
+        assertThat(dia3.vendido()).isEqualByComparingTo("5.00");
+        assertThat(dia3.devolvido()).isEqualByComparingTo("2.00");
+        assertThat(dia3.receita()).isEqualByComparingTo("3.00");
+        assertThat(dia3.lucro()).isEqualByComparingTo("-1.50");
+        assertThat(dia3.margem()).isEqualByComparingTo("-50.00");
+        assertThat(dia3.ticketMedio()).as("só sobre as vendas").isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void r01DiaSoComDevolucaoNaoTemTicketMedio() {
+        RelVendasPeriodo.Linha devolucao = new RelVendasPeriodo.Linha(LocalDate.of(2026, 9, 4), 1L, 8L, null,
+                "Maria", 0, d("0.00"), d("5.49"), d("0.00"), d("-3.20"), d("-2.29"));
+        RelVendasPeriodo.Linha dia = RelVendasPeriodo.porDia(List.of(devolucao)).get(0);
+        assertThat(dia.vendas()).isZero();
+        assertThat(dia.receita()).isEqualByComparingTo("-5.49");
+        assertThat(dia.ticketMedio()).isNull();
     }
 
     @Test

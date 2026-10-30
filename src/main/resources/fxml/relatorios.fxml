@@ -23,7 +23,7 @@
 
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label text="Relatório:" minWidth="-Infinity"/>
-        <ComboBox fx:id="escolhaRelatorio" prefWidth="340"/>
+        <ComboBox fx:id="escolhaRelatorio" prefWidth="340" minWidth="-Infinity"/>
         <Label fx:id="descricao" wrapText="true" styleClass="subtitulo" HBox.hgrow="ALWAYS"/>
     </HBox>
 

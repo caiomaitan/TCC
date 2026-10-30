@@ -175,7 +175,8 @@ class ClienteVendaIT extends IntegracaoBase {
         assertThat(linhaMaria.ticketMedio()).isEqualByComparingTo("7.50");
         assertThat(linhaMaria.documentoOculto()).isEqualTo("***.982.247-**");
         assertThat(linhaMaria.ultimaCompra()).isEqualTo(vendas.comprovante(admin, ultimaMaria).dataHora());
-        assertThat(r18.totais()).containsExactly("Total (2 linhas)", "", "", "3", "R$ 30,00", "R$ 10,00", "");
+        assertThat(r18.totais()).containsExactly("Total (2 linhas)", "", "", "3", "R$ 30,00", "R$ 0,00", "R$ 30,00",
+                "R$ 10,00", "");
 
         // As compras identificadas mais a venda sem cliente dão a receita do R01 no mesmo período.
         ResultadoRelatorio<RelVendasPeriodo.Linha> r01 = t.relatorios.gerar(admin, new RelVendasPeriodo(), filtros);

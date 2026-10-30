@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * Um relatório (7.4): nome, filtros que usa, consulta parametrizada que devolve as linhas (records) e as colunas.
  * A consulta roda na transação aberta pelo {@code RelatorioService}; vendas e lucro partem de
- * {@code vw_venda_item_rentabilidade}, estoque de {@code vw_estoque_atual} (7.2).
+ * {@code vw_resultado_item} (F13.3: vendas − devoluções), estoque de {@code vw_estoque_atual} (7.2).
  *
  * @param <T> record de uma linha
  */

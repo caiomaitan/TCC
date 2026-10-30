@@ -522,3 +522,25 @@ Métricas).
 | CT-F13-15 | Devoluções no período | 1. Relatórios › R20 Devoluções › Gerar 2. Exportar PDF e CSV | 1. Devoluções com data, número, venda, quem registrou, cliente (CPF mascarado), itens (avariados marcados), motivo, reembolso e valor; total 2. Arquivos abrem | 1. OK em 2026-10-27 pelo roteiro de tela (captura `15`); 2. PDF coberto por `RelatorioPdfTest`, não executado pela tela |
 | CT-F13-16 | Devolução registrada | 1. Devoluções › venda › devolução › Ver comprovante 2. Imprimir (F5) e Salvar PDF… | 1. O mesmo comprovante, com o saldo de crédito atual 2. Impressora padrão e PDF | 1. `DevolucaoServiceIT.buscaDaTelaEReimpressaoDoComprovante`; 2. falta a pessoa executar |
 | CT-F13-17 | Supervisor | 1. Configurações › Diagnóstico › Verificar agora | 1. Estoque e crédito: "Tudo certo" | OK em 2026-10-27 pelo roteiro de tela (captura `18`) |
+
+## Fase 13 — Devoluções e trocas, parte B (resultado comercial com as devoluções e gerador)
+
+Conferência pela tela em 2026-10-29 por um roteiro descartável (fora do repositório): o sistema real aberto sobre o
+banco `varesync_test` limpo, com os dados de demonstração (60 dias até ontem, 43 devoluções do gerador) e, hoje, um
+produto de R$ 5,49 (custo R$ 3,20), o caixa aberto, a venda de 3 unidades em dinheiro e a devolução de 1 em dinheiro,
+criados pelos services; pasta de usuário temporária e configuração sem BOM (a URL conferida antes de abrir), janelas
+fora da tela, componentes acionados direto (sem teclado nem mouse do sistema) e capturas por snapshot `01` a `10`.
+15 verificações, todas OK. As capturas acharam 2 defeitos visuais, corrigidos antes da execução final (PROGRESSO,
+Métricas).
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F13-18 | Hoje: venda de 3 × R$ 5,49 em dinheiro e devolução de 1 em dinheiro | 1. Relatórios › R01 › período de hoje › Gerar 2. Marcar "Detalhar por venda" › Gerar | 1. Nº vendas 1, Vendas R$ 16,47, Devoluções R$ 5,49, Receita líquida R$ 10,98, CMV R$ 6,40, Lucro R$ 4,58, Margem 41,71%, Ticket médio R$ 16,47 2. Uma linha da venda e uma da devolução (com o nº dela) | 1. OK em 2026-10-29 pelo roteiro de tela (captura `02`); 2. `ResultadoComercialIT.aceiteR01DoDiaComDevolucaoEmDinheiro` |
+| CT-F13-19 | O mesmo dia | 1. Painel › Atualizar (F5) | 1. Faturamento R$ 10,98 (receita líquida), Vendas 1, Ticket médio R$ 16,47, Lucro bruto R$ 4,58 | OK em 2026-10-29 pelo roteiro de tela (captura `01`) |
+| CT-F13-20 | Dados de demonstração | 1. R01 dos 60 dias 2. R05 do mesmo período | 1–2. Receita líquida, CMV, lucro e margem do total iguais nos dois | OK em 2026-10-29 pelo roteiro de tela (capturas `03` e `04`: R$ 109.021,82, R$ 77.602,39, R$ 31.419,43, 28,82%) |
+| CT-F13-21 | Dados de demonstração | 1. R08 dos 60 dias | 1. As formas de pagamento e, à parte, "Reembolso: Dinheiro", "Reembolso: Vale-troca" e "Reembolso: Outro"; total de Vendas = coluna Vendas do R01, total de Reembolsos = coluna Devoluções do R01 | OK em 2026-10-29 pelo roteiro de tela (captura `05`: R$ 109.552,09 e R$ 530,27) |
+| CT-F13-22 | Dados de demonstração | 1. R09, R10 e R18 dos 60 dias | 1. R09 com Vendas, Devoluções e Receita líquida por operador (a devolução fica com quem fez a venda); R10 com o total igual à receita líquida do R01; R18 com Comprado, Devoluções e Valor líquido | OK em 2026-10-29 pelo roteiro de tela (capturas `06` a `08`) |
+| CT-F13-23 | Devolução de um item noutro dia | 1. R01 do dia da venda ao da devolução 2. R05 só do dia da devolução | 1. O dia da devolução aparece com 0 vendas, receita negativa e ticket "—" 2. O produto aparece com receita e lucro negativos (situação Negativa) | `ResultadoComercialIT.devolucaoEntraNaDataDaDevolucaoENoOperadorDaVenda`; falta a pessoa executar pela tela |
+| CT-F13-24 | Cliente com vale-troca (dados de demonstração) | 1. Clientes › cliente › aba Compras | 1. Coluna "Devolvido" na compra com devolução; Valor e Total gasto já sem as devoluções; ticket médio sobre o comprado; produto devolvido por inteiro sai dos mais comprados | 1. OK em 2026-10-29 pelo roteiro de tela (captura `10`); o produto devolvido por inteiro em `ResultadoComercialIT.clienteR18EHistoricoDescontamAsDevolucoes` |
+| CT-F13-25 | Banco de demonstração novo | 1. Configurações › Dados de demonstração › Gerar 2. R20 dos 60 dias | 1. O resumo mostra "Devoluções: N" 2. As devoluções do gerador, em dinheiro, vale-troca e outro, algumas com item avariado | 1. Falta a pessoa executar pela tela (o roteiro gerou pelo service); 2. OK pelo roteiro (captura `09`) e `GeradorDemoIT.devolucoesDaFase13` |
+| CT-F13-26 | Dados de demonstração | 1. R01 › Exportar PDF | 1. PDF deitado (A4 paisagem), com as colunas Vendas, Devoluções e Receita líquida | `RelatorioPdfTest.muitasColunasViramPaginaDeitada`; falta a pessoa abrir o PDF |
