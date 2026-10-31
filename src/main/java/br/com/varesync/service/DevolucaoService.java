@@ -4,6 +4,7 @@ import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.DevolucaoDAO;
+import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
@@ -17,12 +18,15 @@ import br.com.varesync.model.ItemDevolucao;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.StatusTitulo;
 import br.com.varesync.model.StatusVenda;
 import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.model.TituloReceber;
 import br.com.varesync.model.Usuario;
 import br.com.varesync.model.VendaDevolucao;
 import br.com.varesync.model.VendaDevolvivel;
+import br.com.varesync.util.CalculoCrediario;
 import br.com.varesync.util.CalculoDevolucao;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
@@ -51,7 +55,8 @@ import java.util.Set;
  *
  * <p>Exige DEVOLUCAO ou a liberação de quem tem; depois de {@code devolucao.prazo_dias}, só com a liberação de um
  * supervisor. Travas na ordem do cancelamento de venda: caixa (no reembolso em dinheiro) → venda → saldos de estoque na
- * ordem do produto → saldo de crédito.
+ * ordem do produto → saldo de crédito. Numa venda com crediário (F14.2), o valor devolvido abate primeiro os títulos
+ * em aberto (travados logo depois da venda), da última parcela para a primeira; só o restante vai na forma escolhida.
  */
 public class DevolucaoService {
 
@@ -65,6 +70,7 @@ public class DevolucaoService {
     private final DevolucaoDAO dao;
     private final ClienteDAO clienteDAO;
     private final CreditoClienteDAO creditoDAO;
+    private final TituloReceberDAO tituloDAO;
     private final UsuarioDAO usuarioDAO;
     private final ConfiguracaoDAO configuracaoDAO;
     private final EstoqueService estoqueService;
@@ -79,9 +85,10 @@ public class DevolucaoService {
     }
 
     public DevolucaoService(Transacao transacao, DevolucaoDAO dao, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
-                            UsuarioDAO usuarioDAO, ConfiguracaoDAO configuracaoDAO, EstoqueService estoqueService,
-                            CaixaService caixaService, CreditoService creditoService, AuditoriaService auditoria,
-                            Clock clock) {
+                            TituloReceberDAO tituloDAO, UsuarioDAO usuarioDAO, ConfiguracaoDAO configuracaoDAO,
+                            EstoqueService estoqueService, CaixaService caixaService, CreditoService creditoService,
+                            AuditoriaService auditoria, Clock clock) {
+        this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.dao = dao;
         this.clienteDAO = clienteDAO;
@@ -139,7 +146,9 @@ public class DevolucaoService {
             return new VendaDevolucao(v.id(), v.dataHora(), v.operador(), v.status(), v.valorTotal(), v.clienteId(),
                     v.clienteNome(), v.clienteId() == null ? null : documento(v.clienteCpfCnpj()),
                     v.clienteAnonimizado(), prazoAte, LocalDate.now(clock).isAfter(prazoAte), dao.itens(con, vendaId),
-                    dao.daVenda(con, vendaId));
+                    dao.daVenda(con, vendaId), tituloDAO.daVenda(con, vendaId, false).stream()
+                    .filter(t -> t.status() == StatusTitulo.ABERTO).map(TituloReceber::emAberto)
+                    .reduce(Dinheiro.ZERO, BigDecimal::add));
         });
     }
 
@@ -174,8 +183,8 @@ public class DevolucaoService {
             throw new NegocioException("A observação pode ter no máximo " + TAMANHO_MAXIMO_OBSERVACAO
                     + " caracteres.");
         }
-        FormaReembolso forma = dados.forma();
-        if (forma == null) {
+        FormaReembolso escolhida = dados.forma();
+        if (escolhida == null) {
             throw new NegocioException("Escolha a forma de reembolso.");
         }
         Map<Long, DadosDevolucao.Item> pedidos = new LinkedHashMap<>();
@@ -192,14 +201,9 @@ public class DevolucaoService {
         }
         OffsetDateTime agora = OffsetDateTime.now(clock);
         return transacao.executar(con -> {
-            CaixaSessao caixa = null;
-            if (forma == FormaReembolso.DINHEIRO) {
-                if (caixaService.caixaAberto(con, sessao).isEmpty()) {
-                    throw new NegocioException("O reembolso em dinheiro sai da gaveta: abra o caixa deste terminal "
-                            + "ou escolha outra forma de reembolso.");
-                }
-                caixa = caixaService.travarAberta(con, sessao);
-            }
+            // O caixa é travado antes da venda, mas só é exigido depois: a devolução abatida por inteiro não usa a gaveta.
+            CaixaSessao caixaAberto = escolhida == FormaReembolso.DINHEIRO && caixaService.caixaAberto(con, sessao)
+                    .isPresent() ? caixaService.travarAberta(con, sessao) : null;
             long vendaId = dados.vendaId();
             DevolucaoDAO.Venda venda = dao.venda(con, vendaId, true)
                     .orElseThrow(() -> new NegocioException("Venda nº " + vendaId + " não encontrada."));
@@ -254,6 +258,26 @@ public class DevolucaoService {
             }
             BigDecimal total = devolvidos.stream().map(Devolvido::valor).reduce(Dinheiro.ZERO, BigDecimal::add);
 
+            // Crediário (F14.2): primeiro abate os títulos em aberto; o restante vai na forma escolhida.
+            List<TituloReceber> titulos = tituloDAO.daVenda(con, vendaId, true);
+            List<BigDecimal> emAberto = titulos.stream().map(t -> t.status() == StatusTitulo.ABERTO ? t.emAberto()
+                    : Dinheiro.ZERO).toList();
+            List<CalculoCrediario.Abatimento> abatimentos = CalculoCrediario.abater(total, emAberto);
+            BigDecimal abatido = abatimentos.stream().map(CalculoCrediario.Abatimento::valor)
+                    .reduce(Dinheiro.ZERO, BigDecimal::add);
+            BigDecimal restante = total.subtract(abatido);
+            boolean tudoAbatido = abatido.signum() > 0 && restante.signum() == 0;
+            if (escolhida == FormaReembolso.ABATIMENTO && !tudoAbatido) {
+                throw new NegocioException("Escolha como reembolsar " + Formatos.moeda(restante) + " que não abatem "
+                        + "parcelas em aberto: dinheiro, vale-troca ou outro.");
+            }
+            FormaReembolso forma = tudoAbatido ? FormaReembolso.ABATIMENTO : escolhida;
+            if (forma == FormaReembolso.DINHEIRO && caixaAberto == null) {
+                throw new NegocioException("O reembolso em dinheiro sai da gaveta: abra o caixa deste terminal "
+                        + "ou escolha outra forma de reembolso.");
+            }
+            CaixaSessao caixa = forma == FormaReembolso.DINHEIRO ? caixaAberto : null;
+
             // Cliente: o da venda; numa venda sem cliente, o vale-troca vai para quem foi identificado agora.
             Long clienteId = venda.clienteId();
             if (forma == FormaReembolso.CREDITO_CLIENTE) {
@@ -276,13 +300,18 @@ public class DevolucaoService {
             }
 
             // Reembolso em dinheiro: até o que deveria estar na gaveta (sem mostrar o valor: fechamento às cegas).
-            if (caixa != null && total.compareTo(caixaService.dinheiroEsperado(con, caixa.id())) > 0) {
-                throw new NegocioException("O valor da devolução (" + Formatos.moeda(total) + ") é maior que o "
+            if (caixa != null && restante.compareTo(caixaService.dinheiroEsperado(con, caixa.id())) > 0) {
+                throw new NegocioException("O valor da devolução (" + Formatos.moeda(restante) + ") é maior que o "
                         + "dinheiro que deveria estar na gaveta. Escolha outra forma de reembolso.");
             }
 
             long devolucaoId = dao.inserir(con, new DevolucaoDAO.Nova(vendaId, sessao.usuarioId(), agora, motivo, forma,
-                    total, clienteId, liberadoPor, observacao, caixa == null ? null : caixa.id()));
+                    total, clienteId, liberadoPor, observacao, caixa == null ? null : caixa.id(), abatido));
+            for (CalculoCrediario.Abatimento a : abatimentos) {
+                TituloReceber titulo = titulos.get(a.indice());
+                tituloDAO.abater(con, titulo.id(), a.valor(), a.valor().compareTo(titulo.emAberto()) == 0
+                        ? StatusTitulo.QUITADO : StatusTitulo.ABERTO);
+            }
             record Gravado(Devolvido devolvido, long itemId) {
             }
             List<Gravado> gravados = new ArrayList<>();
@@ -309,10 +338,10 @@ public class DevolucaoService {
 
             // Crédito do cliente: vale-troca e estorno do cashback da venda, na proporção do valor devolvido.
             List<String> credito = new ArrayList<>();
-            if (forma == FormaReembolso.CREDITO_CLIENTE && total.signum() > 0) {
-                creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.CREDITO_DEVOLUCAO, total, vendaId,
-                        devolucaoId, null);
-                credito.add("vale-troca de " + Formatos.moeda(total));
+            if (forma == FormaReembolso.CREDITO_CLIENTE && restante.signum() > 0) {
+                creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.CREDITO_DEVOLUCAO, restante,
+                        vendaId, devolucaoId, null);
+                credito.add("vale-troca de " + Formatos.moeda(restante));
             }
             BigDecimal estorno = Dinheiro.ZERO;
             Optional<CreditoClienteDAO.DaVenda> cashback = creditoDAO.daVenda(con, vendaId).stream()
@@ -337,7 +366,9 @@ public class DevolucaoService {
                     + (foraDoPrazo ? ", fora do prazo" : "") + ")";
             auditoria.registrar(con, sessao, AcaoAuditoria.DEVOLUCAO_REGISTRADA, ENTIDADE_DEVOLUCAO, devolucaoId,
                     "Devolução nº " + devolucaoId + " da venda nº " + vendaId + ": " + devolvidos.size()
-                            + " item(ns), " + Formatos.moeda(total) + " em " + forma.rotulo().toLowerCase()
+                            + " item(ns), " + Formatos.moeda(total)
+                            + (abatido.signum() > 0 ? ", " + Formatos.moeda(abatido) + " abatidos das parcelas" : "")
+                            + (tudoAbatido ? "" : " em " + forma.rotulo().toLowerCase())
                             + (caixa == null ? "" : " (caixa nº " + caixa.id() + ")") + ". Motivo: " + motivo
                             + liberou
                             + (credito.isEmpty() ? "" : ". Crédito do cliente: " + String.join(" e ", credito)));
@@ -394,7 +425,10 @@ public class DevolucaoService {
                 c.liberadoPor(), c.clienteNome() == null ? null
                 : new Comprovante.Cliente(c.clienteNome(), documento(c.clienteCpfCnpj())),
                 dao.itensComprovante(con, devolucaoId), c.valorTotal(), c.forma(), c.motivo(), c.observacao(),
-                estornado, saldo, config.rodapeComprovante());
+                estornado, saldo, config.rodapeComprovante(), c.valorAbatido(),
+                tituloDAO.daVenda(con, c.vendaId(), false).stream().filter(t -> t.status() == StatusTitulo.ABERTO)
+                        .map(t -> new Comprovante.ParcelaCrediario(t.parcela(), t.totalParcelas(), t.vencimento(),
+                                t.emAberto())).toList());
     }
 
     private static String documento(String cpfCnpj) {

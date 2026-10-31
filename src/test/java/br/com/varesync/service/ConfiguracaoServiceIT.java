@@ -186,7 +186,7 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
     void formasDePagamentoCriarDesativarEAoMenosUmaAtiva() throws Exception {
         assertThat(configuracoes.formasPagamento(admin)).extracting(FormaPagamentoCadastro::descricao)
                 .containsExactly("Dinheiro", "PIX", "Cartão de débito", "Cartão de crédito", "Vale-alimentação",
-                        "Crédito do cliente");
+                        "Crédito do cliente", "Crediário");
 
         int fiado = configuracoes.criarForma(admin, "  Vale  presente ", TipoFormaPagamento.OUTROS);
         assertThat(configuracoes.formasPagamento(admin)).last()

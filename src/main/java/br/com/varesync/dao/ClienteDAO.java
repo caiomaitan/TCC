@@ -1,8 +1,10 @@
 package br.com.varesync.dao;
 
 import br.com.varesync.model.Cliente;
+import br.com.varesync.model.ClienteCrediario;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.HistoricoCliente;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -217,6 +219,38 @@ public class ClienteDAO {
     }
 
     /** O cliente como o PDV o vê, em qualquer situação. */
+    /**
+     * Situação do cliente para o crediário, com a linha travada até o fim da transação: duas vendas a prazo do mesmo
+     * cliente não conferem o limite ao mesmo tempo, e a anonimização espera. {@code FOR NO KEY UPDATE} não impede outra
+     * venda (à vista) de apontar para o cliente.
+     */
+    public Optional<ClienteCrediario> travarParaCrediario(Connection con, long id) throws SQLException {
+        String sql = """
+                SELECT id, nome, ativo, limite_credito, crediario_bloqueado
+                  FROM cliente
+                 WHERE id = ?
+                 FOR NO KEY UPDATE
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(new ClienteCrediario(rs.getLong("id"), rs.getString("nome"),
+                        rs.getBoolean("ativo"), rs.getBigDecimal("limite_credito"),
+                        rs.getBoolean("crediario_bloqueado"))) : Optional.empty();
+            }
+        }
+    }
+
+    /** Limite de crédito do cliente (F14.2), sem travar; vazio se o cliente não existe. */
+    public Optional<BigDecimal> limiteCredito(Connection con, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("SELECT limite_credito FROM cliente WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(rs.getBigDecimal(1)) : Optional.empty();
+            }
+        }
+    }
+
     public Optional<ClienteVenda> buscarParaVenda(Connection con, long id) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(COLUNAS_VENDA + " WHERE c.id = ?")) {
             ps.setLong(1, id);

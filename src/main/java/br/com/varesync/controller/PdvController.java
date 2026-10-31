@@ -491,7 +491,8 @@ public class PdvController {
             finalizada = Optional.of(vendaService.finalizar(sessao, carrinho, new Recebimento(carrinho.total())));
         } else {
             PagamentoController pagamento = Janelas.abrirModal(janela, "/fxml/pagamento.fxml", "Pagamento",
-                    tipo -> new PagamentoController(vendaService, sessao, carrinho), (PagamentoController c) -> { });
+                    tipo -> new PagamentoController(vendaService, acessoService, sessao, carrinho),
+                    (PagamentoController c) -> { });
             finalizada = pagamento.resultado();
         }
         finalizada.ifPresent(this::concluir);

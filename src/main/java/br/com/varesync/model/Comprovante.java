@@ -3,6 +3,7 @@ package br.com.varesync.model;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,12 +15,14 @@ import java.util.List;
  * @param pagamentos valor entregue por forma (no dinheiro, já com o troco somado)
  * @param cliente    cliente identificado (F12.2), ou nulo
  * @param credito    cashback gerado e saldo de crédito atual do cliente (F12.5), ou nulo
+ * @param crediario  parcelas do crediário (F14.2); vazia sem crediário e na venda cancelada
  */
 public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
                           StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento,
                           List<Item> itens, BigDecimal valorBruto, BigDecimal descontoItens,
                           BigDecimal descontoVenda, BigDecimal total, List<Pagamento> pagamentos, BigDecimal troco,
-                          String rodape, Cliente cliente, Credito credito) implements ComprovanteImpresso {
+                          String rodape, Cliente cliente, Credito credito, List<ParcelaCrediario> crediario)
+        implements ComprovanteImpresso {
 
     public static final String NAO_FISCAL = "NÃO É DOCUMENTO FISCAL";
     /** Largura do comprovante em tela, como numa impressora de 80 mm. */
@@ -44,9 +47,28 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
     public record Pagamento(String forma, BigDecimal valor) {
     }
 
+    /** Uma parcela do crediário: número, total de parcelas, vencimento e valor (no comprovante da devolução, o em aberto). */
+    public record ParcelaCrediario(int parcela, int totalParcelas, LocalDate vencimento, BigDecimal valor) {
+
+        LinhaComprovante linha() {
+            return LinhaComprovante.normal("  " + parcela + "/" + totalParcelas + " vence " + Formatos.data(vencimento),
+                    Formatos.moeda(valor));
+        }
+    }
+
     public Comprovante {
         itens = List.copyOf(itens);
         pagamentos = List.copyOf(pagamentos);
+        crediario = List.copyOf(crediario);
+    }
+
+    /** Venda sem crediário. */
+    public Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
+                       StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento, List<Item> itens,
+                       BigDecimal valorBruto, BigDecimal descontoItens, BigDecimal descontoVenda, BigDecimal total,
+                       List<Pagamento> pagamentos, BigDecimal troco, String rodape, Cliente cliente, Credito credito) {
+        this(loja, vendaId, dataHora, operador, terminal, status, canceladaEm, motivoCancelamento, itens, valorBruto,
+                descontoItens, descontoVenda, total, pagamentos, troco, rodape, cliente, credito, List.of());
     }
 
     public BigDecimal descontos() {
@@ -114,6 +136,11 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         }
         if (troco.signum() > 0) {
             linhas.add(LinhaComprovante.negrito("Troco", Formatos.moeda(troco)));
+        }
+        if (!crediario.isEmpty()) {
+            linhas.add(LinhaComprovante.separador());
+            linhas.add(LinhaComprovante.texto("Parcelas do crediário:"));
+            crediario.forEach(p -> linhas.add(p.linha()));
         }
         if (credito != null) {
             linhas.add(LinhaComprovante.separador());

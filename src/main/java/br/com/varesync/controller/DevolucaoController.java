@@ -76,6 +76,7 @@ public class DevolucaoController {
     @FXML private Button botaoCliente;
     @FXML private TextField campoObservacao;
     @FXML private Label total;
+    @FXML private Label abatimento;
     @FXML private Button botaoRegistrar;
     @FXML private Label mensagem;
 
@@ -141,7 +142,7 @@ public class DevolucaoController {
         aviso.setVisible(!avisos.isEmpty());
         aviso.setManaged(!avisos.isEmpty());
 
-        List<FormaReembolso> formas = new ArrayList<>(List.of(FormaReembolso.values()));
+        List<FormaReembolso> formas = new ArrayList<>(FormaReembolso.escolhiveis());
         if (!v.aceitaValeTroca()) {
             formas.remove(FormaReembolso.CREDITO_CLIENTE);
         }
@@ -212,6 +213,31 @@ public class DevolucaoController {
             soma = soma.add(valor);
         }
         total.setText(Formatos.moeda(soma));
+        BigDecimal abatido = abatido(soma);
+        boolean temAbatimento = venda != null && venda.crediarioEmAberto().signum() > 0;
+        abatimento.setVisible(temAbatimento);
+        abatimento.setManaged(temAbatimento);
+        if (temAbatimento) {
+            abatimento.setText(textoAbatimento(soma, abatido));
+        }
+        // Abatida por inteiro, a devolução fica com a forma ABATIMENTO: não há o que escolher.
+        campoForma.setDisable(abatido.signum() > 0 && abatido.compareTo(soma) == 0);
+    }
+
+    private BigDecimal abatido(BigDecimal valor) {
+        return venda == null ? Dinheiro.ZERO : valor.min(venda.crediarioEmAberto());
+    }
+
+    /** Como o valor se divide entre as parcelas em aberto e a forma escolhida (F14.2). */
+    private String textoAbatimento(BigDecimal valor, BigDecimal abatido) {
+        if (valor.signum() == 0) {
+            return "Esta venda tem " + Formatos.moeda(venda.crediarioEmAberto()) + " em parcelas em aberto: a "
+                    + "devolução abate primeiro essas parcelas.";
+        }
+        BigDecimal restante = valor.subtract(abatido);
+        return "Abate " + Formatos.moeda(abatido) + " das parcelas em aberto"
+                + (restante.signum() == 0 ? "; nada a reembolsar."
+                : "; " + Formatos.moeda(restante) + " na forma de reembolso escolhida.");
     }
 
     private static Optional<BigDecimal> quantidadeDigitada(Linha l) {
@@ -271,9 +297,14 @@ public class DevolucaoController {
             if (liberacao == null) {
                 return;
             }
+            BigDecimal abatido = abatido(valor);
+            String reembolso = abatido.signum() == 0 ? " em " + dados.forma().rotulo().toLowerCase()
+                    : abatido.compareTo(valor) == 0 ? ", abatidos das parcelas em aberto"
+                    : " (" + Formatos.moeda(abatido) + " abatidos das parcelas em aberto e "
+                    + Formatos.moeda(valor.subtract(abatido)) + " em " + dados.forma().rotulo().toLowerCase() + ")";
             if (!Dialogos.confirmar(raiz.getScene().getWindow(), "Devolver " + dados.itens().size() + " item(ns) da "
-                    + "venda nº " + venda.id() + ", " + Formatos.moeda(valor) + " em " + dados.forma().rotulo()
-                    .toLowerCase() + "? A devolução não pode ser desfeita.")) {
+                    + "venda nº " + venda.id() + ", " + Formatos.moeda(valor) + reembolso
+                    + "? A devolução não pode ser desfeita.")) {
                 return;
             }
             resultado = devolucaoService.registrar(sessao, dados, liberacao.orElse(null));

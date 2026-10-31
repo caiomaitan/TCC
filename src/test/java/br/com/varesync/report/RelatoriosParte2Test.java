@@ -219,10 +219,11 @@ class RelatoriosParte2Test {
         ResultadoRelatorio<RelDevolucoes.Linha> r20 = DadosFicticios.r20();
         assertThat(r20.titulo()).isEqualTo("R20 — Devoluções");
         assertThat(r20.colunas()).extracting(Coluna::titulo).containsExactly("Data/hora", "Devolução", "Venda",
-                "Registrada por", "Cliente", "Itens", "Motivo", "Reembolso", "Valor");
+                "Registrada por", "Cliente", "Itens", "Motivo", "Reembolso", "Valor", "Abatido", "Parcelas em aberto");
         assertThat(r20.colunas().get(2).formatar(r20.linhas().get(0))).isEqualTo("1201");
         assertThat(r20.colunas().get(7).formatar(r20.linhas().get(1))).isEqualTo("Vale-troca");
-        assertThat(r20.totais()).endsWith("R$ 39,87");
+        assertThat(r20.colunas().get(10).formatar(r20.linhas().get(0))).isEqualTo("1/2: R$ 5,03");
+        assertThat(r20.totais()).contains("R$ 39,87", "R$ 4,97");
     }
 
     @Test

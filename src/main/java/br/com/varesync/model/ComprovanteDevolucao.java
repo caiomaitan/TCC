@@ -16,12 +16,15 @@ import java.util.List;
  * @param cliente          cliente da devolução, ou nulo
  * @param cashbackEstornado zero sem estorno
  * @param saldoCredito     saldo de crédito do cliente na emissão; nulo quando a devolução não mexeu no crédito
+ * @param valorAbatido     parte abatida das parcelas do crediário (F14.2); zero sem abatimento
+ * @param parcelasEmAberto parcelas da venda em aberto na emissão, com o valor em aberto
  */
 public record ComprovanteDevolucao(Comprovante.Loja loja, long devolucaoId, OffsetDateTime dataHora, long vendaId,
                                    OffsetDateTime vendaDataHora, String usuario, String liberadoPor,
                                    Comprovante.Cliente cliente, List<Item> itens, BigDecimal total,
                                    FormaReembolso forma, String motivo, String observacao,
-                                   BigDecimal cashbackEstornado, BigDecimal saldoCredito, String rodape)
+                                   BigDecimal cashbackEstornado, BigDecimal saldoCredito, String rodape,
+                                   BigDecimal valorAbatido, List<Comprovante.ParcelaCrediario> parcelasEmAberto)
         implements ComprovanteImpresso {
 
     public record Item(int sequencia, String codigo, String descricao, BigDecimal quantidade, String unidade,
@@ -30,6 +33,17 @@ public record ComprovanteDevolucao(Comprovante.Loja loja, long devolucaoId, Offs
 
     public ComprovanteDevolucao {
         itens = List.copyOf(itens);
+        parcelasEmAberto = List.copyOf(parcelasEmAberto);
+    }
+
+    /** Devolução sem abatimento. */
+    public ComprovanteDevolucao(Comprovante.Loja loja, long devolucaoId, OffsetDateTime dataHora, long vendaId,
+                                OffsetDateTime vendaDataHora, String usuario, String liberadoPor,
+                                Comprovante.Cliente cliente, List<Item> itens, BigDecimal total, FormaReembolso forma,
+                                String motivo, String observacao, BigDecimal cashbackEstornado,
+                                BigDecimal saldoCredito, String rodape) {
+        this(loja, devolucaoId, dataHora, vendaId, vendaDataHora, usuario, liberadoPor, cliente, itens, total, forma,
+                motivo, observacao, cashbackEstornado, saldoCredito, rodape, BigDecimal.ZERO, List.of());
     }
 
     @Override
@@ -69,7 +83,23 @@ public record ComprovanteDevolucao(Comprovante.Loja loja, long devolucaoId, Offs
         }
         linhas.add(LinhaComprovante.separador());
         linhas.add(LinhaComprovante.negrito("TOTAL DEVOLVIDO", Formatos.moeda(total)));
-        linhas.add(LinhaComprovante.normal("Reembolso", forma.curto()));
+        if (valorAbatido.signum() > 0) {
+            linhas.add(LinhaComprovante.normal("Abatido nas parcelas", Formatos.moeda(valorAbatido)));
+        }
+        if (valorAbatido.signum() > 0 && forma != FormaReembolso.ABATIMENTO) {
+            linhas.add(LinhaComprovante.normal("Reembolso: " + forma.curto(),
+                    Formatos.moeda(total.subtract(valorAbatido))));
+        } else {
+            linhas.add(LinhaComprovante.normal("Reembolso", forma.curto()));
+        }
+        if (valorAbatido.signum() > 0) {
+            if (parcelasEmAberto.isEmpty()) {
+                linhas.add(LinhaComprovante.texto("Nenhuma parcela em aberto."));
+            } else {
+                linhas.add(LinhaComprovante.texto("Parcelas em aberto:"));
+                parcelasEmAberto.forEach(p -> linhas.add(p.linha()));
+            }
+        }
         linhas.add(LinhaComprovante.texto("Motivo: " + motivo));
         if (!Textos.vazio(observacao)) {
             linhas.add(LinhaComprovante.texto("Obs.: " + observacao));

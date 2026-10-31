@@ -108,9 +108,9 @@ public class ConfiguracaoService {
         if (tipo == null) {
             throw new NegocioException("Escolha o tipo da forma de pagamento.");
         }
-        if (tipo == TipoFormaPagamento.CREDITO_CLIENTE) {
+        if (tipo == TipoFormaPagamento.CREDITO_CLIENTE || tipo == TipoFormaPagamento.CREDIARIO) {
             throw new NegocioException("Só pode existir uma forma do tipo " + tipo.rotulo() + ", e ela já vem "
-                    + "cadastrada (\"Crédito do cliente\"). Ative-a se estiver desativada.");
+                    + "cadastrada (\"" + tipo.rotulo() + "\"). Ative-a se estiver desativada.");
         }
         return transacao.executar(con -> {
             formaPagamentoDAO.buscarPorDescricao(con, descricao).ifPresent(f -> {
@@ -125,8 +125,8 @@ public class ConfiguracaoService {
     }
 
     /**
-     * Ativa ou desativa; sempre fica ao menos uma forma ativa além do crédito do cliente (sem nenhuma, o PDV não
-     * recebe).
+     * Ativa ou desativa; sempre fica ao menos uma forma ativa além do crédito do cliente e do crediário (sem nenhuma,
+     * o PDV não recebe).
      */
     public void alterarSituacaoForma(Sessao sessao, int id, boolean ativa) {
         sessao.exigirSupervisor();
@@ -137,9 +137,10 @@ public class ConfiguracaoService {
             if (forma.ativa() == ativa) {
                 return null;
             }
-            // O crédito do cliente não conta: sem cliente identificado, a venda não teria como ser paga (F12.4).
-            if (!ativa && forma.tipo() != TipoFormaPagamento.CREDITO_CLIENTE && formas.stream()
-                    .filter(f -> f.ativa() && f.tipo() != TipoFormaPagamento.CREDITO_CLIENTE).count() == 1) {
+            // Crédito do cliente e crediário não contam: sem cliente identificado, a venda não teria como ser paga
+            // (F12.4 e F14.1).
+            if (!ativa && !exigeCliente(forma.tipo()) && formas.stream()
+                    .filter(f -> f.ativa() && !exigeCliente(f.tipo())).count() == 1) {
                 throw new NegocioException("\"" + forma.descricao() + "\" é a única forma de pagamento ativa. Ative "
                         + "outra antes de desativar esta.");
             }
@@ -148,6 +149,10 @@ public class ConfiguracaoService {
                     "Forma de pagamento \"" + forma.descricao() + "\" " + (ativa ? "ativada" : "desativada"));
             return null;
         });
+    }
+
+    private static boolean exigeCliente(TipoFormaPagamento tipo) {
+        return tipo == TipoFormaPagamento.CREDITO_CLIENTE || tipo == TipoFormaPagamento.CREDIARIO;
     }
 
     // ----- Validação -----
@@ -202,7 +207,8 @@ public class ConfiguracaoService {
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
-                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias());
+                margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
+                c.crediario());
     }
 
     /** Fidelidade (F12.5): cashback de 0 a 100% (maior que zero com ela ligada) e compra mínima ≥ 0, em reais. */

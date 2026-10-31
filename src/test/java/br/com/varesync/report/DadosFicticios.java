@@ -128,7 +128,7 @@ final class DadosFicticios {
         List<RelFormasPagamento.Linha> linhas = new ArrayList<>(RelFormasPagamento.comPercentual(List.of(
                 RelFormasPagamento.Linha.venda("Dinheiro", 6, d("300.00"), 10),
                 RelFormasPagamento.Linha.venda("PIX", 5, d("100.00"), 10))));
-        linhas.add(RelFormasPagamento.Linha.reembolso(FormaReembolso.DINHEIRO, 2, d("15.00"), 10));
+        linhas.add(RelFormasPagamento.Linha.reembolso(FormaReembolso.DINHEIRO, 2, d("15.00"), 10, 2));
         return resultado(new RelFormasPagamento(), FILTROS, linhas);
     }
 
@@ -248,9 +248,9 @@ final class DadosFicticios {
         return resultado(new RelDevolucoes(), Filtros.vazios().comPeriodo(FILTROS.periodo()), List.of(
                 new RelDevolucoes.Linha(EMISSAO.minusDays(3), 4, 1201, "Maria Oliveira", "Maria da Silva (***.982.247-**)",
                         "2 UN x Refrigerante cola 2 L (avariado); 0,250 KG x Queijo minas", "Defeito",
-                        FormaReembolso.DINHEIRO, d("14.97")),
+                        FormaReembolso.DINHEIRO, d("14.97"), d("4.97"), "1/2: R$ 5,03"),
                 new RelDevolucoes.Linha(EMISSAO.minusDays(1), 5, 1250, "José Santos", "", "1 UN x Arroz 5 kg",
-                        "Arrependimento", FormaReembolso.CREDITO_CLIENTE, d("24.90"))));
+                        "Arrependimento", FormaReembolso.CREDITO_CLIENTE, d("24.90"), d("0.00"), "")));
     }
 
     static List<ResultadoRelatorio<?>> todos() {

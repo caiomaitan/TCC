@@ -6,9 +6,11 @@ import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ClienteCrediario;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.Configuracoes;
@@ -16,16 +18,20 @@ import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.model.PlanoCrediario;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.SituacaoProduto;
+import br.com.varesync.model.StatusTitulo;
 import br.com.varesync.model.StatusVenda;
+import br.com.varesync.model.TituloReceber;
 import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.model.VendaResumo;
+import br.com.varesync.util.CalculoCrediario;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -56,6 +62,7 @@ import java.util.stream.Collectors;
 public class VendaService {
 
     public static final String ENTIDADE_VENDA = "venda";
+    private static final String ENTIDADE_CLIENTE = "cliente";
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
 
     private final Transacao transacao;
@@ -71,6 +78,7 @@ public class VendaService {
     private final ClienteDAO clienteDAO;
     private final CreditoClienteDAO creditoDAO;
     private final CreditoService creditoService;
+    private final TituloReceberDAO tituloDAO;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
@@ -82,11 +90,21 @@ public class VendaService {
                                   Comprovante comprovante) {
     }
 
+    /**
+     * O que o pagamento mostra para o crediário (F14.2).
+     *
+     * @param primeiroVencimento sugestão para a 1ª parcela (hoje + {@code crediario.dias_primeira})
+     * @param limiteDisponivel   limite − o que está em aberto; nulo sem cliente identificado
+     */
+    public record OpcoesCrediario(int maxParcelas, LocalDate primeiroVencimento, BigDecimal limiteDisponivel) {
+    }
+
     public VendaService(Transacao transacao, ProdutoDAO produtoDAO, VendaDAO vendaDAO,
                         FormaPagamentoDAO formaPagamentoDAO, ConfiguracaoDAO configuracaoDAO, EstoqueDAO estoqueDAO,
                         EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
                         AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
-                        CreditoService creditoService, Clock clock) {
+                        CreditoService creditoService, TituloReceberDAO tituloDAO, Clock clock) {
+        this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.produtoDAO = produtoDAO;
         this.vendaDAO = vendaDAO;
@@ -378,6 +396,22 @@ public class VendaService {
         return new Recebimento(carrinho.total(), saldo);
     }
 
+    /** Parcelas possíveis, vencimento sugerido e limite disponível do cliente da venda em andamento (F14.2). */
+    public OpcoesCrediario opcoesCrediario(Sessao sessao, Carrinho carrinho) {
+        sessao.exigir(Permissao.PDV);
+        return transacao.executar(con -> {
+            Configuracoes.Crediario config = configuracaoDAO.carregar(con).crediario();
+            BigDecimal disponivel = null;
+            if (carrinho.cliente().isPresent()) {
+                long clienteId = carrinho.cliente().get().id();
+                disponivel = clienteDAO.limiteCredito(con, clienteId).orElse(Dinheiro.ZERO)
+                        .subtract(tituloDAO.emAbertoDoCliente(con, clienteId));
+            }
+            return new OpcoesCrediario(config.maxParcelas(), LocalDate.now(clock).plusDays(config.diasPrimeira()),
+                    disponivel);
+        });
+    }
+
     public List<FormaPagamento> formasAtivas(Sessao sessao) {
         sessao.exigir(Permissao.PDV);
         return transacao.executar(formaPagamentoDAO::listarAtivas);
@@ -462,6 +496,16 @@ public class VendaService {
             if (carrinho.cliente().isPresent()) {
                 clienteId = clienteAtivo(con, carrinho.cliente().get().id()).id();
             }
+            // Crediário (F14.2): cliente travado antes do saldo de crédito, na mesma ordem da anonimização.
+            BigDecimal crediario = recebimento.crediarioUsado();
+            List<CalculoCrediario.Parcela> parcelas = List.of();
+            if (crediario.signum() > 0) {
+                if (clienteId == null) {
+                    throw new NegocioException("Para vender no crediário, identifique o cliente (F11).");
+                }
+                parcelas = parcelas(recebimento.planoCrediario(), crediario, con);
+                conferirCrediario(con, conferida, clienteId, crediario, recebimento.liberacaoCrediario());
+            }
             // Crédito do cliente (F12.4): o saldo é conferido com a linha travada (pode ter mudado noutro caixa).
             BigDecimal creditoUsado = recebimento.creditoUsado();
             if (creditoUsado.signum() > 0) {
@@ -514,11 +558,17 @@ public class VendaService {
                     creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.USO_EM_VENDA,
                             creditoUsado.negate(), vendaId, null);
                 }
-                // Cashback (F12.5) sobre o que não foi pago com crédito.
-                cashback = configuracaoDAO.carregar(con).fidelidade().cashback(total.subtract(creditoUsado));
+                // Cashback (F12.5 e F14.2) sobre o que não foi pago com crédito nem ficou no crediário.
+                cashback = configuracaoDAO.carregar(con).fidelidade()
+                        .cashback(total.subtract(creditoUsado).subtract(crediario));
                 if (cashback.signum() > 0) {
                     creditoService.movimentar(con, sessao, clienteId, TipoCreditoCliente.CASHBACK, cashback,
                             vendaId, null);
+                }
+                LocalDate emissao = LocalDate.now(clock);
+                for (CalculoCrediario.Parcela p : parcelas) {
+                    tituloDAO.inserir(con, clienteId, vendaId, p.numero(), parcelas.size(), emissao, p.vencimento(),
+                            p.valor(), agora, sessao.usuarioId());
                 }
             }
 
@@ -533,6 +583,69 @@ public class VendaService {
             }
             return new VendaFinalizada(vendaId, total, troco, cashback, montarComprovante(con, vendaId));
         });
+    }
+
+    /** Parcelas do plano (F14.2): de 1 a {@code crediario.max_parcelas}; a 1ª vence de hoje em diante. */
+    private List<CalculoCrediario.Parcela> parcelas(PlanoCrediario plano, BigDecimal valor, Connection con)
+            throws SQLException {
+        if (plano == null || plano.primeiroVencimento() == null) {
+            throw new NegocioException("Informe as parcelas e o vencimento da 1ª parcela do crediário.");
+        }
+        int maximo = configuracaoDAO.carregar(con).crediario().maxParcelas();
+        if (plano.parcelas() < 1 || plano.parcelas() > maximo) {
+            throw new NegocioException("O crediário pode ter de 1 a " + maximo + " parcelas.");
+        }
+        if (plano.primeiroVencimento().isBefore(LocalDate.now(clock))) {
+            throw new NegocioException("O vencimento da 1ª parcela não pode ser anterior a hoje.");
+        }
+        BigDecimal centavos = Dinheiro.dinheiro(new BigDecimal("0.01")).multiply(BigDecimal.valueOf(plano.parcelas()));
+        if (valor.compareTo(centavos) < 0) {
+            throw new NegocioException("O valor no crediário (" + Formatos.moeda(valor) + ") não dá para "
+                    + plano.parcelas() + " parcelas.");
+        }
+        return CalculoCrediario.parcelar(valor, plano.parcelas(), plano.primeiroVencimento());
+    }
+
+    /**
+     * Regras do cliente no crediário (F14.2), com a linha dele travada: ativo e não bloqueado; passar do limite ou ter
+     * título vencido há mais de {@code crediario.bloqueio_atraso_dias} exige LIMITE_CREDITO ou a liberação
+     * ({@link CrediarioLiberacaoException} sem ela), com auditoria depois que a venda tem número.
+     */
+    private void conferirCrediario(Connection con, Sessao sessao, long clienteId, BigDecimal valor,
+                                   Liberacao liberacao) throws SQLException {
+        ClienteCrediario cliente = clienteDAO.travarParaCrediario(con, clienteId)
+                .orElseThrow(() -> new NegocioException("Cliente não encontrado."));
+        if (!cliente.ativo()) {
+            throw new NegocioException("O cliente \"" + cliente.nome() + "\" está inativo e não pode comprar no "
+                    + "crediário.");
+        }
+        if (cliente.bloqueado()) {
+            throw new NegocioException("O crediário do cliente \"" + cliente.nome() + "\" está bloqueado. Escolha "
+                    + "outra forma de pagamento.");
+        }
+        BigDecimal disponivel = cliente.limiteCredito().subtract(tituloDAO.emAbertoDoCliente(con, clienteId));
+        int atrasoMaximo = configuracaoDAO.carregar(con).crediario().bloqueioAtrasoDias();
+        List<String> motivos = new ArrayList<>();
+        if (valor.compareTo(disponivel) > 0) {
+            motivos.add("o valor no crediário (" + Formatos.moeda(valor) + ") passa do limite disponível ("
+                    + Formatos.moeda(disponivel.max(Dinheiro.ZERO)) + ")");
+        }
+        if (tituloDAO.temVencidoAntesDe(con, clienteId, LocalDate.now(clock).minusDays(atrasoMaximo))) {
+            motivos.add("o cliente tem título vencido há mais de " + atrasoMaximo + " dias");
+        }
+        if (motivos.isEmpty()) {
+            return;
+        }
+        String motivo = String.join(" e ", motivos);
+        if (!sessao.pode(Permissao.LIMITE_CREDITO) && liberacao == null) {
+            throw new CrediarioLiberacaoException("Crediário de \"" + cliente.nome() + "\": " + motivo + ". É preciso "
+                    + "a liberação de quem tem a permissão \"" + Permissao.LIMITE_CREDITO.rotulo() + "\".");
+        }
+        Liberacao liberou = sessao.exigirOuLiberado(Permissao.LIMITE_CREDITO, liberacao);
+        auditoria.registrar(con, sessao, AcaoAuditoria.CREDIARIO_LIBERADO, ENTIDADE_CLIENTE, clienteId,
+                "Crediário do cliente nº " + clienteId + ": " + motivo + " ("
+                        + (liberou == null ? "permissão de " + sessao.usuario().descricao() : liberou.descricao())
+                        + ")");
     }
 
     // ----- Vendas da sessão (F9) -----
@@ -580,6 +693,13 @@ public class VendaService {
                 throw new NegocioException("A venda nº " + vendaId + " tem devolução e não pode mais ser cancelada. "
                         + "Para desfazê-la por inteiro, devolva os itens que faltam (Devolver itens).");
             }
+            // Crediário (F14.2): só sem pagamento em nenhuma parcela; os títulos são cancelados junto.
+            List<TituloReceber> titulos = tituloDAO.daVenda(con, vendaId, true);
+            if (titulos.stream().anyMatch(t -> t.valorPago().signum() > 0)) {
+                throw new NegocioException("A venda nº " + vendaId + " tem parcela do crediário com pagamento e não "
+                        + "pode ser cancelada.");
+            }
+            tituloDAO.cancelarDaVenda(con, vendaId, motivoFinal);
             long autorizou = liberou == null ? sessao.usuarioId() : liberou.usuarioId();
             vendaDAO.cancelar(con, vendaId, agora, autorizou, sessao.usuarioId(), motivoFinal);
             List<VendaDAO.ItemVendido> itens = new ArrayList<>(vendaDAO.itensVendidos(con, vendaId));
@@ -605,7 +725,8 @@ public class VendaService {
                     "Venda nº " + vendaId + " de " + Formatos.moeda(venda.valorTotal()) + " cancelada no caixa nº "
                             + caixa.id() + ". Motivo: " + motivoFinal
                             + (liberou == null ? "" : " (" + liberou.descricao() + ")")
-                            + (estornos.isEmpty() ? "" : ". Crédito do cliente: " + String.join(" e ", estornos)));
+                            + (estornos.isEmpty() ? "" : ". Crédito do cliente: " + String.join(" e ", estornos))
+                            + (titulos.isEmpty() ? "" : ". " + titulos.size() + " título(s) do crediário cancelado(s)"));
             return null;
         });
     }
@@ -744,7 +865,10 @@ public class VendaService {
                 c.motivoCancelamento(), vendaDAO.itensComprovante(con, vendaId), c.totais().valorBruto(),
                 c.totais().descontoItens(), c.totais().descontoVenda(), c.totais().valorTotal(), pagamentos,
                 c.totais().troco(), config.rodapeComprovante(), c.clienteNome() == null ? null
-                : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())), credito);
+                : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())), credito,
+                tituloDAO.daVenda(con, vendaId, false).stream().filter(t -> t.status() != StatusTitulo.CANCELADO)
+                        .map(t -> new Comprovante.ParcelaCrediario(t.parcela(), t.totalParcelas(), t.vencimento(),
+                                t.valor())).toList());
     }
 
     private static String descrever(ItemCarrinho item) {

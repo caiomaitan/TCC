@@ -9,7 +9,7 @@ import java.util.Optional;
 /**
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
  * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
- * {@code devolucao.prazo_dias}, F13.2); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
+ * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
  * ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
@@ -17,7 +17,7 @@ import java.util.Optional;
  */
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
                             Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
-                            Fidelidade fidelidade, int devolucaoPrazoDias) {
+                            Fidelidade fidelidade, int devolucaoPrazoDias, Crediario crediario) {
 
     public static final String EMPRESA_NOME = "empresa.nome";
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
@@ -43,6 +43,12 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String FIDELIDADE_CASHBACK = "fidelidade.cashback_pct";
     public static final String FIDELIDADE_COMPRA_MINIMA = "fidelidade.compra_minima";
     public static final String DEVOLUCAO_PRAZO = "devolucao.prazo_dias";
+    public static final String CREDIARIO_MAX_PARCELAS = "crediario.max_parcelas";
+    public static final String CREDIARIO_DIAS_PRIMEIRA = "crediario.dias_primeira";
+    public static final String CREDIARIO_JUROS = "crediario.juros_mes_pct";
+    public static final String CREDIARIO_MULTA = "crediario.multa_pct";
+    public static final String CREDIARIO_CARENCIA = "crediario.carencia_dias";
+    public static final String CREDIARIO_BLOQUEIO = "crediario.bloqueio_atraso_dias";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
@@ -95,12 +101,21 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         }
     }
 
-    /** Valores da V2 (e da V4, V5, V7 e V8). */
+    /** Crediário (F14): parcelas, vencimento da primeira, encargos sobre atraso e atraso que pede liberação. */
+    public record Crediario(int maxParcelas, int diasPrimeira, BigDecimal jurosMesPct, BigDecimal multaPct,
+                            int carenciaDias, int bloqueioAtrasoDias) {
+
+        public static final int MAX_PARCELAS = 60;
+        public static final int DIAS_MAXIMO = 3650;
+        public static final Crediario PADRAO = new Crediario(3, 30, BigDecimal.valueOf(2), BigDecimal.valueOf(2), 0, 30);
+    }
+
+    /** Valores da V2 (e da V4, V5, V7, V8 e V10). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
             "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO), Fidelidade.PADRAO,
-            DEVOLUCAO_PRAZO_PADRAO);
+            DEVOLUCAO_PRAZO_PADRAO, Crediario.PADRAO);
 
     /** Minutos sem atividade até bloquear a tela (0 = desligado). */
     public int inatividadeMinutos() {
@@ -113,47 +128,52 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
         return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca,
-                fidelidade, devolucaoPrazoDias);
+                fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comBackup(Backup outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, outro, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comRodape(String outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca,
-                fidelidade, devolucaoPrazoDias);
+                fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comSeguranca(Seguranca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                outra, fidelidade, devolucaoPrazoDias);
+                outra, fidelidade, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comFidelidade(Fidelidade outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, outra, devolucaoPrazoDias);
+                seguranca, outra, devolucaoPrazoDias, crediario);
     }
 
     public Configuracoes comDevolucaoPrazo(int dias) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, dias);
+                seguranca, fidelidade, dias, crediario);
+    }
+
+    public Configuracoes comCrediario(Crediario outro) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, fidelidade, devolucaoPrazoDias, outro);
     }
 
     public Configuracoes comInatividade(int minutos) {
@@ -191,9 +211,17 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         Fidelidade fidelidade = new Fidelidade(logico(valores, FIDELIDADE_ATIVO, p.fidelidade.ativo()),
                 percentual(valores, FIDELIDADE_CASHBACK, true).orElse(p.fidelidade.cashbackPct()),
                 naoNegativo(valores, FIDELIDADE_COMPRA_MINIMA).orElse(p.fidelidade.compraMinima()));
+        Crediario crediario = new Crediario(
+                inteiro(valores, CREDIARIO_MAX_PARCELAS, 1, Crediario.MAX_PARCELAS).orElse(p.crediario.maxParcelas()),
+                inteiro(valores, CREDIARIO_DIAS_PRIMEIRA, 0, Crediario.DIAS_MAXIMO).orElse(p.crediario.diasPrimeira()),
+                percentual(valores, CREDIARIO_JUROS, true).orElse(p.crediario.jurosMesPct()),
+                percentual(valores, CREDIARIO_MULTA, true).orElse(p.crediario.multaPct()),
+                inteiro(valores, CREDIARIO_CARENCIA, 0, Crediario.DIAS_MAXIMO).orElse(p.crediario.carenciaDias()),
+                inteiro(valores, CREDIARIO_BLOQUEIO, 0, Crediario.DIAS_MAXIMO)
+                        .orElse(p.crediario.bloqueioAtrasoDias()));
         return new Configuracoes(loja, venda, margem, dias, balanca, backup,
                 texto(valores, COMPROVANTE_RODAPE, p.rodapeComprovante), seguranca, fidelidade,
-                inteiro(valores, DEVOLUCAO_PRAZO, 0, DEVOLUCAO_PRAZO_MAXIMO).orElse(p.devolucaoPrazoDias));
+                inteiro(valores, DEVOLUCAO_PRAZO, 0, DEVOLUCAO_PRAZO_MAXIMO).orElse(p.devolucaoPrazoDias), crediario);
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -223,6 +251,12 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(FIDELIDADE_CASHBACK, numero(fidelidade.cashbackPct()));
         m.put(FIDELIDADE_COMPRA_MINIMA, numero(fidelidade.compraMinima()));
         m.put(DEVOLUCAO_PRAZO, String.valueOf(devolucaoPrazoDias));
+        m.put(CREDIARIO_MAX_PARCELAS, String.valueOf(crediario.maxParcelas()));
+        m.put(CREDIARIO_DIAS_PRIMEIRA, String.valueOf(crediario.diasPrimeira()));
+        m.put(CREDIARIO_JUROS, numero(crediario.jurosMesPct()));
+        m.put(CREDIARIO_MULTA, numero(crediario.multaPct()));
+        m.put(CREDIARIO_CARENCIA, String.valueOf(crediario.carenciaDias()));
+        m.put(CREDIARIO_BLOQUEIO, String.valueOf(crediario.bloqueioAtrasoDias()));
         return m;
     }
 

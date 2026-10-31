@@ -80,7 +80,13 @@ public final class MensagensBanco {
             Map.entry("ck_dev_caixa", "O reembolso em dinheiro exige o caixa aberto"),
             Map.entry("ck_dev_cliente", "O vale-troca exige o cliente"),
             Map.entry("ck_di_quantidade", "A quantidade devolvida deve ser maior que zero"),
-            Map.entry("ck_di_valores", "O valor e o custo devolvidos não podem ser negativos"));
+            Map.entry("ck_di_valores", "O valor e o custo devolvidos não podem ser negativos"),
+            Map.entry("ck_dev_abatido", "O valor abatido da devolução não confere com a forma de reembolso"),
+            Map.entry("ck_cliente_limite_credito", "O limite de crédito não pode ser negativo"),
+            Map.entry("ck_tr_valor", "O valor da parcela deve ser maior que zero"),
+            Map.entry("ck_tr_baixas", "O pago e o abatido não podem passar do valor da parcela"),
+            Map.entry("ck_tr_situacao", "A situação do título não confere com o que foi pago e abatido"),
+            Map.entry("ck_tr_cancelado", "O cancelamento do título exige o motivo"));
 
     private MensagensBanco() {
     }

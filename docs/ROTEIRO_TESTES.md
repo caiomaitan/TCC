@@ -544,3 +544,24 @@ Métricas).
 | CT-F13-24 | Cliente com vale-troca (dados de demonstração) | 1. Clientes › cliente › aba Compras | 1. Coluna "Devolvido" na compra com devolução; Valor e Total gasto já sem as devoluções; ticket médio sobre o comprado; produto devolvido por inteiro sai dos mais comprados | 1. OK em 2026-10-29 pelo roteiro de tela (captura `10`); o produto devolvido por inteiro em `ResultadoComercialIT.clienteR18EHistoricoDescontamAsDevolucoes` |
 | CT-F13-25 | Banco de demonstração novo | 1. Configurações › Dados de demonstração › Gerar 2. R20 dos 60 dias | 1. O resumo mostra "Devoluções: N" 2. As devoluções do gerador, em dinheiro, vale-troca e outro, algumas com item avariado | 1. Falta a pessoa executar pela tela (o roteiro gerou pelo service); 2. OK pelo roteiro (captura `09`) e `GeradorDemoIT.devolucoesDaFase13` |
 | CT-F13-26 | Dados de demonstração | 1. R01 › Exportar PDF | 1. PDF deitado (A4 paisagem), com as colunas Vendas, Devoluções e Receita líquida | `RelatorioPdfTest.muitasColunasViramPaginaDeitada`; falta a pessoa abrir o PDF |
+
+## Fase 14 — Crediário e contas a receber, parte A
+
+"OK pelo roteiro de tela" = roteiro descartável de 2026-10-30, sem teclado nem mouse do sistema, no `varesync_test`. O limite de crédito ainda não tem tela: para os casos com limite, use `UPDATE cliente SET limite_credito = 1000 WHERE id = ...` no banco de testes. Sem isso, entre como supervisor, que vende acima do limite (com auditoria).
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F14-01 | Caixa aberto, venda sem cliente | 1. F10 2. Forma Crediário 3. Enter | 1–2. Aparecem Parcelas e 1º vencimento 3. "identifique o cliente (F11)" | OK pelo roteiro de tela (captura `01`) |
+| CT-F14-02 | Cliente com limite de R$ 1.000,00 | 1. F11 com o CPF 2. 3 × produto de R$ 100,00 3. F10, Crediário, 3 parcelas, Enter 4. F10 5. Ver comprovante | 3. Limite disponível e a prévia 100,00 + 100,00 + 100,00 em +30, +60 e +90 dias 5. Comprovante com as 3 parcelas | OK pelo roteiro de tela (capturas `02` e `03`) |
+| CT-F14-03 | O mesmo cliente | 1. Venda de R$ 100,00 em 3× | 1. 33,34 + 33,33 + 33,33 | OK pelo roteiro de tela |
+| CT-F14-04 | O mesmo cliente | 1. Venda de R$ 100,00: R$ 40,00 em dinheiro e o resto no crediário | 1. Um título de R$ 60,00; só R$ 40,00 no dinheiro esperado | OK pelo roteiro de tela (captura `04`) |
+| CT-F14-05 | Fidelidade ligada com 1% | 1. Venda de R$ 100,00 com R$ 40,00 em dinheiro e R$ 60,00 no crediário | 1. Cashback de R$ 0,40 | `CrediarioIT.parteNoCrediarioNaoGeraCashback`; falta a pessoa executar pela tela |
+| CT-F14-06 | Operador sem a permissão; cliente com limite de R$ 50,00 | 1. Venda de R$ 100,00 no crediário, F10 2. Liberação com supervisor | 1. Mensagem com o limite disponível e o pedido de liberação 2. Venda gravada e auditoria "Crediário liberado" | OK pelo roteiro de tela (captura `05`) |
+| CT-F14-07 | Cliente com título vencido há mais de 30 dias | 1. Venda no crediário com operador sem a permissão | 1. Pede a liberação | `CrediarioIT.tituloVencidoHaMaisDosDiasDeBloqueioPedeLiberacao`; falta a pessoa executar pela tela |
+| CT-F14-08 | Venda em 3× de R$ 300,00 | 1. Devoluções › devolver R$ 120,00 2. Registrar 3. Ver comprovante | 1. "Abate R$ 120,00 das parcelas em aberto; nada a reembolsar" e sem forma a escolher 3. Forma Abatimento; parcelas 1/3 R$ 100,00 e 2/3 R$ 80,00; gaveta intacta | OK pelo roteiro de tela (capturas `06` e `07`) |
+| CT-F14-09 | Venda de CT-F14-04 | 1. Devolver tudo em dinheiro 2. Ver comprovante | 1. "Abate R$ 60,00…; R$ 40,00 na forma" 2. Abatido R$ 60,00 e "Reembolso: Dinheiro" R$ 40,00; o dinheiro esperado cai só R$ 40,00 | OK pelo roteiro de tela (capturas `08` e `09`) |
+| CT-F14-10 | Depois de CT-F14-08 e CT-F14-09 | 1. R08 do dia 2. R20 do dia | 1. Forma Crediário, "Reembolso: Abatimento" e "Reembolso: Dinheiro"; totais iguais às colunas Vendas e Devoluções do R01; a devolução mista conta uma vez 2. Colunas Abatido e Parcelas em aberto | OK pelo roteiro de tela (capturas `10` e `11`) |
+| CT-F14-11 | Cliente com título em aberto, supervisor | 1. Clientes › LGPD › Anonimizar, com o nome certo | 1. Recusado: "títulos do crediário em aberto" | OK pelo roteiro de tela (captura `12`) |
+| CT-F14-12 | Supervisor | 1. Configurações › Formas de pagamento | 1. "Crediário" na lista; o tipo não é oferecido para criar outra; desativá-la é permitido e ela não conta como forma ativa | OK pelo roteiro de tela (captura `13`); a desativação em `CrediarioIT.formaCrediarioEUnicaENaoContaComoFormaAtiva` |
+| CT-F14-13 | Venda no crediário com parcela paga (por SQL até a parte B) | 1. F9 › Cancelar | 1. Recusado: "parcela do crediário com pagamento" | OK pelo roteiro de tela (captura `14`) |
+| CT-F14-14 | Venda no crediário sem pagamento | 1. F9 › Cancelar | 1. Venda cancelada e títulos CANCELADO, com o motivo | OK pelo roteiro de tela |

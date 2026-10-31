@@ -1,6 +1,7 @@
 package br.com.varesync.service;
 
 import br.com.varesync.model.FormaPagamento;
+import br.com.varesync.model.PlanoCrediario;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import java.math.BigDecimal;
@@ -14,7 +15,8 @@ import java.util.Optional;
 /**
  * Pagamento da venda (F10, 6.6): combina várias formas e mostra total, pago, falta e troco. Só dinheiro pode passar
  * do que falta (gera troco); as demais formas ficam limitadas ao que falta. Quitado quando pago ≥ total. O crédito do
- * cliente (F12.4) exige cliente identificado e fica limitado também ao saldo disponível.
+ * cliente (F12.4) exige cliente identificado e fica limitado também ao saldo disponível; o crediário (F14.2) também
+ * exige cliente identificado.
  */
 public final class Recebimento {
 
@@ -26,6 +28,8 @@ public final class Recebimento {
     /** Saldo de crédito que o cliente pode usar; nulo sem cliente identificado. */
     private final BigDecimal creditoDisponivel;
     private final List<Parcela> parcelas = new ArrayList<>();
+    private PlanoCrediario planoCrediario;
+    private Liberacao liberacaoCrediario;
 
     /** Venda sem cliente identificado: não aceita o crédito do cliente. */
     public Recebimento(BigDecimal total) {
@@ -51,6 +55,9 @@ public final class Recebimento {
         BigDecimal quantia = CaixaService.valor(valor, "o valor", false);
         if (quitado()) {
             throw new NegocioException("A venda já está paga. Finalize a venda.");
+        }
+        if (forma.crediario() && creditoDisponivel == null) {
+            throw new NegocioException("Para vender no crediário, identifique o cliente (F11).");
         }
         if (forma.creditoCliente()) {
             if (creditoDisponivel == null) {
@@ -78,6 +85,30 @@ public final class Recebimento {
     public BigDecimal creditoUsado() {
         return parcelas.stream().filter(p -> p.forma().creditoCliente()).map(Parcela::valor)
                 .reduce(Dinheiro.ZERO, BigDecimal::add);
+    }
+
+    /** Quanto ficou no crediário (F14.2). */
+    public BigDecimal crediarioUsado() {
+        return parcelas.stream().filter(p -> p.forma().crediario()).map(Parcela::valor)
+                .reduce(Dinheiro.ZERO, BigDecimal::add);
+    }
+
+    /** Parcelas e primeiro vencimento da parte no crediário; nulo enquanto não informado. */
+    public PlanoCrediario planoCrediario() {
+        return planoCrediario;
+    }
+
+    public void definirPlanoCrediario(PlanoCrediario plano) {
+        this.planoCrediario = plano;
+    }
+
+    /** Liberação para passar do limite ou vender a cliente em atraso; nula sem ela. */
+    public Liberacao liberacaoCrediario() {
+        return liberacaoCrediario;
+    }
+
+    public void liberarCrediario(Liberacao liberacao) {
+        this.liberacaoCrediario = liberacao;
     }
 
     public void remover(int indice) {

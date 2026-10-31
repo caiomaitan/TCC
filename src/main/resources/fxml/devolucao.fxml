@@ -49,5 +49,6 @@
         <Button fx:id="botaoRegistrar" text="Registrar devolução (F10)" onAction="#registrar" defaultButton="true"/>
         <Button text="Fechar (Esc)" onAction="#fechar" cancelButton="true"/>
     </HBox>
+    <Label fx:id="abatimento" wrapText="true" minHeight="-Infinity" managed="false" visible="false"/>
     <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity"/>
 </VBox>

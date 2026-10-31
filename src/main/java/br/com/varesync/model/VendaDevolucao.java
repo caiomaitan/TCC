@@ -11,11 +11,13 @@ import java.util.List;
  * @param clienteDocumento CPF mascarado ou CNPJ (vazio sem documento); nulo sem cliente
  * @param prazoAte         último dia da devolução sem liberação de supervisor ({@code devolucao.prazo_dias})
  * @param foraDoPrazo      hoje passou de {@code prazoAte}
+ * @param crediarioEmAberto soma dos títulos em aberto da venda: a devolução abate primeiro daqui (F14.2)
  */
 public record VendaDevolucao(long id, OffsetDateTime dataHora, String operador, StatusVenda status,
                              BigDecimal valorTotal, Long clienteId, String clienteNome, String clienteDocumento,
                              boolean clienteAnonimizado, LocalDate prazoAte, boolean foraDoPrazo,
-                             List<ItemDevolucao> itens, List<DevolucaoResumo> devolucoes) {
+                             List<ItemDevolucao> itens, List<DevolucaoResumo> devolucoes,
+                             BigDecimal crediarioEmAberto) {
 
     public VendaDevolucao {
         itens = List.copyOf(itens);

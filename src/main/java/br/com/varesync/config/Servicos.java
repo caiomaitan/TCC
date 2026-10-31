@@ -17,6 +17,7 @@ import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.PromocaoDAO;
+import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
@@ -86,9 +87,10 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         FormaPagamentoDAO formaPagamentoDAO = new FormaPagamentoDAO();
         CreditoClienteDAO creditoDAO = new CreditoClienteDAO();
         CreditoService credito = new CreditoService(transacao, creditoDAO, new ClienteDAO(), auditoria, clock);
+        TituloReceberDAO tituloDAO = new TituloReceberDAO();
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, new ClienteDAO(),
-                creditoDAO, credito, clock);
+                creditoDAO, credito, tituloDAO, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();
@@ -109,9 +111,10 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
                 new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
                 new UnidadeService(transacao, new UnidadeMedidaDAO()),
-                new ClienteService(transacao, new ClienteDAO(), creditoDAO, configuracaoDAO, auditoria, clock),
-                credito, new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), creditoDAO, usuarioDAO,
-                        configuracaoDAO, estoque, caixa, credito, auditoria, clock));
+                new ClienteService(transacao, new ClienteDAO(), creditoDAO, tituloDAO, configuracaoDAO, auditoria,
+                        clock),
+                credito, new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), creditoDAO, tituloDAO,
+                        usuarioDAO, configuracaoDAO, estoque, caixa, credito, auditoria, clock));
     }
 
     /**

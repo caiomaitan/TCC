@@ -8,7 +8,9 @@ public enum TipoFormaPagamento {
     CARTAO_CREDITO("Cartão de crédito"),
     OUTROS("Outros"),
     /** Abate do crédito do cliente identificado (F12.4): só uma forma desse tipo, criada pela V7. */
-    CREDITO_CLIENTE("Crédito do cliente");
+    CREDITO_CLIENTE("Crédito do cliente"),
+    /** A parte paga vira títulos a receber do cliente identificado (F14.2): só uma forma desse tipo, criada pela V10. */
+    CREDIARIO("Crediário");
 
     private final String rotulo;
 

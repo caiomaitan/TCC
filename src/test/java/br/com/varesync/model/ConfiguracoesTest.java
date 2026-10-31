@@ -37,6 +37,12 @@ class ConfiguracoesTest {
         m.put("fidelidade.cashback_pct", "1");
         m.put("fidelidade.compra_minima", "0");
         m.put("devolucao.prazo_dias", "30");
+        m.put("crediario.max_parcelas", "3");
+        m.put("crediario.dias_primeira", "30");
+        m.put("crediario.juros_mes_pct", "2");
+        m.put("crediario.multa_pct", "2");
+        m.put("crediario.carencia_dias", "0");
+        m.put("crediario.bloqueio_atraso_dias", "30");
         return m;
     }
 
@@ -68,6 +74,21 @@ class ConfiguracoesTest {
         m.put("devolucao.prazo_dias", "366");
         assertThat(Configuracoes.de(m).devolucaoPrazoDias()).isEqualTo(30);
         assertThat(Configuracoes.PADRAO.comDevolucaoPrazo(7).paraMapa()).containsEntry("devolucao.prazo_dias", "7");
+    }
+
+    /** V10 (F14): lê as chaves do crediário; parcelas fora de 1 a 60 voltam ao padrão. */
+    @Test
+    void crediarioDaV10() {
+        Map<String, String> m = v2();
+        m.put("crediario.max_parcelas", "6");
+        m.put("crediario.juros_mes_pct", "1,5");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.crediario().maxParcelas()).isEqualTo(6);
+        assertThat(c.crediario().jurosMesPct()).isEqualByComparingTo("1.5");
+        assertThat(c.paraMapa()).containsEntry("crediario.max_parcelas", "6")
+                .containsEntry("crediario.juros_mes_pct", "1.5");
+        m.put("crediario.max_parcelas", "0");
+        assertThat(Configuracoes.de(m).crediario().maxParcelas()).isEqualTo(3);
     }
 
     @Test

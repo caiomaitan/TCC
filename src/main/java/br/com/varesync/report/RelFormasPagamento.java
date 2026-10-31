@@ -29,16 +29,20 @@ public final class RelFormasPagamento implements Relatorio<RelFormasPagamento.Li
      * Uma forma de pagamento (vendas e valor preenchidos) ou uma forma de reembolso (devoluções e reembolsos).
      *
      * @param vendasNoPeriodo vendas distintas do período, para o total (igual em todas as linhas)
+     * @param devolucoesNoPeriodo devoluções distintas do período, para o total: a que tem abatimento e restante conta
+     *                        em duas linhas, mas uma vez só no total; zero nas linhas de venda
      */
     public record Linha(String forma, Long vendas, BigDecimal valor, BigDecimal percentual, long vendasNoPeriodo,
-                        Long devolucoes, BigDecimal reembolsos) {
+                        Long devolucoes, BigDecimal reembolsos, long devolucoesNoPeriodo) {
 
         static Linha venda(String forma, long vendas, BigDecimal valor, long vendasNoPeriodo) {
-            return new Linha(forma, vendas, valor, null, vendasNoPeriodo, null, null);
+            return new Linha(forma, vendas, valor, null, vendasNoPeriodo, null, null, 0);
         }
 
-        static Linha reembolso(FormaReembolso forma, long devolucoes, BigDecimal valor, long vendasNoPeriodo) {
-            return new Linha(REEMBOLSO + forma.curto(), null, null, null, vendasNoPeriodo, devolucoes, valor);
+        static Linha reembolso(FormaReembolso forma, long devolucoes, BigDecimal valor, long vendasNoPeriodo,
+                               long devolucoesNoPeriodo) {
+            return new Linha(REEMBOLSO + forma.curto(), null, null, null, vendasNoPeriodo, devolucoes, valor,
+                    devolucoesNoPeriodo);
         }
 
         public boolean ehReembolso() {
@@ -92,20 +96,30 @@ public final class RelFormasPagamento implements Relatorio<RelFormasPagamento.Li
                 }
             }
         }
+        // Devolução com abatimento e restante (F14.2): a parte abatida na linha "Abatimento", o resto na forma escolhida.
         String reembolsos = """
-                SELECT d.forma_reembolso, count(*) AS devolucoes, sum(d.valor_total) AS valor
-                  FROM devolucao d
-                 WHERE d.data_hora >= ? AND d.data_hora < ?
-                 GROUP BY d.forma_reembolso
-                 ORDER BY sum(d.valor_total) DESC, d.forma_reembolso
+                SELECT forma, count(*) AS devolucoes, sum(valor) AS valor,
+                       (SELECT count(*) FROM devolucao WHERE data_hora >= ? AND data_hora < ?) AS no_periodo
+                  FROM (SELECT forma_reembolso AS forma, valor_total - valor_abatido AS valor
+                          FROM devolucao
+                         WHERE forma_reembolso <> 'ABATIMENTO' AND data_hora >= ? AND data_hora < ?
+                        UNION ALL
+                        SELECT 'ABATIMENTO', valor_abatido
+                          FROM devolucao
+                         WHERE valor_abatido > 0 AND data_hora >= ? AND data_hora < ?) r
+                 GROUP BY forma
+                 ORDER BY sum(valor) DESC, forma
                 """;
         List<Linha> devolucoes = new ArrayList<>();
         try (PreparedStatement ps = con.prepareStatement(reembolsos)) {
             Consultas.periodo(ps, 1, filtros, parametros);
+            Consultas.periodo(ps, 3, filtros, parametros);
+            Consultas.periodo(ps, 5, filtros, parametros);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    devolucoes.add(Linha.reembolso(FormaReembolso.valueOf(rs.getString("forma_reembolso")),
-                            rs.getLong("devolucoes"), rs.getBigDecimal("valor"), noPeriodo));
+                    devolucoes.add(Linha.reembolso(FormaReembolso.valueOf(rs.getString("forma")),
+                            rs.getLong("devolucoes"), rs.getBigDecimal("valor"), noPeriodo,
+                            rs.getLong("no_periodo")));
                 }
             }
         }
@@ -131,7 +145,7 @@ public final class RelFormasPagamento implements Relatorio<RelFormasPagamento.Li
         BigDecimal total = Coluna.soma(linhas, Linha::valor);
         return linhas.stream()
                 .map(l -> l.ehReembolso() ? l : new Linha(l.forma(), l.vendas(), l.valor(),
-                        Dinheiro.percentualDe(l.valor(), total).orElse(null), l.vendasNoPeriodo(), null, null))
+                        Dinheiro.percentualDe(l.valor(), total).orElse(null), l.vendasNoPeriodo(), null, null, 0))
                 .toList();
     }
 
@@ -144,7 +158,8 @@ public final class RelFormasPagamento implements Relatorio<RelFormasPagamento.Li
                 Coluna.moeda("Vendas", Linha::valor),
                 Coluna.percentual("%", Linha::percentual).comTotal(linhas -> linhas.stream()
                         .anyMatch(l -> !l.ehReembolso()) ? Dinheiro.percentual(BigDecimal.valueOf(100)) : null),
-                Coluna.inteiro("Nº de devoluções", Linha::devolucoes),
+                Coluna.<Linha>inteiro("Nº de devoluções", Linha::devolucoes)
+                        .comTotal(linhas -> linhas.stream().mapToLong(Linha::devolucoesNoPeriodo).max().orElse(0)),
                 Coluna.moeda("Reembolsos", Linha::reembolsos));
     }
 }

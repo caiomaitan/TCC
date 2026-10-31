@@ -142,6 +142,17 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      devoluções na data em que foram feitas: receita líquida = vendas − devoluções. O R01 mostra as colunas Vendas,
      Devoluções e Receita líquida (o nº de vendas e o ticket médio contam só as vendas), e o R08 mostra, à parte, os
      reembolsos por forma.
+9. **Crediário** (no PDV, forma de pagamento **Crediário**, com o cliente identificado por F11):
+   - escolha as parcelas (até 3, no padrão) e o vencimento da 1ª (padrão: daqui a 30 dias); as demais vencem de 30 em 30
+     dias, e os centavos que sobram ficam na 1ª. Pode ser combinado com outras formas; a parte no crediário não gera
+     cashback, e o comprovante mostra as parcelas;
+   - passar do limite do cliente, ou vender a quem tem título vencido há mais de 30 dias, pede a permissão Gerenciar
+     crédito do crediário ou a liberação de quem a tem. Por enquanto o limite é 0 para todos, porque a tela do limite
+     chega com o recebimento de parcelas (próxima parte): toda venda a prazo pede essa autorização;
+   - a venda só é cancelada sem pagamento em nenhuma parcela, e os títulos são cancelados junto;
+   - na devolução, o valor abate primeiro as parcelas em aberto da venda, da última para a primeira; o restante vai na
+     forma escolhida (a devolução abatida por inteiro não mexe no caixa);
+   - cliente com títulos em aberto não pode ser anonimizado.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.

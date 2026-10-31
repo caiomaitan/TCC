@@ -544,7 +544,7 @@ Testes de integração com duas conexões simultâneas:
 ### F14.1 Banco
 
 - **`cliente`:** `limite_credito` (≥ 0, padrão 0) e `crediario_bloqueado`.
-- **Forma de pagamento:** novo tipo CREDIARIO (altera `ck_forma_pagamento_tipo`) e nova forma "Crediário", única desse tipo.
+- **Forma de pagamento:** novo tipo CREDIARIO (altera `ck_forma_pagamento_tipo`) e nova forma "Crediário", única desse tipo. Como a de crédito do cliente, ela não conta para a regra de sempre haver uma forma ativa: sem cliente identificado, ninguém pagaria com ela.
 - **`titulo_receber`:**
   - `cliente_id` (obrigatório) e `venda_id`;
   - `parcela`, `total_parcelas`, `emissao` e `vencimento`;
@@ -561,8 +561,12 @@ Testes de integração com duas conexões simultâneas:
 - **Tabelas de apoio:**
   - `recebimento_titulo`: principal, multa, juros e desconto de cada título;
   - `recebimento_pagamento`: forma e valor, como em `venda_pagamento` (no dinheiro, já sem o troco).
-- **`devolucao.forma_reembolso`:** passa a aceitar ABATIMENTO.
-- **`vw_caixa_resumo`:** ganha `recebimentos_dinheiro`, no fim, somado ao `dinheiro_esperado` (recebimentos estornados não entram).
+- **`devolucao`:**
+  - nova coluna `valor_abatido` (de 0 até `valor_total`, padrão 0): a parte da devolução que abateu títulos em aberto da venda;
+  - `forma_reembolso` passa a aceitar ABATIMENTO, usada quando a devolução inteira foi abatida.
+- **`vw_caixa_resumo`:**
+  - ganha `recebimentos_dinheiro`, no fim, somado ao `dinheiro_esperado` (recebimentos estornados não entram);
+  - `devolucoes_dinheiro` passa a contar só a parte devolvida em dinheiro (`valor_total − valor_abatido`).
 
 ### F14.2 Venda no crediário
 
@@ -576,9 +580,12 @@ Testes de integração com duas conexões simultâneas:
   - passar do limite, ou ter título vencido há mais de `bloqueio_atraso_dias`, exige LIMITE_CREDITO ou liberação, com auditoria.
 - **Combinação:** o crediário pode ser combinado com outras formas. A parte paga no crediário não gera cashback (a base da F12.5 também desconta o crediário).
 - **Cancelamento da venda:** só se nenhuma parcela tiver pagamento; os títulos são cancelados junto.
-- **Devolução de venda no crediário:**
-  - o reembolso ABATIMENTO abate os títulos em aberto, da última parcela para a primeira (`valor_abatido`);
-  - o que passar do saldo em aberto é reembolsado em dinheiro ou em crédito.
+- **Devolução de venda com crediário:**
+  - primeiro, o valor devolvido abate os títulos em aberto dessa venda, da última parcela para a primeira (`valor_abatido`, na devolução e nos títulos), sem multa nem juros;
+  - o restante, se houver (a parte paga em outra forma ou as parcelas já pagas), é reembolsado na forma escolhida: dinheiro, vale-troca ou outro;
+  - a devolução abatida por inteiro fica com a forma ABATIMENTO;
+  - o R08 mostra o abatimento como reembolso ("Reembolso: Abatimento"), e o R20 e o comprovante de devolução mostram o valor abatido e as parcelas que ficaram.
+- **LGPD:** anonimizar o cliente (F12.6) passa a ser recusado também quando ele tem títulos em aberto.
 
 ### F14.3 Recebimento (permissão RECEBIMENTO ou liberação)
 
@@ -628,7 +635,11 @@ Testes de integração com duas conexões simultâneas:
 - **Parcial com atraso:** pagar R$ 51,34 desse título abate R$ 50,00 do principal (encargos de R$ 1,34: multa R$ 1,00 e juros R$ 0,34) e deixa R$ 50,00 em aberto.
 - **Parcial sem atraso:** pagar R$ 50,00 de um título de R$ 100,00 ainda não vencido deixa R$ 50,00 em aberto.
 - **Caixa:** recebimento em dinheiro aumenta o dinheiro esperado; estornado, deixa de contar.
-- **Cancelamento e devolução:** cancelar venda com parcela paga é recusado; a devolução com ABATIMENTO abate as parcelas em aberto, da última para a primeira.
+- **Cancelamento:** cancelar venda com parcela paga é recusado.
+- **Devolução só com abatimento:** venda de R$ 300,00 em 3×. Devolver R$ 120,00 abate R$ 100,00 da 3ª parcela e R$ 20,00 da 2ª, e a devolução fica com a forma ABATIMENTO.
+- **Devolução com abatimento e restante:** venda de R$ 100,00, com R$ 40,00 em dinheiro e R$ 60,00 no crediário. Devolver tudo abate os R$ 60,00 e devolve R$ 40,00 na forma escolhida; em dinheiro, o dinheiro esperado do caixa cai só R$ 40,00.
+- **LGPD:** cliente com título em aberto não pode ser anonimizado.
+- **Consistência:** o R08 continua batendo com o R01: a venda no crediário aparece na forma Crediário, e o abatimento, como reembolso.
 
 ---
 

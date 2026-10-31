@@ -247,7 +247,7 @@ public class ConfiguracoesController {
         botaoSituacaoForma.setDisable(true);
         // O crédito do cliente tem uma forma só, criada pela V7 (F12.4).
         campoTipoForma.getItems().setAll(Arrays.stream(TipoFormaPagamento.values())
-                .filter(t -> t != TipoFormaPagamento.CREDITO_CLIENTE).toList());
+                .filter(t -> t != TipoFormaPagamento.CREDITO_CLIENTE && t != TipoFormaPagamento.CREDIARIO).toList());
         campoTipoForma.setConverter(new StringConverter<>() {
             @Override
             public String toString(TipoFormaPagamento tipo) {
@@ -326,7 +326,8 @@ public class ConfiguracoesController {
                                 campoSenhaLetraENumero.isSelected())),
                 new Configuracoes.Fidelidade(campoFidelidadeAtiva.isSelected(),
                         numero(campoCashback, "Cashback"), numero(campoCompraMinima, "Compra mínima")),
-                inteiro(campoPrazoDevolucao, "Prazo de devolução"));
+                inteiro(campoPrazoDevolucao, "Prazo de devolução"),
+                gravadas.crediario()); // ainda sem aba (F14, parte B): salvar não pode mudar estes valores
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {

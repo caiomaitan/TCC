@@ -3,6 +3,7 @@ package br.com.varesync.service;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
+import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Cliente;
 import br.com.varesync.model.ClienteVenda;
@@ -43,12 +44,15 @@ public class ClienteService {
     private final Transacao transacao;
     private final ClienteDAO dao;
     private final CreditoClienteDAO creditoDAO;
+    private final TituloReceberDAO tituloDAO;
     private final ConfiguracaoDAO configuracaoDAO;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public ClienteService(Transacao transacao, ClienteDAO dao, CreditoClienteDAO creditoDAO,
-                          ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria, Clock clock) {
+                          TituloReceberDAO tituloDAO, ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria,
+                          Clock clock) {
+        this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.dao = dao;
         this.creditoDAO = creditoDAO;
@@ -169,8 +173,8 @@ public class ClienteService {
     /**
      * Anonimiza o cliente (F12.6, só o supervisor): confirmação pelo nome digitado; nome trocado por "Cliente
      * anonimizado nº X"; CPF/CNPJ, contatos, endereço, nascimento, observação e consentimento apagados; inativo. As
-     * vendas e o extrato de crédito continuam. Com saldo de crédito diferente de zero, é recusado. A auditoria não
-     * guarda o nome antigo.
+     * vendas e o extrato de crédito continuam. Com saldo de crédito diferente de zero ou títulos em aberto (F14.2), é
+     * recusado. A auditoria não guarda o nome antigo.
      */
     public void anonimizar(Sessao sessao, long id, String nomeDigitado) {
         sessao.exigirSupervisor();
@@ -182,6 +186,11 @@ public class ClienteService {
                 throw new NegocioException("O cliente tem saldo de crédito de " + Formatos.moeda(saldo) + " e não "
                         + "pode ser anonimizado. Use o saldo numa venda ou zere-o por um ajuste (aba Crédito, só o "
                         + "supervisor) antes.");
+            }
+            BigDecimal emAberto = tituloDAO.emAbertoDoCliente(con, id);
+            if (emAberto.signum() != 0) {
+                throw new NegocioException("O cliente tem " + Formatos.moeda(emAberto) + " em títulos do crediário em "
+                        + "aberto e não pode ser anonimizado. Receba ou devolva essas parcelas antes.");
             }
             if (!Textos.normalizarEspacos(nomeDigitado).equalsIgnoreCase(atual.nome())) {
                 throw new NegocioException("Para confirmar, digite o nome do cliente exatamente como está no "

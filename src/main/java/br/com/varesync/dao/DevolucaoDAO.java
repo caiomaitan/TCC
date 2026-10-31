@@ -38,14 +38,14 @@ public class DevolucaoDAO {
     /** Valores de uma linha de {@code devolucao}. */
     public record Nova(long vendaId, long usuarioId, OffsetDateTime dataHora, String motivo, FormaReembolso forma,
                        BigDecimal valorTotal, Long clienteId, Long liberadoPor, String observacao,
-                       Long caixaSessaoId) {
+                       Long caixaSessaoId, BigDecimal valorAbatido) {
     }
 
     /** Cabeçalho do comprovante da devolução. */
     public record Cabecalho(long id, OffsetDateTime dataHora, long vendaId, OffsetDateTime vendaDataHora,
                             String usuario, String liberadoPor, FormaReembolso forma, BigDecimal valorTotal,
                             String motivo, String observacao, Long clienteId, String clienteNome,
-                            String clienteCpfCnpj) {
+                            String clienteCpfCnpj, BigDecimal valorAbatido) {
     }
 
     /** Vendas finalizadas da busca, da mais recente para a mais antiga, com o valor já devolvido. */
@@ -161,8 +161,8 @@ public class DevolucaoDAO {
     public long inserir(Connection con, Nova d) throws SQLException {
         String sql = """
                 INSERT INTO devolucao (venda_id, usuario_id, data_hora, motivo, forma_reembolso, valor_total,
-                                       cliente_id, liberado_por, observacao, caixa_sessao_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       cliente_id, liberado_por, observacao, caixa_sessao_id, valor_abatido)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -176,6 +176,7 @@ public class DevolucaoDAO {
             Jdbc.definirLong(ps, 8, d.liberadoPor());
             ps.setString(9, d.observacao());
             Jdbc.definirLong(ps, 10, d.caixaSessaoId());
+            ps.setBigDecimal(11, d.valorAbatido());
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -234,7 +235,7 @@ public class DevolucaoDAO {
         String sql = """
                 SELECT d.id, d.data_hora, d.venda_id, v.data_hora AS venda_data_hora, u.nome AS usuario,
                        l.nome AS liberado_por, d.forma_reembolso, d.valor_total, d.motivo, d.observacao,
-                       d.cliente_id, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpf_cnpj
+                       d.cliente_id, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpf_cnpj, d.valor_abatido
                   FROM devolucao d
                   JOIN venda v        ON v.id = d.venda_id
                   JOIN usuario u      ON u.id = d.usuario_id
@@ -253,7 +254,8 @@ public class DevolucaoDAO {
                         rs.getString("usuario"), rs.getString("liberado_por"),
                         FormaReembolso.valueOf(rs.getString("forma_reembolso")), rs.getBigDecimal("valor_total"),
                         rs.getString("motivo"), rs.getString("observacao"), Jdbc.lerLong(rs, "cliente_id"),
-                        rs.getString("cliente_nome"), rs.getString("cliente_cpf_cnpj")));
+                        rs.getString("cliente_nome"), rs.getString("cliente_cpf_cnpj"),
+                        rs.getBigDecimal("valor_abatido")));
             }
         }
     }
