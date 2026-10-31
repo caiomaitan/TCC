@@ -17,7 +17,7 @@ import java.util.List;
  * @param cashbackEstornado zero sem estorno
  * @param saldoCredito     saldo de crédito do cliente na emissão; nulo quando a devolução não mexeu no crédito
  * @param valorAbatido     parte abatida das parcelas do crediário (F14.2); zero sem abatimento
- * @param parcelasEmAberto parcelas da venda em aberto na emissão, com o valor em aberto
+ * @param parcelasEmAberto parcelas da venda em aberto como ficaram no dia da devolução (F14.4), com o valor em aberto
  */
 public record ComprovanteDevolucao(Comprovante.Loja loja, long devolucaoId, OffsetDateTime dataHora, long vendaId,
                                    OffsetDateTime vendaDataHora, String usuario, String liberadoPor,

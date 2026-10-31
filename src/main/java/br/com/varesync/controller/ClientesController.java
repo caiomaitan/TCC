@@ -3,10 +3,13 @@ package br.com.varesync.controller;
 import br.com.varesync.model.Cliente;
 import br.com.varesync.model.DadosCliente;
 import br.com.varesync.model.ExtratoCredito;
+import br.com.varesync.model.ExtratoCrediario;
 import br.com.varesync.model.HistoricoCliente;
 import br.com.varesync.model.MovimentoCredito;
+import br.com.varesync.model.Permissao;
 import br.com.varesync.report.ExportadorCsv;
 import br.com.varesync.report.RelDadosCliente;
+import br.com.varesync.report.RelExtratoCrediario;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.service.ClienteService;
@@ -14,12 +17,15 @@ import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RegistroEmUsoException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCliente;
 import br.com.varesync.ui.Exportacao;
 import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.CpfCnpj;
+import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
@@ -124,6 +130,27 @@ public class ClientesController {
     @FXML private TableColumn<MovimentoCredito, String> colunaCreditoValor;
     @FXML private TableColumn<MovimentoCredito, String> colunaCreditoSaldo;
     @FXML private Label detalheCredito;
+    @FXML private Tab abaCrediario;
+    @FXML private TextField campoLimite;
+    @FXML private CheckBox campoBloqueado;
+    @FXML private Button botaoSalvarLimite;
+    @FXML private Label saldoDevedor;
+    @FXML private Label saldoVencido;
+    @FXML private Label limiteDisponivel;
+    @FXML private TableView<ExtratoCrediario.Parcela> tabelaParcelas;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaVenda;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaNumero;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaVencimento;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaValor;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaAberto;
+    @FXML private TableColumn<ExtratoCrediario.Parcela, String> colunaParcelaSituacao;
+    @FXML private Button botaoExtratoPdf;
+    @FXML private TableView<ExtratoCrediario.Lancamento> tabelaLancamentos;
+    @FXML private TableColumn<ExtratoCrediario.Lancamento, String> colunaLancData;
+    @FXML private TableColumn<ExtratoCrediario.Lancamento, String> colunaLancTipo;
+    @FXML private TableColumn<ExtratoCrediario.Lancamento, String> colunaLancValor;
+    @FXML private TableColumn<ExtratoCrediario.Lancamento, String> colunaLancSaldo;
+    @FXML private Label detalheLancamento;
     @FXML private Label lgpdConsentimento;
     @FXML private Button botaoExportarPdf;
     @FXML private Button botaoExportarCsv;
@@ -196,6 +223,26 @@ public class ClientesController {
                 }
             }
         });
+        colunaParcelaVenda.setCellValueFactory(c -> celula(String.valueOf(c.getValue().vendaId())));
+        colunaParcelaNumero.setCellValueFactory(c -> celula(c.getValue().rotulo()));
+        colunaParcelaVencimento.setCellValueFactory(c -> celula(Formatos.data(c.getValue().vencimento())));
+        colunaParcelaValor.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().valor())));
+        colunaParcelaAberto.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().emAberto())));
+        colunaParcelaSituacao.setCellValueFactory(c -> celula(c.getValue().diasAtraso() > 0
+                ? c.getValue().diasAtraso() + " d atraso" : c.getValue().status().rotulo()));
+        colunaLancData.setCellValueFactory(c -> celula(Formatos.dataHora(c.getValue().dataHora())));
+        colunaLancTipo.setCellValueFactory(c -> celula(c.getValue().tipo()));
+        colunaLancValor.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().valor())));
+        colunaLancSaldo.setCellValueFactory(c -> celula(Formatos.moeda(c.getValue().saldo())));
+        // O painel é estreito: o documento (qual parcela de qual venda) aparece inteiro abaixo.
+        tabelaLancamentos.getSelectionModel().selectedItemProperty().addListener((o, a, l) -> detalheLancamento.setText(
+                l == null ? "Selecione um lançamento para ver o detalhe." : l.tipo() + " — " + l.documento()
+                        + (l.encargos().signum() == 0 ? "" : " — encargos " + Formatos.moeda(l.encargos()))));
+        boolean gerencia = sessao.pode(Permissao.LIMITE_CREDITO);
+        campoLimite.setEditable(gerencia);
+        campoBloqueado.setDisable(!gerencia);
+        botaoSalvarLimite.setVisible(gerencia);
+        botaoSalvarLimite.setManaged(gerencia);
         botaoAjustarCredito.setVisible(sessao.supervisor());
         botaoAjustarCredito.setManaged(sessao.supervisor());
 
@@ -270,6 +317,7 @@ public class ClientesController {
         botaoSituacao.setText("Inativar");
         abaCompras.setDisable(true);
         abaCredito.setDisable(true);
+        abaCrediario.setDisable(true);
         abaLgpd.setDisable(true);
         abas.getSelectionModel().select(abaCadastro);
         Mensagem.limpar(mensagem);
@@ -309,9 +357,11 @@ public class ClientesController {
         botaoAnonimizar.setDisable(c.anonimizado());
         abaCompras.setDisable(false);
         abaCredito.setDisable(false);
+        abaCrediario.setDisable(false);
         abaLgpd.setDisable(false);
         mostrarHistorico(clienteService.historico(sessao, c.id()));
         mostrarCredito(creditoService.extrato(sessao, c.id()));
+        mostrarCrediario(clienteService.extratoCrediario(sessao, c.id()));
         Mensagem.limpar(mensagem);
     }
 
@@ -342,6 +392,65 @@ public class ClientesController {
                     mostrarCredito(creditoService.extrato(sessao, c.id()));
                     Mensagem.sucesso(mensagem, "Crédito ajustado. Saldo atual: " + Formatos.moeda(novo) + ".");
                 });
+    }
+
+    /** Aba Crediário (F14.4): limite, bloqueio, saldo devedor, parcelas e lançamentos, do mais recente para o mais antigo. */
+    private void mostrarCrediario(ExtratoCrediario e) {
+        campoLimite.setText(Formatos.numero(e.limite(), Dinheiro.ESCALA_DINHEIRO));
+        campoBloqueado.setSelected(e.bloqueado());
+        saldoDevedor.setText(Formatos.moeda(e.saldoDevedor()));
+        saldoVencido.setText(Formatos.moeda(e.vencido()));
+        saldoVencido.getStyleClass().remove("negativo");
+        if (e.vencido().signum() > 0) {
+            saldoVencido.getStyleClass().add("negativo");
+        }
+        limiteDisponivel.setText(Formatos.moeda(e.limiteDisponivel()));
+        limiteDisponivel.getStyleClass().remove("negativo");
+        if (e.limiteDisponivel().signum() < 0) {
+            limiteDisponivel.getStyleClass().add("negativo");
+        }
+        tabelaParcelas.getItems().setAll(e.parcelas());
+        List<ExtratoCrediario.Lancamento> recentesPrimeiro = new ArrayList<>(e.lancamentos());
+        Collections.reverse(recentesPrimeiro);
+        tabelaLancamentos.getItems().setAll(recentesPrimeiro);
+        detalheLancamento.setText(recentesPrimeiro.isEmpty() ? "" : "Selecione um lançamento para ver o detalhe.");
+        boolean anonimizado = emEdicao != null && emEdicao.anonimizado();
+        botaoSalvarLimite.setDisable(anonimizado);
+    }
+
+    @FXML
+    private void salvarLimite() {
+        if (emEdicao == null) {
+            return;
+        }
+        try {
+            clienteService.alterarCrediario(sessao, emEdicao.id(), CampoNumero.ler(campoLimite.getText(),
+                    "Limite de crédito"), campoBloqueado.isSelected());
+            mostrarCrediario(clienteService.extratoCrediario(sessao, emEdicao.id()));
+            Mensagem.sucesso(mensagem, "Limite e bloqueio do crediário salvos.");
+        } catch (RuntimeException e) {
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
+        }
+    }
+
+    @FXML
+    private void exportarExtrato() {
+        if (emEdicao != null) {
+            Exportacao.escolher(raiz.getScene().getWindow(), "PDF", "pdf",
+                    "extrato_crediario_" + emEdicao.id() + ".pdf").ifPresent(this::gravarExtrato);
+        }
+    }
+
+    /** Lê o extrato do banco e grava o PDF em {@link Task}. */
+    Task<Void> gravarExtrato(Path destino) {
+        try {
+            ResultadoRelatorio<RelExtratoCrediario.Linha> dados = clienteService.exportarExtrato(sessao, emEdicao.id());
+            return Exportacao.gravar("PDF", destino, d -> relatorioPdf.salvar(dados, d), mensagem,
+                    List.of(botaoExtratoPdf));
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+            return null;
+        }
     }
 
     private void mostrarHistorico(HistoricoCliente h) {

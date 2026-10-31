@@ -283,6 +283,12 @@ public class PrincipalController {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.CONFIGURACOES);
                 loader.<ConfiguracoesController>getController().mostrarBackup();
             }
+
+            @Override
+            public void abrirTitulosVencidos() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.RELATORIOS);
+                loader.<RelatoriosController>getController().mostrarTitulosVencidos();
+            }
         };
     }
 

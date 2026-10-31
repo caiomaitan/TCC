@@ -29,6 +29,9 @@ public abstract class IntegracaoBase {
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_cliente_credito_inconsistente"))
                     .as("vw_cliente_credito_inconsistente deve estar vazia (0.2 das ampliações)")
                     .isZero();
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_abatimento_inconsistente"))
+                    .as("vw_abatimento_inconsistente deve estar vazia (F14.4)")
+                    .isZero();
         }
     }
 }

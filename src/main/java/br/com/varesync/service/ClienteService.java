@@ -6,13 +6,17 @@ import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Cliente;
+import br.com.varesync.model.ClienteCrediario;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.DadosCliente;
 import br.com.varesync.model.ExtratoCredito;
+import br.com.varesync.model.ExtratoCrediario;
 import br.com.varesync.model.HistoricoCliente;
+import br.com.varesync.model.InconsistenciaAbatimento;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.report.Emissao;
 import br.com.varesync.report.RelDadosCliente;
+import br.com.varesync.report.RelExtratoCrediario;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
@@ -24,6 +28,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -142,6 +147,75 @@ public class ClienteService {
         return transacao.executar(con -> {
             buscar(con, id);
             return new HistoricoCliente(dao.compras(con, id), dao.produtos(con, id, PRODUTOS_MAIS_COMPRADOS));
+        });
+    }
+
+    // ----- Crediário (F14.4) -----
+
+    /** Limite, bloqueio, saldo devedor, parcelas e lançamentos do crediário do cliente. */
+    public ExtratoCrediario extratoCrediario(Sessao sessao, long id) {
+        sessao.exigir(Permissao.CLIENTES);
+        return transacao.executar(con -> extrato(con, id));
+    }
+
+    private ExtratoCrediario extrato(Connection con, long id) throws SQLException {
+        ClienteCrediario cliente = dao.situacaoCrediario(con, id)
+                .orElseThrow(() -> new NegocioException("Cliente não encontrado."));
+        LocalDate hoje = LocalDate.now(clock);
+        List<ExtratoCrediario.Parcela> parcelas = tituloDAO.parcelasDoCliente(con, id, hoje);
+        BigDecimal devedor = parcelas.stream().map(ExtratoCrediario.Parcela::emAberto)
+                .reduce(Dinheiro.ZERO, BigDecimal::add);
+        BigDecimal vencido = parcelas.stream().filter(p -> p.diasAtraso() > 0)
+                .map(ExtratoCrediario.Parcela::emAberto).reduce(Dinheiro.ZERO, BigDecimal::add);
+        List<ExtratoCrediario.Lancamento> lancamentos = new ArrayList<>();
+        BigDecimal saldo = Dinheiro.ZERO;
+        for (TituloReceberDAO.MovimentoExtrato m : tituloDAO.movimentosDoCliente(con, id)) {
+            saldo = saldo.add(m.valor());
+            lancamentos.add(new ExtratoCrediario.Lancamento(m.dataHora(), m.tipo(), m.documento(), m.valor(),
+                    m.encargos(), saldo));
+        }
+        return new ExtratoCrediario(cliente.limiteCredito(), cliente.bloqueado(), devedor, vencido,
+                cliente.limiteCredito().subtract(devedor), parcelas, lancamentos);
+    }
+
+    /** Diagnóstico (F14.4): {@code vw_abatimento_inconsistente}; só o supervisor. */
+    public List<InconsistenciaAbatimento> diagnosticoAbatimentos(Sessao sessao) {
+        sessao.exigirSupervisor();
+        return transacao.executar(tituloDAO::inconsistencias);
+    }
+
+    /** O extrato pronto para o PDF. */
+    public ResultadoRelatorio<RelExtratoCrediario.Linha> exportarExtrato(Sessao sessao, long id) {
+        sessao.exigir(Permissao.CLIENTES);
+        OffsetDateTime agora = OffsetDateTime.now(clock);
+        return transacao.executar(con -> {
+            Cliente cliente = buscar(con, id);
+            String loja = configuracaoDAO.carregar(con).loja().nome();
+            return RelExtratoCrediario.exportacao(cliente, extrato(con, id),
+                    new Emissao(loja.isBlank() ? "VareSync" : loja, sessao.usuario().nome(), agora));
+        });
+    }
+
+    /**
+     * Limite e bloqueio do crediário, com a permissão LIMITE_CREDITO e auditoria (sem o nome do cliente). A trava é a da
+     * venda a prazo: uma venda em andamento confere o limite antes ou depois da mudança, nunca no meio.
+     */
+    public void alterarCrediario(Sessao sessao, long id, BigDecimal limite, boolean bloqueado) {
+        sessao.exigir(Permissao.LIMITE_CREDITO);
+        BigDecimal novo = CaixaService.valor(limite, "o limite de crédito", true);
+        OffsetDateTime agora = OffsetDateTime.now(clock);
+        transacao.executar(con -> {
+            ClienteCrediario atual = dao.travarParaCrediario(con, id)
+                    .orElseThrow(() -> new NegocioException("Cliente não encontrado."));
+            exigirNaoAnonimizado(buscar(con, id));
+            if (atual.limiteCredito().compareTo(novo) == 0 && atual.bloqueado() == bloqueado) {
+                return null;
+            }
+            dao.alterarCrediario(con, id, novo, bloqueado, sessao.usuarioId(), agora);
+            auditoria.registrar(con, sessao, AcaoAuditoria.CLIENTE_CREDIARIO_ALTERADO, ENTIDADE_CLIENTE, id,
+                    "Cliente nº " + id + ": limite de crédito de " + Formatos.moeda(atual.limiteCredito()) + " para "
+                            + Formatos.moeda(novo) + "; crediário " + (bloqueado ? "bloqueado" : "liberado"));
+            return null;
         });
     }
 

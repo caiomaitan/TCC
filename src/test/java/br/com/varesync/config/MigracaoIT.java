@@ -7,31 +7,33 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V10 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V11 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV10() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(10);
+    void bancoVazioRecebeV1aV11() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(11);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
-                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10')
-                    """)).isEqualTo(10);
+                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11')
+                    """)).isEqualTo(11);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                        AND table_name <> 'flyway_schema_history'
-                    """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8 e crediário da V10)")
-                    .isEqualTo(33);
+                    """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
+                    + "devolucao_titulo da V11)")
+                    .isEqualTo(34);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'
                        AND table_name IN ('vw_venda_item_rentabilidade', 'vw_estoque_atual',
                                           'vw_estoque_inconsistente', 'vw_caixa_resumo',
-                                          'vw_cliente_credito_inconsistente', 'vw_resultado_item')
-                    """)).as("views (vw_resultado_item da V9)").isEqualTo(6);
+                                          'vw_cliente_credito_inconsistente', 'vw_resultado_item',
+                                          'vw_abatimento_inconsistente')
+                    """)).as("views (vw_resultado_item da V9, vw_abatimento_inconsistente da V11)").isEqualTo(7);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM permissao"))
                     .as("permissões do V2 + CLIENTES da V6 + DEVOLUCAO da V8 + RECEBIMENTO e LIMITE_CREDITO da V10")
                     .isEqualTo(14);

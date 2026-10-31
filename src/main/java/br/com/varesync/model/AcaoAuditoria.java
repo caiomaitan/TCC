@@ -34,7 +34,10 @@ public enum AcaoAuditoria {
     CLIENTE_ANONIMIZADO("Cliente anonimizado (LGPD)"),
     CREDITO_AJUSTADO("Crédito do cliente ajustado"),
     DEVOLUCAO_REGISTRADA("Devolução de venda"),
-    CREDIARIO_LIBERADO("Crediário liberado");
+    CREDIARIO_LIBERADO("Crediário liberado"),
+    RECEBIMENTO_REGISTRADO("Recebimento do crediário"),
+    RECEBIMENTO_ESTORNADO("Recebimento estornado"),
+    CLIENTE_CREDIARIO_ALTERADO("Limite ou bloqueio do crediário alterado");
 
     private final String rotulo;
 

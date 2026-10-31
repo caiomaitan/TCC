@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
+import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.AlertasPainel;
@@ -46,11 +47,13 @@ public class PainelService {
     private final EstoqueDAO estoqueDAO;
     private final CaixaService caixaService;
     private final AuditoriaDAO auditoriaDAO;
+    private final TituloReceberDAO tituloDAO;
     private final Clock clock;
 
     public PainelService(Transacao transacao, PainelDAO painelDAO, EstoqueDAO estoqueDAO, CaixaService caixaService,
-                         AuditoriaDAO auditoriaDAO,
+                         AuditoriaDAO auditoriaDAO, TituloReceberDAO tituloDAO,
                          Clock clock) {
+        this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.painelDAO = painelDAO;
         this.estoqueDAO = estoqueDAO;
@@ -92,7 +95,10 @@ public class PainelService {
         Optional<CaixaSessao> caixa = sessao.pode(Permissao.PDV) ? caixaService.caixaAberto(con, sessao)
                 : Optional.empty();
         Integer inventarios = sessao.pode(Permissao.INVENTARIO) ? painelDAO.contarInventariosAbertos(con) : null;
-        return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null);
+        AlertasPainel.TitulosVencidos vencidos = sessao.pode(Permissao.RECEBIMENTO)
+                ? tituloDAO.vencidos(con, LocalDate.now(clock)) : null;
+        return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
+                vencidos);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */

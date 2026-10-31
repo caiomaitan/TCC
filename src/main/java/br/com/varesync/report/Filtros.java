@@ -3,6 +3,7 @@ package br.com.varesync.report;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.util.Formatos;
+import br.com.varesync.util.Textos;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -14,33 +15,34 @@ import java.util.Set;
  * @param topN quantos produtos no ranking (R02); nulo = todos
  * @param dias dias sem venda para o produto ser "sem giro" (R12); nulo = {@code relatorio.dias_sem_giro}
  * @param fornecedor fornecedor das entradas (R17); nulo = todos
+ * @param crediario filtros do R21 e do R22 (F14.4); nunca nulo
  */
 public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer topN, Criterio criterio,
                       boolean soAbaixoDoMinimo, boolean incluirInativos, Opcao produto, TipoMovimento tipo,
-                      boolean detalharVendas, Integer dias, Opcao fornecedor) {
+                      boolean detalharVendas, Integer dias, Opcao fornecedor, FiltroCrediario crediario) {
 
     public static Filtros vazios() {
-        return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null);
+        return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null, FiltroCrediario.VAZIO);
     }
 
     public Filtros comPeriodo(Periodo novo) {
         return new Filtros(novo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor);
+                tipo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comOperador(Opcao novo) {
         return new Filtros(periodo, novo, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor);
+                tipo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comCategoria(Opcao nova) {
         return new Filtros(periodo, operador, nova, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor);
+                tipo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comRanking(Integer novoTopN, Criterio novoCriterio) {
         return new Filtros(periodo, operador, categoria, novoTopN, novoCriterio, soAbaixoDoMinimo, incluirInativos,
-                produto, tipo, detalharVendas, dias, fornecedor);
+                produto, tipo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comCriterio(Criterio novo) {
@@ -49,32 +51,37 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
 
     public Filtros comEstoque(boolean soAbaixo, boolean inativos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixo, inativos, produto, tipo,
-                detalharVendas, dias, fornecedor);
+                detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comProduto(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, novo,
-                tipo, detalharVendas, dias, fornecedor);
+                tipo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comTipo(TipoMovimento novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                novo, detalharVendas, dias, fornecedor);
+                novo, detalharVendas, dias, fornecedor, crediario);
     }
 
     public Filtros comDetalhe(boolean detalhar) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalhar, dias, fornecedor);
+                tipo, detalhar, dias, fornecedor, crediario);
     }
 
     public Filtros comDias(Integer novos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, novos, fornecedor);
+                tipo, detalharVendas, novos, fornecedor, crediario);
     }
 
     public Filtros comFornecedor(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, novo);
+                tipo, detalharVendas, dias, novo, crediario);
+    }
+
+    public Filtros comCrediario(FiltroCrediario novo) {
+        return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
+                tipo, detalharVendas, dias, fornecedor, novo);
     }
 
     public Criterio criterioOuPadrao() {
@@ -102,6 +109,21 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         List<String> partes = new ArrayList<>();
         if (usados.contains(TipoFiltro.PERIODO) && periodo != null) {
             partes.add("Período: " + Formatos.data(periodo.inicio()) + " a " + Formatos.data(periodo.fim()));
+        }
+        if (usados.contains(TipoFiltro.SITUACAO_TITULO)) {
+            partes.add("Situação: " + crediario.situacaoOuPadrao().rotulo().toLowerCase());
+        }
+        if (usados.contains(TipoFiltro.VENCIMENTO)
+                && (crediario.vencimentoDe() != null || crediario.vencimentoAte() != null)) {
+            partes.add("Vencimento: " + (crediario.vencimentoDe() == null ? "até "
+                    : Formatos.data(crediario.vencimentoDe()) + (crediario.vencimentoAte() == null ? " em diante"
+                    : " a ")) + (crediario.vencimentoAte() == null ? "" : Formatos.data(crediario.vencimentoAte())));
+        }
+        if (usados.contains(TipoFiltro.FORMA_PAGAMENTO)) {
+            partes.add("Forma: " + (crediario.forma() == null ? "todas" : crediario.forma().nome()));
+        }
+        if (usados.contains(TipoFiltro.CLIENTE) && !Textos.vazio(crediario.cliente())) {
+            partes.add("Cliente: " + crediario.cliente());
         }
         if (usados.contains(TipoFiltro.OPERADOR)) {
             partes.add("Operador: " + (operador == null ? "todos" : operador.nome()));

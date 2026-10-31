@@ -48,12 +48,14 @@
             <Label fx:id="sangrias" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
             <Label text="(−) Devoluções em dinheiro" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
             <Label fx:id="devolucoes" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
-            <Label text="(=) Dinheiro esperado" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
-            <Label fx:id="esperado" styleClass="titulo-secao" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
-            <Label text="Dinheiro contado" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
-            <Label fx:id="contado" styleClass="titulo-secao" GridPane.rowIndex="6" GridPane.columnIndex="1"/>
-            <Label text="Diferença" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
-            <Label fx:id="diferenca" styleClass="valor-destaque" GridPane.rowIndex="7" GridPane.columnIndex="1"/>
+            <Label text="(+) Recebimentos em dinheiro" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+            <Label fx:id="recebimentos" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+            <Label text="(=) Dinheiro esperado" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+            <Label fx:id="esperado" styleClass="titulo-secao" GridPane.rowIndex="6" GridPane.columnIndex="1"/>
+            <Label text="Dinheiro contado" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+            <Label fx:id="contado" styleClass="titulo-secao" GridPane.rowIndex="7" GridPane.columnIndex="1"/>
+            <Label text="Diferença" GridPane.rowIndex="8" GridPane.columnIndex="0"/>
+            <Label fx:id="diferenca" styleClass="valor-destaque" GridPane.rowIndex="8" GridPane.columnIndex="1"/>
         </GridPane>
     </HBox>
 
@@ -67,6 +69,8 @@
         </columns>
         <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
     </TableView>
+
+    <Label fx:id="recebimentosFormas" wrapText="true" styleClass="subtitulo" minHeight="-Infinity"/>
 
     <Label text="Sangrias e suprimentos" styleClass="titulo-secao"/>
     <TableView fx:id="tabelaMovimentos" prefHeight="150">

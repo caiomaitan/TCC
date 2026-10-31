@@ -47,6 +47,8 @@ public class FechamentoCaixaController {
     @FXML private Label suprimentos;
     @FXML private Label sangrias;
     @FXML private Label devolucoes;
+    @FXML private Label recebimentos;
+    @FXML private Label recebimentosFormas;
     @FXML private Label esperado;
     @FXML private Label contado;
     @FXML private Label diferenca;
@@ -102,6 +104,12 @@ public class FechamentoCaixaController {
         suprimentos.setText(Formatos.moeda(resumo.suprimentos()));
         sangrias.setText(Formatos.moeda(resumo.sangrias()));
         devolucoes.setText(Formatos.moeda(resumo.devolucoesDinheiro()));
+        recebimentos.setText(Formatos.moeda(resumo.recebimentosDinheiro()));
+        recebimentosFormas.setText(relatorio.recebimentosPorForma().isEmpty()
+                ? "Nenhum recebimento do crediário nesta sessão."
+                : "Recebimentos do crediário: " + relatorio.recebimentosPorForma().stream()
+                .map(f -> f.forma() + " " + Formatos.moeda(f.valor()) + " (" + f.quantidadeVendas() + ")")
+                .collect(java.util.stream.Collectors.joining(" · ")));
         esperado.setText(Formatos.moeda(sessao.valorEsperado()));
         contado.setText(Formatos.moeda(sessao.valorContado()));
         diferenca.setText(relatorio.situacao());

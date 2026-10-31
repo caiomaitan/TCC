@@ -18,6 +18,8 @@ import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.ItemContagem;
 import br.com.varesync.model.ItemDevolucao;
 import br.com.varesync.model.MotivoPerda;
+import br.com.varesync.model.PlanoCrediario;
+import br.com.varesync.model.PlanoRecebimento;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoVenda;
@@ -25,9 +27,11 @@ import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.model.TituloEmAberto;
 import br.com.varesync.model.VendaDevolucao;
 import br.com.varesync.service.CatalogoDemo.FornecedorDemo;
 import br.com.varesync.service.CatalogoDemo.ItemCatalogo;
+import br.com.varesync.util.CalculoCrediario;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.RelogioAjustavel;
@@ -46,6 +50,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -89,7 +94,20 @@ public class GeradorDemo {
     public record Resultado(List<UsuarioDemo> usuarios, int produtos, int vendas, int vendasCanceladas,
                             int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
                             int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
-                            int devolucoes) {
+                            int devolucoes, int clientesComLimite, int vendasCrediario, int recebimentos,
+                            int titulosVencidos) {
+    }
+
+    /** Crediário (F14.4): 30 clientes com limite; deles, parte das vendas identificadas vai a prazo. */
+    static final int CLIENTES_COM_LIMITE = 30;
+    static final int PCT_VENDA_A_PRAZO = 30;
+    /** Pagamento da parcela: em dia, com atraso; o que sobra fica em aberto (alguns títulos vencidos). */
+    static final int PCT_PAGA_EM_DIA = 65;
+    static final int PCT_PAGA_COM_ATRASO = 25;
+    static final int DIAS_ATE_PRIMEIRA_DEMO = 15;
+
+    /** Recebimento sorteado para um dia: a parcela da venda e, em dinheiro ou PIX. */
+    private record RecebimentoPlano(long clienteId, long vendaId, int parcela, boolean emDinheiro) {
     }
 
     /** Itens devolvidos, por mil itens vendidos (F13.4: cerca de 0,5%). */
@@ -119,7 +137,10 @@ public class GeradorDemo {
         void informar(long feito, long total, String mensagem);
     }
 
-    private enum Forma { DINHEIRO, PIX, DEBITO, CREDITO, VALE, PIX_E_DINHEIRO, CREDITO_CLIENTE }
+    private enum Forma { DINHEIRO, PIX, DEBITO, CREDITO, VALE, PIX_E_DINHEIRO, CREDITO_CLIENTE, CREDIARIO }
+
+    /** {@code crediario.bloqueio_atraso_dias} padrão da V10: o gerador não muda essa configuração. */
+    private static final int ATRASO_QUE_PEDE_LIBERACAO = 30;
 
     private record UsuarioPlano(String login, String nome, boolean gerente) {
     }
@@ -170,6 +191,7 @@ public class GeradorDemo {
     private final EntradaService compras;
     private final ClienteService clientes;
     private final DevolucaoService devolucoes;
+    private final RecebimentoService recebimentos;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -180,8 +202,10 @@ public class GeradorDemo {
                        UsuarioService usuarios, CategoriaService categorias, ProdutoService produtos,
                        EstoqueService estoque, CaixaService caixa, VendaService vendas,
                        InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
-                       ClienteService clientes, DevolucaoService devolucoes, DemoDAO demoDAO, CaixaDAO caixaDAO,
-                       ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria) {
+                       ClienteService clientes, DevolucaoService devolucoes, RecebimentoService recebimentos,
+                       DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
+                       AuditoriaService auditoria) {
+        this.recebimentos = recebimentos;
         this.relogio = relogio;
         this.relogioReal = relogioReal;
         this.transacao = transacao;
@@ -319,6 +343,16 @@ public class GeradorDemo {
         Random devolucao = new Random(SEMENTE + 5);
         Map<Integer, List<DevolucaoPlano>> devolucoesPorDia = new LinkedHashMap<>();
         int devolucoesFeitas = 0;
+        // Crediário (F14.4): semente própria, pela mesma razão; os clientes com limite são os primeiros do catálogo.
+        Random prazo = new Random(SEMENTE + 6);
+        posicionar(vespera, LocalTime.of(11, 0), zona);
+        List<Long> comLimite = clienteIds.subList(0, Math.min(CLIENTES_COM_LIMITE, clienteIds.size()));
+        for (long id : comLimite) {
+            clientes.alterarCrediario(supervisor, id, BigDecimal.valueOf(1000L + prazo.nextInt(5) * 500L), false);
+        }
+        Map<Integer, List<RecebimentoPlano>> recebimentosPorDia = new LinkedHashMap<>();
+        int vendasCrediario = 0;
+        int recebimentosFeitos = 0;
 
         Map<Long, ProdutoVenda> paraVenda = new LinkedHashMap<>();
         for (int i = 0; i < produtoIds.size(); i++) {
@@ -368,6 +402,11 @@ public class GeradorDemo {
             List<DevolucaoPlano> devolverHoje = new ArrayList<>(devolucoesPorDia.getOrDefault(dia.numero(),
                     List.of()));
             devolverHoje.sort((a, b) -> a.hora().compareTo(b.hora()));
+            int recebimentoDoDia = 0;
+            for (RecebimentoPlano devido : recebimentosPorDia.getOrDefault(dia.numero(), List.of())) {
+                posicionar(dia.data(), LocalTime.of(8, 0).plusMinutes(recebimentoDoDia++), zona);
+                recebimentosFeitos += receber(gerente, devido, formas) ? 1 : 0;
+            }
             for (int v = 0; v < dia.vendas().size(); v++) {
                 VendaPlano venda = dia.vendas().get(v);
                 while (!sangrias.isEmpty() && !sangrias.get(0).isAfter(venda.hora())) {
@@ -384,8 +423,18 @@ public class GeradorDemo {
                 Long clienteId = fidelidade.nextInt(100) < PCT_VENDAS_COM_CLIENTE
                         ? clienteIds.get(fidelidade.nextInt(clienteIds.size())) : null;
                 boolean usarCredito = clienteId != null && fidelidade.nextInt(100) < PCT_USA_CREDITO;
+                // O sorteio do prazo vem sempre, com ou sem cliente: os demais não mudam quando as regras mudarem.
+                int sorteioPrazo = prazo.nextInt(100);
+                int parcelas = 1 + prazo.nextInt(3);
+                boolean aPrazo = clienteId != null && comLimite.contains(clienteId) && !venda.cancelar()
+                        && sorteioPrazo < PCT_VENDA_A_PRAZO;
                 Venda feita = vender(operador, venda, produtoIds, paraVenda, formas, execucao, dia.data(), zona,
-                        liberaCancelamento, liberaDesconto, clienteId, usarCredito);
+                        liberaCancelamento, liberaDesconto, clienteId, usarCredito, aPrazo ? parcelas : 0);
+                if (feita.parcelas() > 0) {
+                    vendasCrediario++;
+                    planejarRecebimentos(prazo, recebimentosPorDia, dia.numero(), clienteId, feita.vendaId(),
+                            feita.parcelas());
+                }
                 vendasFeitas++;
                 vendasComCliente += clienteId == null ? 0 : 1;
                 usosDeCredito += feita.usouCredito() ? 1 : 0;
@@ -416,16 +465,20 @@ public class GeradorDemo {
         }
 
         relogio.ajustar(relogioReal.instant());
+        int titulosVencidos = comLimite.stream().mapToInt(id -> (int) recebimentos.titulos(supervisor, id).stream()
+                .filter(t -> t.diasAtraso() > 0).count()).sum();
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
-                vendasComCliente, usosDeCredito, devolucoesFeitas);
+                vendasComCliente, usosDeCredito, devolucoesFeitas, comLimite.size(), vendasCrediario,
+                recebimentosFeitos, titulosVencidos);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
                             + " produtos, usuários " + criados.stream().map(UsuarioDemo::login)
                             .collect(Collectors.joining(", ")) + ", " + resultado.vendas() + " vendas ("
                             + resultado.vendasCanceladas() + " canceladas, " + resultado.vendasComCliente()
-                            + " com cliente), " + resultado.devolucoes() + " devoluções, " + resultado.clientes()
+                            + " com cliente, " + resultado.vendasCrediario() + " a prazo), " + resultado.recebimentos()
+                            + " recebimentos, " + resultado.devolucoes() + " devoluções, " + resultado.clientes()
                             + " clientes, " + resultado.fornecedores()
                             + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
@@ -777,6 +830,8 @@ public class GeradorDemo {
         // Desativada, as vendas não usam o crédito do cliente (o cashback continua).
         FormaPagamento credito = porTipo.get(TipoFormaPagamento.CREDITO_CLIENTE);
         formas.put(Forma.CREDITO_CLIENTE, credito == null ? List.of() : List.of(credito));
+        FormaPagamento crediario = porTipo.get(TipoFormaPagamento.CREDIARIO);
+        formas.put(Forma.CREDIARIO, crediario == null ? List.of() : List.of(crediario));
         return formas;
     }
 
@@ -794,13 +849,50 @@ public class GeradorDemo {
         });
     }
 
-    private record Venda(long vendaId, int itensCancelados, boolean usouCredito) {
+    private record Venda(long vendaId, int itensCancelados, boolean usouCredito, int parcelas) {
+    }
+
+    /**
+     * Para cada parcela, sorteia se é paga em dia (no vencimento), com atraso (de 3 a 20 dias) ou fica em aberto. Dia
+     * depois dos 60 da demonstração não acontece: a parcela fica em aberto, a vencer ou vencida.
+     */
+    private static void planejarRecebimentos(Random r, Map<Integer, List<RecebimentoPlano>> porDia, int diaVenda,
+                                             long clienteId, long vendaId, int parcelas) {
+        for (int p = 1; p <= parcelas; p++) {
+            int vencimento = diaVenda + DIAS_ATE_PRIMEIRA_DEMO + (p - 1) * CalculoCrediario.INTERVALO_DIAS;
+            int sorteio = r.nextInt(100);
+            int atraso = 3 + r.nextInt(18);
+            boolean emDinheiro = r.nextBoolean();
+            if (sorteio >= PCT_PAGA_EM_DIA + PCT_PAGA_COM_ATRASO) {
+                continue;
+            }
+            int dia = sorteio < PCT_PAGA_EM_DIA ? vencimento : vencimento + atraso;
+            if (dia <= DIAS) {
+                porDia.computeIfAbsent(dia, k -> new ArrayList<>())
+                        .add(new RecebimentoPlano(clienteId, vendaId, p, emDinheiro));
+            }
+        }
+    }
+
+    /** Quita a parcela, se ela ainda estiver em aberto (uma devolução pode já ter abatido tudo). */
+    private boolean receber(Sessao gerente, RecebimentoPlano plano, Map<Forma, List<FormaPagamento>> formas) {
+        Optional<TituloEmAberto> titulo = recebimentos.titulos(gerente, plano.clienteId()).stream()
+                .filter(t -> t.vendaId() == plano.vendaId() && t.parcela() == plano.parcela()).findFirst();
+        if (titulo.isEmpty()) {
+            return false;
+        }
+        List<Long> ids = List.of(titulo.get().tituloId());
+        PlanoRecebimento previsto = recebimentos.simular(gerente, plano.clienteId(), ids, null, null);
+        Recebimento pagamento = recebimentos.pagamento(previsto);
+        pagamento.adicionar(formas.get(plano.emDinheiro() ? Forma.DINHEIRO : Forma.PIX).get(0), previsto.total());
+        recebimentos.registrar(gerente, plano.clienteId(), ids, null, null, pagamento, null, null);
+        return true;
     }
 
     private Venda vender(Sessao operador, VendaPlano plano, List<Long> produtoIds, Map<Long, ProdutoVenda> paraVenda,
                          Map<Forma, List<FormaPagamento>> formas, Random r, LocalDate data, ZoneId zona,
                          Liberacao liberaCancelamento, Liberacao liberaDesconto, Long clienteId,
-                         boolean usarCredito) {
+                         boolean usarCredito, int parcelas) {
         Carrinho carrinho = new Carrinho();
         int cancelados = 0;
         LocalTime hora = plano.hora();
@@ -837,6 +929,25 @@ public class GeradorDemo {
             usouCredito = true;
         }
         List<FormaPagamento> usar = formas.get(plano.forma());
+        // Crediário (F14.4): só com limite e sem atraso que pediria liberação; venda muito pequena fica à vista.
+        int aPrazo = 0;
+        if (parcelas > 0 && !formas.get(Forma.CREDIARIO).isEmpty() && !recebimento.quitado()) {
+            VendaService.OpcoesCrediario opcoes = vendas.opcoesCrediario(operador, carrinho);
+            boolean cabe = opcoes.limiteDisponivel() != null
+                    && opcoes.limiteDisponivel().compareTo(recebimento.falta()) >= 0
+                    && recebimento.falta().compareTo(BigDecimal.valueOf(parcelas)) >= 0
+                    && recebimentos.titulos(operador, clienteId).stream()
+                    .noneMatch(t -> t.diasAtraso() > ATRASO_QUE_PEDE_LIBERACAO);
+            if (cabe) {
+                // Os mesmos sorteios da venda à vista: os dados seguintes não mudam por causa do crediário.
+                if (usar.get(usar.size() - 1).dinheiro()) {
+                    notas(recebimento.falta(), r);
+                }
+                recebimento.adicionar(formas.get(Forma.CREDIARIO).get(0), recebimento.falta());
+                recebimento.definirPlanoCrediario(new PlanoCrediario(parcelas, data.plusDays(DIAS_ATE_PRIMEIRA_DEMO)));
+                aPrazo = parcelas;
+            }
+        }
         if (!recebimento.quitado()) {
             if (usar.size() == 2 && recebimento.falta().compareTo(BigDecimal.valueOf(4)) > 0) {
                 BigDecimal parte = recebimento.falta().divide(BigDecimal.valueOf(2), 0, RoundingMode.DOWN)
@@ -850,7 +961,7 @@ public class GeradorDemo {
             }
         }
         long vendaId = vendas.finalizar(operador, carrinho, recebimento).vendaId();
-        return new Venda(vendaId, cancelados, usouCredito);
+        return new Venda(vendaId, cancelados, usouCredito, aPrazo);
     }
 
     /** O que o cliente entrega em dinheiro: o valor exato ou a nota de 5, 10, 20, 50 ou 100 seguinte. */

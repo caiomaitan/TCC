@@ -306,4 +306,22 @@ Atualizado a cada fase. "—" = ainda não implementado (a fase de entrega está
 | RF16 / F14.2 LGPD | `ClienteService.anonimizar` recusa com títulos em aberto | `CrediarioIT.clienteComTituloEmAbertoNaoPodeSerAnonimizado` |
 | RF18 / F14.1 Forma de pagamento | `ConfiguracaoService.criarForma` e `alterarSituacaoForma` (única e fora da regra de forma ativa), `ConfiguracoesController` | `CrediarioIT.formaCrediarioEUnicaENaoContaComoFormaAtiva`, `ConfiguracaoServiceIT.formasDePagamentoCriarDesativarEAoMenosUmaAtiva` |
 
-Casos do roteiro manual: CT-F14-01 a CT-F14-14. RF19 (contas a receber e recebimento) fica para a parte B.
+Casos do roteiro manual: CT-F14-01 a CT-F14-14. RF19 (contas a receber e recebimento) é a parte B, abaixo.
+
+## Fase 14 — Crediário e contas a receber, parte B (RF19, RF18, RF10, RF16)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RF19 / F14.3 Encargos | `util/CalculoEncargos` (multa, juros simples, carência, divisão do parcial, aplicação do valor, quitação com desconto) | `CalculoEncargosTest`, `RecebimentoIT.encargosDoTituloVencidoHaDezDias`, `parcialComAtraso`, `parcialSemAtraso`, `carenciaDispensaEncargos` |
+| RF19 / F14.3 Recebimento | `RecebimentoService`, `RecebimentoDAO`, `TituloReceberDAO.baixar`, tela `recebimento.fxml` (`RecebimentoController`, `AcoesRecebimento`), botão na tela Caixa e Ctrl+R no PDV | `RecebimentoIT` (quitar, selecionar, valor, forma, cliente inativo, liberação, desconto, caixa fechado) |
+| RF19 / F14.3 Caixa e R11 | `vw_caixa_resumo.recebimentos_dinheiro`, `CaixaResumo`, `RelatorioFechamento.recebimentosPorForma`, `FechamentoCaixaExportacao`, `fechamento-caixa.fxml` | `RecebimentoIT.recebimentoEmDinheiroEntraNoEsperadoEEstornadoDeixaDeContar`, `CrediarioParteBIT.r11MostraOsRecebimentos`, `FechamentoCaixaExportacaoTest.recebimentosDoCrediarioNaGavetaENaSecaoPropria` |
+| RF19 / F14.3 Estorno e cancelamento | `RecebimentoService.estornar`, lista da sessão na tela Caixa, auditoria `RECEBIMENTO_ESTORNADO` | `RecebimentoIT.estornoSoNaMesmaSessaoDeCaixa`, `estornoEmDinheiroNaoPassaDaGaveta`, `cancelarVendaComParcelaPagaDeVerdadeERecusadoEDepoisDoEstornoPassa`, `anonimizarDepoisDeReceberTudoPassaEBloqueiaOEstorno` |
+| RF19 / F14.3 Comprovante | `ComprovanteRecebimento` | `RecebimentoIT.comprovanteMostraEncargosFormasETroco`, `comprovanteReimpressoDepoisDoEstornoAvisa` |
+| RF18 / F14.4 Abatimentos por parcela | Migration `V11__abatimento_por_parcela.sql`, `TituloReceberDAO.inserirAbatimento` e `posicaoEm`, `DevolucaoService` | `CrediarioParteBIT.cadaDevolucaoGuardaOQueAbateuDeCadaParcela`, `comprovanteReimpressoMostraAsParcelasComoFicaramNoDia`, `migrationPreencheAsDevolucoesAntigas`, `viewAchaAbatidoDiferenteDaSoma`, `IntegracaoBase`, `MigracaoIT` |
+| RF19 / F14.4 Cliente | Aba Crediário de `clientes.fxml` (`ClientesController`), `ClienteService.extratoCrediario`, `alterarCrediario`, `exportarExtrato`, `ExtratoCrediario`, `RelExtratoCrediario` | `CrediarioParteBIT.extratoDepoisDeDuasDevolucoesMostraQuantoCadaUmaAbateuDeCadaParcela`, `extratoTemVendaPagamentoEstornoEOSaldoFechaComODevedor`, `limiteEBloqueioPelaPermissaoComAuditoria`, `extratoR21ER22GeramPdf` |
+| RF19 / F14.4 Configurações | Aba Crediário de `configuracoes.fxml`, `ConfiguracaoService.crediario`, Diagnóstico com `vw_abatimento_inconsistente` | `CrediarioParteBIT.configuracoesDoCrediarioSaoGravadasEAuditadas`, `viewAchaAbatidoDiferenteDaSoma` |
+| RF10 / F14.4 R21 e R22 | `RelTitulosReceber`, `RelRecebimentos`, `FiltroCrediario`, `SituacaoTitulo`, filtros novos em `RelatoriosController` | `CrediarioParteBIT.r21MostraAsFaixasDeAtraso`, `r21Quitados`, `r22TemPrincipalMultaEJurosESemEstornados`, `RelatoriosParte2Test.catalogoTemOsRelatoriosNaOrdemDosCodigos`, `GeradorDemoIT` |
+| RF19 / F14.4 Painel | `AlertasPainel.TitulosVencidos`, `TituloReceberDAO.vencidos`, `PainelController`, `NavegacaoPainel.abrirTitulosVencidos` | `CrediarioParteBIT.painelAvisaTitulosVencidosSoParaQuemTemRecebimento` |
+| RF19 / F14.4 Gerador | `GeradorDemo` (clientes com limite, vendas a prazo, recebimentos em dia e com atraso, títulos vencidos) | `GeradorDemoIT.crediarioDaFase14`, `GeradorDemoReproducaoIT` |
+
+Casos do roteiro manual: CT-F14-15 a CT-F14-34.

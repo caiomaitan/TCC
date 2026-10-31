@@ -13,4 +13,7 @@ public interface NavegacaoPainel {
 
     /** Configurações já na aba Backup (alerta de backup atrasado). */
     void abrirBackup();
+
+    /** R21 já filtrado nos títulos vencidos (alerta de títulos vencidos, com RELATORIOS). */
+    void abrirTitulosVencidos();
 }

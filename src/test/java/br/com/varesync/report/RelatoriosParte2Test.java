@@ -211,7 +211,8 @@ class RelatoriosParte2Test {
     void catalogoTemOsRelatoriosNaOrdemDosCodigos() {
         // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
-                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19", "R20");
+                "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21",
+                "R22");
     }
 
     @Test

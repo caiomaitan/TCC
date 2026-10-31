@@ -170,6 +170,56 @@
                 </VBox>
             </Tab>
 
+            <Tab fx:id="abaCrediario" text="Crediário">
+                <VBox spacing="8">
+                    <padding><Insets top="10" right="2" bottom="4" left="2"/></padding>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label text="Limite (R$)" minWidth="-Infinity"/>
+                        <TextField fx:id="campoLimite" prefWidth="100" styleClass="campo-numero"/>
+                        <CheckBox fx:id="campoBloqueado" text="Bloquear crediário"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="botaoSalvarLimite" text="Salvar limite" onAction="#salvarLimite"/>
+                    </HBox>
+                    <GridPane hgap="14" vgap="4">
+                        <Label text="Saldo devedor" styleClass="subtitulo" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                        <Label text="Vencido" styleClass="subtitulo" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                        <Label text="Limite disponível" styleClass="subtitulo" GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                        <Label fx:id="saldoDevedor" styleClass="cartao-valor-pequeno" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                        <Label fx:id="saldoVencido" styleClass="cartao-valor-pequeno" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                        <Label fx:id="limiteDisponivel" styleClass="cartao-valor-pequeno" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                    </GridPane>
+                    <Label text="Parcelas" styleClass="titulo-secao"/>
+                    <TableView fx:id="tabelaParcelas" VBox.vgrow="ALWAYS" prefHeight="130">
+                        <placeholder><Label text="Nenhuma parcela."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaParcelaVenda" text="Venda" prefWidth="50" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaParcelaNumero" text="Parc." prefWidth="42"/>
+                            <TableColumn fx:id="colunaParcelaVencimento" text="Vence" prefWidth="78"/>
+                            <TableColumn fx:id="colunaParcelaValor" text="Valor" prefWidth="74" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaParcelaAberto" text="Em aberto" prefWidth="74" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaParcelaSituacao" text="Situação" prefWidth="76"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label text="Extrato" styleClass="titulo-secao"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="botaoExtratoPdf" text="Extrato em PDF…" onAction="#exportarExtrato"/>
+                    </HBox>
+                    <TableView fx:id="tabelaLancamentos" VBox.vgrow="ALWAYS" prefHeight="150">
+                        <placeholder><Label text="Nenhum lançamento."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaLancData" text="Data/hora" prefWidth="104"/>
+                            <TableColumn fx:id="colunaLancTipo" text="Tipo" prefWidth="90"/>
+                            <TableColumn fx:id="colunaLancValor" text="Valor" prefWidth="72" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaLancSaldo" text="Saldo" prefWidth="72" styleClass="coluna-numero"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
+                    <Label fx:id="detalheLancamento" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
+                </VBox>
+            </Tab>
+
             <Tab fx:id="abaLgpd" text="LGPD">
                 <VBox spacing="10">
                     <padding><Insets top="12" right="4" bottom="4" left="4"/></padding>

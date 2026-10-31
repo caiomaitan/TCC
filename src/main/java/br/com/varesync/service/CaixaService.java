@@ -1,6 +1,7 @@
 package br.com.varesync.service;
 
 import br.com.varesync.dao.CaixaDAO;
+import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaMovimento;
 import br.com.varesync.model.CaixaResumo;
@@ -36,12 +37,15 @@ public class CaixaService {
 
     private final Transacao transacao;
     private final CaixaDAO caixaDAO;
+    private final RecebimentoDAO recebimentoDAO;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
-    public CaixaService(Transacao transacao, CaixaDAO caixaDAO, AuditoriaService auditoria, Clock clock) {
+    public CaixaService(Transacao transacao, CaixaDAO caixaDAO, RecebimentoDAO recebimentoDAO,
+                        AuditoriaService auditoria, Clock clock) {
         this.transacao = transacao;
         this.caixaDAO = caixaDAO;
+        this.recebimentoDAO = recebimentoDAO;
         this.auditoria = auditoria;
         this.clock = clock;
     }
@@ -225,6 +229,7 @@ public class CaixaService {
         CaixaSessao caixa = caixaDAO.buscar(con, caixaSessaoId).orElseThrow();
         CaixaResumo resumo = caixaDAO.resumo(con, caixaSessaoId);
         return new RelatorioFechamento(caixa, resumo, caixaDAO.vendasPorForma(con, caixaSessaoId),
-                caixaDAO.listarMovimentos(con, caixaSessaoId), caixaDAO.descontos(con, caixaSessaoId));
+                caixaDAO.listarMovimentos(con, caixaSessaoId), caixaDAO.descontos(con, caixaSessaoId),
+                recebimentoDAO.porForma(con, caixaSessaoId));
     }
 }

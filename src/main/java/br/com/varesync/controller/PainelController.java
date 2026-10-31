@@ -277,6 +277,21 @@ public class PainelController {
                     : "O último backup do banco foi há " + b.dias() + " dias (" + Formatos.dataHora(b.ultimo()) + ")")
                     + " — fazer em Configurações › Backup", () -> navegacao.abrirBackup());
         }
+        if (a.titulosVencidos() != null && a.titulosVencidos().quantidade() > 0) {
+            AlertasPainel.TitulosVencidos v = a.titulosVencidos();
+            String texto = plural(v.quantidade(), "título vencido", "títulos vencidos") + " ("
+                    + Formatos.moeda(v.valor()) + ")";
+            // Quem recebe no caixa pode não ter Relatórios: leva à tela que a pessoa pode abrir.
+            if (sessao.pode(Permissao.RELATORIOS)) {
+                alerta(texto + " — ver em Relatórios", () -> navegacao.abrirTitulosVencidos());
+            } else if (sessao.pode(Permissao.PDV)) {
+                alerta(texto + " — receber no Caixa", () -> navegacao.abrir(ItemMenu.CAIXA));
+            } else {
+                Label aviso = new Label(texto);
+                aviso.getStyleClass().add("alerta-painel");
+                alertas.getChildren().add(aviso);
+            }
+        }
         if (alertas.getChildren().isEmpty()) {
             Label nenhum = new Label("Nenhum alerta no momento.");
             nenhum.getStyleClass().add("subtitulo");

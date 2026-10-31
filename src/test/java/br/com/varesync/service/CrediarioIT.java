@@ -80,7 +80,7 @@ class CrediarioIT extends IntegracaoBase {
         }
     }
 
-    /** O limite ainda não tem tela (parte B). */
+    /** Direto no banco: aqui importa só o valor; a tela e a auditoria do limite estão em {@code CrediarioParteBIT}. */
     private void limite(long cliente, String valor) throws Exception {
         sql("UPDATE cliente SET limite_credito = " + valor + " WHERE id = " + cliente);
     }

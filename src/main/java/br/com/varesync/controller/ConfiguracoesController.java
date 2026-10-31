@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.InconsistenciaAbatimento;
 import br.com.varesync.model.InconsistenciaCredito;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
@@ -12,6 +13,7 @@ import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.service.BackupService;
+import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.CreditoService;
@@ -77,6 +79,7 @@ public class ConfiguracoesController {
     private boolean auditoriaPreparada;
     private final EstoqueService estoqueService;
     private final CreditoService creditoService;
+    private final ClienteService clienteService;
     private final GeradorDemo geradorDemo;
     private final Sessao sessao;
     /** O que está gravado (base do "Desfazer" e do que não é editado aqui, como o backup). */
@@ -140,6 +143,19 @@ public class ConfiguracoesController {
     @FXML private CheckBox campoFidelidadeAtiva;
     @FXML private TextField campoCashback;
     @FXML private TextField campoCompraMinima;
+    @FXML private Tab abaCrediario;
+    @FXML private TextField campoMaxParcelas;
+    @FXML private TextField campoDiasPrimeira;
+    @FXML private TextField campoJuros;
+    @FXML private TextField campoMulta;
+    @FXML private TextField campoCarencia;
+    @FXML private TextField campoBloqueioAtraso;
+    @FXML private Label resultadoAbatimento;
+    @FXML private TableView<InconsistenciaAbatimento> tabelaAbatimento;
+    @FXML private TableColumn<InconsistenciaAbatimento, String> colunaAbatimentoOrigem;
+    @FXML private TableColumn<InconsistenciaAbatimento, String> colunaAbatimentoValor;
+    @FXML private TableColumn<InconsistenciaAbatimento, String> colunaAbatimentoSoma;
+    @FXML private TableColumn<InconsistenciaAbatimento, String> colunaAbatimentoDiferenca;
     @FXML private Label resultadoCredito;
     @FXML private TableView<InconsistenciaCredito> tabelaCredito;
     @FXML private TableColumn<InconsistenciaCredito, String> colunaCreditoCliente;
@@ -173,7 +189,8 @@ public class ConfiguracoesController {
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
                                    EstoqueService estoqueService, CreditoService creditoService,
-                                   GeradorDemo geradorDemo, Sessao sessao) {
+                                   ClienteService clienteService, GeradorDemo geradorDemo, Sessao sessao) {
+        this.clienteService = clienteService;
         this.configuracaoService = configuracaoService;
         this.backupService = backupService;
         this.auditoriaService = auditoriaService;
@@ -213,8 +230,16 @@ public class ConfiguracoesController {
         colunaCreditoDiferenca.setCellValueFactory(c -> new ReadOnlyStringWrapper(
                 Formatos.moeda(c.getValue().diferenca())));
 
+        colunaAbatimentoOrigem.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().descricao()));
+        colunaAbatimentoValor.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().valorAbatido())));
+        colunaAbatimentoSoma.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().somaLinhas())));
+        colunaAbatimentoDiferenca.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().diferenca())));
+
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaBackup);
+                abaCrediario, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -303,6 +328,12 @@ public class ConfiguracoesController {
         campoFidelidadeAtiva.setSelected(c.fidelidade().ativo());
         campoCashback.setText(Formatos.numero(c.fidelidade().cashbackPct(), Dinheiro.ESCALA_PERCENTUAL));
         campoCompraMinima.setText(Formatos.numero(c.fidelidade().compraMinima(), Dinheiro.ESCALA_DINHEIRO));
+        campoMaxParcelas.setText(String.valueOf(c.crediario().maxParcelas()));
+        campoDiasPrimeira.setText(String.valueOf(c.crediario().diasPrimeira()));
+        campoJuros.setText(Formatos.numero(c.crediario().jurosMesPct(), Dinheiro.ESCALA_PERCENTUAL));
+        campoMulta.setText(Formatos.numero(c.crediario().multaPct(), Dinheiro.ESCALA_PERCENTUAL));
+        campoCarencia.setText(String.valueOf(c.crediario().carenciaDias()));
+        campoBloqueioAtraso.setText(String.valueOf(c.crediario().bloqueioAtrasoDias()));
         atualizarBalanca();
     }
 
@@ -327,7 +358,10 @@ public class ConfiguracoesController {
                 new Configuracoes.Fidelidade(campoFidelidadeAtiva.isSelected(),
                         numero(campoCashback, "Cashback"), numero(campoCompraMinima, "Compra mínima")),
                 inteiro(campoPrazoDevolucao, "Prazo de devolução"),
-                gravadas.crediario()); // ainda sem aba (F14, parte B): salvar não pode mudar estes valores
+                new Configuracoes.Crediario(inteiro(campoMaxParcelas, "Máximo de parcelas"),
+                        inteiro(campoDiasPrimeira, "Dias até a 1ª parcela"), numero(campoJuros, "Juros ao mês"),
+                        numero(campoMulta, "Multa por atraso"), inteiro(campoCarencia, "Carência"),
+                        inteiro(campoBloqueioAtraso, "Atraso que pede liberação")));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -655,7 +689,8 @@ public class ConfiguracoesController {
     }
 
     /** Estoque (6.4) e crédito dos clientes (F12.3): as duas views de inconsistência precisam vir vazias. */
-    private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito) {
+    private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito,
+                               List<InconsistenciaAbatimento> abatimento) {
     }
 
     @FXML
@@ -663,13 +698,15 @@ public class ConfiguracoesController {
         Task<Diagnostico> tarefa = new Task<>() {
             @Override
             protected Diagnostico call() {
-                return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao));
+                return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao),
+                        clienteService.diagnosticoAbatimentos(sessao));
             }
         };
         botaoVerificar.setDisable(true);
         progresso.setVisible(true);
         Mensagem.informar(resultado, "Verificando…");
         Mensagem.limpar(resultadoCredito);
+        Mensagem.limpar(resultadoAbatimento);
         tarefa.setOnSucceeded(e -> {
             concluir();
             List<InconsistenciaEstoque> linhas = tarefa.getValue().estoque();
@@ -691,6 +728,16 @@ public class ConfiguracoesController {
                 Mensagem.erro(resultadoCredito, (credito.size() == 1 ? "1 cliente tem" : credito.size()
                         + " clientes têm") + " saldo de crédito diferente da soma do extrato. Isso indica alteração "
                         + "feita fora do sistema; anote os clientes e procure o suporte.");
+            }
+            List<InconsistenciaAbatimento> abatimento = tarefa.getValue().abatimento();
+            tabelaAbatimento.getItems().setAll(abatimento);
+            if (abatimento.isEmpty()) {
+                Mensagem.sucesso(resultadoAbatimento, "Tudo certo: o abatido de todos os títulos e devoluções confere "
+                        + "com os abatimentos por parcela.");
+            } else {
+                Mensagem.erro(resultadoAbatimento, abatimento.size() + " registro(s) com o abatido diferente da soma "
+                        + "por parcela. Isso indica alteração feita fora do sistema; anote os números e procure o "
+                        + "suporte.");
             }
         });
         tarefa.setOnFailed(e -> {
@@ -778,6 +825,9 @@ public class ConfiguracoesController {
                 .append(" vendas identificadas, ").append(r.usosDeCredito())
                 .append(" com uso de crédito; fidelidade ligada com 1% de cashback)")
                 .append("\nDevoluções: ").append(r.devolucoes())
+                .append("\nCrediário: ").append(r.clientesComLimite()).append(" clientes com limite, ")
+                .append(r.vendasCrediario()).append(" vendas a prazo, ").append(r.recebimentos())
+                .append(" recebimentos, ").append(r.titulosVencidos()).append(" títulos vencidos em aberto")
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();

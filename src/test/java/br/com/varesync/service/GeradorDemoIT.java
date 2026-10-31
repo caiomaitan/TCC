@@ -33,7 +33,11 @@ import br.com.varesync.report.Relatorios;
 import br.com.varesync.report.RelRentabilidadeProduto;
 import br.com.varesync.report.RelSaldosCredito;
 import br.com.varesync.report.RelVendasPeriodo;
+import br.com.varesync.report.FiltroCrediario;
+import br.com.varesync.report.RelRecebimentos;
+import br.com.varesync.report.RelTitulosReceber;
 import br.com.varesync.report.ResultadoRelatorio;
+import br.com.varesync.report.SituacaoTitulo;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -146,7 +150,7 @@ class GeradorDemoIT extends IntegracaoBase {
         long itensCancelados = contar("SELECT count(*) FROM venda_item WHERE cancelado");
         assertThat(itensCancelados).isEqualTo(resultado.itensCancelados()).isBetween(itens / 200, itens / 20);
         assertThat(coluna("SELECT count(DISTINCT vp.forma_pagamento_id) FROM venda_pagamento vp"))
-                .as("as 5 formas da V2 e o crédito do cliente").containsExactly(6L);
+                .as("as 5 formas da V2, o crédito do cliente e o crediário").containsExactly(7L);
         assertThat(contar("SELECT count(*) FROM venda WHERE desconto_venda > 0 OR desconto_itens > 0"))
                 .isGreaterThan(vendas / 50);
         // Picos entre 11h–13h e 17h–19h
@@ -255,7 +259,8 @@ class GeradorDemoIT extends IntegracaoBase {
                 + "WHERE v.status = 'FINALIZADA' AND NOT vi.cancelado");
         long itensDevolvidos = contar("SELECT count(*) FROM devolucao_item");
         assertThat(itensDevolvidos).as("cerca de 0,5% dos itens").isBetween(itensVendidos / 400, itensVendidos / 100);
-        assertThat(coluna("SELECT count(DISTINCT forma_reembolso) FROM devolucao")).containsExactly(3L);
+        assertThat(coluna("SELECT count(DISTINCT forma_reembolso) FROM devolucao"))
+                .as("dinheiro, vale-troca, outro e abatimento").containsExactly(4L);
         assertThat(contar("SELECT count(*) FROM devolucao_item WHERE NOT volta_estoque")).as("avariados")
                 .isPositive();
         assertThat(contar("SELECT count(*) FROM movimento_estoque WHERE tipo = 'DEVOLUCAO_VENDA'"))
@@ -273,6 +278,30 @@ class GeradorDemoIT extends IntegracaoBase {
         ResultadoRelatorio<RelDevolucoes.Linha> r20 = t.relatorios.gerar(admin, new RelDevolucoes(), periodo());
         assertThat(r20.linhas()).hasSize((int) devolucoes);
         assertThat(t.auditoria(AcaoAuditoria.DEVOLUCAO_REGISTRADA)).hasSize((int) devolucoes);
+    }
+
+    @Test
+    void crediarioDaFase14() throws Exception {
+        assertThat(contar("SELECT count(*) FROM cliente WHERE limite_credito > 0")).isEqualTo(30);
+        assertThat(resultado.clientesComLimite()).isEqualTo(30);
+        assertThat(contar("SELECT count(DISTINCT venda_id) FROM titulo_receber")).as("vendas a prazo")
+                .isEqualTo(resultado.vendasCrediario()).isPositive();
+        assertThat(contar("SELECT count(*) FROM recebimento")).isEqualTo(resultado.recebimentos()).isPositive();
+        assertThat(contar("SELECT count(*) FROM recebimento WHERE multa + juros = 0")).as("em dia").isPositive();
+        assertThat(contar("SELECT count(*) FROM recebimento WHERE multa + juros > 0")).as("com atraso").isPositive();
+        assertThat(contar("SELECT count(*) FROM titulo_receber WHERE status = 'ABERTO' AND vencimento < DATE '" + LocalDate.now(HOJE) + "'"))
+                .as("alguns títulos vencidos em aberto").isEqualTo(resultado.titulosVencidos()).isPositive();
+        assertThat(contar("""
+                SELECT count(*) FROM titulo_receber t
+                 WHERE t.valor_pago <> coalesce((SELECT sum(rt.principal) FROM recebimento_titulo rt
+                                                  WHERE rt.titulo_id = t.id), 0)
+                """)).as("valor_pago = soma dos principais").isZero();
+        assertThat(t.relatorios.gerar(admin, new RelRecebimentos(), periodo()).linhas())
+                .hasSize((int) contar("SELECT count(*) FROM recebimento"));
+        Servicos hoje = Servicos.montar(dataSource, HOJE, AcessoTeste.TERMINAL, new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        assertThat(hoje.relatorios().gerar(admin, new RelTitulosReceber(), Filtros.vazios()
+                .comCrediario(new FiltroCrediario(SituacaoTitulo.VENCIDOS, null, null, null, null))).linhas())
+                .hasSize(resultado.titulosVencidos());
     }
 
     @Test
@@ -341,9 +370,9 @@ class GeradorDemoIT extends IntegracaoBase {
 
         ResultadoRelatorio<RelFormasPagamento.Linha> r08 = t.relatorios.gerar(admin, new RelFormasPagamento(),
                 periodo());
-        // 6 formas de pagamento e, à parte, as 3 formas de reembolso; batem com as colunas Vendas e Devoluções do R01.
-        assertThat(r08.linhas()).hasSize(9);
-        assertThat(r08.linhas().stream().filter(RelFormasPagamento.Linha::ehReembolso)).hasSize(3);
+        // 7 formas de pagamento e, à parte, as 4 formas de reembolso; batem com as colunas Vendas e Devoluções do R01.
+        assertThat(r08.linhas()).hasSize(11);
+        assertThat(r08.linhas().stream().filter(RelFormasPagamento.Linha::ehReembolso)).hasSize(4);
         assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::valor))
                 .isEqualByComparingTo(Coluna.soma(r01.linhas(), RelVendasPeriodo.Linha::vendido));
         assertThat(Coluna.soma(r08.linhas(), RelFormasPagamento.Linha::reembolsos))

@@ -563,5 +563,33 @@ Métricas).
 | CT-F14-10 | Depois de CT-F14-08 e CT-F14-09 | 1. R08 do dia 2. R20 do dia | 1. Forma Crediário, "Reembolso: Abatimento" e "Reembolso: Dinheiro"; totais iguais às colunas Vendas e Devoluções do R01; a devolução mista conta uma vez 2. Colunas Abatido e Parcelas em aberto | OK pelo roteiro de tela (capturas `10` e `11`) |
 | CT-F14-11 | Cliente com título em aberto, supervisor | 1. Clientes › LGPD › Anonimizar, com o nome certo | 1. Recusado: "títulos do crediário em aberto" | OK pelo roteiro de tela (captura `12`) |
 | CT-F14-12 | Supervisor | 1. Configurações › Formas de pagamento | 1. "Crediário" na lista; o tipo não é oferecido para criar outra; desativá-la é permitido e ela não conta como forma ativa | OK pelo roteiro de tela (captura `13`); a desativação em `CrediarioIT.formaCrediarioEUnicaENaoContaComoFormaAtiva` |
-| CT-F14-13 | Venda no crediário com parcela paga (por SQL até a parte B) | 1. F9 › Cancelar | 1. Recusado: "parcela do crediário com pagamento" | OK pelo roteiro de tela (captura `14`) |
+| CT-F14-13 | Venda no crediário com parcela paga (por SQL na parte A; de verdade em CT-F14-25) | 1. F9 › Cancelar | 1. Recusado: "parcela do crediário com pagamento" | OK pelo roteiro de tela (captura `14`) |
 | CT-F14-14 | Venda no crediário sem pagamento | 1. F9 › Cancelar | 1. Venda cancelada e títulos CANCELADO, com o motivo | OK pelo roteiro de tela |
+
+## Fase 14 — Crediário e contas a receber, parte B (recebimento, extrato, configurações, R21, R22, painel e gerador)
+
+Conferência em 2026-10-30 por roteiro descartável, sem teclado nem mouse do sistema (40 verificações, 21 capturas). Onde está
+"Não executado", falta a pessoa executar.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F14-15 | Título de R$ 100,00 vencido há 10 dias, padrões da V10, caixa aberto | 1. Caixa › Receber crediário › CPF + Enter | 1. Para quitar R$ 102,67; multa R$ 2,00; juros R$ 0,67 | OK pelo roteiro de tela (captura `03`) |
+| CT-F14-16 | CT-F14-15 | 1. Valor a receber 51,34 + Enter 2. PIX 3. Confirmar | 1. Principal R$ 50,00, multa R$ 1,00, juros R$ 0,34 2. Comprovante; ficam R$ 50,00 em aberto | OK pelo roteiro de tela (capturas `04` e `05`) |
+| CT-F14-17 | CT-F14-16 | 1. Receber o resto: R$ 51,33 2. Dinheiro 60,00 3. Confirmar | 1. Encargos sobre o que ficou 2. Troco R$ 8,67 3. Esperado sobe R$ 51,33 | OK pelo roteiro de tela (capturas `06` e `07`) |
+| CT-F14-18 | Título a vencer | 1. Receber R$ 50,00 de um título de R$ 100,00 | 1. Sem multa nem juros; ficam R$ 50,00 | OK pelo roteiro de tela |
+| CT-F14-19 | Cliente com várias parcelas | 1. Digitar um valor maior que a primeira | 1. Vai do vencimento mais antigo para o mais novo | Coberto por `RecebimentoIT.valorVaiDoVencimentoMaisAntigoParaOMaisNovo`; não executado pela tela |
+| CT-F14-20 | Cliente com várias parcelas | 1. Selecionar uma parcela com o mouse | 1. O valor passa a ser o dela; só ela é quitada | Coberto por `RecebimentoIT.selecionarTituloQuitaSoEle`; não executado pela tela |
+| CT-F14-21 | Valor maior que o total para quitar | 1. Digitar e dar Enter | 1. "passa do que falta" | OK pelo roteiro de tela |
+| CT-F14-22 | Usuário sem RECEBIMENTO | 1. Caixa › Ctrl+R | 1. Pede liberação de supervisor; auditoria com quem liberou | OK pelo roteiro de tela (captura `19`) |
+| CT-F14-23 | Usuário sem LIMITE_CREDITO, título em atraso | 1. Desconto nos encargos 2,67 + Enter | 1. Pede liberação; total R$ 100,00; comprovante com o desconto | OK pelo roteiro de tela (captura `20`) |
+| CT-F14-24 | PDV com venda em andamento | 1. Ctrl+R, receber | 1. O recebimento grava; a venda continua como estava | OK pelo roteiro de tela (captura `10`) |
+| CT-F14-25 | Venda a prazo com parcela paga pelo recebimento | 1. F9 › Cancelar | 1. Recusado: "parcela do crediário com pagamento" | OK pelo roteiro de tela (captura `11`) |
+| CT-F14-26 | Recebimento em dinheiro na sessão | 1. Caixa › selecionar › Estornar… › motivo | 1. Situação "Estornado"; esperado volta; títulos voltam a ficar em aberto | OK pelo roteiro de tela (capturas `08` e `09`) |
+| CT-F14-27 | Caixa com recebimentos fechado | 1. Ver último fechamento | 1. "(+) Recebimentos em dinheiro" e os recebimentos por forma | OK pelo roteiro de tela (captura `21`); falta pelo F12 |
+| CT-F14-28 | Venda em 3× com duas devoluções | 1. Clientes › aba Crediário 2. Selecionar um lançamento | 1. Saldo devedor, vencido e disponível 2. Detalhe com devolução e parcela | OK pelo roteiro de tela (captura `12`) |
+| CT-F14-29 | Supervisor | 1. Aba Crediário: limite 777,00 e bloquear › Salvar limite | 1. Gravado e auditado; disponível novo | OK pelo roteiro de tela (captura `13`) |
+| CT-F14-30 | Usuário sem LIMITE_CREDITO | 1. Clientes › aba Crediário | 1. Limite só para leitura, sem o botão | OK pelo roteiro de tela (captura `18`) |
+| CT-F14-31 | Supervisor | 1. Configurações › Crediário: mudar a carência › Salvar 2. Diagnóstico › Verificar agora | 1. Gravado e auditado 2. "Tudo certo" nos abatimentos | OK pelo roteiro de tela (capturas `14` e `15`) |
+| CT-F14-32 | Títulos vencidos, usuário com RECEBIMENTO | 1. Painel 2. Clicar no alerta | 1. "N títulos vencidos (R$ X)" 2. R21 só com os vencidos | OK pelo roteiro de tela (capturas `01` e `02`) |
+| CT-F14-33 | Carteira com atrasos | 1. R21 e R22 2. Exportar CSV e PDF | 1. Faixas de atraso; R22 sem estornados 2. Arquivos abrem | Tela OK (capturas `16` e `17`); não executado: abrir os arquivos |
+| CT-F14-34 | Banco vazio | 1. Gerar os dados de demonstração | 1. 30 clientes com limite, vendas a prazo, recebimentos e títulos vencidos | Coberto por `GeradorDemoIT.crediarioDaFase14`; não executado pela tela |

@@ -142,11 +142,12 @@ public final class AppContext implements AutoCloseable {
             return new ComprasController(s.compras(), s.nfe(), sessao, t -> criarController(t, navegacao, sessao));
         }
         if (tipo == CaixaController.class) {
-            return new CaixaController(s.caixa(), s.acesso(), fechamentoPdf, sessao);
+            return new CaixaController(s.caixa(), s.recebimentos(), s.acesso(), fechamentoPdf, comprovantePdf,
+                    impressaoComprovante, sessao);
         }
         if (tipo == PdvController.class) {
             return new PdvController(s.vendas(), s.clientes(), s.devolucoes(), s.caixa(), s.acesso(), comprovantePdf,
-                    impressaoComprovante, fechamentoPdf, sessao);
+                    impressaoComprovante, fechamentoPdf, s.recebimentos(), sessao);
         }
         if (tipo == DevolucoesController.class) {
             return new DevolucoesController(s.devolucoes(), s.clientes(), s.acesso(), comprovantePdf,
@@ -157,7 +158,7 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    s.credito(), geradorDemo, sessao);
+                    s.credito(), s.clientes(), geradorDemo, sessao);
         }
         if (tipo == PromocoesController.class) {
             return new PromocoesController(s.promocoes(), s.produtos(), sessao);

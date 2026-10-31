@@ -9,11 +9,19 @@ import java.util.List;
  * esperado × contado, número de vendas, canceladas e descontos concedidos.
  */
 public record RelatorioFechamento(CaixaSessao sessao, CaixaResumo resumo, List<VendasPorForma> vendasPorForma,
-                                  List<CaixaMovimento> movimentos, BigDecimal descontos) {
+                                  List<CaixaMovimento> movimentos, BigDecimal descontos,
+                                  List<VendasPorForma> recebimentosPorForma) {
 
     public RelatorioFechamento {
         vendasPorForma = List.copyOf(vendasPorForma);
         movimentos = List.copyOf(movimentos);
+        recebimentosPorForma = List.copyOf(recebimentosPorForma);
+    }
+
+    /** Sessão sem recebimentos do crediário. */
+    public RelatorioFechamento(CaixaSessao sessao, CaixaResumo resumo, List<VendasPorForma> vendasPorForma,
+                               List<CaixaMovimento> movimentos, BigDecimal descontos) {
+        this(sessao, resumo, vendasPorForma, movimentos, descontos, List.of());
     }
 
     /** Contado − esperado: positivo é sobra, negativo é falta. */

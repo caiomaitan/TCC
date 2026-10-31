@@ -18,6 +18,7 @@ import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.PromocaoDAO;
+import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
@@ -70,6 +71,7 @@ final class AcessoTeste {
     final ClienteService clientes;
     final CreditoService credito;
     final DevolucaoService devolucoes;
+    final RecebimentoService recebimentos;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -88,7 +90,7 @@ final class AcessoTeste {
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
-        caixa = new CaixaService(transacao, new CaixaDAO(), auditoria, relogio);
+        caixa = new CaixaService(transacao, new CaixaDAO(), new RecebimentoDAO(), auditoria, relogio);
         credito = new CreditoService(transacao, new CreditoClienteDAO(), new ClienteDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
@@ -99,8 +101,9 @@ final class AcessoTeste {
         compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
-                new FornecedorDAO(), relogio);
-        painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(), relogio);
+                new FornecedorDAO(), new FormaPagamentoDAO(), relogio);
+        painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
+                new TituloReceberDAO(), relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
                 auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);
@@ -113,6 +116,8 @@ final class AcessoTeste {
                 new ConfiguracaoDAO(), auditoria, relogio);
         devolucoes = new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), new CreditoClienteDAO(),
                 new TituloReceberDAO(), usuarioDAO, new ConfiguracaoDAO(), estoque, caixa, credito, auditoria, relogio);
+        recebimentos = new RecebimentoService(transacao, new RecebimentoDAO(), new TituloReceberDAO(), new ClienteDAO(),
+                new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

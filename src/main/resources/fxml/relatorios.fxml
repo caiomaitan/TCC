@@ -69,6 +69,24 @@
             <TextField fx:id="campoDias" prefWidth="60" styleClass="campo-numero"/>
             <Label text="dias ou mais"/>
         </HBox>
+        <HBox fx:id="grupoSituacao" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Situação:"/>
+            <ComboBox fx:id="escolhaSituacao" prefWidth="140"/>
+        </HBox>
+        <HBox fx:id="grupoCliente" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Cliente:"/>
+            <TextField fx:id="campoCliente" promptText="Nome ou CPF/CNPJ (vazio = todos)" prefWidth="240"/>
+        </HBox>
+        <HBox fx:id="grupoVencimento" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Vencimento:"/>
+            <DatePicker fx:id="vencimentoDe" prefWidth="130"/>
+            <Label text="a"/>
+            <DatePicker fx:id="vencimentoAte" prefWidth="130"/>
+        </HBox>
+        <HBox fx:id="grupoForma" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Forma:"/>
+            <ComboBox fx:id="escolhaForma" prefWidth="200"/>
+        </HBox>
         <CheckBox fx:id="filtroAbaixoMinimo" text="Só abaixo do mínimo"/>
         <CheckBox fx:id="filtroInativos" text="Incluir inativos"/>
         <CheckBox fx:id="filtroDetalhar" text="Detalhar por venda"/>

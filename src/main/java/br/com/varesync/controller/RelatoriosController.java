@@ -5,11 +5,14 @@ import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Criterio;
 import br.com.varesync.report.ExportadorCsv;
+import br.com.varesync.report.FiltroCrediario;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
+import br.com.varesync.report.RelTitulosReceber;
 import br.com.varesync.report.Relatorio;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.ResultadoRelatorio;
+import br.com.varesync.report.SituacaoTitulo;
 import br.com.varesync.report.TipoColuna;
 import br.com.varesync.report.TipoFiltro;
 import br.com.varesync.service.NegocioException;
@@ -91,6 +94,15 @@ public class RelatoriosController {
     @FXML private TextField campoTopN;
     @FXML private HBox grupoDias;
     @FXML private TextField campoDias;
+    @FXML private HBox grupoSituacao;
+    @FXML private ComboBox<SituacaoTitulo> escolhaSituacao;
+    @FXML private HBox grupoCliente;
+    @FXML private TextField campoCliente;
+    @FXML private HBox grupoVencimento;
+    @FXML private DatePicker vencimentoDe;
+    @FXML private DatePicker vencimentoAte;
+    @FXML private HBox grupoForma;
+    @FXML private ComboBox<Opcao> escolhaForma;
     @FXML private CheckBox filtroAbaixoMinimo;
     @FXML private CheckBox filtroInativos;
     @FXML private CheckBox filtroDetalhar;
@@ -141,10 +153,27 @@ public class RelatoriosController {
         escolhaFornecedor.getItems().add(TODOS);
         escolhaFornecedor.getItems().addAll(opcoes.fornecedores());
         escolhaFornecedor.setValue(TODOS);
+        escolhaForma.getItems().add(TODAS);
+        escolhaForma.getItems().addAll(opcoes.formas());
+        escolhaForma.setValue(TODAS);
+        escolhaSituacao.getItems().setAll(SituacaoTitulo.values());
+        escolhaSituacao.setValue(SituacaoTitulo.EM_ABERTO);
+        vencimentoDe.setConverter(new ConversorData());
+        vencimentoAte.setConverter(new ConversorData());
         campoTopN.setText("20");
         campoDias.setText(String.valueOf(relatorioService.diasSemGiroPadrao(sessao)));
 
         escolhaRelatorio.getSelectionModel().select(0);
+    }
+
+    /** Alerta do painel (F14.4): R21 já filtrado nos títulos vencidos e gerado. */
+    public void mostrarTitulosVencidos() {
+        escolhaRelatorio.getItems().stream().filter(r -> r instanceof RelTitulosReceber).findFirst()
+                .ifPresent(r -> {
+                    escolhaRelatorio.setValue(r);
+                    escolhaSituacao.setValue(SituacaoTitulo.VENCIDOS);
+                    gerar();
+                });
     }
 
     /** Mostra só os filtros do relatório escolhido (7.4) e limpa o resultado anterior. */
@@ -160,6 +189,10 @@ public class RelatoriosController {
                 Map.entry(grupoCriterio, TipoFiltro.CRITERIO),
                 Map.entry(grupoTopN, TipoFiltro.TOP_N),
                 Map.entry(grupoDias, TipoFiltro.DIAS),
+                Map.entry(grupoSituacao, TipoFiltro.SITUACAO_TITULO),
+                Map.entry(grupoCliente, TipoFiltro.CLIENTE),
+                Map.entry(grupoVencimento, TipoFiltro.VENCIMENTO),
+                Map.entry(grupoForma, TipoFiltro.FORMA_PAGAMENTO),
                 Map.entry(filtroAbaixoMinimo, TipoFiltro.SO_ABAIXO_MINIMO),
                 Map.entry(filtroInativos, TipoFiltro.INCLUIR_INATIVOS),
                 Map.entry(filtroDetalhar, TipoFiltro.DETALHAR_VENDAS));
@@ -238,6 +271,12 @@ public class RelatoriosController {
         if (usados.contains(TipoFiltro.DIAS)) {
             f = f.comDias(dias());
         }
+        f = f.comCrediario(new FiltroCrediario(
+                usados.contains(TipoFiltro.SITUACAO_TITULO) ? escolhaSituacao.getValue() : null,
+                usados.contains(TipoFiltro.CLIENTE) ? campoCliente.getText() : null,
+                usados.contains(TipoFiltro.VENCIMENTO) ? vencimentoDe.getValue() : null,
+                usados.contains(TipoFiltro.VENCIMENTO) ? vencimentoAte.getValue() : null,
+                usados.contains(TipoFiltro.FORMA_PAGAMENTO) ? nuloSeTodos(escolhaForma.getValue()) : null));
         f = f.comEstoque(filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected());
         return f.comDetalhe(filtroDetalhar.isSelected());
     }

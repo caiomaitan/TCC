@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.UsuarioDAO;
@@ -9,6 +10,7 @@ import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoVenda;
+import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.ParametrosRelatorio;
@@ -41,14 +43,18 @@ public class RelatorioService {
     private final ProdutoDAO produtoDAO;
     private final UsuarioDAO usuarioDAO;
     private final FornecedorDAO fornecedorDAO;
+    private final FormaPagamentoDAO formaDAO;
     private final Clock clock;
 
     /** Escolhas dos filtros de lista: operadores (todos os usuários, inclusive inativos), categorias e fornecedores. */
-    public record OpcoesFiltro(List<Opcao> operadores, List<Opcao> categorias, List<Opcao> fornecedores) {
+    public record OpcoesFiltro(List<Opcao> operadores, List<Opcao> categorias, List<Opcao> fornecedores,
+                               List<Opcao> formas) {
     }
 
     public RelatorioService(Transacao transacao, ConfiguracaoDAO configuracaoDAO, CategoriaDAO categoriaDAO,
-                            ProdutoDAO produtoDAO, UsuarioDAO usuarioDAO, FornecedorDAO fornecedorDAO, Clock clock) {
+                            ProdutoDAO produtoDAO, UsuarioDAO usuarioDAO, FornecedorDAO fornecedorDAO,
+                            FormaPagamentoDAO formaDAO, Clock clock) {
+        this.formaDAO = formaDAO;
         this.transacao = transacao;
         this.configuracaoDAO = configuracaoDAO;
         this.categoriaDAO = categoriaDAO;
@@ -68,7 +74,10 @@ public class RelatorioService {
         return transacao.executar(con -> new OpcoesFiltro(
                 usuarioDAO.listar(con).stream().map(u -> new Opcao(u.id(), u.nome())).toList(),
                 categoriaDAO.listar(con, true).stream().map(c -> new Opcao(c.id(), c.nome())).toList(),
-                fornecedorDAO.listar(con, true).stream().map(f -> new Opcao(f.id(), f.razaoSocial())).toList()));
+                fornecedorDAO.listar(con, true).stream().map(f -> new Opcao(f.id(), f.razaoSocial())).toList(),
+                formaDAO.listar(con).stream().filter(f -> f.tipo() != TipoFormaPagamento.CREDIARIO
+                        && f.tipo() != TipoFormaPagamento.CREDITO_CLIENTE)
+                        .map(f -> new Opcao(f.id(), f.descricao())).toList()));
     }
 
     /** Período inicial da tela: o mês corrente até hoje. */
@@ -134,6 +143,11 @@ public class RelatorioService {
             if (periodo.inicio().isAfter(periodo.fim())) {
                 throw new NegocioException("A data inicial é depois da final.");
             }
+        }
+        if (relatorio.filtros().contains(TipoFiltro.VENCIMENTO) && filtros.crediario().vencimentoDe() != null
+                && filtros.crediario().vencimentoAte() != null
+                && filtros.crediario().vencimentoDe().isAfter(filtros.crediario().vencimentoAte())) {
+            throw new NegocioException("A data inicial do vencimento é depois da final.");
         }
         if (relatorio.filtros().contains(TipoFiltro.TOP_N) && filtros.topN() != null
                 && (filtros.topN() < 1 || filtros.topN() > TOP_N_MAXIMO)) {

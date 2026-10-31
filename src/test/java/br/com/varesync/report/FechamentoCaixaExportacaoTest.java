@@ -59,6 +59,22 @@ class FechamentoCaixaExportacaoTest {
     }
 
     @Test
+    void recebimentosDoCrediarioNaGavetaENaSecaoPropria() {
+        RelatorioFechamento base = exemplo();
+        CaixaResumo r = base.resumo();
+        CaixaResumo comRecebimento = new CaixaResumo(r.caixaSessaoId(), r.valorAbertura(), r.suprimentos(), r.sangrias(),
+                r.vendasDinheiro(), r.quantidadeVendas(), r.totalVendido(), r.quantidadeCanceladas(),
+                r.dinheiroEsperado(), r.devolucoesDinheiro(), new BigDecimal("51.33"));
+        RelatorioFechamento comForma = new RelatorioFechamento(base.sessao(), comRecebimento, base.vendasPorForma(),
+                base.movimentos(), base.descontos(), List.of(new VendasPorForma("PIX", 2, new BigDecimal("80.00"))));
+
+        assertThat(FechamentoCaixaExportacao.csv(comForma, EMISSAO))
+                .contains("(+) Recebimentos em dinheiro;51,33\r\n")
+                .contains("Recebimentos do crediário\r\nForma de pagamento;Nº de recebimentos;Valor\r\nPIX;2;80,00\r\n");
+        assertThat(FechamentoCaixaExportacao.csv(base, EMISSAO)).doesNotContain("Recebimentos do crediário");
+    }
+
+    @Test
     void semVendasNemMovimentosAvisaNasSecoes() {
         RelatorioFechamento base = exemplo();
         RelatorioFechamento vazio = new RelatorioFechamento(base.sessao(), base.resumo(), List.of(), List.of(),

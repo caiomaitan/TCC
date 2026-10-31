@@ -82,6 +82,7 @@ public final class FechamentoCaixaExportacao {
         par(linhas, "(+) Suprimentos", moeda(resumo.suprimentos(), csv));
         par(linhas, "(−) Sangrias", moeda(resumo.sangrias(), csv));
         par(linhas, "(−) Devoluções em dinheiro", moeda(resumo.devolucoesDinheiro(), csv));
+        par(linhas, "(+) Recebimentos em dinheiro", moeda(resumo.recebimentosDinheiro(), csv));
         par(linhas, "(=) Dinheiro esperado", moeda(s.valorEsperado(), csv));
         par(linhas, "Dinheiro contado", moeda(s.valorContado(), csv));
         if (s.valorContado() != null && s.valorEsperado() != null) {
@@ -96,6 +97,18 @@ public final class FechamentoCaixaExportacao {
             linhas.add(new Linha(Estilo.CABECALHO, List.of("Forma de pagamento", "Nº de vendas", "Valor")));
             BigDecimal total = Dinheiro.ZERO;
             for (VendasPorForma f : r.vendasPorForma()) {
+                linhas.add(new Linha(Estilo.LINHA, List.of(f.forma(), String.valueOf(f.quantidadeVendas()),
+                        moeda(f.valor(), csv))));
+                total = total.add(f.valor());
+            }
+            linhas.add(new Linha(Estilo.TOTAL, List.of("Total", "", moeda(total, csv))));
+        }
+
+        if (!r.recebimentosPorForma().isEmpty()) {
+            secao(linhas, "Recebimentos do crediário");
+            linhas.add(new Linha(Estilo.CABECALHO, List.of("Forma de pagamento", "Nº de recebimentos", "Valor")));
+            BigDecimal total = Dinheiro.ZERO;
+            for (VendasPorForma f : r.recebimentosPorForma()) {
                 linhas.add(new Linha(Estilo.LINHA, List.of(f.forma(), String.valueOf(f.quantidadeVendas()),
                         moeda(f.valor(), csv))));
                 total = total.add(f.valor());

@@ -311,6 +311,7 @@ public class DevolucaoService {
                 TituloReceber titulo = titulos.get(a.indice());
                 tituloDAO.abater(con, titulo.id(), a.valor(), a.valor().compareTo(titulo.emAberto()) == 0
                         ? StatusTitulo.QUITADO : StatusTitulo.ABERTO);
+                tituloDAO.inserirAbatimento(con, devolucaoId, titulo.id(), a.valor());
             }
             record Gravado(Devolvido devolvido, long itemId) {
             }
@@ -426,9 +427,9 @@ public class DevolucaoService {
                 : new Comprovante.Cliente(c.clienteNome(), documento(c.clienteCpfCnpj())),
                 dao.itensComprovante(con, devolucaoId), c.valorTotal(), c.forma(), c.motivo(), c.observacao(),
                 estornado, saldo, config.rodapeComprovante(), c.valorAbatido(),
-                tituloDAO.daVenda(con, c.vendaId(), false).stream().filter(t -> t.status() == StatusTitulo.ABERTO)
-                        .map(t -> new Comprovante.ParcelaCrediario(t.parcela(), t.totalParcelas(), t.vencimento(),
-                                t.emAberto())).toList());
+                // As parcelas como ficaram no dia da devolução (F14.4): recebimentos e devoluções depois dela não contam.
+                tituloDAO.posicaoEm(con, c.vendaId(), c.dataHora(), null, devolucaoId).stream()
+                        .filter(p -> p.valor().signum() > 0).toList());
     }
 
     private static String documento(String cpfCnpj) {

@@ -21,6 +21,7 @@ import br.com.varesync.service.Liberacao;
 import br.com.varesync.service.LimiteDescontoException;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Recebimento;
+import br.com.varesync.service.RecebimentoService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.VendaService;
 import br.com.varesync.ui.CampoNumero;
@@ -49,6 +50,8 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
@@ -65,6 +68,7 @@ public class PdvController {
 
     private static final String ITEM_CANCELADO = "item-cancelado";
     private static final String ENTRADA_ERRO = "entrada-erro";
+    private static final KeyCombination CTRL_R = new KeyCodeCombination(KeyCode.R, KeyCombination.SHORTCUT_DOWN);
     private static final String AJUDA = """
             Leitura do produto (campo Código, sempre focado):
               • leia o código de barras ou digite o código interno e tecle Enter;
@@ -78,6 +82,7 @@ public class PdvController {
             F6 cancelar o item selecionado · F7 consultar preço (sem vender)
             F8 sangria/suprimento · F9 vendas da sessão (comprovante ou cancelamento)
             F10 pagamento e finalização · F11 identificar o cliente (CPF/CNPJ ou nome) · F12 fechar o caixa
+            Ctrl+R receber o crediário
             ↑/↓ escolhem o item · Esc abandona a venda em andamento (ou sai do PDV, sem venda)""";
 
     private final VendaService vendaService;
@@ -89,6 +94,7 @@ public class PdvController {
     private final ImpressaoComprovante impressao;
     private final Sessao sessao;
     private final AcoesCaixa acoesCaixa;
+    private final AcoesRecebimento acoesRecebimento;
     private Carrinho carrinho = new Carrinho();
     private BigDecimal quantidadeProxima;
     private Stage janela;
@@ -119,7 +125,10 @@ public class PdvController {
 
     public PdvController(VendaService vendaService, ClienteService clienteService, DevolucaoService devolucaoService,
                          CaixaService caixaService, AcessoService acessoService, ComprovantePdf comprovantePdf,
-                         ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf, Sessao sessao) {
+                         ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf,
+                         RecebimentoService recebimentoService, Sessao sessao) {
+        this.acoesRecebimento = new AcoesRecebimento(recebimentoService, caixaService, acessoService, comprovantePdf,
+                impressao, sessao);
         this.vendaService = vendaService;
         this.clienteService = clienteService;
         this.devolucaoService = devolucaoService;
@@ -183,6 +192,11 @@ public class PdvController {
     // ----- Teclado -----
 
     private void atalho(KeyEvent e) {
+        if (CTRL_R.match(e)) {
+            e.consume();
+            executar(this::receberCrediario);
+            return;
+        }
         Runnable acao = switch (e.getCode()) {
             case F1 -> () -> Dialogos.alerta(Alert.AlertType.INFORMATION, AJUDA);
             case F2 -> this::buscar;
@@ -562,6 +576,13 @@ public class PdvController {
     }
 
     // ----- Caixa (F8, F12) -----
+
+    /** Ctrl+R (F14.3): não mexe na venda em andamento; o carrinho continua como está. */
+    private void receberCrediario() {
+        if (acoesRecebimento.receber(janela != null ? janela : raiz.getScene().getWindow())) {
+            Mensagem.sucesso(mensagem, "Recebimento registrado.");
+        }
+    }
 
     private void sangriaSuprimento() {
         acoesCaixa.movimentar().ifPresent(texto -> Mensagem.sucesso(mensagem, texto));

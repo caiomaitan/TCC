@@ -241,6 +241,37 @@ public class ClienteDAO {
         }
     }
 
+    /** Situação do cliente para o crediário, sem travar (extrato). */
+    public Optional<ClienteCrediario> situacaoCrediario(Connection con, long id) throws SQLException {
+        String sql = "SELECT id, nome, ativo, limite_credito, crediario_bloqueado FROM cliente WHERE id = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(new ClienteCrediario(rs.getLong("id"), rs.getString("nome"),
+                        rs.getBoolean("ativo"), rs.getBigDecimal("limite_credito"),
+                        rs.getBoolean("crediario_bloqueado"))) : Optional.empty();
+            }
+        }
+    }
+
+    /** Limite e bloqueio do crediário (F14.4). */
+    public void alterarCrediario(Connection con, long id, BigDecimal limite, boolean bloqueado, long usuarioId,
+                                 OffsetDateTime agora) throws SQLException {
+        String sql = """
+                UPDATE cliente
+                   SET limite_credito = ?, crediario_bloqueado = ?, atualizado_por = ?, atualizado_em = ?
+                 WHERE id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setBigDecimal(1, limite);
+            ps.setBoolean(2, bloqueado);
+            ps.setLong(3, usuarioId);
+            ps.setObject(4, agora);
+            ps.setLong(5, id);
+            ps.executeUpdate();
+        }
+    }
+
     /** Limite de crédito do cliente (F14.2), sem travar; vazio se o cliente não existe. */
     public Optional<BigDecimal> limiteCredito(Connection con, long id) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement("SELECT limite_credito FROM cliente WHERE id = ?")) {

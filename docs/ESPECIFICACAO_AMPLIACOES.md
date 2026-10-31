@@ -616,7 +616,13 @@ Testes de integração com duas conexões simultâneas:
 
 ### F14.4 Telas e relatórios
 
-- **Cliente:** limite, bloqueio, saldo devedor e extrato (vendas a prazo, parcelas e pagamentos), em tela e PDF.
+- **Cliente:** limite, bloqueio, saldo devedor e extrato (vendas a prazo, parcelas, pagamentos e abatimentos), em tela e PDF.
+- **Abatimentos por parcela:**
+  - nova tabela `devolucao_titulo` (`devolucao_id`, `titulo_id`, `valor` > 0), gravada pela devolução, com quanto ela abateu de cada parcela;
+  - o extrato do cliente e a reimpressão do comprovante de devolução passam a usar essa tabela, e o comprovante mostra as parcelas como ficaram no dia da devolução;
+  - as devoluções feitas antes da migration recebem as linhas pela mesma regra: da última parcela para a primeira, na ordem das devoluções. O resultado é exato, porque antes desta parte ainda não existia recebimento;
+  - conferência: em cada título, `valor_abatido` é a soma das linhas dele; em cada devolução, `valor_abatido` é a soma das linhas dela. A view `vw_abatimento_inconsistente` precisa ficar vazia e entra nos testes de integração e no Diagnóstico.
+- **Configurações:** aba Crediário, com as chaves `crediario.*` da seção 0.4.
 - **R21 Títulos a receber:** por situação, cliente e vencimento, com faixas de atraso: a vencer, 1–30, 31–60, 61–90 e mais de 90 dias.
 - **R22 Recebimentos:** por período e forma, com principal, multa e juros.
 - **Painel:** alerta "N títulos vencidos (R$ X)", para quem tem RECEBIMENTO.
@@ -639,7 +645,8 @@ Testes de integração com duas conexões simultâneas:
 - **Devolução só com abatimento:** venda de R$ 300,00 em 3×. Devolver R$ 120,00 abate R$ 100,00 da 3ª parcela e R$ 20,00 da 2ª, e a devolução fica com a forma ABATIMENTO.
 - **Devolução com abatimento e restante:** venda de R$ 100,00, com R$ 40,00 em dinheiro e R$ 60,00 no crediário. Devolver tudo abate os R$ 60,00 e devolve R$ 40,00 na forma escolhida; em dinheiro, o dinheiro esperado do caixa cai só R$ 40,00.
 - **LGPD:** cliente com título em aberto não pode ser anonimizado.
-- **Consistência:** o R08 continua batendo com o R01: a venda no crediário aparece na forma Crediário, e o abatimento, como reembolso.
+- **Extrato:** depois de duas devoluções da mesma venda, o extrato do cliente mostra quanto cada uma abateu de cada parcela.
+- **Consistência:** o R08 continua batendo com o R01: a venda no crediário aparece na forma Crediário, e o abatimento, como reembolso. `vw_abatimento_inconsistente` fica vazia.
 
 ---
 

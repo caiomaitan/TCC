@@ -2,10 +2,14 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.CaixaMovimento;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.RecebimentoSessao;
 import br.com.varesync.model.RelatorioFechamento;
+import br.com.varesync.report.ComprovantePdf;
 import br.com.varesync.report.FechamentoCaixaPdf;
+import br.com.varesync.report.ImpressaoComprovante;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.CaixaService;
+import br.com.varesync.service.RecebimentoService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -19,6 +23,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 
@@ -28,9 +34,13 @@ import javafx.scene.layout.VBox;
  */
 public class CaixaController {
 
+    private static final KeyCombination CTRL_R = new KeyCodeCombination(KeyCode.R, KeyCombination.SHORTCUT_DOWN);
+
     private final CaixaService caixaService;
     private final Sessao sessao;
+    private final RecebimentoService recebimentoService;
     private final AcoesCaixa acoes;
+    private final AcoesRecebimento acoesRecebimento;
     private Runnable aoMudar = () -> { };
     private CaixaSessao caixa;
 
@@ -51,11 +61,25 @@ public class CaixaController {
     @FXML private TableColumn<CaixaMovimento, String> colunaValor;
     @FXML private TableColumn<CaixaMovimento, String> colunaMotivo;
     @FXML private TableColumn<CaixaMovimento, String> colunaUsuario;
+    @FXML private Button botaoReceber;
+    @FXML private Button botaoComprovante;
+    @FXML private Button botaoEstornar;
+    @FXML private TableView<RecebimentoSessao> tabelaRecebimentos;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecHora;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecNumero;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecCliente;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecFormas;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecTotal;
+    @FXML private TableColumn<RecebimentoSessao, String> colunaRecSituacao;
 
-    public CaixaController(CaixaService caixaService, AcessoService acessoService, FechamentoCaixaPdf fechamentoPdf,
-                           Sessao sessao) {
+    public CaixaController(CaixaService caixaService, RecebimentoService recebimentoService,
+                           AcessoService acessoService, FechamentoCaixaPdf fechamentoPdf,
+                           ComprovantePdf comprovantePdf, ImpressaoComprovante impressao, Sessao sessao) {
         this.caixaService = caixaService;
+        this.recebimentoService = recebimentoService;
         this.acoes = new AcoesCaixa(caixaService, acessoService, fechamentoPdf, sessao);
+        this.acoesRecebimento = new AcoesRecebimento(recebimentoService, caixaService, acessoService, comprovantePdf,
+                impressao, sessao);
         this.sessao = sessao;
     }
 
@@ -72,8 +96,22 @@ public class CaixaController {
         colunaMotivo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().motivo()));
         colunaUsuario.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().usuarioNome()));
 
+        colunaRecHora.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.dataHora(c.getValue().dataHora())));
+        colunaRecNumero.setCellValueFactory(c -> new ReadOnlyStringWrapper(String.valueOf(c.getValue().id())));
+        colunaRecCliente.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().cliente()));
+        colunaRecFormas.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().formas()));
+        colunaRecTotal.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.moeda(c.getValue().total())));
+        colunaRecSituacao.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().situacao()));
+        tabelaRecebimentos.getSelectionModel().selectedItemProperty().addListener((o, a, r) -> {
+            botaoComprovante.setDisable(r == null);
+            botaoEstornar.setDisable(r == null || r.estornado());
+        });
+
         raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.F8 && caixa != null) {
+            if (CTRL_R.match(e) && caixa != null) {
+                e.consume();
+                receber();
+            } else if (e.getCode() == KeyCode.F8 && caixa != null) {
                 e.consume();
                 movimentar();
             } else if (e.getCode() == KeyCode.F12 && caixa != null) {
@@ -107,6 +145,10 @@ public class CaixaController {
         botaoAbrir.setDefaultButton(!aberto);
         botaoMovimento.setDisable(!aberto);
         botaoFechar.setDisable(!aberto);
+        botaoReceber.setDisable(!aberto);
+        tabelaRecebimentos.getItems().setAll(recebimentoService.daSessaoAberta(sessao));
+        botaoComprovante.setDisable(true);
+        botaoEstornar.setDisable(true);
         Platform.runLater(() -> (aberto ? botaoMovimento : botaoAbrir).requestFocus());
     }
 
@@ -137,6 +179,45 @@ public class CaixaController {
                     + relatorio.situacaoNaFrase() + ".");
             acoes.mostrarRelatorio(raiz.getScene().getWindow(), relatorio);
         });
+    }
+
+    @FXML
+    private void receber() {
+        try {
+            if (acoesRecebimento.receber(raiz.getScene().getWindow())) {
+                atualizar();
+                Mensagem.sucesso(mensagem, "Recebimento registrado.");
+            }
+        } catch (RuntimeException e) {
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
+        }
+    }
+
+    @FXML
+    private void verComprovante() {
+        RecebimentoSessao r = tabelaRecebimentos.getSelectionModel().getSelectedItem();
+        if (r != null) {
+            try {
+                acoesRecebimento.mostrarComprovante(raiz.getScene().getWindow(), r.id());
+            } catch (RuntimeException e) {
+                Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
+            }
+        }
+    }
+
+    @FXML
+    private void estornar() {
+        RecebimentoSessao r = tabelaRecebimentos.getSelectionModel().getSelectedItem();
+        if (r != null && !r.estornado()) {
+            try {
+                if (acoesRecebimento.estornar(r)) {
+                    atualizar();
+                    Mensagem.sucesso(mensagem, "Recebimento nº " + r.id() + " estornado.");
+                }
+            } catch (RuntimeException e) {
+                Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
+            }
+        }
     }
 
     @FXML

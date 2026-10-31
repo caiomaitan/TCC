@@ -147,8 +147,15 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      dias, e os centavos que sobram ficam na 1ª. Pode ser combinado com outras formas; a parte no crediário não gera
      cashback, e o comprovante mostra as parcelas;
    - passar do limite do cliente, ou vender a quem tem título vencido há mais de 30 dias, pede a permissão Gerenciar
-     crédito do crediário ou a liberação de quem a tem. Por enquanto o limite é 0 para todos, porque a tela do limite
-     chega com o recebimento de parcelas (próxima parte): toda venda a prazo pede essa autorização;
+     crédito do crediário ou a liberação de quem a tem. O limite e o bloqueio ficam em **Clientes**, aba **Crediário**,
+     com o saldo devedor, as parcelas e o extrato (em tela e PDF); as regras gerais, em **Configurações › Crediário**;
+   - **receber** é na tela **Caixa** ou no PDV (**Ctrl+R**), com o caixa aberto: escolha o cliente, selecione os títulos
+     ou digite um valor (vai do vencimento mais antigo para o mais novo) e pague como no PDV. Título em atraso paga multa
+     (2%) e juros simples (2% ao mês), depois da carência; o pagamento parcial divide o valor entre principal e encargos;
+   - o desconto nos encargos pede a permissão Gerenciar crédito ou a liberação, e vale para quitar os títulos. O estorno
+     é na lista de recebimentos da tela Caixa, só na mesma sessão de caixa;
+   - os relatórios são o **R21 Títulos a receber** (com as faixas de atraso) e o **R22 Recebimentos**; o Painel avisa os
+     títulos vencidos;
    - a venda só é cancelada sem pagamento em nenhuma parcela, e os títulos são cancelados junto;
    - na devolução, o valor abate primeiro as parcelas em aberto da venda, da última para a primeira; o restante vai na
      forma escolhida (a devolução abatida por inteiro não mexe no caixa);

@@ -204,11 +204,33 @@ public class ConfiguracaoService {
             throw new NegocioException("O prazo de devolução deve estar entre 0 (sempre pede liberação) e "
                     + Configuracoes.DEVOLUCAO_PRAZO_MAXIMO + " dias.");
         }
+        Configuracoes.Crediario crediario = crediario(c.crediario());
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                c.crediario());
+                crediario);
+    }
+
+    /** Crediário (F14, seção 0.4): de 1 a 60 parcelas; dias de 0 a 10 anos; juros e multa de 0 a 100%. */
+    static Configuracoes.Crediario crediario(Configuracoes.Crediario c) {
+        if (c.maxParcelas() < 1 || c.maxParcelas() > Configuracoes.Crediario.MAX_PARCELAS) {
+            throw new NegocioException("O máximo de parcelas deve estar entre 1 e "
+                    + Configuracoes.Crediario.MAX_PARCELAS + ".");
+        }
+        conferirDias(c.diasPrimeira(), "Os dias até a 1ª parcela");
+        conferirDias(c.carenciaDias(), "A carência");
+        conferirDias(c.bloqueioAtrasoDias(), "O atraso que pede liberação");
+        return new Configuracoes.Crediario(c.maxParcelas(), c.diasPrimeira(),
+                percentual(c.jurosMesPct(), "Os juros ao mês", true), percentual(c.multaPct(), "A multa por atraso", true),
+                c.carenciaDias(), c.bloqueioAtrasoDias());
+    }
+
+    private static void conferirDias(int dias, String rotulo) {
+        if (dias < 0 || dias > Configuracoes.Crediario.DIAS_MAXIMO) {
+            throw new NegocioException(rotulo + " deve ficar entre 0 e " + Configuracoes.Crediario.DIAS_MAXIMO
+                    + " dias.");
+        }
     }
 
     /** Fidelidade (F12.5): cashback de 0 a 100% (maior que zero com ela ligada) e compra mínima ≥ 0, em reais. */
@@ -337,6 +359,18 @@ public class ConfiguracaoService {
         comparar(m, "compra mínima para o cashback", Formatos.moeda(a.fidelidade().compraMinima()),
                 Formatos.moeda(n.fidelidade().compraMinima()));
         comparar(m, "prazo de devolução", a.devolucaoPrazoDias() + " dias", n.devolucaoPrazoDias() + " dias");
+        comparar(m, "máximo de parcelas do crediário", String.valueOf(a.crediario().maxParcelas()),
+                String.valueOf(n.crediario().maxParcelas()));
+        comparar(m, "dias até a 1ª parcela", a.crediario().diasPrimeira() + " dias",
+                n.crediario().diasPrimeira() + " dias");
+        comparar(m, "juros do crediário", Formatos.percentual(a.crediario().jurosMesPct()),
+                Formatos.percentual(n.crediario().jurosMesPct()));
+        comparar(m, "multa do crediário", Formatos.percentual(a.crediario().multaPct()),
+                Formatos.percentual(n.crediario().multaPct()));
+        comparar(m, "carência do crediário", a.crediario().carenciaDias() + " dias",
+                n.crediario().carenciaDias() + " dias");
+        comparar(m, "atraso que pede liberação", a.crediario().bloqueioAtrasoDias() + " dias",
+                n.crediario().bloqueioAtrasoDias() + " dias");
         return m;
     }
 
