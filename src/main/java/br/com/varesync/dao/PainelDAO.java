@@ -1,11 +1,14 @@
 package br.com.varesync.dao;
 
+import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.ProdutoPainel;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +89,22 @@ public class PainelDAO {
 
     public int contarInventariosAbertos(Connection con) throws SQLException {
         return contar(con, "SELECT count(*) FROM inventario WHERE status = 'ABERTO'");
+    }
+
+    /** Contas a pagar em aberto com vencimento de {@code de} até {@code ate} (F15.6): quantas e quanto falta pagar. */
+    public AlertasPainel.ContasAPagar contasAPagar(Connection con, LocalDate de, LocalDate ate) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT count(*), coalesce(sum(valor - valor_pago), 0) FROM titulo_pagar
+                 WHERE status = 'ABERTO' AND (CAST(? AS DATE) IS NULL OR vencimento >= ?) AND vencimento <= ?
+                """)) {
+            ps.setObject(1, de, Types.DATE);
+            ps.setObject(2, de, Types.DATE);
+            ps.setObject(3, ate);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return new AlertasPainel.ContasAPagar(rs.getInt(1), rs.getBigDecimal(2));
+            }
+        }
     }
 
     private static int contar(Connection con, String sql) throws SQLException {

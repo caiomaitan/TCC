@@ -1,5 +1,6 @@
 package br.com.varesync.report;
 
+import br.com.varesync.model.Permissao;
 import br.com.varesync.model.TipoMovimento;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -38,6 +39,11 @@ public interface Relatorio<T> {
     /** Opções do filtro {@link TipoFiltro#TIPO_MOVIMENTO} (além de "Todos"). */
     default List<TipoMovimento> tiposMovimento() {
         return List.of(TipoMovimento.values());
+    }
+
+    /** Permissões exigidas além de RELATORIOS (F15: R23, R24 e R25 também pedem FINANCEIRO). */
+    default Set<Permissao> permissoesExtras() {
+        return Set.of();
     }
 
     /** Linha de filtros do cabeçalho do PDF. */

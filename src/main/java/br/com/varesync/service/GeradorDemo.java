@@ -5,6 +5,7 @@ import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
@@ -13,22 +14,29 @@ import br.com.varesync.model.DadosDevolucao;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.DadosFornecedor;
 import br.com.varesync.model.DadosProduto;
+import br.com.varesync.model.DadosTituloPagar;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.FormaReembolso;
+import br.com.varesync.model.GrupoDespesa;
 import br.com.varesync.model.ItemContagem;
 import br.com.varesync.model.ItemDevolucao;
 import br.com.varesync.model.MotivoPerda;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.PlanoCrediario;
 import br.com.varesync.model.PlanoRecebimento;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoVenda;
+import br.com.varesync.model.Recebivel;
+import br.com.varesync.model.StatusRecebivel;
+import br.com.varesync.model.StatusTituloPagar;
 import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
 import br.com.varesync.model.TipoConta;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TituloEmAberto;
+import br.com.varesync.model.TituloPagar;
 import br.com.varesync.model.VendaDevolucao;
 import br.com.varesync.service.CatalogoDemo.FornecedorDemo;
 import br.com.varesync.service.CatalogoDemo.ItemCatalogo;
@@ -44,10 +52,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +87,7 @@ public class GeradorDemo {
     public static final int DIAS = 60;
     static final BigDecimal FUNDO_DE_TROCO = new BigDecimal("150.00");
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
+    private static final DateTimeFormatter MES_ANO = DateTimeFormatter.ofPattern("MM/uuuu");
     private static final int[] PESO_HORA = {3, 4, 5, 9, 10, 8, 4, 4, 5, 9, 10, 7}; // 8h às 19h
     private static final int PRIMEIRA_HORA = 8;
     private static final int DIA_REAJUSTE_1 = 20;
@@ -96,7 +107,7 @@ public class GeradorDemo {
                             int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
                             int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
                             int devolucoes, int clientesComLimite, int vendasCrediario, int recebimentos,
-                            int titulosVencidos) {
+                            int titulosVencidos, int contasPagas, int recebiveisConciliados) {
     }
 
     /** Crediário (F14.4): 30 clientes com limite; deles, parte das vendas identificadas vai a prazo. */
@@ -131,6 +142,22 @@ public class GeradorDemo {
     static final int PCT_USA_CREDITO = 25;
     /** Só usa o crédito a partir deste saldo (alguns centavos de cashback não valem a parcela). */
     static final BigDecimal CREDITO_MINIMO_PARA_USAR = new BigDecimal("1.00");
+
+    /**
+     * Financeiro (F15.8): saldo inicial do Cofre, o que fica nele no depósito semanal no Banco e as despesas do mês
+     * (aluguel no dia 10, energia no dia 15, salários no dia 5 do mês seguinte, impostos de 6% da receita líquida do
+     * mês no dia 20 do seguinte). A última conta de energia vencida fica em aberto.
+     */
+    static final BigDecimal SALDO_INICIAL_COFRE = new BigDecimal("5000.00");
+    static final BigDecimal RESERVA_DO_COFRE = new BigDecimal("2000.00");
+    static final BigDecimal ALUGUEL = new BigDecimal("3500.00");
+    static final BigDecimal SALARIOS = new BigDecimal("6800.00");
+    static final BigDecimal IMPOSTO_PCT = new BigDecimal("6");
+    /** Duplicatas da entrada semanal: 2, a 28 e a 56 dias da emissão. */
+    static final int DIAS_DUPLICATA = 28;
+
+    private record ContasDemo(long cofre, long banco) {
+    }
 
     /** Andamento, para a barra de progresso da tela. */
     @FunctionalInterface
@@ -193,6 +220,10 @@ public class GeradorDemo {
     private final ClienteService clientes;
     private final DevolucaoService devolucoes;
     private final RecebimentoService recebimentos;
+    private final ConfiguracaoService configuracoes;
+    private final ContaFinanceiraService contas;
+    private final RecebivelService recebiveis;
+    private final ContaPagarService contasPagar;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -204,9 +235,15 @@ public class GeradorDemo {
                        EstoqueService estoque, CaixaService caixa, VendaService vendas,
                        InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
                        ClienteService clientes, DevolucaoService devolucoes, RecebimentoService recebimentos,
+                       ConfiguracaoService configuracoes, ContaFinanceiraService contas, RecebivelService recebiveis,
+                       ContaPagarService contasPagar,
                        DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
                        AuditoriaService auditoria) {
         this.recebimentos = recebimentos;
+        this.configuracoes = configuracoes;
+        this.contas = contas;
+        this.recebiveis = recebiveis;
+        this.contasPagar = contasPagar;
         this.relogio = relogio;
         this.relogioReal = relogioReal;
         this.transacao = transacao;
@@ -265,6 +302,10 @@ public class GeradorDemo {
                     .map(CatalogoDemo.ClienteDemo::cpf).toList()).isEmpty()) {
                 throw new NegocioException("Já há clientes com os CPFs dos dados de demonstração. Use um banco "
                         + "separado.");
+            }
+            if (demoDAO.contarMovimentosDeConta(con) > 0) {
+                throw new NegocioException("As contas financeiras já têm movimentos. Os dados de demonstração lançam o "
+                        + "saldo inicial do Cofre: use um banco separado.");
             }
             return null;
         });
@@ -354,6 +395,12 @@ public class GeradorDemo {
         Map<Integer, List<RecebimentoPlano>> recebimentosPorDia = new LinkedHashMap<>();
         int vendasCrediario = 0;
         int recebimentosFeitos = 0;
+        // Financeiro (F15.8): integração com o caixa, taxas das formas, saldo inicial do Cofre e despesas do período.
+        posicionar(vespera, LocalTime.of(11, 30), zona);
+        ContasDemo contasDemo = ligarFinanceiro(supervisor);
+        Set<Long> energiaEmAberto = lancarDespesas(supervisor, new Random(SEMENTE + 7), inicio, hoje);
+        int pagamentos = 0;
+        int conciliados = 0;
 
         Map<Long, ProdutoVenda> paraVenda = new LinkedHashMap<>();
         for (int i = 0; i < produtoIds.size(); i++) {
@@ -379,6 +426,15 @@ public class GeradorDemo {
                         + Formatos.data(dia.data()) + "): entrada de mercadoria de "
                         + fornecedoresDemo.get(compra.fornecedor()).nomeFantasia());
             }
+            posicionar(dia.data(), LocalTime.of(6, 55), zona);
+            if (dia.data().getDayOfWeek() == DayOfWeek.MONDAY && dia.numero() > 1) {
+                depositarCofre(gerente, contasDemo);
+                conciliados += conciliar(gerente, dia.data());
+            }
+            if (dia.data().getDayOfMonth() == 1) {
+                lancarImposto(gerente, dia.data().minusMonths(1), zona);
+            }
+            pagamentos += pagarVencidas(gerente, contasDemo, dia.data(), energiaEmAberto, zona);
             if (dia.numero() == DIA_REAJUSTE_1 || dia.numero() == DIA_REAJUSTE_2) {
                 posicionar(dia.data(), LocalTime.of(7, 20), zona);
                 reajustarPrecos(gerente, catalogo, produtoIds, execucao, dia.numero() == DIA_REAJUSTE_1 ? 0 : 1);
@@ -471,7 +527,7 @@ public class GeradorDemo {
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
                 vendasComCliente, usosDeCredito, devolucoesFeitas, comLimite.size(), vendasCrediario,
-                recebimentosFeitos, titulosVencidos);
+                recebimentosFeitos, titulosVencidos, pagamentos, conciliados);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
@@ -479,7 +535,9 @@ public class GeradorDemo {
                             .collect(Collectors.joining(", ")) + ", " + resultado.vendas() + " vendas ("
                             + resultado.vendasCanceladas() + " canceladas, " + resultado.vendasComCliente()
                             + " com cliente, " + resultado.vendasCrediario() + " a prazo), " + resultado.recebimentos()
-                            + " recebimentos, " + resultado.devolucoes() + " devoluções, " + resultado.clientes()
+                            + " recebimentos, " + resultado.devolucoes() + " devoluções, " + resultado.contasPagas()
+                            + " contas pagas, " + resultado.recebiveisConciliados() + " recebíveis conciliados, "
+                            + resultado.clientes()
                             + " clientes, " + resultado.fornecedores()
                             + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
@@ -749,8 +807,152 @@ public class GeradorDemo {
             compras.adicionarItem(gerente, id, produtoIds.get(item.produto()), item.quantidade(),
                     item.porValorTotal() ? null : item.custo(), item.porValorTotal() ? item.valorTotal() : null);
         }
+        // Duas duplicatas (F15.8): metade a 28 dias e o resto a 56 dias da emissão; viram contas a pagar.
+        BigDecimal primeira = total.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+        LocalDate emissao = data.minusDays(1);
+        compras.salvarParcelas(gerente, id, List.of(
+                new ParcelaEntrada(1, emissao.plusDays(DIAS_DUPLICATA), primeira),
+                new ParcelaEntrada(2, emissao.plusDays(2L * DIAS_DUPLICATA), total.subtract(primeira))));
         posicionar(data, LocalTime.of(6, 50), zona);
         compras.confirmar(gerente, id);
+    }
+
+    // ----- Financeiro (F15.8) -----
+
+    /**
+     * Liga a integração com o caixa, põe as taxas da especificação nas formas (débito 1% em 1 dia, crédito 3% em 30
+     * dias, PIX sem taxa no mesmo dia; as demais como estão) e lança o saldo inicial do Cofre.
+     */
+    private ContasDemo ligarFinanceiro(Sessao supervisor) {
+        transacao.executar(con -> {
+            if (!configuracaoDAO.carregar(con).integrarCaixa()) {
+                configuracaoDAO.gravar(con, Configuracoes.FINANCEIRO_INTEGRAR_CAIXA, "true");
+                auditoria.registrar(con, supervisor, AcaoAuditoria.CONFIGURACAO_ALTERADA, "configuracao", null,
+                        "Integração do caixa com as contas ligada pelo gerador de dados de demonstração");
+            }
+            return null;
+        });
+        List<ContaFinanceira> ativas = contas.listar(supervisor).stream().filter(ContaFinanceira::ativa).toList();
+        long cofre = ativas.stream().filter(ContaFinanceira::padraoCaixa).findFirst()
+                .or(() -> ativas.stream().filter(c -> c.tipo() == TipoConta.COFRE).findFirst())
+                .orElseThrow(() -> new NegocioException("Não há conta do tipo Cofre ativa.")).id();
+        long banco = ativas.stream().filter(c -> c.tipo() == TipoConta.BANCO).findFirst()
+                .orElseThrow(() -> new NegocioException("Não há conta do tipo Banco ativa.")).id();
+        for (FormaPagamento f : vendas.formasAtivas(supervisor)) {
+            switch (f.tipo()) {
+                case CARTAO_DEBITO -> configuracoes.alterarRecebimentoForma(supervisor, f.id(), BigDecimal.ONE, 1, banco);
+                case CARTAO_CREDITO -> configuracoes.alterarRecebimentoForma(supervisor, f.id(), new BigDecimal("3"),
+                        30, banco);
+                case PIX -> configuracoes.alterarRecebimentoForma(supervisor, f.id(), BigDecimal.ZERO, 0, banco);
+                default -> { }
+            }
+        }
+        contas.lancarSaldoInicial(supervisor, cofre, SALDO_INICIAL_COFRE);
+        return new ContasDemo(cofre, banco);
+    }
+
+    /**
+     * Aluguel, energia e salários de cada mês do período e do mês seguinte (a vencer), lançados na véspera.
+     *
+     * @return a última conta de energia já vencida, que fica em aberto (alerta de conta vencida no painel)
+     */
+    private Set<Long> lancarDespesas(Sessao supervisor, Random r, LocalDate inicio, LocalDate hoje) {
+        Map<String, Long> categoria = new LinkedHashMap<>();
+        contasPagar.categorias(supervisor).forEach(c -> categoria.put(c.nome(), c.id()));
+        Set<Long> emAberto = new HashSet<>();
+        Long ultimaEnergiaVencida = null;
+        for (LocalDate mes = inicio.withDayOfMonth(1); !mes.isAfter(hoje.plusMonths(1)); mes = mes.plusMonths(1)) {
+            String referencia = mes.format(MES_ANO);
+            LocalDate aluguel = mes.withDayOfMonth(10);
+            if (!aluguel.isBefore(inicio)) {
+                criarDespesa(supervisor, categoria, "Aluguel", "Aluguel da loja — " + referencia, aluguel, mes,
+                        ALUGUEL);
+            }
+            LocalDate energia = mes.withDayOfMonth(15);
+            BigDecimal valorEnergia = BigDecimal.valueOf(72_000 + r.nextInt(30_000), 2);
+            if (!energia.isBefore(inicio)) {
+                long id = criarDespesa(supervisor, categoria, "Energia", "Conta de energia — " + referencia, energia,
+                        mes, valorEnergia);
+                if (energia.isBefore(hoje)) {
+                    ultimaEnergiaVencida = id;
+                }
+            }
+            LocalDate salarios = mes.plusMonths(1).withDayOfMonth(5);
+            if (!salarios.isBefore(inicio) && !mes.isAfter(hoje)) {
+                criarDespesa(supervisor, categoria, "Salários e encargos", "Salários e encargos — " + referencia,
+                        salarios, mes, SALARIOS);
+            }
+        }
+        if (ultimaEnergiaVencida != null) {
+            emAberto.add(ultimaEnergiaVencida);
+        }
+        return emAberto;
+    }
+
+    private long criarDespesa(Sessao supervisor, Map<String, Long> categoria, String nomeCategoria, String descricao,
+                              LocalDate vencimento, LocalDate competencia, BigDecimal valor) {
+        Long id = categoria.get(nomeCategoria);
+        if (id == null) {
+            throw new NegocioException("A categoria de despesa \"" + nomeCategoria + "\" não existe.");
+        }
+        return contasPagar.criar(supervisor, new DadosTituloPagar(id, descricao, competencia, vencimento, null, null,
+                null, valor), 0).get(0);
+    }
+
+    /** Impostos sobre vendas: 6% da receita líquida do mês, com vencimento no dia 20 do mês seguinte. */
+    private void lancarImposto(Sessao gerente, LocalDate mes, ZoneId zona) {
+        LocalDate inicio = mes.withDayOfMonth(1);
+        BigDecimal receita = transacao.executar(con -> demoDAO.receitaLiquida(con,
+                inicio.atStartOfDay(zona).toOffsetDateTime(), inicio.plusMonths(1).atStartOfDay(zona).toOffsetDateTime()));
+        BigDecimal imposto = receita.multiply(IMPOSTO_PCT).divide(CEM, 2, RoundingMode.HALF_UP);
+        if (imposto.signum() <= 0) {
+            return;
+        }
+        long categoria = contasPagar.categorias(gerente).stream().filter(c -> c.grupo() == GrupoDespesa.IMPOSTO)
+                .findFirst().orElseThrow(() -> new NegocioException("Não há categoria de impostos.")).id();
+        contasPagar.criar(gerente, new DadosTituloPagar(categoria, "Impostos sobre vendas — "
+                + inicio.format(MES_ANO), inicio,
+                inicio.plusMonths(1).withDayOfMonth(20), null, null, null, imposto), 0);
+    }
+
+    /** Paga do Banco, antes das 7h, as contas em aberto que vencem até hoje, menos as de energia que ficam em aberto. */
+    private int pagarVencidas(Sessao gerente, ContasDemo contasDemo, LocalDate data, Set<Long> emAberto,
+                              ZoneId zona) {
+        int pagas = 0;
+        LocalTime hora = LocalTime.of(6, 56);
+        for (TituloPagar t : contasPagar.listar(gerente, StatusTituloPagar.ABERTO, null, null, data)) {
+            if (!emAberto.contains(t.id())) {
+                posicionar(data, hora, zona);
+                hora = hora.plusSeconds(10);
+                contasPagar.pagar(gerente, t.id(), contasDemo.banco(), data, t.emAberto(), null, null);
+                pagas++;
+            }
+        }
+        return pagas;
+    }
+
+    /** Segunda-feira: o Cofre fica com a reserva e o resto, em múltiplos de R$ 100,00, vai para o Banco. */
+    private void depositarCofre(Sessao gerente, ContasDemo contasDemo) {
+        BigDecimal saldo = contas.listar(gerente).stream().filter(c -> c.id() == contasDemo.cofre()).findFirst()
+                .orElseThrow().saldo();
+        BigDecimal deposito = saldo.subtract(RESERVA_DO_COFRE).divide(CEM, 0, RoundingMode.DOWN).multiply(CEM);
+        if (deposito.compareTo(BigDecimal.valueOf(500)) >= 0) {
+            contas.transferir(gerente, contasDemo.cofre(), contasDemo.banco(), deposito.setScale(2),
+                    "Depósito do cofre no banco");
+        }
+    }
+
+    /** Segunda-feira: concilia os recebíveis previstos até o domingo anterior (F15.8: "até a semana anterior"). */
+    private int conciliar(Sessao gerente, LocalDate segunda) {
+        List<Recebivel> previstos = recebiveis.listar(gerente, null, StatusRecebivel.PREVISTO, null,
+                segunda.minusDays(1));
+        if (previstos.isEmpty()) {
+            return 0;
+        }
+        Map<Long, BigDecimal> liquidos = new LinkedHashMap<>();
+        previstos.forEach(p -> liquidos.put(p.id(), null));
+        recebiveis.conciliar(gerente, liquidos, segunda, null);
+        return previstos.size();
     }
 
     private static String diaDaSemana(DayOfWeek dia) {

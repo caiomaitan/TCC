@@ -2,10 +2,12 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.report.Agrupamento;
 import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Criterio;
 import br.com.varesync.report.ExportadorCsv;
 import br.com.varesync.report.FiltroCrediario;
+import br.com.varesync.report.FiltroFinanceiro;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.RelTitulosReceber;
@@ -30,6 +32,8 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +69,9 @@ public class RelatoriosController {
     static final Opcao TODAS = new Opcao(0, "Todas");
     private static final String NEGATIVO = "negativo";
     private static final double PIXELS_POR_LARGURA = 72;
+    /** Meses que a escolha do R25 oferece, do atual para trás. */
+    static final int MESES_DO_DRE = 24;
+    private static final DateTimeFormatter NOME_DO_MES = DateTimeFormatter.ofPattern("MMMM 'de' uuuu", Formatos.PT_BR);
 
     private final RelatorioService relatorioService;
     private final RelatorioPdf relatorioPdf;
@@ -103,6 +110,12 @@ public class RelatoriosController {
     @FXML private DatePicker vencimentoAte;
     @FXML private HBox grupoForma;
     @FXML private ComboBox<Opcao> escolhaForma;
+    @FXML private HBox grupoCategoriaDespesa;
+    @FXML private ComboBox<Opcao> escolhaCategoriaDespesa;
+    @FXML private HBox grupoAgrupamento;
+    @FXML private ComboBox<Agrupamento> escolhaAgrupamento;
+    @FXML private HBox grupoMes;
+    @FXML private ComboBox<YearMonth> escolhaMes;
     @FXML private CheckBox filtroAbaixoMinimo;
     @FXML private CheckBox filtroInativos;
     @FXML private CheckBox filtroDetalhar;
@@ -156,6 +169,27 @@ public class RelatoriosController {
         escolhaForma.getItems().add(TODAS);
         escolhaForma.getItems().addAll(opcoes.formas());
         escolhaForma.setValue(TODAS);
+        escolhaCategoriaDespesa.getItems().add(TODAS);
+        escolhaCategoriaDespesa.getItems().addAll(opcoes.categoriasDespesa());
+        escolhaCategoriaDespesa.setValue(TODAS);
+        escolhaAgrupamento.getItems().setAll(Agrupamento.values());
+        escolhaAgrupamento.setValue(Agrupamento.DIA);
+        YearMonth atual = YearMonth.from(padrao.fim());
+        for (int i = 0; i < MESES_DO_DRE; i++) {
+            escolhaMes.getItems().add(atual.minusMonths(i));
+        }
+        escolhaMes.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(YearMonth mes) {
+                return mes == null ? "" : NOME_DO_MES.format(mes);
+            }
+
+            @Override
+            public YearMonth fromString(String texto) {
+                return null;
+            }
+        });
+        escolhaMes.setValue(atual);
         escolhaSituacao.getItems().setAll(SituacaoTitulo.values());
         escolhaSituacao.setValue(SituacaoTitulo.EM_ABERTO);
         vencimentoDe.setConverter(new ConversorData());
@@ -193,6 +227,9 @@ public class RelatoriosController {
                 Map.entry(grupoCliente, TipoFiltro.CLIENTE),
                 Map.entry(grupoVencimento, TipoFiltro.VENCIMENTO),
                 Map.entry(grupoForma, TipoFiltro.FORMA_PAGAMENTO),
+                Map.entry(grupoCategoriaDespesa, TipoFiltro.CATEGORIA_DESPESA),
+                Map.entry(grupoAgrupamento, TipoFiltro.AGRUPAMENTO),
+                Map.entry(grupoMes, TipoFiltro.MES),
                 Map.entry(filtroAbaixoMinimo, TipoFiltro.SO_ABAIXO_MINIMO),
                 Map.entry(filtroInativos, TipoFiltro.INCLUIR_INATIVOS),
                 Map.entry(filtroDetalhar, TipoFiltro.DETALHAR_VENDAS));
@@ -277,6 +314,10 @@ public class RelatoriosController {
                 usados.contains(TipoFiltro.VENCIMENTO) ? vencimentoDe.getValue() : null,
                 usados.contains(TipoFiltro.VENCIMENTO) ? vencimentoAte.getValue() : null,
                 usados.contains(TipoFiltro.FORMA_PAGAMENTO) ? nuloSeTodos(escolhaForma.getValue()) : null));
+        f = f.comFinanceiro(new FiltroFinanceiro(
+                usados.contains(TipoFiltro.CATEGORIA_DESPESA) ? nuloSeTodos(escolhaCategoriaDespesa.getValue()) : null,
+                usados.contains(TipoFiltro.AGRUPAMENTO) ? escolhaAgrupamento.getValue() : null,
+                usados.contains(TipoFiltro.MES) ? escolhaMes.getValue() : null));
         f = f.comEstoque(filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected());
         return f.comDetalhe(filtroDetalhar.isSelected());
     }

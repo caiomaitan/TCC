@@ -13,7 +13,8 @@ public final class Relatorios {
             new RelRentabilidadeCategoria(), new RelCurvaAbc(), new RelFormasPagamento(), new RelVendasOperador(),
             new RelVendasHoraDia(), new RelSemGiro(), new RelPerdasAjustes(), new RelAlteracoesPreco(),
             new RelCancelamentos(), new RelComprasFornecedor(), new RelClientes(), new RelSaldosCredito(),
-            new RelDevolucoes(), new RelTitulosReceber(), new RelRecebimentos());
+            new RelDevolucoes(), new RelTitulosReceber(), new RelRecebimentos(), new RelContasPagar(),
+            new RelFluxoCaixa(), new RelDre());
 
     private Relatorios() {
     }

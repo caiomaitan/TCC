@@ -162,7 +162,7 @@ public final class AppContext implements AutoCloseable {
                     s.credito(), s.clientes(), s.contas(), geradorDemo, sessao);
         }
         if (tipo == FinanceiroController.class) {
-            return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), sessao);
+            return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), s.fluxoCaixa(), sessao);
         }
         if (tipo == PromocoesController.class) {
             return new PromocoesController(s.promocoes(), s.produtos(), sessao);

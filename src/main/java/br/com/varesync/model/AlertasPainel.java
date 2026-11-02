@@ -2,6 +2,7 @@ package br.com.varesync.model;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -13,13 +14,21 @@ import java.util.Optional;
  * @param caixaAberto        caixa aberto neste terminal (PDV)
  * @param inventariosAbertos inventários abertos (INVENTARIO)
  * @param backupAtrasado     último backup há mais de 7 dias, ou nenhum (só supervisor); nulo = em dia ou não se aplica
+ * @param pagarVencidas      contas a pagar em aberto vencidas antes de hoje (FINANCEIRO, F15.6)
+ * @param pagarHoje          contas a pagar em aberto que vencem hoje (FINANCEIRO)
+ * @param contasNegativas    contas financeiras com saldo negativo (FINANCEIRO); vazia sem a permissão
  */
 public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, Optional<CaixaSessao> caixaAberto,
                             Integer inventariosAbertos, BackupAtrasado backupAtrasado,
-                            TitulosVencidos titulosVencidos) {
+                            TitulosVencidos titulosVencidos, ContasAPagar pagarVencidas, ContasAPagar pagarHoje,
+                            List<ContaFinanceira> contasNegativas) {
 
     /** Títulos em aberto com vencimento antes de hoje: quantos e quanto em aberto (RECEBIMENTO, F14.4). */
     public record TitulosVencidos(int quantidade, BigDecimal valor) {
+    }
+
+    /** Contas a pagar em aberto: quantas e quanto falta pagar (F15.6). */
+    public record ContasAPagar(int quantidade, BigDecimal valor) {
     }
 
     /**
@@ -31,13 +40,16 @@ public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, 
 
     public AlertasPainel {
         caixaAberto = caixaAberto == null ? Optional.empty() : caixaAberto;
+        contasNegativas = contasNegativas == null ? List.of() : List.copyOf(contasNegativas);
     }
 
     /** Há algo a mostrar? */
     public boolean algum() {
         return positivo(abaixoDoMinimo) || positivo(precoAbaixoDoCusto) || caixaAberto.isPresent()
                 || positivo(inventariosAbertos) || backupAtrasado != null
-                || (titulosVencidos != null && titulosVencidos.quantidade() > 0);
+                || (titulosVencidos != null && titulosVencidos.quantidade() > 0)
+                || (pagarVencidas != null && pagarVencidas.quantidade() > 0)
+                || (pagarHoje != null && pagarHoje.quantidade() > 0) || !contasNegativas.isEmpty();
     }
 
     private static boolean positivo(Integer valor) {

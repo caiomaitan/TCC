@@ -13,10 +13,11 @@ import java.util.List;
  * @param ultimos30Dias   faturamento e lucro por dia, de hoje − 29 até hoje
  * @param topMes          até 5 produtos do mês (dia 1º até hoje), do maior para o menor lucro
  * @param atualizadoEm    quando foi calculado
+ * @param financeiro      saldos e resultado do mês (F15.6); nulo sem a permissão FINANCEIRO
  */
 public record Painel(boolean comIndicadores, IndicadoresDia hoje, IndicadoresDia semanaPassada,
                      LocalDate diaComparado, List<DiaPainel> ultimos30Dias, List<ProdutoPainel> topMes,
-                     AlertasPainel alertas, OffsetDateTime atualizadoEm) {
+                     AlertasPainel alertas, OffsetDateTime atualizadoEm, FinanceiroPainel financeiro) {
 
     public Painel {
         ultimos30Dias = List.copyOf(ultimos30Dias);

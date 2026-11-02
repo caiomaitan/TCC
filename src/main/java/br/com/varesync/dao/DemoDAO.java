@@ -1,15 +1,20 @@
 package br.com.varesync.dao;
 
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/** Conferências do gerador de dados de demonstração (6.14) antes de gravar qualquer coisa. */
+/**
+ * Conferências do gerador de dados de demonstração (6.14) antes de gravar qualquer coisa, e a base do imposto do
+ * gerador (F15.8).
+ */
 public class DemoDAO {
 
     public long contarVendas(Connection con) throws SQLException {
@@ -17,6 +22,28 @@ public class DemoDAO {
              ResultSet rs = ps.executeQuery()) {
             rs.next();
             return rs.getLong(1);
+        }
+    }
+
+    /** Movimentos das contas financeiras (F15.8: o saldo inicial do Cofre só pode ser lançado uma vez). */
+    public long contarMovimentosDeConta(Connection con) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("SELECT count(*) FROM conta_movimento");
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    /** Receita líquida (vendas − devoluções) com {@code inicio <= data_hora < fim}, base do imposto do gerador. */
+    public BigDecimal receitaLiquida(Connection con, OffsetDateTime inicio, OffsetDateTime fim) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT coalesce(sum(receita), 0) FROM vw_resultado_item WHERE data_hora >= ? AND data_hora < ?")) {
+            ps.setObject(1, inicio);
+            ps.setObject(2, fim);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getBigDecimal(1);
+            }
         }
     }
 

@@ -10,14 +10,19 @@ import br.com.varesync.model.Recebivel;
 import br.com.varesync.model.StatusRecebivel;
 import br.com.varesync.model.StatusTituloPagar;
 import br.com.varesync.model.TituloPagar;
+import br.com.varesync.report.Agrupamento;
+import br.com.varesync.report.FluxoCaixa;
 import br.com.varesync.service.ContaFinanceiraService;
 import br.com.varesync.service.ContaPagarService;
+import br.com.varesync.service.FluxoCaixaService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RecebivelService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.DialogosFinanceiro;
 import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.Tarefas;
+import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import java.math.BigDecimal;
@@ -29,7 +34,13 @@ import java.util.Map;
 import java.util.function.Function;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.ListChangeListener;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.XYChart;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
@@ -41,17 +52,20 @@ import javafx.scene.control.TableView;
 import javafx.scene.layout.VBox;
 
 /**
- * Financeiro (F15, parte A): contas com saldo e extrato (saldo inicial, ajuste e transferência), conciliação dos
- * recebíveis e contas a pagar (despesa com repetição, pagamento, estorno e cancelamento). A verificação da permissão
- * FINANCEIRO é a dos services.
+ * Financeiro (F15): contas com saldo e extrato (saldo inicial, ajuste e transferência), conciliação dos recebíveis,
+ * contas a pagar (despesa com repetição, pagamento, estorno e cancelamento) e fluxo de caixa (F15.4: realizado e
+ * previsto por dia, semana ou mês, com gráfico, calculado em {@link Task}). A verificação da permissão FINANCEIRO é a
+ * dos services.
  */
 public class FinanceiroController {
 
     private static final DateTimeFormatter MES = DateTimeFormatter.ofPattern("MM/uuuu");
+    private static final DateTimeFormatter DIA_GRAFICO = DateTimeFormatter.ofPattern("dd/MM");
 
     private final ContaFinanceiraService contaService;
     private final RecebivelService recebivelService;
     private final ContaPagarService contaPagarService;
+    private final FluxoCaixaService fluxoService;
     private final Sessao sessao;
     /** Líquidos corrigidos à mão, ainda não conciliados. */
     private final Map<Long, BigDecimal> liquidosCorrigidos = new HashMap<>();
@@ -114,7 +128,31 @@ public class FinanceiroController {
     @FXML private Button botaoCancelarTitulo;
     @FXML private Button botaoEstornar;
     @FXML private Button botaoPagar;
+    @FXML private TabPane abas;
+    @FXML private Tab abaContas;
+    @FXML private Tab abaContasPagar;
+    @FXML private Tab abaFluxo;
+    @FXML private DatePicker fluxoDe;
+    @FXML private DatePicker fluxoAte;
+    @FXML private ComboBox<Agrupamento> fluxoAgrupamento;
+    @FXML private Button botaoFluxo;
+    @FXML private ProgressIndicator progressoFluxo;
+    @FXML private Label resumoFluxo;
+    @FXML private LineChart<String, Number> graficoFluxo;
+    @FXML private TableView<FluxoCaixa.Grupo> tabelaFluxo;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoPeriodo;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoEntradasReal;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoSaidasReal;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoEntradasPrev;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoSaidasPrev;
+    @FXML private TableColumn<FluxoCaixa.Grupo, String> colunaFluxoSaldo;
+    @FXML private TableView<FluxoCaixa.Lancamento> tabelaFluxoDetalhe;
+    @FXML private TableColumn<FluxoCaixa.Lancamento, String> colunaDetalheParte;
+    @FXML private TableColumn<FluxoCaixa.Lancamento, String> colunaDetalheLancamento;
+    @FXML private TableColumn<FluxoCaixa.Lancamento, String> colunaDetalheEntradas;
+    @FXML private TableColumn<FluxoCaixa.Lancamento, String> colunaDetalheSaidas;
     @FXML private Label mensagem;
+    private FluxoCaixa fluxo;
 
     /** Opção do filtro de forma: nula em {@code forma} = todas. */
     public record FormaPagamentoCadastroOpcao(FormaPagamentoCadastro forma) {
@@ -125,24 +163,44 @@ public class FinanceiroController {
     }
 
     public FinanceiroController(ContaFinanceiraService contaService, RecebivelService recebivelService,
-                                ContaPagarService contaPagarService, Sessao sessao) {
+                                ContaPagarService contaPagarService, FluxoCaixaService fluxoService, Sessao sessao) {
         this.contaService = contaService;
         this.recebivelService = recebivelService;
         this.contaPagarService = contaPagarService;
+        this.fluxoService = fluxoService;
         this.sessao = sessao;
     }
 
     @FXML
     private void initialize() {
-        for (DatePicker data : List.of(extratoDe, extratoAte, recebivelDe, recebivelAte, tituloDe, tituloAte)) {
+        for (DatePicker data : List.of(extratoDe, extratoAte, recebivelDe, recebivelAte, tituloDe, tituloAte, fluxoDe,
+                fluxoAte)) {
             data.setConverter(new ConversorData());
         }
         prepararContas();
         prepararRecebiveis();
         prepararTitulos();
+        prepararFluxo();
         carregarContas(null);
         carregarRecebiveis();
         carregarTitulos();
+    }
+
+    /** Alerta do painel (F15.6): contas a pagar em aberto com vencimento de {@code de} até {@code ate}. */
+    public void mostrarContasAPagar(LocalDate de, LocalDate ate) {
+        abas.getSelectionModel().select(abaContasPagar);
+        filtroStatusTitulo.setValue(StatusTituloPagar.ABERTO);
+        filtroCategoria.setValue(null);
+        tituloDe.setValue(de);
+        tituloAte.setValue(ate);
+        carregarTitulos();
+    }
+
+    /** Alerta do painel (F15.6): conta com saldo negativo. */
+    public void mostrarContas() {
+        abas.getSelectionModel().select(abaContas);
+        tabelaContas.getItems().stream().filter(c -> c.saldo().signum() < 0).findFirst()
+                .ifPresent(c -> tabelaContas.getSelectionModel().select(c));
     }
 
     private static <T> void texto(TableColumn<T, String> coluna, Function<T, String> valor) {
@@ -461,5 +519,112 @@ public class FinanceiroController {
             carregarTitulos();
             Mensagem.sucesso(mensagem, "Conta a pagar cancelada.");
         }
+    }
+
+    // ----- Fluxo de caixa -----
+
+    private void prepararFluxo() {
+        Periodo padrao = fluxoService.periodoPadrao();
+        fluxoDe.setValue(padrao.inicio());
+        fluxoAte.setValue(padrao.fim());
+        fluxoAgrupamento.getItems().setAll(Agrupamento.values());
+        fluxoAgrupamento.setValue(Agrupamento.SEMANA);
+        texto(colunaFluxoPeriodo, FluxoCaixa.Grupo::rotulo);
+        texto(colunaFluxoEntradasReal, g -> Formatos.moeda(g.entradasRealizadas()));
+        texto(colunaFluxoSaidasReal, g -> Formatos.moeda(g.saidasRealizadas()));
+        texto(colunaFluxoEntradasPrev, g -> Formatos.moeda(g.entradasPrevistas()));
+        texto(colunaFluxoSaidasPrev, g -> Formatos.moeda(g.saidasPrevistas()));
+        colunaFluxoSaldo.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.moeda(c.getValue().saldoFinal())));
+        colunaFluxoSaldo.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String texto, boolean vazio) {
+                super.updateItem(texto, vazio);
+                getStyleClass().remove("negativo");
+                FluxoCaixa.Grupo g = vazio ? null : getTableRow().getItem();
+                setText(vazio ? null : texto);
+                if (g != null && g.saldoFinal().signum() < 0) {
+                    getStyleClass().add("negativo");
+                }
+            }
+        });
+        texto(colunaDetalheParte, l -> l.parte().rotulo());
+        texto(colunaDetalheLancamento, FluxoCaixa.Lancamento::descricao);
+        texto(colunaDetalheEntradas, l -> l.entradas().signum() == 0 ? "" : Formatos.moeda(l.entradas()));
+        texto(colunaDetalheSaidas, l -> l.saidas().signum() == 0 ? "" : Formatos.moeda(l.saidas()));
+        tabelaFluxo.getSelectionModel().selectedItemProperty().addListener((o, a, g) -> mostrarDetalheFluxo(g));
+        abaFluxo.setOnSelectionChanged(e -> {
+            if (abaFluxo.isSelected() && fluxo == null && !botaoFluxo.isDisabled()) {
+                carregarFluxo();
+            }
+        });
+    }
+
+    @FXML
+    private void gerarFluxo() {
+        carregarFluxo();
+    }
+
+    /** Calcula em {@link Task}; a tela desabilita "Gerar" enquanto isso. */
+    Task<FluxoCaixa> carregarFluxo() {
+        Periodo periodo = new Periodo(fluxoDe.getValue(), fluxoAte.getValue());
+        Agrupamento agrupamento = fluxoAgrupamento.getValue();
+        Task<FluxoCaixa> tarefa = new Task<>() {
+            @Override
+            protected FluxoCaixa call() {
+                return fluxoService.calcular(sessao, periodo, agrupamento);
+            }
+        };
+        progressoFluxo.setVisible(true);
+        botaoFluxo.setDisable(true);
+        tarefa.setOnSucceeded(e -> {
+            progressoFluxo.setVisible(false);
+            botaoFluxo.setDisable(false);
+            mostrarFluxo(tarefa.getValue());
+        });
+        tarefa.setOnFailed(e -> {
+            progressoFluxo.setVisible(false);
+            botaoFluxo.setDisable(false);
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        return Tarefas.executar("fluxo-caixa", tarefa);
+    }
+
+    void mostrarFluxo(FluxoCaixa calculado) {
+        this.fluxo = calculado;
+        Mensagem.limpar(mensagem);
+        resumoFluxo.setText("Saldo das contas em " + Formatos.data(calculado.periodo().inicio()) + ": "
+                + Formatos.moeda(calculado.saldoInicial()) + " · hoje: " + Formatos.moeda(calculado.saldoAtual())
+                + " · projetado para " + Formatos.data(calculado.periodo().fim()) + ": "
+                + Formatos.moeda(calculado.saldoFinal()));
+        tabelaFluxo.getItems().setAll(calculado.grupos());
+        tabelaFluxoDetalhe.getItems().clear();
+        XYChart.Series<String, Number> entradas = new XYChart.Series<>();
+        entradas.setName("Entradas");
+        XYChart.Series<String, Number> saidas = new XYChart.Series<>();
+        saidas.setName("Saídas");
+        XYChart.Series<String, Number> saldo = new XYChart.Series<>();
+        saldo.setName("Saldo");
+        for (FluxoCaixa.Grupo g : calculado.grupos()) {
+            String rotulo = calculado.agrupamento() == Agrupamento.DIA ? g.inicio().format(DIA_GRAFICO) : g.rotulo();
+            entradas.getData().add(new XYChart.Data<>(rotulo, g.entradas()));
+            saidas.getData().add(new XYChart.Data<>(rotulo, g.saidas()));
+            saldo.getData().add(new XYChart.Data<>(rotulo, g.saldoFinal()));
+        }
+        graficoFluxo.getData().setAll(List.of(entradas, saidas, saldo));
+        calculado.grupos().stream().filter(g -> !g.inicio().isAfter(calculado.hoje())).reduce((a, b) -> b)
+                .ifPresent(g -> tabelaFluxo.getSelectionModel().select(g));
+    }
+
+    FluxoCaixa fluxo() {
+        return fluxo;
+    }
+
+    private void mostrarDetalheFluxo(FluxoCaixa.Grupo grupo) {
+        if (grupo == null || fluxo == null) {
+            tabelaFluxoDetalhe.getItems().clear();
+            return;
+        }
+        tabelaFluxoDetalhe.getItems().setAll(fluxo.lancamentos().stream()
+                .filter(l -> l.grupo().equals(grupo.inicio())).toList());
     }
 }

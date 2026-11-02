@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaPagarDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
@@ -11,6 +12,7 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.report.FiltroFinanceiro;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.ParametrosRelatorio;
@@ -25,6 +27,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,16 +47,21 @@ public class RelatorioService {
     private final UsuarioDAO usuarioDAO;
     private final FornecedorDAO fornecedorDAO;
     private final FormaPagamentoDAO formaDAO;
+    private final ContaPagarDAO contaPagarDAO;
     private final Clock clock;
 
-    /** Escolhas dos filtros de lista: operadores (todos os usuários, inclusive inativos), categorias e fornecedores. */
+    /**
+     * Escolhas dos filtros de lista: operadores (todos os usuários, inclusive inativos), categorias, fornecedores,
+     * formas e categorias de despesa (R23; vazia sem a permissão FINANCEIRO).
+     */
     public record OpcoesFiltro(List<Opcao> operadores, List<Opcao> categorias, List<Opcao> fornecedores,
-                               List<Opcao> formas) {
+                               List<Opcao> formas, List<Opcao> categoriasDespesa) {
     }
 
     public RelatorioService(Transacao transacao, ConfiguracaoDAO configuracaoDAO, CategoriaDAO categoriaDAO,
                             ProdutoDAO produtoDAO, UsuarioDAO usuarioDAO, FornecedorDAO fornecedorDAO,
-                            FormaPagamentoDAO formaDAO, Clock clock) {
+                            FormaPagamentoDAO formaDAO, ContaPagarDAO contaPagarDAO, Clock clock) {
+        this.contaPagarDAO = contaPagarDAO;
         this.formaDAO = formaDAO;
         this.transacao = transacao;
         this.configuracaoDAO = configuracaoDAO;
@@ -64,20 +72,25 @@ public class RelatorioService {
         this.clock = clock;
     }
 
+    /** O catálogo, sem os relatórios que pedem uma permissão que o usuário não tem (R23 a R25: FINANCEIRO). */
     public List<Relatorio<?>> disponiveis(Sessao sessao) {
         sessao.exigir(Permissao.RELATORIOS);
-        return Relatorios.todos();
+        return Relatorios.todos().stream()
+                .filter(r -> r.permissoesExtras().stream().allMatch(sessao::pode)).toList();
     }
 
     public OpcoesFiltro opcoes(Sessao sessao) {
         sessao.exigir(Permissao.RELATORIOS);
+        boolean financeiro = sessao.pode(Permissao.FINANCEIRO);
         return transacao.executar(con -> new OpcoesFiltro(
                 usuarioDAO.listar(con).stream().map(u -> new Opcao(u.id(), u.nome())).toList(),
                 categoriaDAO.listar(con, true).stream().map(c -> new Opcao(c.id(), c.nome())).toList(),
                 fornecedorDAO.listar(con, true).stream().map(f -> new Opcao(f.id(), f.razaoSocial())).toList(),
                 formaDAO.listar(con).stream().filter(f -> f.tipo() != TipoFormaPagamento.CREDIARIO
                         && f.tipo() != TipoFormaPagamento.CREDITO_CLIENTE)
-                        .map(f -> new Opcao(f.id(), f.descricao())).toList()));
+                        .map(f -> new Opcao(f.id(), f.descricao())).toList(),
+                financeiro ? contaPagarDAO.categorias(con).stream().map(c -> new Opcao(c.id(), c.nome())).toList()
+                        : List.of()));
     }
 
     /** Período inicial da tela: o mês corrente até hoje. */
@@ -118,6 +131,7 @@ public class RelatorioService {
      */
     public <T> ResultadoRelatorio<T> gerar(Sessao sessao, Relatorio<T> relatorio, Filtros filtros) {
         sessao.exigir(Permissao.RELATORIOS);
+        relatorio.permissoesExtras().forEach(sessao::exigir);
         conferir(relatorio, filtros);
         OffsetDateTime agora = OffsetDateTime.now(clock);
         return transacao.executar(con -> {
@@ -127,6 +141,11 @@ public class RelatorioService {
                     agora.atZoneSameInstant(clock.getZone()).toLocalDate());
             Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
                     ? filtros.comDias(config.diasSemGiro()) : filtros;
+            if (relatorio.filtros().contains(TipoFiltro.MES) && usados.financeiro().mes() == null) {
+                FiltroFinanceiro f = usados.financeiro();
+                usados = usados.comFinanceiro(new FiltroFinanceiro(f.categoriaDespesa(), f.agrupamento(),
+                        YearMonth.from(parametros.hoje())));
+            }
             List<T> linhas = relatorio.consultar(con, usados, parametros);
             String loja = config.loja().nome().isBlank() ? "VareSync" : config.loja().nome();
             return new ResultadoRelatorio<>(relatorio, usados, relatorio.colunas(usados), linhas, loja,

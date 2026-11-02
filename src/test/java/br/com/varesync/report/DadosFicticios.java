@@ -10,11 +10,13 @@ import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.ResultadoInventario;
 import br.com.varesync.model.StatusInventario;
+import br.com.varesync.model.StatusTituloPagar;
 import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoMovimento;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -253,9 +255,65 @@ final class DadosFicticios {
                         "Arrependimento", FormaReembolso.CREDITO_CLIENTE, d("24.90"), d("0.00"), "")));
     }
 
+    /** R23: uma conta vencida, uma paga e uma da entrada de mercadoria a vencer. */
+    static ResultadoRelatorio<RelContasPagar.Linha> r23() {
+        return resultado(new RelContasPagar(), Filtros.vazios(), List.of(
+                new RelContasPagar.Linha(1, LocalDate.of(2026, 10, 10), "Aluguel da loja — 10/2026", "Aluguel", "",
+                        "", LocalDate.of(2026, 10, 1), StatusTituloPagar.ABERTO, d("3500.00"), d("1000.00"),
+                        d("2500.00"), 7L),
+                new RelContasPagar.Linha(2, LocalDate.of(2026, 10, 15), "Conta de energia — 10/2026", "Energia", "",
+                        "", LocalDate.of(2026, 10, 1), StatusTituloPagar.PAGO, d("842.37"), d("842.37"), d("0.00"),
+                        null),
+                new RelContasPagar.Linha(3, LocalDate.of(2026, 11, 14), "Compra de Distribuidora Paulista — NF 9001 — "
+                        + "parcela 1/2", "Compra de mercadorias", "Distribuidora Paulista Ltda", "9001/1",
+                        LocalDate.of(2026, 10, 1), StatusTituloPagar.ABERTO, d("1250.40"), d("0.00"), d("1250.40"),
+                        null)));
+    }
+
+    /** R24: saldo de partida, realizado de dois dias e o previsto com a linha "Em atraso". */
+    static ResultadoRelatorio<RelFluxoCaixa.Linha> r24() {
+        LocalDate dia1 = LocalDate.of(2026, 10, 16);
+        LocalDate dia2 = LocalDate.of(2026, 10, 17);
+        List<FluxoCaixa.Lancamento> lancamentos = List.of(
+                new FluxoCaixa.Lancamento(dia1, FluxoCaixa.Parte.REALIZADO, "Sangria", d("600.00"), d("0.00")),
+                new FluxoCaixa.Lancamento(dia1, FluxoCaixa.Parte.REALIZADO, "Pagamento", d("0.00"), d("3500.00")),
+                new FluxoCaixa.Lancamento(dia2, FluxoCaixa.Parte.REALIZADO, "Ajustes", d("10.00"), d("2.50")),
+                new FluxoCaixa.Lancamento(dia2, FluxoCaixa.Parte.PREVISTO, FluxoCaixa.EM_ATRASO, d("97.00"),
+                        d("842.37")),
+                new FluxoCaixa.Lancamento(dia2, FluxoCaixa.Parte.PREVISTO, FluxoCaixa.RECEBIVEIS, d("1940.00"),
+                        d("0.00")));
+        Periodo periodo = new Periodo(dia1, dia2);
+        FluxoCaixa fluxo = new FluxoCaixa(periodo, dia2, Agrupamento.DIA, d("5000.00"), d("2107.50"), lancamentos,
+                FluxoCaixa.grupos(periodo, Agrupamento.DIA, d("5000.00"), lancamentos));
+        return resultado(new RelFluxoCaixa(), Filtros.vazios().comPeriodo(periodo), RelFluxoCaixa.linhas(fluxo));
+    }
+
+    /** R25: dois meses, com uma categoria só no mês anterior. */
+    static ResultadoRelatorio<RelDre.Linha> r25() {
+        Filtros filtros = Filtros.vazios().comFinanceiro(new FiltroFinanceiro(null, null, YearMonth.of(2026, 10)));
+        return resultado(new RelDre(), filtros, RelDre.juntar(dre(d("1000.00"), "Aluguel"),
+                dre(d("800.00"), "Energia")));
+    }
+
+    /** DRE fictício: receita bruta {@code bruta}, 10% de CMV e uma despesa operacional de 100. */
+    private static List<Dre.Linha> dre(BigDecimal bruta, String categoria) {
+        BigDecimal cmv = bruta.multiply(new BigDecimal("0.1")).setScale(2);
+        List<Dre.Linha> linhas = new ArrayList<>();
+        linhas.add(new Dre.Linha("1", 1, "Receita bruta", bruta, false));
+        linhas.add(new Dre.Linha("2", 2, "(−) Descontos concedidos", d("0.00"), false));
+        linhas.add(new Dre.Linha("3", 3, "(−) Devoluções", d("0.00"), false));
+        linhas.add(new Dre.Linha("4", 4, "= Receita líquida", bruta, true));
+        linhas.add(new Dre.Linha("5", 5, "(−) CMV", cmv.negate(), false));
+        linhas.add(new Dre.Linha("6", 6, "= Lucro bruto", bruta.subtract(cmv), true));
+        linhas.add(new Dre.Linha("9", 9, "(−) Despesas operacionais", d("-100.00"), false));
+        linhas.add(new Dre.Linha("9:" + categoria, null, categoria, d("-100.00"), false));
+        linhas.add(new Dre.Linha("14", 14, "= Resultado líquido", bruta.subtract(cmv).subtract(d("100.00")), true));
+        return linhas;
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
                 r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
-                r19(), r20(), dadosCliente());
+                r19(), r20(), dadosCliente(), r23(), r24(), r25());
     }
 }

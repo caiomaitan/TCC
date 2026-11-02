@@ -179,7 +179,18 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      cancelamento sem pagamento. Em **Compras**, o botão **Parcelas…** registra as duplicatas da nota (o XML da NF-e já
      as traz); ao confirmar a entrada, cada parcela vira uma conta a pagar em "Compra de mercadorias";
    - na **devolução** com reembolso **Outro**, informe a conta de onde saiu o dinheiro; só a parte que não abateu
-     parcelas do crediário sai da conta.
+     parcelas do crediário sai da conta;
+   - **fluxo de caixa** (aba própria): escolha o período (começa hoje ou antes) e a visão por dia, semana ou mês. O
+     realizado são os lançamentos das contas por tipo (sem transferências entre contas e sem o saldo inicial, que entra
+     no saldo de partida; ajustes numa linha própria); o previsto, de hoje em diante, são os recebíveis a receber, as
+     parcelas do crediário e as contas a pagar em aberto. O que já venceu e continua em aberto aparece em "Em atraso",
+     no primeiro dia da projeção. A tabela mostra o saldo no fim de cada período e o gráfico, entradas, saídas e saldo;
+   - **relatórios** (com as permissões Relatórios e Financeiro): **R23 Contas a pagar** (situação, categoria,
+     fornecedor e vencimento), **R24 Fluxo de caixa** e **R25 DRE gerencial** (mês escolhido e o anterior, com o % de
+     cada linha sobre a receita líquida; despesas pela competência; compras de mercadoria ficam de fora porque o custo
+     entra pelo CMV; a receita líquida e o lucro bruto batem com o R01 e o R05);
+   - **painel:** quem tem Financeiro vê o saldo das contas, o resultado líquido do mês até hoje e os alertas de contas a
+     pagar vencidas e vencendo hoje e de conta com saldo negativo (o clique abre o Financeiro já filtrado).
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -228,8 +239,12 @@ com 60 dias de operação de um mercado fictício, terminando ontem: cerca de 80
 usuários, 3 fornecedores com uma entrada de mercadoria por semana, um caixa por dia com vendas, sangrias e fechamento,
 descontos, cancelamentos, perdas, reajustes de preço e um inventário aplicado, 150 clientes (cerca de 40% das vendas
 identificadas, com cashback de 1% e alguns pagamentos com o crédito) e cerca de 0,5% dos itens devolvidos de 1 a 5
-dias depois da venda, em dinheiro, vale-troca ou outro, alguns avariados. Ele **recusa** um banco que já tenha
-vendas. Use um banco separado:
+dias depois da venda, em dinheiro, vale-troca ou outro, alguns avariados. No financeiro, liga a integração do caixa
+com R$ 5.000,00 de saldo inicial no Cofre, põe taxa de 1% (1 dia) no débito, 3% (30 dias) no crédito e 0% (mesmo dia)
+no PIX, deposita o Cofre no Banco e concilia os recebíveis toda segunda-feira (até o domingo anterior), lança aluguel,
+energia, salários e os impostos de 6% da receita de cada mês (pagos no vencimento; a última conta de energia fica em
+aberto) e registra duas duplicatas por entrada de mercadoria. Ele **recusa** um banco que já tenha vendas ou
+movimentos nas contas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
 
@@ -258,7 +273,7 @@ no primeiro login):
 | `carlos` | Carlos Pereira | Gerente (todas as permissões, sem ser supervisor) | `demo6999` |
 
 O supervisor é o criado por você no assistente. Os dados de demonstração também ativam a balança (prefixo 2, 5
-dígitos, valor em preço) e a fidelidade (cashback de 1%, sem compra mínima).
+dígitos, valor em preço), a fidelidade (cashback de 1%, sem compra mínima) e a integração do caixa com as contas.
 
 Para recomeçar a demonstração do zero (ou se a geração for interrompida no meio, o que deixa dados pela metade), com o
 sistema fechado:

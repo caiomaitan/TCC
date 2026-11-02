@@ -757,8 +757,8 @@ Testes de integração com duas conexões simultâneas:
 #### F15.4 Fluxo de caixa (tela e R24)
 
 - Visão por dia, semana ou mês, com duas partes:
-  - **realizado:** os lançamentos das contas; transferências entre contas não entram;
-  - **previsto:** recebíveis PREVISTOS (líquido, na data prevista) e títulos a receber e a pagar ABERTOS (o que falta, no vencimento).
+  - **realizado:** os lançamentos das contas, agrupados por tipo. Transferências entre contas e o saldo inicial não entram (o saldo inicial faz parte do saldo de partida), e os ajustes aparecem numa linha própria;
+  - **previsto:** recebíveis PREVISTOS (líquido, na data prevista) e títulos a receber e a pagar ABERTOS (o que falta, no vencimento). O que já devia ter entrado ou saído e continua em aberto entra no primeiro dia da projeção, numa linha "Em atraso".
 - Saldo projetado a partir do saldo atual das contas.
 - Gráfico.
 

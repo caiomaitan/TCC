@@ -1,5 +1,6 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.ContaFinanceiraDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.TituloReceberDAO;
@@ -7,11 +8,15 @@ import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.DiaPainel;
+import br.com.varesync.model.FinanceiroPainel;
 import br.com.varesync.model.IndicadoresDia;
 import br.com.varesync.model.Painel;
+import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
+import br.com.varesync.report.Dre;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -35,6 +40,8 @@ import java.util.Optional;
  * <li>Alertas, cada um para quem pode abrir a tela a que ele leva: abaixo do mínimo (ESTOQUE), preço abaixo do custo
  * (PRODUTOS), caixa aberto neste terminal (PDV) e inventários abertos (INVENTARIO). O alerta de backup é da
  * Fase 8.</li>
+ * <li>Só com FINANCEIRO (F15.6): saldo das contas, resultado líquido do DRE do dia 1º até hoje e os alertas de contas
+ * a pagar vencidas, vencendo hoje e de conta com saldo negativo.</li>
  * </ul>
  */
 public class PainelService {
@@ -48,12 +55,14 @@ public class PainelService {
     private final CaixaService caixaService;
     private final AuditoriaDAO auditoriaDAO;
     private final TituloReceberDAO tituloDAO;
+    private final ContaFinanceiraDAO contaDAO;
     private final Clock clock;
 
     public PainelService(Transacao transacao, PainelDAO painelDAO, EstoqueDAO estoqueDAO, CaixaService caixaService,
-                         AuditoriaDAO auditoriaDAO, TituloReceberDAO tituloDAO,
+                         AuditoriaDAO auditoriaDAO, TituloReceberDAO tituloDAO, ContaFinanceiraDAO contaDAO,
                          Clock clock) {
         this.tituloDAO = tituloDAO;
+        this.contaDAO = contaDAO;
         this.transacao = transacao;
         this.painelDAO = painelDAO;
         this.estoqueDAO = estoqueDAO;
@@ -84,12 +93,26 @@ public class PainelService {
                 top = painelDAO.maisLucrativos(con, hoje.withDayOfMonth(1).atStartOfDay(zona).toOffsetDateTime(),
                         amanha, TOP_PRODUTOS);
             }
+            List<ContaFinanceira> contas = sessao.pode(Permissao.FINANCEIRO) ? contaDAO.listar(con) : List.of();
+            FinanceiroPainel financeiro = null;
+            if (sessao.pode(Permissao.FINANCEIRO)) {
+                Periodo mes = new Periodo(hoje.withDayOfMonth(1), hoje);
+                financeiro = new FinanceiroPainel(contas.stream().filter(ContaFinanceira::ativa).toList(),
+                        contas.stream().map(ContaFinanceira::saldo).reduce(BigDecimal.ZERO, BigDecimal::add),
+                        Dre.resultadoLiquido(Dre.calcular(con, mes, zona)), mes.inicio());
+            }
             return new Painel(comIndicadores, diaHoje, diaAnterior, hoje.minusWeeks(1), dias, top,
-                    alertas(con, sessao), agora);
+                    alertas(con, sessao, hoje, contas), agora, financeiro);
         });
     }
 
-    private AlertasPainel alertas(Connection con, Sessao sessao) throws SQLException {
+    private AlertasPainel alertas(Connection con, Sessao sessao, LocalDate hoje, List<ContaFinanceira> contas)
+            throws SQLException {
+        boolean financeiro = sessao.pode(Permissao.FINANCEIRO);
+        AlertasPainel.ContasAPagar pagarVencidas = financeiro
+                ? painelDAO.contasAPagar(con, null, hoje.minusDays(1)) : null;
+        AlertasPainel.ContasAPagar pagarHoje = financeiro ? painelDAO.contasAPagar(con, hoje, hoje) : null;
+        List<ContaFinanceira> negativas = contas.stream().filter(c -> c.saldo().signum() < 0).toList();
         Integer abaixo = sessao.pode(Permissao.ESTOQUE) ? estoqueDAO.contarAbaixoDoMinimo(con) : null;
         Integer custo = sessao.pode(Permissao.PRODUTOS) ? painelDAO.contarPrecoAbaixoDoCusto(con) : null;
         Optional<CaixaSessao> caixa = sessao.pode(Permissao.PDV) ? caixaService.caixaAberto(con, sessao)
@@ -98,7 +121,7 @@ public class PainelService {
         AlertasPainel.TitulosVencidos vencidos = sessao.pode(Permissao.RECEBIMENTO)
                 ? tituloDAO.vencidos(con, LocalDate.now(clock)) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
-                vencidos);
+                vencidos, pagarVencidas, pagarHoje, negativas);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */

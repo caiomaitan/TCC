@@ -79,6 +79,7 @@ final class AcessoTeste {
     final ContaFinanceiraService contas;
     final RecebivelService recebiveis;
     final ContaPagarService contasPagar;
+    final FluxoCaixaService fluxoCaixa;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -114,9 +115,9 @@ final class AcessoTeste {
         compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
                 new ConfiguracaoDAO(), estoque, contasPagar, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
-                new FornecedorDAO(), new FormaPagamentoDAO(), relogio);
+                new FornecedorDAO(), new FormaPagamentoDAO(), new ContaPagarDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
-                new TituloReceberDAO(), relogio);
+                new TituloReceberDAO(), new ContaFinanceiraDAO(), relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
                 new ContaFinanceiraDAO(), auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);
@@ -132,6 +133,7 @@ final class AcessoTeste {
                 relogio);
         recebimentos = new RecebimentoService(transacao, new RecebimentoDAO(), new TituloReceberDAO(), new ClienteDAO(),
                 new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, recebiveis, auditoria, relogio);
+        fluxoCaixa = new FluxoCaixaService(transacao, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

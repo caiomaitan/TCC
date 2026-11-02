@@ -4,6 +4,7 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -16,33 +17,36 @@ import java.util.Set;
  * @param dias dias sem venda para o produto ser "sem giro" (R12); nulo = {@code relatorio.dias_sem_giro}
  * @param fornecedor fornecedor das entradas (R17); nulo = todos
  * @param crediario filtros do R21 e do R22 (F14.4); nunca nulo
+ * @param financeiro filtros do R23, do R24 e do R25 (F15); nunca nulo
  */
 public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer topN, Criterio criterio,
                       boolean soAbaixoDoMinimo, boolean incluirInativos, Opcao produto, TipoMovimento tipo,
-                      boolean detalharVendas, Integer dias, Opcao fornecedor, FiltroCrediario crediario) {
+                      boolean detalharVendas, Integer dias, Opcao fornecedor, FiltroCrediario crediario,
+                      FiltroFinanceiro financeiro) {
 
     public static Filtros vazios() {
-        return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null, FiltroCrediario.VAZIO);
+        return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null,
+                FiltroCrediario.VAZIO, FiltroFinanceiro.VAZIO);
     }
 
     public Filtros comPeriodo(Periodo novo) {
         return new Filtros(novo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comOperador(Opcao novo) {
         return new Filtros(periodo, novo, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comCategoria(Opcao nova) {
         return new Filtros(periodo, operador, nova, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comRanking(Integer novoTopN, Criterio novoCriterio) {
         return new Filtros(periodo, operador, categoria, novoTopN, novoCriterio, soAbaixoDoMinimo, incluirInativos,
-                produto, tipo, detalharVendas, dias, fornecedor, crediario);
+                produto, tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comCriterio(Criterio novo) {
@@ -51,37 +55,42 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
 
     public Filtros comEstoque(boolean soAbaixo, boolean inativos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixo, inativos, produto, tipo,
-                detalharVendas, dias, fornecedor, crediario);
+                detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comProduto(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, novo,
-                tipo, detalharVendas, dias, fornecedor, crediario);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comTipo(TipoMovimento novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                novo, detalharVendas, dias, fornecedor, crediario);
+                novo, detalharVendas, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comDetalhe(boolean detalhar) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalhar, dias, fornecedor, crediario);
+                tipo, detalhar, dias, fornecedor, crediario, financeiro);
     }
 
     public Filtros comDias(Integer novos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, novos, fornecedor, crediario);
+                tipo, detalharVendas, novos, fornecedor, crediario, financeiro);
     }
 
     public Filtros comFornecedor(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, novo, crediario);
+                tipo, detalharVendas, dias, novo, crediario, financeiro);
     }
 
     public Filtros comCrediario(FiltroCrediario novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, novo);
+                tipo, detalharVendas, dias, fornecedor, novo, financeiro);
+    }
+
+    public Filtros comFinanceiro(FiltroFinanceiro novo) {
+        return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
+                tipo, detalharVendas, dias, fornecedor, crediario, novo);
     }
 
     public Criterio criterioOuPadrao() {
@@ -124,6 +133,16 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         }
         if (usados.contains(TipoFiltro.CLIENTE) && !Textos.vazio(crediario.cliente())) {
             partes.add("Cliente: " + crediario.cliente());
+        }
+        if (usados.contains(TipoFiltro.CATEGORIA_DESPESA)) {
+            partes.add("Categoria: " + (financeiro.categoriaDespesa() == null ? "todas"
+                    : financeiro.categoriaDespesa().nome()));
+        }
+        if (usados.contains(TipoFiltro.AGRUPAMENTO)) {
+            partes.add("Visão: por " + financeiro.agrupamentoOuPadrao().rotulo().toLowerCase());
+        }
+        if (usados.contains(TipoFiltro.MES) && financeiro.mes() != null) {
+            partes.add("Mês: " + financeiro.mes().format(DateTimeFormatter.ofPattern("MM/uuuu")));
         }
         if (usados.contains(TipoFiltro.OPERADOR)) {
             partes.add("Operador: " + (operador == null ? "todos" : operador.nome()));

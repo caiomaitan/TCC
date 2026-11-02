@@ -902,6 +902,9 @@ public class ConfiguracoesController {
                 .append("\nCrediário: ").append(r.clientesComLimite()).append(" clientes com limite, ")
                 .append(r.vendasCrediario()).append(" vendas a prazo, ").append(r.recebimentos())
                 .append(" recebimentos, ").append(r.titulosVencidos()).append(" títulos vencidos em aberto")
+                .append("\nFinanceiro: integração do caixa ligada, ").append(r.contasPagas())
+                .append(" contas pagas, ").append(r.recebiveisConciliados())
+                .append(" recebíveis conciliados (até a semana anterior)")
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();

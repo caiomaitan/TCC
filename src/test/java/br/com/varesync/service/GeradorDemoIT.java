@@ -12,7 +12,11 @@ import br.com.varesync.model.DiaPainel;
 import br.com.varesync.model.Painel;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.TipoMovimento;
+import br.com.varesync.report.Agrupamento;
 import br.com.varesync.report.Coluna;
+import br.com.varesync.report.FiltroFinanceiro;
+import br.com.varesync.report.FluxoCaixa;
+import br.com.varesync.report.RelDre;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.RelAlteracoesPreco;
 import br.com.varesync.report.RelCancelamentos;
@@ -39,13 +43,17 @@ import br.com.varesync.report.RelTitulosReceber;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.report.SituacaoTitulo;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -302,6 +310,93 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(hoje.relatorios().gerar(admin, new RelTitulosReceber(), Filtros.vazios()
                 .comCrediario(new FiltroCrediario(SituacaoTitulo.VENCIDOS, null, null, null, null))).linhas())
                 .hasSize(resultado.titulosVencidos());
+    }
+
+    /**
+     * F15.8: integração ligada, saldo inicial no Cofre, taxas da especificação, recebíveis conciliados até a semana
+     * anterior, despesas mensais com os impostos de 6% e entradas com 2 duplicatas. Aceite F15 (consistência): com os
+     * dados de demonstração, as linhas 4 e 6 do DRE batem com o R01 e o R05 do mesmo mês.
+     */
+    @Test
+    void financeiroDaFase15() throws Exception {
+        assertThat(contar("SELECT count(*) FROM configuracao WHERE chave = '" + Configuracoes.FINANCEIRO_INTEGRAR_CAIXA
+                + "' AND valor = 'true'")).isEqualTo(1);
+        assertThat(umValor("""
+                SELECT m.valor FROM conta_movimento m JOIN conta_financeira c ON c.id = m.conta_id
+                 WHERE m.tipo = 'SALDO_INICIAL' AND c.nome = 'Cofre'
+                """)).isEqualByComparingTo(GeradorDemo.SALDO_INICIAL_COFRE);
+        assertThat(contar("SELECT count(*) FROM conta_movimento WHERE tipo = 'SALDO_INICIAL'")).isEqualTo(1);
+        assertThat(contar("SELECT count(*) FROM conta_movimento WHERE tipo IN ('ABERTURA_CAIXA', 'FECHAMENTO_CAIXA')"))
+                .as("abertura e fechamento de cada dia").isEqualTo(2L * GeradorDemo.DIAS);
+        assertThat(contar("SELECT count(*) FROM conta_movimento WHERE tipo = 'TRANSFERENCIA'"))
+                .as("depósitos semanais, duas pernas cada").isPositive().isEven();
+        assertThat(coluna("""
+                SELECT taxa_pct * 100 + dias_recebimento FROM forma_pagamento
+                 WHERE tipo IN ('CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX') ORDER BY tipo
+                """)).as("crédito 3% D+30, débito 1% D+1, PIX 0% D+0").containsExactly(330L, 101L, 0L);
+
+        LocalDate ultimaSegunda = resultado.fim().with(TemporalAdjusters
+                .previousOrSame(DayOfWeek.MONDAY));
+        assertThat(contar("SELECT count(*) FROM recebivel WHERE status = 'PREVISTO' AND previsto_para < DATE '"
+                + ultimaSegunda + "'")).as("conciliados até a semana anterior").isZero();
+        assertThat(contar("SELECT count(*) FROM recebivel WHERE status = 'PREVISTO'")).isPositive();
+        assertThat(contar("SELECT count(*) FROM recebivel WHERE status = 'RECEBIDO'")).isPositive();
+        assertThat(resultado.recebiveisConciliados()).isEqualTo((int) contar("""
+                SELECT count(*) FROM recebivel r JOIN forma_pagamento f ON f.id = r.forma_pagamento_id
+                 WHERE r.status <> 'PREVISTO' AND f.dias_recebimento > 0 AND r.recebido_em IS NOT NULL
+                """));
+
+        assertThat(coluna("""
+                SELECT count(*) FROM titulo_pagar t JOIN categoria_despesa c ON c.id = t.categoria_id
+                 WHERE c.nome IN ('Aluguel', 'Energia', 'Salários e encargos', 'Impostos sobre vendas')
+                 GROUP BY c.nome ORDER BY c.nome
+                """)).as("as quatro despesas mensais").hasSize(4).allSatisfy(n -> assertThat(n).isPositive());
+        assertThat(contar("SELECT count(*) FROM entrada_mercadoria_parcela")).isEqualTo(2L * resultado.entradas());
+        assertThat(contar("""
+                SELECT count(*) FROM titulo_pagar t JOIN categoria_despesa c ON c.id = t.categoria_id
+                 WHERE c.grupo = 'MERCADORIA'
+                """)).isEqualTo(2L * resultado.entradas());
+        assertThat(resultado.contasPagas()).isEqualTo((int) contar(
+                "SELECT count(*) FROM titulo_pagar_pagamento WHERE NOT estornado")).isPositive();
+        LocalDate agosto = resultado.inicio().withDayOfMonth(1);
+        BigDecimal receitaAgosto = umValor("SELECT sum(receita) FROM vw_resultado_item WHERE data_hora >= DATE '"
+                + agosto + "' AND data_hora < DATE '" + agosto.plusMonths(1) + "'");
+        assertThat(umValor("""
+                SELECT t.valor FROM titulo_pagar t JOIN categoria_despesa c ON c.id = t.categoria_id
+                 WHERE c.grupo = 'IMPOSTO' AND t.competencia = DATE '""" + agosto + "'"))
+                .isEqualByComparingTo(receitaAgosto.multiply(new BigDecimal("0.06")).setScale(2,
+                        RoundingMode.HALF_UP));
+
+        // Aceite F15: linhas 4 e 6 do DRE = R01 e R05 do mesmo mês (setembro inteiro e outubro até ontem).
+        for (YearMonth mes : List.of(YearMonth.of(2026, 9), YearMonth.of(2026, 10))) {
+            ResultadoRelatorio<RelDre.Linha> dre = t.relatorios.gerar(admin,
+                    new RelDre(), Filtros.vazios()
+                            .comFinanceiro(new FiltroFinanceiro(null, null, mes)));
+            Filtros doMes = Filtros.vazios().comPeriodo(new Periodo(mes.atDay(1), mes.atEndOfMonth()));
+            BigDecimal receitaR01 = Coluna.soma(t.relatorios.gerar(admin, new RelVendasPeriodo(), doMes).linhas(),
+                    RelVendasPeriodo.Linha::receita);
+            BigDecimal lucroR05 = Coluna.soma(t.relatorios.gerar(admin, new RelRentabilidadeProduto(), doMes)
+                    .linhas(), RelRentabilidadeProduto.Linha::lucro);
+            assertThat(receitaR01).isPositive();
+            assertThat(dre.linhas().stream().filter(l -> l.chave().equals("4")).findFirst().orElseThrow().valor())
+                    .as("receita líquida de " + mes).isEqualByComparingTo(receitaR01);
+            assertThat(dre.linhas().stream().filter(l -> l.chave().equals("6")).findFirst().orElseThrow().valor())
+                    .as("lucro bruto de " + mes).isEqualByComparingTo(lucroR05);
+            LOG.info("DRE de {}: {}", mes, dre.linhas().stream().filter(l -> !l.detalhe())
+                    .map(l -> l.chave() + "=" + l.valor()).toList());
+        }
+
+        Servicos hoje = Servicos.montar(dataSource, HOJE, AcessoTeste.TERMINAL, new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        FluxoCaixa fluxo = hoje.fluxoCaixa().calcular(admin, new Periodo(
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 11, 30)), Agrupamento.SEMANA);
+        assertThat(fluxo.lancamentos()).extracting(FluxoCaixa.Lancamento::descricao)
+                .contains(FluxoCaixa.EM_ATRASO, FluxoCaixa.RECEBIVEIS,
+                        FluxoCaixa.CREDIARIO, FluxoCaixa.CONTAS_A_PAGAR,
+                        "Recebível", "Sangria", "Fechamento de caixa", "Pagamento")
+                .doesNotContain("Transferência", "Saldo inicial");
+        Painel painel = hoje.painel().carregar(admin);
+        assertThat(painel.financeiro().saldoTotal()).isEqualByComparingTo(umValor("SELECT sum(saldo) FROM conta_saldo"));
+        assertThat(painel.alertas().pagarVencidas().quantidade()).as("a energia que ficou em aberto").isPositive();
     }
 
     @Test

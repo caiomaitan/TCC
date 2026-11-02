@@ -617,3 +617,19 @@ está "Não executado", falta a pessoa executar.
 | CT-F15-14 | Entrada aberta com valor da nota R$ 120,00 | 1. Compras › Parcelas… duas de R$ 60,00 2. Confirmar entrada | 1. Salvas, sem aviso 2. A confirmação avisa as parcelas; duas contas a pagar em "Compra de mercadorias" | OK pelo roteiro de tela (captura `08`) |
 | CT-F15-15 | XML de NF-e com duplicatas | 1. Compras › Importar XML da NF-e 2. Parcelas… | 1 e 2. As duplicatas com vencimento já vêm como parcelas | Coberto por `ImportacaoNfeIT`; não executado pela tela |
 | CT-F15-16 | Venda no PIX | 1. Devoluções › Devolver › Reembolso Outro 2. Trocar para Dinheiro 3. Outro › Registrar | 1. Aparece "Saiu da conta" com o Banco 2. Some 3. Reembolso sai do Banco | OK pelo roteiro de tela (capturas `09` e `10`) |
+
+## Fase 15 — Financeiro, parte B (fluxo de caixa, DRE, painel, R23 e gerador)
+
+Executados pelo roteiro de tela descartável (2026-11-02, dados de demonstração no `varesync_test`) quando indicado; os
+demais estão "Não executado", falta a pessoa executar.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F15-17 | Dados de demonstração gerados | 1. Painel com o supervisor | 1. Seção Financeiro com o saldo das contas (e o de cada uma) e o resultado líquido do mês; alertas de conta a pagar vencida, de contas que vencem hoje e de conta negativa | OK pelo roteiro de tela (saldo e resultado conferidos com o banco; captura `01`) |
+| CT-F15-18 | CT-F15-17 | 1. Clicar no alerta de contas vencidas 2. Voltar e clicar no da conta negativa | 1. Financeiro › Contas a pagar só com as vencidas em aberto (a energia) 2. Aba Contas com a conta negativa selecionada | OK pelo roteiro de tela (capturas `02` e `05`) |
+| CT-F15-19 | CT-F15-17 | 1. Financeiro › Fluxo de caixa (visão por semana) 2. Selecionar a semana de hoje 3. Visão por mês, de dois meses atrás › Gerar | 1. Resumo com o saldo no início, hoje e projetado; gráfico de entradas, saídas e saldo 2. Detalhe com a linha "Em atraso" no previsto 3. Quatro meses, sem transferências nem saldo inicial no realizado | OK pelo roteiro de tela (capturas `03` e `04`) |
+| CT-F15-20 | Saldo inicial do Cofre, transferência para o Banco, ajustes e uma despesa vencida | 1. Fluxo do mês por dia | 1. Partida = saldos iniciais; transferência fora; ajustes numa linha com entradas e saídas; a despesa vencida em "Em atraso" hoje | Coberto por `FinanceiroParteBIT.fluxoDeCaixaRealizadoPrevistoEEmAtraso`; não executado pela tela |
+| CT-F15-21 | CT-F15-17 | 1. Relatórios › R25 do mês passado 2. R01 e R05 do mesmo mês | 1. 14 linhas, despesas por categoria, % sobre a receita líquida, coluna do mês anterior 2. Receita líquida e lucro bruto iguais às linhas 4 e 6 | OK pelo roteiro de tela (outubro: R$ 56.995,25 e R$ 16.449,34; capturas `06` a `08`) |
+| CT-F15-22 | Venda no crédito a 3%, caixa com diferença de −R$ 1,00, aluguel de março pago em abril, entrada com 2 parcelas | 1. R25 do mês da venda 2. R25 de março e de abril 3. R24 de abril | 1. −R$ 3,00 em taxas e −R$ 1,00 em diferenças de caixa 2. Aluguel em março; nenhuma compra de mercadoria como despesa 3. Saída do aluguel | Coberto por `FinanceiroParteBIT`; não executado pela tela |
+| CT-F15-23 | CT-F15-17 | 1. R24 por semana 2. R23 com situação Vencidos 3. Exportar CSV e PDF | 1. Saldo no início e saldo depois de cada linha 2. Só contas vencidas, com dias de atraso 3. Arquivos abrem | 1 e 2 OK pelo roteiro de tela (capturas `09` e `10`); 3 não executado |
+| CT-F15-24 | Usuário com Relatórios, sem Financeiro | 1. Entrar 2. Relatórios | 1. Sem o menu Financeiro e sem a seção do painel 2. Sem R23, R24 e R25 | OK pelo roteiro de tela (captura `11`) |

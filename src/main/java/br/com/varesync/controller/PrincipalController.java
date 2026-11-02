@@ -15,6 +15,7 @@ import br.com.varesync.util.Formatos;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
 import java.util.Map;
@@ -288,6 +289,18 @@ public class PrincipalController {
             public void abrirTitulosVencidos() {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.RELATORIOS);
                 loader.<RelatoriosController>getController().mostrarTitulosVencidos();
+            }
+
+            @Override
+            public void abrirContasAPagar(LocalDate de, LocalDate ate) {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.FINANCEIRO);
+                loader.<FinanceiroController>getController().mostrarContasAPagar(de, ate);
+            }
+
+            @Override
+            public void abrirContasFinanceiras() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.FINANCEIRO);
+                loader.<FinanceiroController>getController().mostrarContas();
             }
         };
     }

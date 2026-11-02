@@ -2,7 +2,9 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.DiaPainel;
+import br.com.varesync.model.FinanceiroPainel;
 import br.com.varesync.model.IndicadoresDia;
 import br.com.varesync.model.Painel;
 import br.com.varesync.model.Permissao;
@@ -50,6 +52,7 @@ public class PainelController {
     private static final DateTimeFormatter DIA_SEMANA = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Formatos.PT_BR);
     private static final DateTimeFormatter DIA_CURTO = DateTimeFormatter.ofPattern("EEE dd/MM", Formatos.PT_BR);
     private static final DateTimeFormatter DIA_GRAFICO = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DIA_MES = DateTimeFormatter.ofPattern("dd/MM");
     private static final String NEGATIVO = "negativo";
     private static final String POSITIVO = "positivo";
 
@@ -73,6 +76,8 @@ public class PainelController {
     @FXML private TableColumn<ProdutoPainel, String> colunaTopProduto;
     @FXML private TableColumn<ProdutoPainel, String> colunaTopLucro;
     @FXML private TableColumn<ProdutoPainel, String> colunaTopMargem;
+    @FXML private VBox secaoFinanceiro;
+    @FXML private HBox cartoesFinanceiro;
     @FXML private VBox alertas;
     @FXML private FlowPane atalhos;
 
@@ -94,6 +99,9 @@ public class PainelController {
         boolean comIndicadores = sessao.pode(Permissao.RELATORIOS);
         secaoIndicadores.setVisible(comIndicadores);
         secaoIndicadores.setManaged(comIndicadores);
+        boolean comFinanceiro = sessao.pode(Permissao.FINANCEIRO);
+        secaoFinanceiro.setVisible(comFinanceiro);
+        secaoFinanceiro.setManaged(comFinanceiro);
         raiz.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.F5) {
                 e.consume();
@@ -164,7 +172,46 @@ public class PainelController {
         } else {
             subtitulo.setText("Hoje, " + DIA_SEMANA.format(hoje) + ". Use os atalhos ou o menu ao lado.");
         }
+        secaoFinanceiro.setVisible(carregado.financeiro() != null);
+        secaoFinanceiro.setManaged(carregado.financeiro() != null);
+        if (carregado.financeiro() != null) {
+            mostrarFinanceiro(carregado.financeiro(), hoje);
+        }
         mostrarAlertas(carregado.alertas());
+    }
+
+    /** Cartões do Financeiro (F15.6): saldo das contas, com o de cada uma, e o resultado líquido do mês até hoje. */
+    private void mostrarFinanceiro(FinanceiroPainel f, LocalDate hoje) {
+        Label saldo = valorFinanceiro(f.saldoTotal());
+        String porConta = f.contas().stream().map(c -> c.nome() + ": " + Formatos.moeda(c.saldo()))
+                .reduce((a, b) -> a + " · " + b).orElse("Nenhuma conta ativa");
+        Label resultado = valorFinanceiro(f.resultadoMes());
+        cartoesFinanceiro.getChildren().setAll(
+                cartaoFinanceiro("Saldo das contas", saldo, porConta),
+                cartaoFinanceiro("Resultado líquido do mês", resultado, "DRE de " + DIA_MES.format(f.inicioMes())
+                        + " a " + DIA_MES.format(hoje) + " (despesas pela competência)"));
+    }
+
+    private static Label valorFinanceiro(BigDecimal valor) {
+        Label numero = new Label(Formatos.moeda(valor));
+        numero.getStyleClass().add("cartao-valor");
+        if (valor.signum() < 0) {
+            numero.getStyleClass().add(NEGATIVO);
+        }
+        return numero;
+    }
+
+    private static VBox cartaoFinanceiro(String rotulo, Label valor, String detalhe) {
+        Label titulo = new Label(rotulo);
+        titulo.getStyleClass().add("cartao-rotulo");
+        Label base = new Label(detalhe);
+        base.getStyleClass().add("cartao-base");
+        base.setWrapText(true);
+        VBox cartao = new VBox(2, titulo, valor, base);
+        cartao.getStyleClass().add("cartao-painel");
+        HBox.setHgrow(cartao, Priority.ALWAYS);
+        cartao.setMaxWidth(Double.MAX_VALUE);
+        return cartao;
     }
 
     Painel painel() {
@@ -291,6 +338,22 @@ public class PainelController {
                 aviso.getStyleClass().add("alerta-painel");
                 alertas.getChildren().add(aviso);
             }
+        }
+        if (a.pagarVencidas() != null && a.pagarVencidas().quantidade() > 0) {
+            alerta(plural(a.pagarVencidas().quantidade(), "conta a pagar vencida", "contas a pagar vencidas") + " ("
+                    + Formatos.moeda(a.pagarVencidas().valor()) + ") — ver no Financeiro",
+                    () -> navegacao.abrirContasAPagar(null, painel.atualizadoEm()
+                            .atZoneSameInstant(ZoneId.systemDefault()).toLocalDate().minusDays(1)));
+        }
+        if (a.pagarHoje() != null && a.pagarHoje().quantidade() > 0) {
+            LocalDate hoje = painel.atualizadoEm().atZoneSameInstant(ZoneId.systemDefault()).toLocalDate();
+            alerta(plural(a.pagarHoje().quantidade(), "conta a pagar vence", "contas a pagar vencem") + " hoje ("
+                    + Formatos.moeda(a.pagarHoje().valor()) + ") — ver no Financeiro",
+                    () -> navegacao.abrirContasAPagar(hoje, hoje));
+        }
+        for (ContaFinanceira c : a.contasNegativas()) {
+            alerta("A conta " + c.nome() + " está com saldo negativo (" + Formatos.moeda(c.saldo())
+                    + ") — ver no Financeiro", () -> navegacao.abrirContasFinanceiras());
         }
         if (alertas.getChildren().isEmpty()) {
             Label nenhum = new Label("Nenhum alerta no momento.");

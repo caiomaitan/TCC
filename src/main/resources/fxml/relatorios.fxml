@@ -87,6 +87,18 @@
             <Label text="Forma:"/>
             <ComboBox fx:id="escolhaForma" prefWidth="200"/>
         </HBox>
+        <HBox fx:id="grupoCategoriaDespesa" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Categoria:"/>
+            <ComboBox fx:id="escolhaCategoriaDespesa" prefWidth="200"/>
+        </HBox>
+        <HBox fx:id="grupoAgrupamento" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Visão por:"/>
+            <ComboBox fx:id="escolhaAgrupamento" prefWidth="110"/>
+        </HBox>
+        <HBox fx:id="grupoMes" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Mês:"/>
+            <ComboBox fx:id="escolhaMes" prefWidth="160"/>
+        </HBox>
         <CheckBox fx:id="filtroAbaixoMinimo" text="Só abaixo do mínimo"/>
         <CheckBox fx:id="filtroInativos" text="Incluir inativos"/>
         <CheckBox fx:id="filtroDetalhar" text="Detalhar por venda"/>
