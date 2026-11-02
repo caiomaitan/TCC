@@ -3,7 +3,9 @@ package br.com.varesync.controller;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.InconsistenciaAbatimento;
+import br.com.varesync.model.InconsistenciaConta;
 import br.com.varesync.model.InconsistenciaCredito;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
@@ -14,6 +16,7 @@ import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.service.BackupService;
 import br.com.varesync.service.ClienteService;
+import br.com.varesync.service.ContaFinanceiraService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.CreditoService;
@@ -80,6 +83,7 @@ public class ConfiguracoesController {
     private final EstoqueService estoqueService;
     private final CreditoService creditoService;
     private final ClienteService clienteService;
+    private final ContaFinanceiraService contaService;
     private final GeradorDemo geradorDemo;
     private final Sessao sessao;
     /** O que está gravado (base do "Desfazer" e do que não é editado aqui, como o backup). */
@@ -150,6 +154,18 @@ public class ConfiguracoesController {
     @FXML private TextField campoMulta;
     @FXML private TextField campoCarencia;
     @FXML private TextField campoBloqueioAtraso;
+    @FXML private Tab abaFinanceiro;
+    @FXML private CheckBox campoIntegrarCaixa;
+    @FXML private HBox painelRecebimento;
+    @FXML private TextField campoTaxaForma;
+    @FXML private TextField campoDiasForma;
+    @FXML private ComboBox<ContaFinanceira> campoContaForma;
+    @FXML private Label resultadoConta;
+    @FXML private TableView<InconsistenciaConta> tabelaConta;
+    @FXML private TableColumn<InconsistenciaConta, String> colunaContaNome;
+    @FXML private TableColumn<InconsistenciaConta, String> colunaContaRegistrado;
+    @FXML private TableColumn<InconsistenciaConta, String> colunaContaMovimentos;
+    @FXML private TableColumn<InconsistenciaConta, String> colunaContaDiferenca;
     @FXML private Label resultadoAbatimento;
     @FXML private TableView<InconsistenciaAbatimento> tabelaAbatimento;
     @FXML private TableColumn<InconsistenciaAbatimento, String> colunaAbatimentoOrigem;
@@ -189,7 +205,9 @@ public class ConfiguracoesController {
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
                                    EstoqueService estoqueService, CreditoService creditoService,
-                                   ClienteService clienteService, GeradorDemo geradorDemo, Sessao sessao) {
+                                   ClienteService clienteService, ContaFinanceiraService contaService,
+                                   GeradorDemo geradorDemo, Sessao sessao) {
+        this.contaService = contaService;
         this.clienteService = clienteService;
         this.configuracaoService = configuracaoService;
         this.backupService = backupService;
@@ -238,8 +256,16 @@ public class ConfiguracoesController {
         colunaAbatimentoDiferenca.setCellValueFactory(c -> new ReadOnlyStringWrapper(
                 Formatos.moeda(c.getValue().diferenca())));
 
+        colunaContaNome.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().nome()));
+        colunaContaRegistrado.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().saldoRegistrado())));
+        colunaContaMovimentos.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().saldoPelosMovimentos())));
+        colunaContaDiferenca.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                Formatos.moeda(c.getValue().diferenca())));
+
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaBackup);
+                abaCrediario, abaFinanceiro, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -268,8 +294,10 @@ public class ConfiguracoesController {
         tabelaFormas.getSelectionModel().selectedItemProperty().addListener((o, a, f) -> {
             botaoSituacaoForma.setDisable(f == null);
             botaoSituacaoForma.setText(f == null || f.ativa() ? "Desativar" : "Ativar");
+            mostrarRecebimento(f);
         });
         botaoSituacaoForma.setDisable(true);
+        painelRecebimento.setDisable(true);
         // O crédito do cliente tem uma forma só, criada pela V7 (F12.4).
         campoTipoForma.getItems().setAll(Arrays.stream(TipoFormaPagamento.values())
                 .filter(t -> t != TipoFormaPagamento.CREDITO_CLIENTE && t != TipoFormaPagamento.CREDIARIO).toList());
@@ -334,6 +362,7 @@ public class ConfiguracoesController {
         campoMulta.setText(Formatos.numero(c.crediario().multaPct(), Dinheiro.ESCALA_PERCENTUAL));
         campoCarencia.setText(String.valueOf(c.crediario().carenciaDias()));
         campoBloqueioAtraso.setText(String.valueOf(c.crediario().bloqueioAtrasoDias()));
+        campoIntegrarCaixa.setSelected(c.integrarCaixa());
         atualizarBalanca();
     }
 
@@ -361,7 +390,8 @@ public class ConfiguracoesController {
                 new Configuracoes.Crediario(inteiro(campoMaxParcelas, "Máximo de parcelas"),
                         inteiro(campoDiasPrimeira, "Dias até a 1ª parcela"), numero(campoJuros, "Juros ao mês"),
                         numero(campoMulta, "Multa por atraso"), inteiro(campoCarencia, "Carência"),
-                        inteiro(campoBloqueioAtraso, "Atraso que pede liberação")));
+                        inteiro(campoBloqueioAtraso, "Atraso que pede liberação")),
+                campoIntegrarCaixa.isSelected());
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -676,6 +706,41 @@ public class ConfiguracoesController {
         }
     }
 
+    /** Mostra como a forma selecionada recebe (F15.2); dinheiro, crédito e crediário não têm recebimento. */
+    private void mostrarRecebimento(FormaPagamentoCadastro f) {
+        painelRecebimento.setDisable(f == null || !f.aceitaContaDestino());
+        campoTaxaForma.setText(f == null ? "" : Formatos.numero(f.taxaPct(), Dinheiro.ESCALA_PERCENTUAL));
+        campoDiasForma.setText(f == null ? "" : String.valueOf(f.diasRecebimento()));
+        campoContaForma.getItems().setAll(configuracaoService.contasAtivas(sessao));
+        campoContaForma.setValue(f == null || f.contaDestinoId() == null ? null : campoContaForma.getItems().stream()
+                .filter(c -> c.id() == f.contaDestinoId()).findFirst().orElse(null));
+    }
+
+    @FXML
+    private void limparContaForma() {
+        campoContaForma.setValue(null);
+    }
+
+    @FXML
+    void salvarRecebimentoForma() {
+        FormaPagamentoCadastro forma = tabelaFormas.getSelectionModel().getSelectedItem();
+        if (forma == null) {
+            return;
+        }
+        try {
+            configuracaoService.alterarRecebimentoForma(sessao, forma.id(), numero(campoTaxaForma, "Taxa"),
+                    inteiro(campoDiasForma, "Dias para receber"),
+                    campoContaForma.getValue() == null ? null : campoContaForma.getValue().id());
+            carregarFormas(forma.id());
+            Mensagem.sucesso(mensagemFormas, "Recebimento de \"" + forma.descricao() + "\" salvo. Vale para os próximos "
+                    + "pagamentos.");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagemFormas, e.getMessage());
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mostrar(e);
+        }
+    }
+
     // ----- Diagnóstico e dados de demonstração -----
 
     private static void coluna(TableColumn<InconsistenciaEstoque, String> coluna,
@@ -690,7 +755,7 @@ public class ConfiguracoesController {
 
     /** Estoque (6.4) e crédito dos clientes (F12.3): as duas views de inconsistência precisam vir vazias. */
     private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito,
-                               List<InconsistenciaAbatimento> abatimento) {
+                               List<InconsistenciaAbatimento> abatimento, List<InconsistenciaConta> conta) {
     }
 
     @FXML
@@ -699,7 +764,7 @@ public class ConfiguracoesController {
             @Override
             protected Diagnostico call() {
                 return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao),
-                        clienteService.diagnosticoAbatimentos(sessao));
+                        clienteService.diagnosticoAbatimentos(sessao), contaService.diagnostico(sessao));
             }
         };
         botaoVerificar.setDisable(true);
@@ -707,8 +772,17 @@ public class ConfiguracoesController {
         Mensagem.informar(resultado, "Verificando…");
         Mensagem.limpar(resultadoCredito);
         Mensagem.limpar(resultadoAbatimento);
+        Mensagem.limpar(resultadoConta);
         tarefa.setOnSucceeded(e -> {
             concluir();
+            List<InconsistenciaConta> conta = tarefa.getValue().conta();
+            tabelaConta.getItems().setAll(conta);
+            if (conta.isEmpty()) {
+                Mensagem.sucesso(resultadoConta, "Tudo certo: o saldo de todas as contas confere com o extrato.");
+            } else {
+                Mensagem.erro(resultadoConta, conta.size() + " conta(s) com o saldo diferente da soma do extrato. Isso "
+                        + "indica alteração feita fora do sistema; anote as contas e procure o suporte.");
+            }
             List<InconsistenciaEstoque> linhas = tarefa.getValue().estoque();
             tabelaInconsistencias.getItems().setAll(linhas);
             if (linhas.isEmpty()) {

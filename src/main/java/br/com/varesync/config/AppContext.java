@@ -8,6 +8,7 @@ import br.com.varesync.controller.UnidadesController;
 import br.com.varesync.controller.ComprasController;
 import br.com.varesync.controller.ConfiguracoesController;
 import br.com.varesync.controller.EstoqueController;
+import br.com.varesync.controller.FinanceiroController;
 import br.com.varesync.controller.FornecedoresController;
 import br.com.varesync.controller.ImportacaoProdutosController;
 import br.com.varesync.controller.InventarioController;
@@ -158,7 +159,10 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    s.credito(), s.clientes(), geradorDemo, sessao);
+                    s.credito(), s.clientes(), s.contas(), geradorDemo, sessao);
+        }
+        if (tipo == FinanceiroController.class) {
+            return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), sessao);
         }
         if (tipo == PromocoesController.class) {
             return new PromocoesController(s.promocoes(), s.produtos(), sessao);

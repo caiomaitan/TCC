@@ -50,6 +50,7 @@
                 <Label fx:id="situacao" styleClass="subtitulo"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota"/>
+                <Button fx:id="botaoParcelas" text="Parcelas…" onAction="#editarParcelas"/>
                 <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir"/>
                 <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar"
                         styleClass="botao-primario"/>

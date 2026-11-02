@@ -41,6 +41,16 @@ class LeitorNfeTest {
         assertThat(queijo.unidade()).isEqualTo("KG");
     }
 
+    /** F15.3: as duplicatas de cobr/dup viram parcelas; a sem vencimento fica de fora. */
+    @Test
+    void duplicatasDaCobrancaComVencimento() {
+        LeitorNfe.Nota nota = LeitorNfe.ler(recurso("nfe-distribuidora.xml"));
+        assertThat(nota.duplicatas()).containsExactly(
+                new LeitorNfe.Duplicata("001", LocalDate.of(2026, 11, 4), new java.math.BigDecimal("200.00")),
+                new LeitorNfe.Duplicata("002", LocalDate.of(2026, 12, 4), new java.math.BigDecimal("167.00")));
+        assertThat(LeitorNfe.ler(recurso("nfe-antiga-sem-proc.xml")).duplicatas()).isEmpty();
+    }
+
     @Test
     void unidadeTributavelDiferenteComEanTributavelUsaQTrib() {
         LeitorNfe.Item caixa = LeitorNfe.ler(recurso("nfe-distribuidora.xml")).itens().get(2);

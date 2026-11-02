@@ -1,10 +1,12 @@
 package br.com.varesync.service;
 
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.FormaPagamentoCadastro;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.PoliticaSenha;
@@ -37,15 +39,20 @@ public class ConfiguracaoService {
     static final int TAMANHO_RODAPE = 200;
     static final int TAMANHO_FORMA = 40;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
+    private static final BigDecimal TAXA_MAXIMA = BigDecimal.valueOf(20);
+    private static final int DIAS_RECEBIMENTO_MAXIMO = 60;
 
     private final Transacao transacao;
     private final ConfiguracaoDAO configuracaoDAO;
     private final FormaPagamentoDAO formaPagamentoDAO;
     private final ProdutoDAO produtoDAO;
+    private final ContaFinanceiraDAO contaDAO;
     private final AuditoriaService auditoria;
 
     public ConfiguracaoService(Transacao transacao, ConfiguracaoDAO configuracaoDAO,
-                               FormaPagamentoDAO formaPagamentoDAO, ProdutoDAO produtoDAO, AuditoriaService auditoria) {
+                               FormaPagamentoDAO formaPagamentoDAO, ProdutoDAO produtoDAO, ContaFinanceiraDAO contaDAO,
+                               AuditoriaService auditoria) {
+        this.contaDAO = contaDAO;
         this.transacao = transacao;
         this.configuracaoDAO = configuracaoDAO;
         this.formaPagamentoDAO = formaPagamentoDAO;
@@ -151,6 +158,51 @@ public class ConfiguracaoService {
         });
     }
 
+    /** Contas ativas, para a conta de destino da forma. */
+    public List<ContaFinanceira> contasAtivas(Sessao sessao) {
+        sessao.exigirSupervisor();
+        return transacao.executar(con -> contaDAO.listar(con).stream().filter(ContaFinanceira::ativa).toList());
+    }
+
+    /**
+     * Como a forma recebe (F15.2): taxa de 0 a 20%, de 0 a 60 dias corridos e a conta de destino. Sem conta, o pagamento
+     * não gera recebível. Vale para os próximos pagamentos; os recebíveis já gerados não mudam.
+     */
+    public void alterarRecebimentoForma(Sessao sessao, int id, BigDecimal taxaPct, int dias, Long contaId) {
+        sessao.exigirSupervisor();
+        if (taxaPct == null || taxaPct.signum() < 0 || taxaPct.compareTo(TAXA_MAXIMA) > 0) {
+            throw new NegocioException("A taxa deve estar entre 0 e 20%.");
+        }
+        if (ValidacaoProduto.casas(taxaPct) > Dinheiro.ESCALA_PERCENTUAL) {
+            throw new NegocioException("A taxa pode ter no máximo " + Dinheiro.ESCALA_PERCENTUAL + " casas decimais.");
+        }
+        if (dias < 0 || dias > DIAS_RECEBIMENTO_MAXIMO) {
+            throw new NegocioException("Os dias para receber devem estar entre 0 e " + DIAS_RECEBIMENTO_MAXIMO + ".");
+        }
+        transacao.executar(con -> {
+            FormaPagamentoCadastro forma = formaPagamentoDAO.buscar(con, id)
+                    .orElseThrow(() -> new NegocioException("Forma de pagamento não encontrada."));
+            if (contaId != null && !forma.aceitaContaDestino()) {
+                throw new NegocioException("\"" + forma.descricao() + "\" não tem conta de destino: o dinheiro vai para "
+                        + "a gaveta, e o crédito do cliente e o crediário não movimentam dinheiro na venda.");
+            }
+            String conta = "sem conta";
+            if (contaId != null) {
+                ContaFinanceira destino = contaDAO.buscar(con, contaId)
+                        .orElseThrow(() -> new NegocioException("Conta não encontrada."));
+                if (!destino.ativa()) {
+                    throw new NegocioException("A conta \"" + destino.nome() + "\" está inativa.");
+                }
+                conta = "conta \"" + destino.nome() + "\"";
+            }
+            formaPagamentoDAO.alterarRecebimento(con, id, taxaPct, dias, contaId);
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONFIGURACAO_ALTERADA, ENTIDADE_FORMA_PAGAMENTO, (long) id,
+                    "Forma de pagamento \"" + forma.descricao() + "\": taxa " + Formatos.percentual(taxaPct) + ", "
+                            + dias + " dia(s) para receber, " + conta);
+            return null;
+        });
+    }
+
     private static boolean exigeCliente(TipoFormaPagamento tipo) {
         return tipo == TipoFormaPagamento.CREDITO_CLIENTE || tipo == TipoFormaPagamento.CREDIARIO;
     }
@@ -209,7 +261,7 @@ public class ConfiguracaoService {
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                crediario);
+                crediario, c.integrarCaixa());
     }
 
     /** Crediário (F14, seção 0.4): de 1 a 60 parcelas; dias de 0 a 10 anos; juros e multa de 0 a 100%. */
@@ -371,6 +423,8 @@ public class ConfiguracaoService {
                 n.crediario().carenciaDias() + " dias");
         comparar(m, "atraso que pede liberação", a.crediario().bloqueioAtrasoDias() + " dias",
                 n.crediario().bloqueioAtrasoDias() + " dias");
+        comparar(m, "integração do caixa com as contas", a.integrarCaixa() ? "ligada" : "desligada",
+                n.integrarCaixa() ? "ligada" : "desligada");
         return m;
     }
 

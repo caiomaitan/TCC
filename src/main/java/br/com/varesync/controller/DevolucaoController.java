@@ -2,7 +2,9 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.DadosDevolucao;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.FormaReembolso;
+import br.com.varesync.model.TipoConta;
 import br.com.varesync.model.ItemDevolucao;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.VendaDevolucao;
@@ -72,6 +74,8 @@ public class DevolucaoController {
     @FXML private GridPane gradeItens;
     @FXML private ComboBox<String> campoMotivo;
     @FXML private ComboBox<FormaReembolso> campoForma;
+    @FXML private Label rotuloConta;
+    @FXML private ComboBox<ContaFinanceira> campoConta;
     @FXML private Label cliente;
     @FXML private Button botaoCliente;
     @FXML private TextField campoObservacao;
@@ -107,7 +111,15 @@ public class DevolucaoController {
     @FXML
     private void initialize() {
         campoMotivo.getItems().setAll(MOTIVOS);
-        campoForma.valueProperty().addListener((o, antes, depois) -> atualizarCliente());
+        campoForma.valueProperty().addListener((o, antes, depois) -> {
+            atualizarCliente();
+            atualizarConta();
+        });
+        // Reembolso fora do sistema costuma sair do banco: a primeira conta desse tipo já vem escolhida.
+        List<ContaFinanceira> contas = devolucaoService.contasParaReembolso(sessao);
+        campoConta.getItems().setAll(contas);
+        contas.stream().filter(c -> c.tipo() == TipoConta.BANCO).findFirst().ifPresent(campoConta::setValue);
+        atualizarConta();
         raiz.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.F10) {
                 e.consume();
@@ -222,6 +234,16 @@ public class DevolucaoController {
         }
         // Abatida por inteiro, a devolução fica com a forma ABATIMENTO: não há o que escolher.
         campoForma.setDisable(abatido.signum() > 0 && abatido.compareTo(soma) == 0);
+        atualizarConta();
+    }
+
+    /** A conta só aparece no reembolso OUTRO com algo a reembolsar (F15.1): a parte abatida não movimenta conta. */
+    private void atualizarConta() {
+        boolean mostrar = campoForma.getValue() == FormaReembolso.OUTRO && !campoForma.isDisabled();
+        rotuloConta.setVisible(mostrar);
+        rotuloConta.setManaged(mostrar);
+        campoConta.setVisible(mostrar);
+        campoConta.setManaged(mostrar);
     }
 
     private BigDecimal abatido(BigDecimal valor) {
@@ -347,8 +369,9 @@ public class DevolucaoController {
         Long clienteId = venda.clienteId() == null && clienteValeTroca != null
                 && campoForma.getValue() == FormaReembolso.CREDITO_CLIENTE ? clienteValeTroca.id() : null;
         String motivo = campoMotivo.getEditor().getText();
+        Long contaId = campoConta.isVisible() && campoConta.getValue() != null ? campoConta.getValue().id() : null;
         return new DadosDevolucao(venda.id(), itens, motivo, campoForma.getValue(), clienteId,
-                campoObservacao.getText());
+                campoObservacao.getText(), contaId);
     }
 
     @FXML

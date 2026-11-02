@@ -433,7 +433,7 @@ class RecebimentoIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofMinutes(1));
         var devolucao = t.devolucoes.registrar(admin, new DadosDevolucao(venda,
                 List.of(new DadosDevolucao.Item(item, BigDecimal.ONE, false)), "Defeito", FormaReembolso.OUTRO, null,
-                null), null);
+                null, t.contaDoReembolso(FormaReembolso.OUTRO)), null);
 
         assertThat(devolucao.comprovante().valorAbatido()).isEqualByComparingTo("40.00");
         assertThat(status(venda, 1)).isEqualTo("QUITADO");

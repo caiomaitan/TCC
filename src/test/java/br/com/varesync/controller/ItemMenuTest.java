@@ -16,6 +16,15 @@ class ItemMenuTest {
                 "CAIXA-01");
     }
 
+    /** F15: o menu Financeiro aparece só com a permissão FINANCEIRO. */
+    @Test
+    void financeiroAbreASuaTelaComAPermissaoFinanceiro() {
+        Sessao financeiro = sessao(false, EnumSet.of(Permissao.FINANCEIRO));
+        assertThat(ItemMenu.visiveis(financeiro)).containsExactly(ItemMenu.PAINEL, ItemMenu.FINANCEIRO);
+        assertThat(ItemMenu.FINANCEIRO.fxml()).isEqualTo("/fxml/financeiro.fxml");
+        assertThat(ItemMenu.FINANCEIRO.janelaPropria()).isFalse();
+    }
+
     @Test
     void supervisorVeTodoOMenu() {
         assertThat(ItemMenu.visiveis(sessao(true, Set.of()))).containsExactly(ItemMenu.values());

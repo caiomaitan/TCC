@@ -88,7 +88,7 @@ class ResultadoComercialIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofMinutes(1));
         ItemDevolucao i = t.devolucoes.venda(admin, vendaId).itens().get(item);
         return t.devolucoes.registrar(admin, new DadosDevolucao(vendaId, List.of(new DadosDevolucao.Item(
-                i.vendaItemId(), new BigDecimal(quantidade), false)), "Cliente desistiu", forma, null, null), null).id();
+                i.vendaItemId(), new BigDecimal(quantidade), false)), "Cliente desistiu", forma, null, null, t.contaDoReembolso(forma)), null).id();
     }
 
     private LocalDate hoje() {

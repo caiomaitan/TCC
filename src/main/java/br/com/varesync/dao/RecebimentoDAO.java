@@ -83,14 +83,21 @@ public class RecebimentoDAO {
         }
     }
 
-    public void inserirPagamento(Connection con, long recebimentoId, int formaId, BigDecimal valor)
+    public long inserirPagamento(Connection con, long recebimentoId, int formaId, BigDecimal valor)
             throws SQLException {
-        String sql = "INSERT INTO recebimento_pagamento (recebimento_id, forma_pagamento_id, valor) VALUES (?, ?, ?)";
+        String sql = """
+                INSERT INTO recebimento_pagamento (recebimento_id, forma_pagamento_id, valor)
+                VALUES (?, ?, ?)
+                RETURNING id
+                """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setLong(1, recebimentoId);
             ps.setInt(2, formaId);
             ps.setBigDecimal(3, valor);
-            ps.executeUpdate();
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
         }
     }
 

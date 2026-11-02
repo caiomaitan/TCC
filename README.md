@@ -160,6 +160,26 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    - na devolução, o valor abate primeiro as parcelas em aberto da venda, da última para a primeira; o restante vai na
      forma escolhida (a devolução abatida por inteiro não mexe no caixa);
    - cliente com títulos em aberto não pode ser anonimizado.
+10. **Financeiro** (menu **Financeiro**, permissão Financeiro):
+   - **contas:** a instalação cria o **Cofre** (padrão do caixa) e o **Banco**. Lance o saldo inicial de cada conta
+     (uma vez; depois, só ajuste com motivo) e faça transferências entre elas. O saldo pode ficar negativo (aparece em
+     vermelho) e nunca bloqueia o caixa; o extrato mostra cada lançamento com o saldo depois dele;
+   - **integração com o caixa:** em **Configurações › Financeiro** (vem desligada; ligue depois de lançar os saldos
+     iniciais). Ligada, a abertura retira o fundo de troco de uma conta, a sangria entra numa conta, o suprimento sai de
+     uma conta e o fechamento leva o dinheiro contado para uma conta; os diálogos já trazem a conta padrão. O caixa
+     segue como foi aberto até o fechamento;
+   - **recebíveis:** em **Configurações › Formas de pagamento**, escolha para cada forma a taxa (%), os dias para receber
+     e a conta de destino (a instalação aponta PIX, cartões e vale para o Banco, com taxa 0 e 0 dias). Cada pagamento
+     numa forma com conta, na venda ou no recebimento do crediário, vira um recebível; com 0 dias, já entra na conta.
+     Na aba **Recebíveis**, selecione os previstos, corrija o líquido se o banco pagou diferente e **Concilie** (o total
+     do extrato, se informado, precisa bater). Cancelar a venda ou estornar o recebimento cancela os previstos e
+     estorna da conta os já recebidos;
+   - **contas a pagar:** despesa avulsa com categoria, competência (o mês da despesa) e vencimento, com repetição
+     mensal de até 12 meses; pagamento parcial, com juros e desconto, de uma conta; estorno com motivo (reabre a conta) e
+     cancelamento sem pagamento. Em **Compras**, o botão **Parcelas…** registra as duplicatas da nota (o XML da NF-e já
+     as traz); ao confirmar a entrada, cada parcela vira uma conta a pagar em "Compra de mercadorias";
+   - na **devolução** com reembolso **Outro**, informe a conta de onde saiu o dinheiro; só a parte que não abateu
+     parcelas do crediário sai da conta.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.

@@ -25,6 +25,7 @@ import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.TipoAjuste;
 import br.com.varesync.model.TipoCaixaMovimento;
+import br.com.varesync.model.TipoConta;
 import br.com.varesync.model.TipoDesconto;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TituloEmAberto;
@@ -1022,8 +1023,10 @@ public class GeradorDemo {
                 forma = FormaReembolso.OUTRO;
             }
         }
-        devolucoes.registrar(gerente, new DadosDevolucao(plano.vendaId(), itens, plano.motivo(), forma, null, null),
-                null);
+        Long conta = forma == FormaReembolso.OUTRO ? devolucoes.contasParaReembolso(gerente).stream()
+                .filter(c -> c.tipo() == TipoConta.BANCO).findFirst().orElseThrow().id() : null;
+        devolucoes.registrar(gerente, new DadosDevolucao(plano.vendaId(), itens, plano.motivo(), forma, null, null,
+                conta), null);
     }
 
     /** Sangria (6.5) deixando o fundo de troco na gaveta, em múltiplos de R$ 50,00. */

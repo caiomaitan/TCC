@@ -75,6 +75,10 @@ class ImportacaoNfeIT extends IntegracaoBase {
         assertThat(entrada.numeroDocumento()).isEqualTo("1234");
         assertThat(entrada.dataEmissao()).isEqualTo(LocalDate.of(2026, 10, 5));
         assertThat(entrada.valorTotalNota()).isEqualByComparingTo("367.00");
+        // F15.3: as duplicatas do XML vêm como parcelas (a sem vencimento fica de fora).
+        assertThat(t.compras.parcelas(admin, entradaId)).containsExactly(
+                new br.com.varesync.model.ParcelaEntrada(1, LocalDate.of(2026, 11, 4), new java.math.BigDecimal("200.00")),
+                new br.com.varesync.model.ParcelaEntrada(2, LocalDate.of(2026, 12, 4), new java.math.BigDecimal("167.00")));
 
         Fornecedor fornecedor = t.fornecedores.buscar(admin, entrada.fornecedorId());
         assertThat(fornecedor.razaoSocial()).isEqualTo("Distribuidora Ribeirão Alimentos Ltda");

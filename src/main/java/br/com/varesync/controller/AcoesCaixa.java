@@ -42,8 +42,8 @@ public class AcoesCaixa {
 
     /** @return o caixa aberto, ou vazio se cancelado */
     public Optional<CaixaSessao> abrir() {
-        return DialogosCaixa.abrir(sessao.terminal(),
-                texto -> caixaService.abrir(sessao, CampoNumero.ler(texto, "Fundo de troco")));
+        return DialogosCaixa.abrir(sessao.terminal(), caixaService.contasParaAbrir(sessao),
+                (texto, conta) -> caixaService.abrir(sessao, CampoNumero.ler(texto, "Fundo de troco"), conta));
     }
 
     /**
@@ -62,9 +62,9 @@ public class AcoesCaixa {
             liberacao = concedida.get();
         }
         Liberacao liberada = liberacao;
-        return DialogosCaixa.movimentar((tipo, valor, motivo) -> {
+        return DialogosCaixa.movimentar(caixaService.contasDoCaixaAberto(sessao), (tipo, valor, motivo, conta) -> {
             BigDecimal lido = CampoNumero.ler(valor, "Valor");
-            caixaService.registrarMovimento(sessao, tipo, lido, motivo, liberada);
+            caixaService.registrarMovimento(sessao, tipo, lido, motivo, liberada, conta);
             return tipo.descricao() + " de " + Formatos.moeda(Dinheiro.dinheiro(lido)) + " registrad"
                     + (tipo == TipoCaixaMovimento.SUPRIMENTO ? "o" : "a") + ".";
         });
@@ -76,7 +76,7 @@ public class AcoesCaixa {
      * @return o relatório R11, ou vazio se cancelado
      */
     public Optional<RelatorioFechamento> fechar() {
-        return DialogosCaixa.fechar(sessao.terminal(), texto -> {
+        return DialogosCaixa.fechar(sessao.terminal(), caixaService.contasDoCaixaAberto(sessao), (texto, conta) -> {
             BigDecimal contado = CampoNumero.ler(texto, "Dinheiro contado");
             if (contado == null) {
                 throw new NegocioException("Informe o dinheiro contado.");
@@ -85,7 +85,7 @@ public class AcoesCaixa {
                     + " contados? Depois de fechado não é possível alterar.")) {
                 return null;
             }
-            return caixaService.fechar(sessao, contado);
+            return caixaService.fechar(sessao, contado, conta);
         });
     }
 

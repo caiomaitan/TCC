@@ -2,6 +2,7 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.ItemEntrada;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
@@ -87,6 +88,7 @@ public class ComprasController {
     @FXML private Label tituloEntrada;
     @FXML private Label situacao;
     @FXML private Button botaoEditarNota;
+    @FXML private Button botaoParcelas;
     @FXML private Button botaoExcluir;
     @FXML private Button botaoConfirmar;
     @FXML private HBox painelItem;
@@ -277,6 +279,24 @@ public class ComprasController {
         });
     }
 
+    /** Parcelas da nota (F15.3): ao confirmar a entrada, cada uma vira um título a pagar. */
+    @FXML
+    private void editarParcelas() {
+        if (entrada == null || !entrada.aberta()) {
+            return;
+        }
+        EntradaResumo atual = entrada;
+        if (DialogosCompras.parcelas(atual.titulo(), entradaService.parcelas(sessao, atual.id()),
+                parcelas -> entradaService.salvarParcelas(sessao, atual.id(), parcelas))) {
+            Optional<String> aviso = EntradaService.avisoParcelas(atual, entradaService.parcelas(sessao, atual.id()));
+            if (aviso.isPresent()) {
+                Mensagem.erro(mensagem, aviso.get());
+            } else {
+                Mensagem.sucesso(mensagem, "Parcelas salvas.");
+            }
+        }
+    }
+
     @FXML
     private void excluir() {
         if (entrada == null || !entrada.aberta()) {
@@ -306,7 +326,7 @@ public class ComprasController {
         boolean aberta = selecionada != null && selecionada.aberta();
         painelItem.setDisable(!aberta);
         // Confirmada (ou sem seleção), os botões somem: desabilitados, cortavam o título da entrada.
-        for (Button botao : List.of(botaoEditarNota, botaoExcluir, botaoConfirmar)) {
+        for (Button botao : List.of(botaoEditarNota, botaoParcelas, botaoExcluir, botaoConfirmar)) {
             botao.setVisible(aberta);
             botao.setManaged(aberta);
         }
@@ -505,6 +525,12 @@ public class ComprasController {
                 .append(")?\n\n").append(itens(e.totalItens())).append(", ").append(Formatos.moeda(e.somaItens()))
                 .append(".\n");
         e.avisoTotal().ifPresent(aviso -> texto.append("\nATENÇÃO: ").append(aviso).append('\n'));
+        List<ParcelaEntrada> parcelas = entradaService.parcelas(sessao, e.id());
+        EntradaService.avisoParcelas(e, parcelas).ifPresent(aviso -> texto.append("\nATENÇÃO: ").append(aviso)
+                .append('\n'));
+        if (!parcelas.isEmpty()) {
+            texto.append('\n').append(parcelas.size()).append(" parcela(s) vão virar contas a pagar.\n");
+        }
         texto.append("\nO estoque e o custo médio dos produtos serão atualizados. Depois de confirmada, a entrada não "
                 + "pode mais ser alterada (correções só por ajuste de estoque).");
         if (!Dialogos.confirmar(texto.toString())) {

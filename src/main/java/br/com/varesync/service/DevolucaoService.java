@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO.Origem;
 import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.TituloReceberDAO;
@@ -12,6 +13,7 @@ import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.ComprovanteDevolucao;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.DadosDevolucao;
 import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.ItemDevolucao;
@@ -20,6 +22,7 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.StatusTitulo;
 import br.com.varesync.model.StatusVenda;
+import br.com.varesync.model.TipoContaMovimento;
 import br.com.varesync.model.TipoCreditoCliente;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.model.TituloReceber;
@@ -76,6 +79,7 @@ public class DevolucaoService {
     private final EstoqueService estoqueService;
     private final CaixaService caixaService;
     private final CreditoService creditoService;
+    private final ContaFinanceiraService contaService;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
@@ -87,7 +91,8 @@ public class DevolucaoService {
     public DevolucaoService(Transacao transacao, DevolucaoDAO dao, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
                             TituloReceberDAO tituloDAO, UsuarioDAO usuarioDAO, ConfiguracaoDAO configuracaoDAO,
                             EstoqueService estoqueService, CaixaService caixaService, CreditoService creditoService,
-                            AuditoriaService auditoria, Clock clock) {
+                            ContaFinanceiraService contaService, AuditoriaService auditoria, Clock clock) {
+        this.contaService = contaService;
         this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.dao = dao;
@@ -299,6 +304,16 @@ public class DevolucaoService {
                 clienteId = clienteAtivo(con, dados.clienteId()).id();
             }
 
+            // Reembolso fora do sistema (F15.1): sai de uma conta, só com a parte que não abateu parcelas.
+            boolean saiDeConta = forma == FormaReembolso.OUTRO && restante.signum() > 0;
+            ContaFinanceira conta = null;
+            if (saiDeConta) {
+                if (dados.contaId() == null) {
+                    throw new NegocioException("Escolha a conta de onde saiu o reembolso.");
+                }
+                conta = contaService.contaAtiva(con, dados.contaId());
+            }
+
             // Reembolso em dinheiro: até o que deveria estar na gaveta (sem mostrar o valor: fechamento às cegas).
             if (caixa != null && restante.compareTo(caixaService.dinheiroEsperado(con, caixa.id())) > 0) {
                 throw new NegocioException("O valor da devolução (" + Formatos.moeda(restante) + ") é maior que o "
@@ -362,6 +377,11 @@ public class DevolucaoService {
                 }
             }
 
+            if (saiDeConta) {
+                contaService.movimentar(con, sessao, conta.id(), TipoContaMovimento.REEMBOLSO, restante.negate(), agora,
+                        "Devolução nº " + devolucaoId + " da venda nº " + vendaId, Origem.devolucao(devolucaoId));
+            }
+
             String liberou = liberadoPor == null ? "" : " (" + (liberouPermissao != null
                     ? liberouPermissao.descricao() : liberacao.descricao())
                     + (foraDoPrazo ? ", fora do prazo" : "") + ")";
@@ -370,11 +390,18 @@ public class DevolucaoService {
                             + " item(ns), " + Formatos.moeda(total)
                             + (abatido.signum() > 0 ? ", " + Formatos.moeda(abatido) + " abatidos das parcelas" : "")
                             + (tudoAbatido ? "" : " em " + forma.rotulo().toLowerCase())
-                            + (caixa == null ? "" : " (caixa nº " + caixa.id() + ")") + ". Motivo: " + motivo
+                            + (caixa == null ? "" : " (caixa nº " + caixa.id() + ")")
+                            + (conta == null ? "" : " (conta " + conta.nome() + ")") + ". Motivo: " + motivo
                             + liberou
                             + (credito.isEmpty() ? "" : ". Crédito do cliente: " + String.join(" e ", credito)));
             return new DevolucaoRegistrada(devolucaoId, total, estorno, montarComprovante(con, devolucaoId, config));
         });
+    }
+
+    /** Contas ativas para o reembolso OUTRO (F15.1). */
+    public List<ContaFinanceira> contasParaReembolso(Sessao sessao) {
+        sessao.exigirUma(Permissao.DEVOLUCAO, Permissao.PDV);
+        return transacao.executar(contaService::ativas);
     }
 
     /** Comprovante de uma devolução (reimpressão na tela Devoluções). */

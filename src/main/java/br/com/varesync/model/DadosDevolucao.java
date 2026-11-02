@@ -9,9 +9,15 @@ import java.util.List;
  *
  * @param clienteId  cliente do vale-troca quando a venda não tem cliente; nulo nos demais casos
  * @param observacao opcional
+ * @param contaId    conta de onde saiu o reembolso OUTRO (F15.1); nula nas demais formas
  */
 public record DadosDevolucao(long vendaId, List<Item> itens, String motivo, FormaReembolso forma, Long clienteId,
-                             String observacao) {
+                             String observacao, Long contaId) {
+
+    public DadosDevolucao(long vendaId, List<Item> itens, String motivo, FormaReembolso forma, Long clienteId,
+                          String observacao) {
+        this(vendaId, itens, motivo, forma, clienteId, observacao, null);
+    }
 
     /** @param avariado o item não volta ao estoque (entra e sai como perda) */
     public record Item(long vendaItemId, BigDecimal quantidade, boolean avariado) {

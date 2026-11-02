@@ -86,7 +86,16 @@ public final class MensagensBanco {
             Map.entry("ck_tr_valor", "O valor da parcela deve ser maior que zero"),
             Map.entry("ck_tr_baixas", "O pago e o abatido não podem passar do valor da parcela"),
             Map.entry("ck_tr_situacao", "A situação do título não confere com o que foi pago e abatido"),
-            Map.entry("ck_tr_cancelado", "O cancelamento do título exige o motivo"));
+            Map.entry("ck_tr_cancelado", "O cancelamento do título exige o motivo"),
+            // Financeiro
+            Map.entry("ux_conta_nome", "Já existe uma conta com este nome"),
+            Map.entry("ux_conta_padrao", "Só uma conta pode ser a padrão do caixa"),
+            Map.entry("ux_cd_nome", "Já existe uma categoria de despesa com este nome"),
+            Map.entry("ux_cm2_saldo_inicial", "Esta conta já tem saldo inicial. Para corrigir, lance um ajuste"),
+            Map.entry("ck_fp_taxa", "A taxa deve estar entre 0 e 20%"),
+            Map.entry("ck_fp_dias", "Os dias para receber devem estar entre 0 e 60"),
+            Map.entry("ck_fp_conta_destino", "Dinheiro, crédito do cliente e crediário não têm conta de destino"),
+            Map.entry("ck_tp_pago", "O pago não pode passar do valor da conta"));
 
     private MensagensBanco() {
     }

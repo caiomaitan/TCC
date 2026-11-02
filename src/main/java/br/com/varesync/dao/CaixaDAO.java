@@ -25,7 +25,7 @@ public class CaixaDAO {
     private static final String SELECT_SESSAO = """
             SELECT s.id, s.terminal, s.status, s.usuario_id, ua.nome AS aberto_por_nome, s.aberto_em,
                    s.valor_abertura, uf.nome AS fechado_por_nome, s.fechado_em, s.valor_esperado,
-                   s.valor_contado, s.diferenca
+                   s.valor_contado, s.diferenca, s.conta_origem_id, s.conta_destino_id
               FROM caixa_sessao s
               JOIN usuario ua ON ua.id = s.usuario_id
               LEFT JOIN usuario uf ON uf.id = s.fechado_por
@@ -33,10 +33,10 @@ public class CaixaDAO {
 
     /** @return id da sessão criada */
     public long abrir(Connection con, String terminal, long usuarioId, BigDecimal valorAbertura,
-                      OffsetDateTime abertoEm) throws SQLException {
+                      OffsetDateTime abertoEm, Long contaOrigemId) throws SQLException {
         String sql = """
-                INSERT INTO caixa_sessao (terminal, usuario_id, aberto_em, valor_abertura, status)
-                VALUES (?, ?, ?, ?, 'ABERTO')
+                INSERT INTO caixa_sessao (terminal, usuario_id, aberto_em, valor_abertura, status, conta_origem_id)
+                VALUES (?, ?, ?, ?, 'ABERTO', ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -44,6 +44,7 @@ public class CaixaDAO {
             ps.setLong(2, usuarioId);
             ps.setObject(3, abertoEm);
             ps.setBigDecimal(4, valorAbertura);
+            Jdbc.definirLong(ps, 5, contaOrigemId);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -113,10 +114,11 @@ public class CaixaDAO {
 
     /** @return id do movimento */
     public long inserirMovimento(Connection con, long caixaSessaoId, TipoCaixaMovimento tipo, BigDecimal valor,
-                                 String motivo, long usuarioId, OffsetDateTime criadoEm) throws SQLException {
+                                 String motivo, long usuarioId, OffsetDateTime criadoEm, Long contaId)
+            throws SQLException {
         String sql = """
-                INSERT INTO caixa_movimento (caixa_sessao_id, tipo, valor, motivo, usuario_id, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO caixa_movimento (caixa_sessao_id, tipo, valor, motivo, usuario_id, criado_em, conta_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -126,6 +128,7 @@ public class CaixaDAO {
             ps.setString(4, motivo);
             ps.setLong(5, usuarioId);
             ps.setObject(6, criadoEm);
+            Jdbc.definirLong(ps, 7, contaId);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -159,10 +162,12 @@ public class CaixaDAO {
 
     /** Grava o fechamento às cegas; só altera se a sessão ainda estiver aberta. @return false se não estava */
     public boolean fechar(Connection con, long caixaSessaoId, long fechadoPor, OffsetDateTime fechadoEm,
-                          BigDecimal valorEsperado, BigDecimal valorContado) throws SQLException {
+                          BigDecimal valorEsperado, BigDecimal valorContado, Long contaDestinoId)
+            throws SQLException {
         String sql = """
                 UPDATE caixa_sessao
-                   SET status = 'FECHADO', fechado_por = ?, fechado_em = ?, valor_esperado = ?, valor_contado = ?
+                   SET status = 'FECHADO', fechado_por = ?, fechado_em = ?, valor_esperado = ?, valor_contado = ?,
+                       conta_destino_id = ?
                  WHERE id = ? AND status = 'ABERTO'
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -170,7 +175,8 @@ public class CaixaDAO {
             ps.setObject(2, fechadoEm);
             ps.setBigDecimal(3, valorEsperado);
             ps.setBigDecimal(4, valorContado);
-            ps.setLong(5, caixaSessaoId);
+            Jdbc.definirLong(ps, 5, contaDestinoId);
+            ps.setLong(6, caixaSessaoId);
             return ps.executeUpdate() == 1;
         }
     }
@@ -226,6 +232,7 @@ public class CaixaDAO {
                 rs.getLong("usuario_id"), rs.getString("aberto_por_nome"),
                 rs.getObject("aberto_em", OffsetDateTime.class), rs.getBigDecimal("valor_abertura"),
                 rs.getString("fechado_por_nome"), rs.getObject("fechado_em", OffsetDateTime.class),
-                rs.getBigDecimal("valor_esperado"), rs.getBigDecimal("valor_contado"), rs.getBigDecimal("diferenca"));
+                rs.getBigDecimal("valor_esperado"), rs.getBigDecimal("valor_contado"), rs.getBigDecimal("diferenca"),
+                Jdbc.lerLong(rs, "conta_origem_id"), Jdbc.lerLong(rs, "conta_destino_id"));
     }
 }

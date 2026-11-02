@@ -190,7 +190,7 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
 
         int fiado = configuracoes.criarForma(admin, "  Vale  presente ", TipoFormaPagamento.OUTROS);
         assertThat(configuracoes.formasPagamento(admin)).last()
-                .isEqualTo(new FormaPagamentoCadastro(fiado, "Vale presente", TipoFormaPagamento.OUTROS, true));
+                .isEqualTo(new FormaPagamentoCadastro(fiado, "Vale presente", TipoFormaPagamento.OUTROS, true, new BigDecimal("0.00"), 0, null));
         assertThatThrownBy(() -> configuracoes.criarForma(admin, "pix", TipoFormaPagamento.PIX))
                 .hasMessage("Já existe a forma de pagamento \"PIX\".");
         assertThatThrownBy(() -> configuracoes.criarForma(admin, "", TipoFormaPagamento.PIX))

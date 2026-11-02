@@ -99,7 +99,7 @@ class CrediarioParteBIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofMinutes(1));
         return t.devolucoes.registrar(admin, new DadosDevolucao(venda,
                 List.of(new DadosDevolucao.Item(itemDaVenda(venda), BigDecimal.valueOf(unidades), false)), "Defeito",
-                FormaReembolso.OUTRO, null, null), null);
+                FormaReembolso.OUTRO, null, null, t.contaDoReembolso(FormaReembolso.OUTRO)), null);
     }
 
     private void receberTudo(String valor) {

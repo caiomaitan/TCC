@@ -1,9 +1,10 @@
 package br.com.varesync.ui;
 
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.TipoCaixaMovimento;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextField;
 
@@ -21,23 +22,53 @@ public final class DialogosCaixa {
     /** Grava a sangria ou o suprimento com os textos digitados. */
     @FunctionalInterface
     public interface Movimentar<T> {
-        T executar(TipoCaixaMovimento tipo, String valor, String motivo);
+        T executar(TipoCaixaMovimento tipo, String valor, String motivo, Long contaId);
     }
 
     private DialogosCaixa() {
     }
 
-    /** @return o resultado da abertura, ou vazio se cancelado */
-    public static <T> Optional<T> abrir(String terminal, Function<String, T> acao) {
+    /**
+     * Campo da conta, já com a padrão do caixa escolhida; nulo sem contas (integração desligada: o campo não aparece).
+     */
+    private static ComboBox<ContaFinanceira> campoConta(List<ContaFinanceira> contas) {
+        if (contas.isEmpty()) {
+            return null;
+        }
+        ComboBox<ContaFinanceira> conta = new ComboBox<>();
+        conta.setId("campoConta");
+        conta.getItems().setAll(contas);
+        conta.setMaxWidth(Double.MAX_VALUE);
+        contas.stream().filter(ContaFinanceira::padraoCaixa).findFirst().ifPresent(conta::setValue);
+        return conta;
+    }
+
+    private static Long contaEscolhida(ComboBox<ContaFinanceira> conta) {
+        return conta == null || conta.getValue() == null ? null : conta.getValue().id();
+    }
+
+    /**
+     * @param contas contas para escolher de onde sai o fundo de troco; vazio = integração desligada
+     * @return o resultado da abertura, ou vazio se cancelado
+     */
+    public static <T> Optional<T> abrir(String terminal, List<ContaFinanceira> contas,
+                                        BiFunction<String, Long, T> acao) {
         DialogoFormulario formulario = new DialogoFormulario("Abrir caixa — " + terminal,
                 "Conte o dinheiro deixado na gaveta para troco e informe o total. Pode ser zero.", "Abrir caixa");
         TextField fundo = campoValor();
         formulario.adicionarCampo("Fundo de troco (R$) *", fundo);
-        return formulario.mostrar(() -> acao.apply(fundo.getText()), null);
+        ComboBox<ContaFinanceira> conta = campoConta(contas);
+        if (conta != null) {
+            formulario.adicionarCampo("Sai da conta *", conta);
+        }
+        return formulario.mostrar(() -> acao.apply(fundo.getText(), contaEscolhida(conta)), null);
     }
 
-    /** @return o resultado da gravação, ou vazio se cancelado */
-    public static <T> Optional<T> movimentar(Movimentar<T> acao) {
+    /**
+     * @param contas contas para a sangria entrar ou o suprimento sair; vazio = caixa não integrado
+     * @return o resultado da gravação, ou vazio se cancelado
+     */
+    public static <T> Optional<T> movimentar(List<ContaFinanceira> contas, Movimentar<T> acao) {
         DialogoFormulario formulario = new DialogoFormulario("Sangria ou suprimento",
                 "Sangria retira dinheiro da gaveta; suprimento coloca dinheiro para troco.", "Registrar");
         ComboBox<TipoCaixaMovimento> tipo = new ComboBox<>();
@@ -56,22 +87,32 @@ public final class DialogosCaixa {
         formulario.adicionarCampo("Tipo *", tipo);
         formulario.adicionarCampo("Valor (R$) *", valor);
         formulario.adicionarCampo("Motivo *", motivo);
-        return formulario.mostrar(() -> acao.executar(tipo.getValue(), valor.getText(), motivo.getEditor().getText()),
-                null);
+        ComboBox<ContaFinanceira> conta = campoConta(contas);
+        if (conta != null) {
+            formulario.adicionarCampo("Conta *", conta);
+        }
+        return formulario.mostrar(() -> acao.executar(tipo.getValue(), valor.getText(), motivo.getEditor().getText(),
+                contaEscolhida(conta)), null);
     }
 
     /**
      * Fechamento às cegas: pede só o dinheiro contado, sem mostrar o esperado.
      *
+     * @param contas contas para o dinheiro contado entrar; vazio = caixa não integrado
      * @return o resultado do fechamento, ou vazio se cancelado (a ação pode devolver nulo para desistir)
      */
-    public static <T> Optional<T> fechar(String terminal, Function<String, T> acao) {
+    public static <T> Optional<T> fechar(String terminal, List<ContaFinanceira> contas,
+                                         BiFunction<String, Long, T> acao) {
         DialogoFormulario formulario = new DialogoFormulario("Fechar caixa — " + terminal,
                 "Conte todo o dinheiro da gaveta (inclusive o fundo de troco) e informe o total. O valor esperado só "
                         + "aparece depois do fechamento.", "Fechar caixa");
         TextField contado = campoValor();
         formulario.adicionarCampo("Dinheiro contado (R$) *", contado);
-        return formulario.mostrar(() -> acao.apply(contado.getText()), null);
+        ComboBox<ContaFinanceira> conta = campoConta(contas);
+        if (conta != null) {
+            formulario.adicionarCampo("Entra na conta *", conta);
+        }
+        return formulario.mostrar(() -> acao.apply(contado.getText(), contaEscolhida(conta)), null);
     }
 
     private static TextField campoValor() {

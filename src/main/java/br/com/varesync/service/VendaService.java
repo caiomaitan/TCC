@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -79,6 +80,7 @@ public class VendaService {
     private final CreditoClienteDAO creditoDAO;
     private final CreditoService creditoService;
     private final TituloReceberDAO tituloDAO;
+    private final RecebivelService recebivelService;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
@@ -103,7 +105,9 @@ public class VendaService {
                         FormaPagamentoDAO formaPagamentoDAO, ConfiguracaoDAO configuracaoDAO, EstoqueDAO estoqueDAO,
                         EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
                         AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
-                        CreditoService creditoService, TituloReceberDAO tituloDAO, Clock clock) {
+                        CreditoService creditoService, TituloReceberDAO tituloDAO, RecebivelService recebivelService,
+                        Clock clock) {
+        this.recebivelService = recebivelService;
         this.tituloDAO = tituloDAO;
         this.transacao = transacao;
         this.produtoDAO = produtoDAO;
@@ -543,8 +547,9 @@ public class VendaService {
                     movimentar.add(new Vendido(item, itemId));
                 }
             }
+            Map<Long, Recebimento.Parcela> pagamentosGravados = new LinkedHashMap<>();
             for (Recebimento.Parcela p : pagamentos) {
-                vendaDAO.inserirPagamento(con, vendaId, p.forma().id(), p.valor());
+                pagamentosGravados.put(vendaDAO.inserirPagamento(con, vendaId, p.forma().id(), p.valor()), p);
             }
             movimentar.sort(Comparator.comparingLong((Vendido v) -> v.item().produto().id())
                     .thenComparingInt(v -> v.item().sequencia()));
@@ -570,6 +575,11 @@ public class VendaService {
                     tituloDAO.inserir(con, clienteId, vendaId, p.numero(), parcelas.size(), emissao, p.vencimento(),
                             p.valor(), agora, sessao.usuarioId());
                 }
+            }
+            // Recebíveis (F15.2) por último: o saldo da conta é a última trava da venda.
+            for (Map.Entry<Long, Recebimento.Parcela> p : pagamentosGravados.entrySet()) {
+                recebivelService.gerarDaVenda(con, sessao, p.getKey(), vendaId, p.getValue().forma().id(),
+                        p.getValue().valor(), agora);
             }
 
             if (acimaDoLimite) {
@@ -721,6 +731,7 @@ public class VendaService {
                     estornos.add(estorno.rotulo().toLowerCase() + " de " + Formatos.moeda(m.valor().abs()));
                 }
             }
+            recebivelService.cancelarDaVenda(con, sessao, vendaId, agora);
             auditoria.registrar(con, sessao, AcaoAuditoria.VENDA_CANCELADA, ENTIDADE_VENDA, vendaId,
                     "Venda nº " + vendaId + " de " + Formatos.moeda(venda.valorTotal()) + " cancelada no caixa nº "
                             + caixa.id() + ". Motivo: " + motivoFinal

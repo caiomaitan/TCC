@@ -46,6 +46,7 @@ class FxmlTest {
             "/fxml/relatorios.fxml, br.com.varesync.controller.RelatoriosController",
             "/fxml/painel.fxml, br.com.varesync.controller.PainelController",
             "/fxml/fornecedores.fxml, br.com.varesync.controller.FornecedoresController",
+            "/fxml/financeiro.fxml, br.com.varesync.controller.FinanceiroController",
             "/fxml/clientes.fxml, br.com.varesync.controller.ClientesController",
             "/fxml/devolucoes.fxml, br.com.varesync.controller.DevolucoesController",
             "/fxml/devolucao.fxml, br.com.varesync.controller.DevolucaoController",

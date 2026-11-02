@@ -12,6 +12,7 @@ import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
 import br.com.varesync.model.ItemEntrada;
 import br.com.varesync.model.OrigemMovimento;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
@@ -57,12 +58,14 @@ public class EntradaService {
     private final EstoqueDAO estoqueDAO;
     private final ConfiguracaoDAO configuracaoDAO;
     private final EstoqueService estoqueService;
+    private final ContaPagarService contasPagar;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public EntradaService(Transacao transacao, EntradaDAO dao, FornecedorDAO fornecedorDAO, ProdutoDAO produtoDAO,
                           EstoqueDAO estoqueDAO, ConfiguracaoDAO configuracaoDAO, EstoqueService estoqueService,
-                          AuditoriaService auditoria, Clock clock) {
+                          ContaPagarService contasPagar, AuditoriaService auditoria, Clock clock) {
+        this.contasPagar = contasPagar;
         this.transacao = transacao;
         this.dao = dao;
         this.fornecedorDAO = fornecedorDAO;
@@ -227,6 +230,52 @@ public class EntradaService {
         });
     }
 
+    // ----- Parcelas (F15.3) -----
+
+    public List<ParcelaEntrada> parcelas(Sessao sessao, long entradaId) {
+        sessao.exigir(Permissao.COMPRAS);
+        return transacao.executar(con -> dao.parcelas(con, entradaId));
+    }
+
+    /** Troca as parcelas de uma entrada aberta, numeradas na ordem informada (lista vazia: sem parcelas). */
+    public void salvarParcelas(Sessao sessao, long entradaId, List<ParcelaEntrada> parcelas) {
+        sessao.exigir(Permissao.COMPRAS);
+        transacao.executar(con -> {
+            exigirAberta(con, entradaId);
+            salvarParcelas(con, entradaId, parcelas);
+            return null;
+        });
+    }
+
+    /** Grava as parcelas na transação de quem chama (entrada aberta já conferida; importação da NF-e). */
+    void salvarParcelas(Connection con, long entradaId, List<ParcelaEntrada> parcelas) throws SQLException {
+        List<ParcelaEntrada> numeradas = new ArrayList<>();
+        for (ParcelaEntrada p : parcelas) {
+            int numero = numeradas.size() + 1;
+            if (p.vencimento() == null) {
+                throw new NegocioException("Informe o vencimento da parcela " + numero + ".");
+            }
+            numeradas.add(new ParcelaEntrada(numero, p.vencimento(),
+                    CaixaService.valor(p.valor(), "o valor da parcela " + numero, false)));
+        }
+        dao.substituirParcelas(con, entradaId, numeradas);
+    }
+
+    /**
+     * Aviso (F15.3): a soma das parcelas é diferente do valor da nota (sem valor informado, da soma dos itens). Sem
+     * parcelas, não há aviso. Não impede a confirmação.
+     */
+    public static Optional<String> avisoParcelas(EntradaResumo e, List<ParcelaEntrada> parcelas) {
+        if (parcelas.isEmpty()) {
+            return Optional.empty();
+        }
+        BigDecimal soma = parcelas.stream().map(ParcelaEntrada::valor).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal nota = e.valorTotalNota() == null ? e.somaItens() : e.valorTotalNota();
+        return soma.compareTo(nota) == 0 ? Optional.empty() : Optional.of("A soma das parcelas ("
+                + Formatos.moeda(soma) + ") é diferente do valor " + (e.valorTotalNota() == null ? "dos itens" : "da nota")
+                + " (" + Formatos.moeda(nota) + ").");
+    }
+
     // ----- Confirmação -----
 
     /**
@@ -267,8 +316,10 @@ public class EntradaService {
             }
             dao.marcarConfirmada(con, entradaId, sessao.usuarioId(), agora);
             EntradaResumo confirmada = resumo(con, entradaId);
+            int titulos = contasPagar.gerarDaEntrada(con, sessao, confirmada, dao.parcelas(con, entradaId));
             auditoria.registrar(con, sessao, AcaoAuditoria.ENTRADA_CONFIRMADA, AuditoriaService.ENTIDADE_ENTRADA,
-                    entradaId, descreverConfirmacao(confirmada, custos));
+                    entradaId, descreverConfirmacao(confirmada, custos)
+                            + (titulos == 0 ? "" : " " + titulos + " título(s) a pagar gerado(s)."));
             return new ResultadoEntrada(confirmada, custos, sugestoes, margemMinima);
         });
     }

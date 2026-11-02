@@ -37,7 +37,16 @@ public enum AcaoAuditoria {
     CREDIARIO_LIBERADO("Crediário liberado"),
     RECEBIMENTO_REGISTRADO("Recebimento do crediário"),
     RECEBIMENTO_ESTORNADO("Recebimento estornado"),
-    CLIENTE_CREDIARIO_ALTERADO("Limite ou bloqueio do crediário alterado");
+    CLIENTE_CREDIARIO_ALTERADO("Limite ou bloqueio do crediário alterado"),
+    CONTA_ALTERADA("Conta financeira alterada"),
+    CONTA_TRANSFERENCIA("Transferência entre contas"),
+    CONTA_SALDO_INICIAL("Saldo inicial de conta"),
+    CONTA_AJUSTE("Ajuste de conta"),
+    RECEBIVEL_CONCILIADO("Recebíveis conciliados"),
+    TITULO_PAGAR_CRIADO("Conta a pagar lançada"),
+    TITULO_PAGAR_CANCELADO("Conta a pagar cancelada"),
+    TITULO_PAGAR_PAGO("Pagamento de conta"),
+    PAGAMENTO_ESTORNADO("Pagamento de conta estornado");
 
     private final String rotulo;
 

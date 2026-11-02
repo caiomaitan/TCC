@@ -325,3 +325,17 @@ Casos do roteiro manual: CT-F14-01 a CT-F14-14. RF19 (contas a receber e recebim
 | RF19 / F14.4 Gerador | `GeradorDemo` (clientes com limite, vendas a prazo, recebimentos em dia e com atraso, títulos vencidos) | `GeradorDemoIT.crediarioDaFase14`, `GeradorDemoReproducaoIT` |
 
 Casos do roteiro manual: CT-F14-15 a CT-F14-34.
+
+## Fase 15 — Financeiro, parte A (RF20, RF21, RF17, RF19)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RF20 / F15.1 Banco | Migration `V12__financeiro.sql` (`conta_financeira`, `conta_saldo` protegido, razão imutável `conta_movimento`, `vw_conta_inconsistente`, colunas de caixa e forma de pagamento, permissão FINANCEIRO, `financeiro.integrar_caixa`) | `MigracaoIT`, `ContaFinanceiraIT.razaoImutavelESaldoProtegido`, `IntegracaoBase` (view vazia ao fim de cada teste) |
+| RF20 / F15.1 Contas | `ContaFinanceiraService` (único caminho do razão, cadastro, saldo inicial, ajuste, transferência, extrato, diagnóstico), `ContaFinanceiraDAO`, tela **Financeiro** › Contas (`FinanceiroController`, `financeiro.fxml`, `DialogosFinanceiro`), menu `ItemMenu.FINANCEIRO` | `ContaFinanceiraIT.saldoInicialUmaVezAjusteComMotivoETransferencia`, `cadastroDaContaEInativacao`, `lancamentosExigemAPermissaoFinanceiro`, `ItemMenuTest.financeiroAbreASuaTelaComAPermissaoFinanceiro`, `FxmlTest` |
+| RF20 / F15.1 Integração com o caixa | `CaixaService.abrir`/`registrarMovimento`/`fechar` com a conta, `contasParaAbrir`, `contasDoCaixaAberto`, `DialogosCaixa`, `AcoesCaixa`, aba **Financeiro** de Configurações | `ContaFinanceiraIT.caixaECofreDoAceite`, `contaEscolhidaNoSuprimentoENoFechamento`, `integracaoDesligadaESessaoAbertaAntesDeLigarNaoMovimentam`, `ConfiguracoesTest.integracaoDoCaixaDaV12` |
+| RF17 / F15.1 Reembolso OUTRO | `DevolucaoService.registrar` (REEMBOLSO só com a parte não abatida), `contasParaReembolso`, `DevolucaoController` (campo "Saiu da conta") | `ContaFinanceiraIT.reembolsoOutroSoComAParteNaoAbatida`, `devolucaoAbatidaPorInteiroNaoMovimentaConta` |
+| RF20 / F15.2 Recebíveis | `RecebivelService` (gerar na venda e no recebimento do crediário, cancelar e estornar, conciliar), `RecebivelDAO`, `VendaService.finalizar`/`cancelar`, `RecebimentoService.registrar`/`estornar`, tela **Financeiro** › Recebíveis, recebimento da forma em **Configurações › Formas de pagamento** (`ConfiguracaoService.alterarRecebimentoForma`) | `RecebivelIT` (cartão de crédito a 3% e D+30, líquido corrigido, PIX D+0 e estorno, previsto cancelado, forma sem conta, validação, recebimento do crediário e estorno) |
+| RF21 / F15.3 Contas a pagar | `ContaPagarService` (categorias, despesa com repetição, pagamento, estorno, cancelamento), `ContaPagarDAO`, tela **Financeiro** › Contas a pagar | `ContaPagarIT.competenciaEmMarcoPagoEmAbrilDoAceite`, `pagamentoParcialComJurosEDescontoEstornoECancelamento`, `repeticaoMensalGeraOsProximosMeses`, `categoriaNovaECategoriaInativaRecusada`, `tudoExigeAPermissaoFinanceiro` |
+| RF21 / F15.3 Parcelas da entrada | `EntradaService.parcelas`/`salvarParcelas`/`avisoParcelas`, `EntradaDAO`, `ContaPagarService.gerarDaEntrada`, botão **Parcelas…** em Compras (`DialogosCompras.parcelas`), `LeitorNfe.Duplicata`, `ImportacaoNfeService` | `ContaPagarIT.entradaComDuasParcelasGeraDoisTitulosDeMercadoriaDoAceite`, `LeitorNfeTest.duplicatasDaCobrancaComVencimento`, `ImportacaoNfeIT.geraEntradaAbertaComFornecedorNovoItensSomadosEUnidadeTributavel` |
+
+Casos do roteiro manual: CT-F15-01 a CT-F15-16. RF22 (fluxo de caixa), RF23 (DRE), o painel, o R23 e o gerador são a parte B.

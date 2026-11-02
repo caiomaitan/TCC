@@ -7,7 +7,10 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO;
+import br.com.varesync.dao.ContaPagarDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
+import br.com.varesync.dao.RecebivelDAO;
 import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
@@ -25,6 +28,7 @@ import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.FormaReembolso;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -72,6 +76,9 @@ final class AcessoTeste {
     final CreditoService credito;
     final DevolucaoService devolucoes;
     final RecebimentoService recebimentos;
+    final ContaFinanceiraService contas;
+    final RecebivelService recebiveis;
+    final ContaPagarService contasPagar;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -90,22 +97,28 @@ final class AcessoTeste {
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 new ConfiguracaoDAO(), estoque, auditoria, relogio);
-        caixa = new CaixaService(transacao, new CaixaDAO(), new RecebimentoDAO(), auditoria, relogio);
+        contas = new ContaFinanceiraService(transacao, new ContaFinanceiraDAO(), auditoria, relogio);
+        recebiveis = new RecebivelService(transacao, new RecebivelDAO(), new FormaPagamentoDAO(), contas, auditoria,
+                relogio);
+        contasPagar = new ContaPagarService(transacao, new ContaPagarDAO(), new FornecedorDAO(), contas, auditoria,
+                relogio);
+        caixa = new CaixaService(transacao, new CaixaDAO(), new RecebimentoDAO(), new ConfiguracaoDAO(),
+                new ContaFinanceiraDAO(), contas, auditoria, relogio);
         credito = new CreditoService(transacao, new CreditoClienteDAO(), new ClienteDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
-                new ClienteDAO(), new CreditoClienteDAO(), credito, new TituloReceberDAO(), relogio);
+                new ClienteDAO(), new CreditoClienteDAO(), credito, new TituloReceberDAO(), recebiveis, relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
         compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
-                new ConfiguracaoDAO(), estoque, auditoria, relogio);
+                new ConfiguracaoDAO(), estoque, contasPagar, auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), new FormaPagamentoDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
                 new TituloReceberDAO(), relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
-                auditoria);
+                new ContaFinanceiraDAO(), auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);
         importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO, categoriaDAO,
                 new UnidadeMedidaDAO());
@@ -115,9 +128,10 @@ final class AcessoTeste {
         clientes = new ClienteService(transacao, new ClienteDAO(), new CreditoClienteDAO(), new TituloReceberDAO(),
                 new ConfiguracaoDAO(), auditoria, relogio);
         devolucoes = new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), new CreditoClienteDAO(),
-                new TituloReceberDAO(), usuarioDAO, new ConfiguracaoDAO(), estoque, caixa, credito, auditoria, relogio);
+                new TituloReceberDAO(), usuarioDAO, new ConfiguracaoDAO(), estoque, caixa, credito, contas, auditoria,
+                relogio);
         recebimentos = new RecebimentoService(transacao, new RecebimentoDAO(), new TituloReceberDAO(), new ClienteDAO(),
-                new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, auditoria, relogio);
+                new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, recebiveis, auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }
@@ -136,7 +150,23 @@ final class AcessoTeste {
      */
     void limpar() throws SQLException {
         try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
-            st.executeUpdate("TRUNCATE usuario, fornecedor CASCADE");
+            // TRUNCATE não aciona triggers de linha: razão e saldo das contas saem juntos e o saldo zero volta abaixo.
+            st.executeUpdate("TRUNCATE usuario, fornecedor, conta_saldo CASCADE");
+            st.executeUpdate("UPDATE forma_pagamento SET taxa_pct = 0, dias_recebimento = 0, conta_destino_id = "
+                    + "CASE WHEN tipo IN ('DINHEIRO', 'CREDITO_CLIENTE', 'CREDIARIO') THEN NULL ELSE "
+                    + "(SELECT id FROM conta_financeira WHERE nome = 'Banco') END");
+            st.executeUpdate("DELETE FROM categoria_despesa WHERE id > 12");
+            st.executeUpdate("UPDATE categoria_despesa SET ativa = TRUE WHERE NOT ativa");
+            st.execute("""
+                    DO $$ BEGIN
+                        PERFORM set_config('varesync.via_conta', 'on', true);
+                        DELETE FROM conta_financeira WHERE nome NOT IN ('Cofre', 'Banco');
+                        UPDATE conta_financeira SET ativa = TRUE, padrao_caixa = FALSE;
+                        UPDATE conta_financeira SET padrao_caixa = TRUE WHERE nome = 'Cofre';
+                        INSERT INTO conta_saldo (conta_id, saldo) SELECT id, 0 FROM conta_financeira;
+                        PERFORM set_config('varesync.via_conta', 'off', true);
+                    END $$
+                    """);
             st.executeUpdate("DELETE FROM categoria WHERE nome NOT IN (" + CATEGORIAS_V2 + ")");
             st.executeUpdate("UPDATE categoria SET ativa = TRUE WHERE NOT ativa");
             st.executeUpdate("DELETE FROM forma_pagamento WHERE descricao NOT IN (" + FORMAS_V2 + ")");
@@ -165,6 +195,19 @@ final class AcessoTeste {
         acesso.criarPrimeiroSupervisor(new AcessoService.PrimeiroAcesso(
                 "Mercado Bom Preço", "Ana Admin", "admin", "segredo1", "segredo1"));
         return acesso.entrar("admin", "segredo1");
+    }
+
+    /** Conta do reembolso OUTRO (F15.1): o Banco; nula nas demais formas. */
+    Long contaDoReembolso(FormaReembolso forma) {
+        return forma == FormaReembolso.OUTRO ? contaPorNome("Banco") : null;
+    }
+
+    long contaPorNome(String nome) {
+        try {
+            return contar("SELECT id FROM conta_financeira WHERE nome = '" + nome + "'");
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** Descrições da auditoria para uma ação, na ordem de gravação. */

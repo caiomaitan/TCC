@@ -56,6 +56,7 @@ public class RecebimentoService {
     private final FormaPagamentoDAO formaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
     private final CaixaService caixaService;
+    private final RecebivelService recebivelService;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
@@ -65,7 +66,8 @@ public class RecebimentoService {
 
     public RecebimentoService(Transacao transacao, RecebimentoDAO dao, TituloReceberDAO tituloDAO, ClienteDAO clienteDAO,
                               FormaPagamentoDAO formaDAO, ConfiguracaoDAO configuracaoDAO, CaixaService caixaService,
-                              AuditoriaService auditoria, Clock clock) {
+                              RecebivelService recebivelService, AuditoriaService auditoria, Clock clock) {
+        this.recebivelService = recebivelService;
         this.transacao = transacao;
         this.dao = dao;
         this.tituloDAO = tituloDAO;
@@ -172,7 +174,8 @@ public class RecebimentoService {
                 tituloDAO.baixar(con, l.titulo().tituloId(), l.principal());
             }
             for (Recebimento.Parcela p : pagamento.valoresAbatidos()) {
-                dao.inserirPagamento(con, id, p.forma().id(), p.valor());
+                long pagamentoId = dao.inserirPagamento(con, id, p.forma().id(), p.valor());
+                recebivelService.gerarDoRecebimento(con, sessao, pagamentoId, id, p.forma().id(), p.valor(), agora);
             }
             auditoria.registrar(con, sessao, AcaoAuditoria.RECEBIMENTO_REGISTRADO, ENTIDADE_RECEBIMENTO, id,
                     "Recebimento nº " + id + " do cliente nº " + clienteId + " no caixa nº " + caixa.id() + ": "
@@ -235,6 +238,7 @@ public class RecebimentoService {
                 tituloDAO.baixar(con, p.tituloId(), p.principal().negate());
             }
             dao.estornar(con, recebimentoId, autorizou, agora);
+            recebivelService.cancelarDoRecebimento(con, sessao, recebimentoId, agora);
             auditoria.registrar(con, sessao, AcaoAuditoria.RECEBIMENTO_ESTORNADO, ENTIDADE_RECEBIMENTO, recebimentoId,
                     "Recebimento nº " + recebimentoId + " estornado: principal " + Formatos.moeda(r.principal())
                             + ", total " + Formatos.moeda(r.total()) + ". Motivo: " + motivoFinal

@@ -119,17 +119,21 @@ public class VendaDAO {
         }
     }
 
-    public void inserirPagamento(Connection con, long vendaId, int formaPagamentoId, BigDecimal valor)
+    public long inserirPagamento(Connection con, long vendaId, int formaPagamentoId, BigDecimal valor)
             throws SQLException {
         String sql = """
                 INSERT INTO venda_pagamento (venda_id, forma_pagamento_id, valor)
                 VALUES (?, ?, ?)
+                RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setLong(1, vendaId);
             ps.setInt(2, formaPagamentoId);
             ps.setBigDecimal(3, valor);
-            ps.executeUpdate();
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
         }
     }
 

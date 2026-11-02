@@ -2,6 +2,7 @@ package br.com.varesync.dao;
 
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.ItemEntrada;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.StatusEntrada;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -85,6 +86,47 @@ public class EntradaDAO {
         try (PreparedStatement ps = con.prepareStatement("DELETE FROM entrada_mercadoria WHERE id = ?")) {
             ps.setLong(1, id);
             ps.executeUpdate();
+        }
+    }
+
+    /** Parcelas da nota, na ordem do número (F15.3). */
+    public List<ParcelaEntrada> parcelas(Connection con, long entradaId) throws SQLException {
+        String sql = """
+                SELECT numero, vencimento, valor
+                  FROM entrada_mercadoria_parcela
+                 WHERE entrada_id = ?
+                 ORDER BY numero
+                """;
+        List<ParcelaEntrada> parcelas = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, entradaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    parcelas.add(new ParcelaEntrada(rs.getInt("numero"), rs.getObject("vencimento", LocalDate.class),
+                            rs.getBigDecimal("valor")));
+                }
+            }
+        }
+        return parcelas;
+    }
+
+    /** Troca todas as parcelas da entrada pelas informadas. */
+    public void substituirParcelas(Connection con, long entradaId, List<ParcelaEntrada> parcelas) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("DELETE FROM entrada_mercadoria_parcela WHERE entrada_id = ?")) {
+            ps.setLong(1, entradaId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = con.prepareStatement("""
+                INSERT INTO entrada_mercadoria_parcela (entrada_id, numero, vencimento, valor)
+                VALUES (?, ?, ?, ?)
+                """)) {
+            for (ParcelaEntrada p : parcelas) {
+                ps.setLong(1, entradaId);
+                ps.setInt(2, p.numero());
+                ps.setObject(3, p.vencimento());
+                ps.setBigDecimal(4, p.valor());
+                ps.executeUpdate();
+            }
         }
     }
 

@@ -169,6 +169,13 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="As parcelas vencem de 30 em 30 dias a partir da primeira. Multa e juros simples valem para os títulos com atraso maior que a carência. Cliente com título vencido há mais dias que o informado só compra a prazo com a liberação de quem tem a permissão de gerenciar crédito. O limite e o bloqueio de cada cliente ficam na tela Clientes, aba Crediário."/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaFinanceiro" text="Financeiro">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <CheckBox fx:id="campoIntegrarCaixa" text="Integrar o caixa com as contas financeiras"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Ligada, a abertura retira o fundo de troco de uma conta, a sangria entra numa conta, o suprimento sai de uma conta e o fechamento leva o dinheiro contado para uma conta. Ligue depois de lançar o saldo inicial das contas (menu Financeiro). Vale para os caixas abertos depois de ligar; um caixa continua como foi aberto até o fechamento."/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
@@ -183,6 +190,17 @@
                 </TableView>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Button fx:id="botaoSituacaoForma" text="Desativar" onAction="#alternarForma"/>
+                </HBox>
+                <HBox fx:id="painelRecebimento" spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Recebimento:"/>
+                    <Label text="Taxa (%)"/>
+                    <TextField fx:id="campoTaxaForma" prefWidth="70" styleClass="campo-numero"/>
+                    <Label text="Dias para receber"/>
+                    <TextField fx:id="campoDiasForma" prefWidth="60" styleClass="campo-numero"/>
+                    <Label text="Conta de destino"/>
+                    <ComboBox fx:id="campoContaForma" prefWidth="180" promptText="Sem conta"/>
+                    <Button text="Limpar conta" onAction="#limparContaForma"/>
+                    <Button text="Salvar recebimento" onAction="#salvarRecebimentoForma"/>
                 </HBox>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Label text="Nova forma:"/>
@@ -318,6 +336,21 @@
                         <TableColumn fx:id="colunaAbatimentoSoma" text="Soma das linhas" prefWidth="160"
                                      styleClass="coluna-numero"/>
                         <TableColumn fx:id="colunaAbatimentoDiferenca" text="Diferença" prefWidth="120"
+                                     styleClass="coluna-numero"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <Label text="Contas financeiras" styleClass="titulo-secao"/>
+                <Label fx:id="resultadoConta" wrapText="true" minHeight="-Infinity"/>
+                <TableView fx:id="tabelaConta" VBox.vgrow="ALWAYS" minHeight="90" prefHeight="110">
+                    <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaContaNome" text="Conta" prefWidth="320"/>
+                        <TableColumn fx:id="colunaContaRegistrado" text="Saldo registrado" prefWidth="140"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaContaMovimentos" text="Pelos movimentos" prefWidth="160"
+                                     styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaContaDiferenca" text="Diferença" prefWidth="120"
                                      styleClass="coluna-numero"/>
                     </columns>
                     <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>

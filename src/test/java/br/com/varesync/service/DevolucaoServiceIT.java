@@ -117,7 +117,7 @@ class DevolucaoServiceIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofMinutes(1));
         return devolucoes.registrar(sessao, new DadosDevolucao(vendaId, List.of(new DadosDevolucao.Item(
                 item(vendaId).vendaItemId(), new BigDecimal(quantidade), avariado)), "Cliente desistiu", forma,
-                cliente, null), liberacao);
+                cliente, null, t.contaDoReembolso(forma)), liberacao);
     }
 
     private DevolucaoService.DevolucaoRegistrada devolver(long vendaId, String quantidade, FormaReembolso forma) {

@@ -33,13 +33,15 @@
         <ComboBox fx:id="campoMotivo" editable="true" prefWidth="420" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
         <Label text="Reembolso *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
         <ComboBox fx:id="campoForma" prefWidth="420" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
-        <Label text="Cliente" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-        <HBox spacing="10" alignment="CENTER_LEFT" GridPane.rowIndex="2" GridPane.columnIndex="1">
+        <Label fx:id="rotuloConta" text="Saiu da conta *" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <ComboBox fx:id="campoConta" prefWidth="420" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        <Label text="Cliente" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <HBox spacing="10" alignment="CENTER_LEFT" GridPane.rowIndex="3" GridPane.columnIndex="1">
             <Label fx:id="cliente" wrapText="true"/>
             <Button fx:id="botaoCliente" text="Identificar cliente… (F11)" onAction="#identificarCliente"/>
         </HBox>
-        <Label text="Observação" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-        <TextField fx:id="campoObservacao" prefWidth="420" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+        <Label text="Observação" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+        <TextField fx:id="campoObservacao" prefWidth="420" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
     </GridPane>
 
     <HBox alignment="CENTER_LEFT" spacing="10">

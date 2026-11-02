@@ -5,6 +5,7 @@ import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.Fornecedor;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.util.CpfCnpj;
@@ -132,6 +133,9 @@ public class ImportacaoNfeService {
                     throw new NegocioException("Item " + linha.itens() + " da nota: " + e.getMessage(), e);
                 }
             }
+            // As duplicatas do XML já vêm como parcelas (F15.3), numeradas na ordem da nota.
+            entradaService.salvarParcelas(con, entradaId, nota.duplicatas().stream()
+                    .map(d -> new ParcelaEntrada(0, d.vencimento(), d.valor())).toList());
             return entradaId;
         });
     }

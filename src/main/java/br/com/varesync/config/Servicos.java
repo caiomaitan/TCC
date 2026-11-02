@@ -5,6 +5,8 @@ import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO;
+import br.com.varesync.dao.ContaPagarDAO;
 import br.com.varesync.dao.CreditoClienteDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.dao.DevolucaoDAO;
@@ -18,6 +20,7 @@ import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.RecebimentoDAO;
+import br.com.varesync.dao.RecebivelDAO;
 import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
@@ -29,6 +32,8 @@ import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
 import br.com.varesync.service.ConsultaAuditoriaService;
+import br.com.varesync.service.ContaFinanceiraService;
+import br.com.varesync.service.ContaPagarService;
 import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.DevolucaoService;
 import br.com.varesync.service.EntradaService;
@@ -43,6 +48,7 @@ import br.com.varesync.service.PrecoService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.PromocaoService;
 import br.com.varesync.service.RecebimentoService;
+import br.com.varesync.service.RecebivelService;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Transacao;
@@ -64,7 +70,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        PainelService painel, ConfiguracaoService configuracoes, PromocaoService promocoes,
                        ImportacaoProdutosService importacao, ConsultaAuditoriaService auditoria,
                        ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes,
-                       CreditoService credito, DevolucaoService devolucoes, RecebimentoService recebimentos) {
+                       CreditoService credito, DevolucaoService devolucoes, RecebimentoService recebimentos,
+                       ContaFinanceiraService contas, RecebivelService recebiveis, ContaPagarService contasPagar) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -84,27 +91,34 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         CategoriaService categorias = new CategoriaService(transacao, categoriaDAO);
         ProdutoService produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
                 configuracaoDAO, estoque, auditoria, clock);
-        CaixaService caixa = new CaixaService(transacao, new CaixaDAO(), new RecebimentoDAO(), auditoria, clock);
+        ContaFinanceiraDAO contaDAO = new ContaFinanceiraDAO();
+        ContaFinanceiraService contas = new ContaFinanceiraService(transacao, contaDAO, auditoria, clock);
+        CaixaService caixa = new CaixaService(transacao, new CaixaDAO(), new RecebimentoDAO(), configuracaoDAO, contaDAO,
+                contas, auditoria, clock);
         PromocaoDAO promocaoDAO = new PromocaoDAO();
         FormaPagamentoDAO formaPagamentoDAO = new FormaPagamentoDAO();
+        RecebivelService recebiveis = new RecebivelService(transacao, new RecebivelDAO(), formaPagamentoDAO, contas,
+                auditoria, clock);
         CreditoClienteDAO creditoDAO = new CreditoClienteDAO();
         CreditoService credito = new CreditoService(transacao, creditoDAO, new ClienteDAO(), auditoria, clock);
         TituloReceberDAO tituloDAO = new TituloReceberDAO();
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, new ClienteDAO(),
-                creditoDAO, credito, tituloDAO, clock);
+                creditoDAO, credito, tituloDAO, recebiveis, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();
         FornecedorService fornecedores = new FornecedorService(transacao, fornecedorDAO, clock);
+        ContaPagarService contasPagar = new ContaPagarService(transacao, new ContaPagarDAO(), fornecedorDAO, contas,
+                auditoria, clock);
         EntradaService compras = new EntradaService(transacao, new EntradaDAO(), fornecedorDAO, produtoDAO, estoqueDAO,
-                configuracaoDAO, estoque, auditoria, clock);
+                configuracaoDAO, estoque, contasPagar, auditoria, clock);
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, fornecedorDAO, formaPagamentoDAO, clock);
         PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, new AuditoriaDAO(),
                 tituloDAO, clock);
         ConfiguracaoService configuracoes = new ConfiguracaoService(transacao, configuracaoDAO, formaPagamentoDAO,
-                produtoDAO, auditoria);
+                produtoDAO, contaDAO, auditoria);
         PromocaoService promocoes = new PromocaoService(transacao, promocaoDAO, produtoDAO, auditoria, clock);
         ImportacaoProdutosService importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO,
                 categoriaDAO, new UnidadeMedidaDAO());
@@ -116,9 +130,10 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new ClienteService(transacao, new ClienteDAO(), creditoDAO, tituloDAO, configuracaoDAO, auditoria,
                         clock),
                 credito, new DevolucaoService(transacao, new DevolucaoDAO(), new ClienteDAO(), creditoDAO, tituloDAO,
-                        usuarioDAO, configuracaoDAO, estoque, caixa, credito, auditoria, clock),
+                        usuarioDAO, configuracaoDAO, estoque, caixa, credito, contas, auditoria, clock),
                 new RecebimentoService(transacao, new RecebimentoDAO(), tituloDAO, new ClienteDAO(), formaPagamentoDAO,
-                        configuracaoDAO, caixa, auditoria, clock));
+                        configuracaoDAO, caixa, recebiveis, auditoria, clock),
+                contas, recebiveis, contasPagar);
     }
 
     /**

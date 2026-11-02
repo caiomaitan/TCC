@@ -696,12 +696,14 @@ Testes de integração com duas conexões simultâneas:
   - As contas aparecem nos diálogos já preenchidas com a conta padrão.
   - Para isso, entram as colunas `caixa_movimento.conta_id`, `caixa_sessao.conta_origem_id` e `caixa_sessao.conta_destino_id`.
   - Sessões anteriores à fase não geram movimentos; o saldo de partida entra como SALDO_INICIAL.
-- **Devolução com reembolso OUTRO:** passa a pedir a conta de onde saiu o dinheiro e lança REEMBOLSO.
+- **Devolução com reembolso OUTRO:** passa a pedir a conta de onde saiu o dinheiro e lança REEMBOLSO só com a parte reembolsada (`valor_total − valor_abatido`). A parte abatida das parcelas (F14) não movimenta conta.
 - **Permissão:** transferência entre contas, saldo inicial e ajuste exigem FINANCEIRO.
 
 #### F15.2 Recebíveis de cartão e PIX
 
-- **`forma_pagamento`:** novas colunas `taxa_pct` (0 a 20), `dias_recebimento` (0 a 60, dias corridos) e `conta_destino_id`. A migration aponta PIX e cartões para "Banco", com taxa 0; o lojista configura.
+- **`forma_pagamento`:** novas colunas `taxa_pct` (0 a 20), `dias_recebimento` (0 a 60, dias corridos) e `conta_destino_id`.
+  - A migration aponta para "Banco", com taxa 0, todas as formas menos Dinheiro, Crédito do cliente e Crediário; o lojista configura.
+  - Essas três nunca têm conta de destino: o dinheiro vai para a gaveta, e o crédito do cliente e o crediário não movimentam dinheiro na venda.
 - **Tabela `recebivel`:**
   - origem: `venda_pagamento_id` ou `recebimento_pagamento_id`;
   - forma, `valor_bruto`, `taxa` = round(`valor_bruto` × `taxa_pct` ÷ 100, 2) e `valor_liquido` = bruto − taxa;
@@ -713,6 +715,7 @@ Testes de integração com duas conexões simultâneas:
 - **Cancelamento da venda:**
   - recebíveis PREVISTOS viram CANCELADO;
   - recebíveis já RECEBIDOS ganham ESTORNO_RECEBIVEL (a devolução do dinheiro ao cliente é feita fora do sistema).
+- **Estorno de recebimento do crediário (F14.3):** faz o mesmo com os recebíveis desse recebimento.
 - **Conciliação:**
   - marcar recebíveis como recebidos, por forma e período, conferindo o total;
   - o valor líquido pode ser corrigido para o que o banco pagou (a taxa passa a ser bruto − líquido);
@@ -776,7 +779,7 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 | 9 | (−) Despesas operacionais, por categoria (títulos por competência dos grupos OPERACIONAL e OUTRA) |
 | 10 | (−) Impostos sobre vendas (grupo IMPOSTO, por competência) |
 | 11 | (−) Despesas financeiras (taxas de cartão e PIX pela data da venda, juros pagos e grupo FINANCEIRA) |
-| 12 | (+) Receitas financeiras (multas e juros recebidos e descontos obtidos em pagamentos) |
+| 12 | (+) Receitas financeiras (multas e juros recebidos, menos o desconto dado nos encargos, só dos recebimentos não estornados; e descontos obtidos em pagamentos) |
 | 13 | (±) Diferenças de caixa (sobras − faltas dos fechamentos do mês) |
 | 14 | **= Resultado líquido**, com a margem líquida |
 

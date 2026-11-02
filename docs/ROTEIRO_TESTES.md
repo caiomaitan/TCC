@@ -593,3 +593,27 @@ Conferência em 2026-10-30 por roteiro descartável, sem teclado nem mouse do si
 | CT-F14-32 | Títulos vencidos, usuário com RECEBIMENTO | 1. Painel 2. Clicar no alerta | 1. "N títulos vencidos (R$ X)" 2. R21 só com os vencidos | OK pelo roteiro de tela (capturas `01` e `02`) |
 | CT-F14-33 | Carteira com atrasos | 1. R21 e R22 2. Exportar CSV e PDF | 1. Faixas de atraso; R22 sem estornados 2. Arquivos abrem | Tela OK (capturas `16` e `17`); não executado: abrir os arquivos |
 | CT-F14-34 | Banco vazio | 1. Gerar os dados de demonstração | 1. 30 clientes com limite, vendas a prazo, recebimentos e títulos vencidos | Coberto por `GeradorDemoIT.crediarioDaFase14`; não executado pela tela |
+
+## Fase 15 — Financeiro, parte A (contas, integração com o caixa, recebíveis e contas a pagar)
+
+Conferência em 2026-11-02 por roteiro descartável, sem teclado nem mouse do sistema (24 verificações, 13 capturas). Onde
+está "Não executado", falta a pessoa executar.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F15-01 | Supervisor | 1. Financeiro › Contas 2. Selecionar o Cofre › Saldo inicial… 500,00 3. Saldo inicial… de novo | 1. Cofre (padrão do caixa) e Banco 2. Saldo R$ 500,00 e o extrato 3. "já tem saldo inicial" | OK pelo roteiro de tela (captura `01`); 3 coberto por `ContaFinanceiraIT` |
+| CT-F15-02 | CT-F15-01 | 1. Ajuste… sem motivo 2. Com motivo, −5,00 3. Transferir… R$ 300,00 do Cofre para o Banco | 1. "Informe o motivo do ajuste." 2. Saldo cai 3. As duas pernas no extrato | Coberto por `ContaFinanceiraIT`; não executado pela tela |
+| CT-F15-03 | Conta com saldo, padrão do caixa ou recebendo uma forma | 1. Editar… › desmarcar Ativa | 1. Recusado com o motivo | Coberto por `ContaFinanceiraIT.cadastroDaContaEInativacao`; não executado pela tela |
+| CT-F15-04 | Configurações › Financeiro › integração ligada | 1. Caixa › Abrir caixa… R$ 100,00 (conta Cofre já escolhida) 2. Sangria de R$ 50,00 3. Fechar com R$ 49,00 contados | 1 a 3. Cofre −100, +50, +49; R11 com diferença −R$ 1,00 | OK pelo roteiro de tela (capturas `06`, `07`, `11`) |
+| CT-F15-05 | Integração desligada | 1. Abrir, sangria e fechar | 1. Os diálogos não mostram a conta; nenhuma conta se move | OK pelo roteiro de tela nos diálogos; razão coberto por `ContaFinanceiraIT` |
+| CT-F15-06 | Caixa aberto com a integração desligada | 1. Ligar a integração 2. Sangria e fechamento | 1 e 2. O caixa continua sem mover as contas até fechar | Coberto por `ContaFinanceiraIT`; não executado pela tela |
+| CT-F15-07 | Supervisor | 1. Configurações › Formas de pagamento › Cartão de crédito: taxa 3, 30 dias, Banco › Salvar recebimento 2. Selecionar Dinheiro | 1. Gravado e auditado 2. Campos desabilitados | OK pelo roteiro de tela (captura `12`) |
+| CT-F15-08 | CT-F15-07 | 1. Vender R$ 100,00 no crédito 2. Financeiro › Recebíveis | 1 e 2. Previsto de R$ 97,00 (taxa R$ 3,00) para daqui a 30 dias | OK pelo roteiro de tela (captura `02`) |
+| CT-F15-09 | CT-F15-08 | 1. Selecionar › Conciliar… com total 90,00 2. Com total 97,00 | 1. "é diferente" 2. Banco recebe R$ 97,00; recebível Recebido | OK pelo roteiro de tela (captura `03`) |
+| CT-F15-10 | Recebível previsto | 1. Corrigir líquido… 98,50 › Conciliar | 1. Taxa passa a ser bruto − líquido | Coberto por `RecebivelIT.liquidoCorrigidoNaConciliacaoMudaATaxa`; não executado pela tela |
+| CT-F15-11 | Venda no PIX (0 dias) na sessão | 1. F9 › Cancelar a venda | 1. Banco recebe e depois estorna (ESTORNO_RECEBIVEL) | Coberto por `RecebivelIT`; não executado pela tela |
+| CT-F15-12 | Título do crediário | 1. Receber no PIX 2. Estornar o recebimento | 1. Recebível do recebimento entra no Banco 2. Estornado | Coberto por `RecebivelIT`; não executado pela tela |
+| CT-F15-13 | Supervisor | 1. Financeiro › Contas a pagar › Nova despesa… com repetição 3 2. Pagar… parcial com juros 3. Estornar pagamento… 4. Cancelar conta… | 1. 4 títulos mês a mês 2. Em aberto diminui; conta sai com valor + juros 3. Reabre 4. Recusado com pagamento | Pagamento OK pelo roteiro de tela (capturas `04` e `05`, saldo negativo em vermelho); o resto coberto por `ContaPagarIT` |
+| CT-F15-14 | Entrada aberta com valor da nota R$ 120,00 | 1. Compras › Parcelas… duas de R$ 60,00 2. Confirmar entrada | 1. Salvas, sem aviso 2. A confirmação avisa as parcelas; duas contas a pagar em "Compra de mercadorias" | OK pelo roteiro de tela (captura `08`) |
+| CT-F15-15 | XML de NF-e com duplicatas | 1. Compras › Importar XML da NF-e 2. Parcelas… | 1 e 2. As duplicatas com vencimento já vêm como parcelas | Coberto por `ImportacaoNfeIT`; não executado pela tela |
+| CT-F15-16 | Venda no PIX | 1. Devoluções › Devolver › Reembolso Outro 2. Trocar para Dinheiro 3. Outro › Registrar | 1. Aparece "Saiu da conta" com o Banco 2. Some 3. Reembolso sai do Banco | OK pelo roteiro de tela (capturas `09` e `10`) |

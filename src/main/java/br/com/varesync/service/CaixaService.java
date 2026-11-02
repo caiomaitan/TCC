@@ -1,14 +1,19 @@
 package br.com.varesync.service;
 
 import br.com.varesync.dao.CaixaDAO;
+import br.com.varesync.dao.ConfiguracaoDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO;
+import br.com.varesync.dao.ContaFinanceiraDAO.Origem;
 import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaMovimento;
 import br.com.varesync.model.CaixaResumo;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.RelatorioFechamento;
 import br.com.varesync.model.TipoCaixaMovimento;
+import br.com.varesync.model.TipoContaMovimento;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
@@ -38,11 +43,18 @@ public class CaixaService {
     private final Transacao transacao;
     private final CaixaDAO caixaDAO;
     private final RecebimentoDAO recebimentoDAO;
+    private final ConfiguracaoDAO configuracaoDAO;
+    private final ContaFinanceiraDAO contaDAO;
+    private final ContaFinanceiraService contas;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public CaixaService(Transacao transacao, CaixaDAO caixaDAO, RecebimentoDAO recebimentoDAO,
+                        ConfiguracaoDAO configuracaoDAO, ContaFinanceiraDAO contaDAO, ContaFinanceiraService contas,
                         AuditoriaService auditoria, Clock clock) {
+        this.configuracaoDAO = configuracaoDAO;
+        this.contaDAO = contaDAO;
+        this.contas = contas;
         this.transacao = transacao;
         this.caixaDAO = caixaDAO;
         this.recebimentoDAO = recebimentoDAO;
@@ -70,6 +82,16 @@ public class CaixaService {
      * @throws NegocioException se já houver caixa aberto neste terminal
      */
     public CaixaSessao abrir(Sessao sessao, BigDecimal fundoDeTroco) {
+        return abrir(sessao, fundoDeTroco, null);
+    }
+
+    /**
+     * Como {@link #abrir(Sessao, BigDecimal)}; com {@code financeiro.integrar_caixa} ligada, retira o fundo de troco da
+     * conta e a sessão fica integrada até o fechamento (F15.1).
+     *
+     * @param contaId conta de origem; nula = a padrão do caixa
+     */
+    public CaixaSessao abrir(Sessao sessao, BigDecimal fundoDeTroco, Long contaId) {
         sessao.exigir(Permissao.PDV);
         BigDecimal valor = valor(fundoDeTroco, "o fundo de troco", true);
         return transacao.executar(con -> {
@@ -80,10 +102,17 @@ public class CaixaService {
                         + Formatos.dataHora(aberta.get().abertoEm()) + ").");
             }
             // Outro login no mesmo terminal pode abrir ao mesmo tempo: ux_caixa_aberto_por_terminal recusa o segundo.
-            long id = caixaDAO.abrir(con, sessao.terminal(), sessao.usuarioId(), valor, OffsetDateTime.now(clock));
+            OffsetDateTime agora = OffsetDateTime.now(clock);
+            ContaFinanceira conta = configuracaoDAO.carregar(con).integrarCaixa() ? conta(con, contaId) : null;
+            long id = caixaDAO.abrir(con, sessao.terminal(), sessao.usuarioId(), valor, agora,
+                    conta == null ? null : conta.id());
+            if (conta != null && valor.signum() > 0) {
+                contas.movimentar(con, sessao, conta.id(), TipoContaMovimento.ABERTURA_CAIXA, valor.negate(), agora,
+                        "Fundo de troco do caixa nº " + id, Origem.caixaSessao(id));
+            }
             auditoria.registrar(con, sessao, AcaoAuditoria.CAIXA_ABERTO, ENTIDADE_CAIXA, id,
                     "Caixa nº " + id + " aberto no terminal " + sessao.terminal() + " com fundo de troco de "
-                            + Formatos.moeda(valor));
+                            + Formatos.moeda(valor) + (conta == null ? "" : ", da conta \"" + conta.nome() + "\""));
             return caixaDAO.buscar(con, id).orElseThrow();
         });
     }
@@ -97,6 +126,17 @@ public class CaixaService {
      */
     public long registrarMovimento(Sessao sessao, TipoCaixaMovimento tipo, BigDecimal valor, String motivo,
                                    Liberacao liberacao) {
+        return registrarMovimento(sessao, tipo, valor, motivo, liberacao, null);
+    }
+
+    /**
+     * Como {@link #registrarMovimento(Sessao, TipoCaixaMovimento, BigDecimal, String, Liberacao)}; na sessão integrada, a
+     * sangria entra na conta e o suprimento sai dela (F15.1).
+     *
+     * @param contaId conta de destino da sangria ou de origem do suprimento; nula = a padrão do caixa
+     */
+    public long registrarMovimento(Sessao sessao, TipoCaixaMovimento tipo, BigDecimal valor, String motivo,
+                                   Liberacao liberacao, Long contaId) {
         sessao.exigir(Permissao.PDV);
         Liberacao liberou = sessao.exigirOuLiberado(Permissao.SANGRIA_SUPRIMENTO, liberacao);
         if (tipo == null) {
@@ -121,8 +161,17 @@ public class CaixaService {
                             + "gaveta. Confira o valor.");
                 }
             }
-            long id = caixaDAO.inserirMovimento(con, caixa.id(), tipo, quantia, motivoFinal, sessao.usuarioId(),
-                    OffsetDateTime.now(clock));
+            OffsetDateTime agora = OffsetDateTime.now(clock);
+            ContaFinanceira conta = caixa.integrada() ? conta(con, contaId) : null;
+            long id = caixaDAO.inserirMovimento(con, caixa.id(), tipo, quantia, motivoFinal, sessao.usuarioId(), agora,
+                    conta == null ? null : conta.id());
+            if (conta != null) {
+                boolean sangria = tipo == TipoCaixaMovimento.SANGRIA;
+                contas.movimentar(con, sessao, conta.id(), sangria ? TipoContaMovimento.SANGRIA
+                        : TipoContaMovimento.SUPRIMENTO, sangria ? quantia : quantia.negate(), agora,
+                        tipo.descricao() + " do caixa nº " + caixa.id() + ": " + motivoFinal,
+                        Origem.caixaMovimento(id));
+            }
             auditoria.registrar(con, sessao, tipo.acaoAuditoria(), ENTIDADE_CAIXA, caixa.id(),
                     tipo.descricao() + " de " + Formatos.moeda(quantia) + " no caixa nº " + caixa.id()
                             + ". Motivo: " + motivoFinal
@@ -136,13 +185,29 @@ public class CaixaService {
      * devolve o relatório com a sobra ou a falta.
      */
     public RelatorioFechamento fechar(Sessao sessao, BigDecimal valorContado) {
+        return fechar(sessao, valorContado, null);
+    }
+
+    /**
+     * Como {@link #fechar(Sessao, BigDecimal)}; na sessão integrada, o valor contado entra na conta (F15.1).
+     *
+     * @param contaId conta de destino; nula = a padrão do caixa
+     */
+    public RelatorioFechamento fechar(Sessao sessao, BigDecimal valorContado, Long contaId) {
         sessao.exigir(Permissao.PDV);
         BigDecimal contado = valor(valorContado, "o dinheiro contado", true);
         return transacao.executar(con -> {
             CaixaSessao caixa = travar(con, sessao);
             BigDecimal esperado = caixaDAO.resumo(con, caixa.id()).dinheiroEsperado();
-            if (!caixaDAO.fechar(con, caixa.id(), sessao.usuarioId(), OffsetDateTime.now(clock), esperado, contado)) {
+            OffsetDateTime agora = OffsetDateTime.now(clock);
+            ContaFinanceira conta = caixa.integrada() ? conta(con, contaId) : null;
+            if (!caixaDAO.fechar(con, caixa.id(), sessao.usuarioId(), agora, esperado, contado,
+                    conta == null ? null : conta.id())) {
                 throw new NegocioException(SEM_CAIXA_ABERTO);
+            }
+            if (conta != null && contado.signum() > 0) {
+                contas.movimentar(con, sessao, conta.id(), TipoContaMovimento.FECHAMENTO_CAIXA, contado, agora,
+                        "Dinheiro contado no fechamento do caixa nº " + caixa.id(), Origem.caixaSessao(caixa.id()));
             }
             RelatorioFechamento relatorio = montarRelatorio(con, caixa.id());
             auditoria.registrar(con, sessao, AcaoAuditoria.CAIXA_FECHADO, ENTIDADE_CAIXA, caixa.id(),
@@ -151,6 +216,20 @@ public class CaixaService {
                             + ")");
             return relatorio;
         });
+    }
+
+    /** Contas para o diálogo de abertura; vazio com a integração desligada (o diálogo não mostra o campo). */
+    public List<ContaFinanceira> contasParaAbrir(Sessao sessao) {
+        sessao.exigir(Permissao.PDV);
+        return transacao.executar(con -> configuracaoDAO.carregar(con).integrarCaixa() ? contas.ativas(con)
+                : List.<ContaFinanceira>of());
+    }
+
+    /** Contas para a sangria, o suprimento e o fechamento; vazio se o caixa aberto não é integrado. */
+    public List<ContaFinanceira> contasDoCaixaAberto(Sessao sessao) {
+        sessao.exigir(Permissao.PDV);
+        return transacao.executar(con -> caixaDAO.buscarAberta(con, sessao.terminal()).filter(CaixaSessao::integrada)
+                .isPresent() ? contas.ativas(con) : List.<ContaFinanceira>of());
     }
 
     /** Sangrias e suprimentos do caixa aberto neste terminal (vazio se não houver caixa aberto). */
@@ -219,6 +298,15 @@ public class CaixaService {
             throw new NegocioException(nome + " está acima do limite permitido.");
         }
         return Dinheiro.dinheiro(valor);
+    }
+
+    /** A conta escolhida ou, sem escolha, a padrão do caixa. */
+    private ContaFinanceira conta(Connection con, Long contaId) throws SQLException {
+        if (contaId != null) {
+            return contas.contaAtiva(con, contaId);
+        }
+        return contaDAO.padraoDoCaixa(con).orElseThrow(() -> new NegocioException("Escolha a conta: não há conta "
+                + "padrão do caixa."));
     }
 
     private CaixaSessao travar(Connection con, Sessao sessao) throws SQLException {

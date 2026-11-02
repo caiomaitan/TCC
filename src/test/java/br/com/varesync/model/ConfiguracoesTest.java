@@ -43,6 +43,7 @@ class ConfiguracoesTest {
         m.put("crediario.multa_pct", "2");
         m.put("crediario.carencia_dias", "0");
         m.put("crediario.bloqueio_atraso_dias", "30");
+        m.put("financeiro.integrar_caixa", "false");
         return m;
     }
 
@@ -74,6 +75,17 @@ class ConfiguracoesTest {
         m.put("devolucao.prazo_dias", "366");
         assertThat(Configuracoes.de(m).devolucaoPrazoDias()).isEqualTo(30);
         assertThat(Configuracoes.PADRAO.comDevolucaoPrazo(7).paraMapa()).containsEntry("devolucao.prazo_dias", "7");
+    }
+
+    /** V12 (F15.1): a integração do caixa vem desligada e é lida e gravada como as demais. */
+    @Test
+    void integracaoDoCaixaDaV12() {
+        assertThat(Configuracoes.PADRAO.integrarCaixa()).isFalse();
+        Map<String, String> m = v2();
+        m.put("financeiro.integrar_caixa", "true");
+        assertThat(Configuracoes.de(m).integrarCaixa()).isTrue();
+        assertThat(Configuracoes.PADRAO.comIntegrarCaixa(true).paraMapa())
+                .containsEntry("financeiro.integrar_caixa", "true");
     }
 
     /** V10 (F14): lê as chaves do crediário; parcelas fora de 1 a 60 voltam ao padrão. */

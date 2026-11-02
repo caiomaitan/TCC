@@ -4,6 +4,7 @@ import br.com.varesync.model.CustoAtualizado;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
+import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.ResultadoEntrada;
 import br.com.varesync.model.SugestaoReajuste;
 import br.com.varesync.service.NegocioException;
@@ -11,6 +12,7 @@ import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -83,6 +85,57 @@ public final class DialogosCompras {
             return gravar.apply(new DadosEntrada(escolhido == null ? null : escolhido.id(), numero.getText(),
                     emissao.getValue(), CampoNumero.ler(valor.getText(), "Valor total da nota")));
         }, null);
+    }
+
+    /**
+     * Parcelas da nota (F15.3): uma linha por parcela, com vencimento e valor; lista vazia = sem parcelas.
+     *
+     * @return true se gravou
+     */
+    public static boolean parcelas(String titulo, List<ParcelaEntrada> atuais, Consumer<List<ParcelaEntrada>> gravar) {
+        DialogoFormulario formulario = new DialogoFormulario("Parcelas — " + titulo,
+                "Ao confirmar a entrada, cada parcela vira uma conta a pagar.", "Salvar");
+        record Linha(DatePicker vencimento, TextField valor) {
+        }
+        List<Linha> linhas = new ArrayList<>();
+        VBox lista = new VBox(6);
+        Consumer<ParcelaEntrada> adicionar = p -> {
+            DatePicker vencimento = new DatePicker(p == null ? null : p.vencimento());
+            vencimento.setConverter(new ConversorData());
+            vencimento.setPromptText("dd/mm/aaaa");
+            TextField valor = new TextField(p == null ? "" : Formatos.numero(p.valor(), Dinheiro.ESCALA_DINHEIRO));
+            valor.setPromptText("0,00");
+            valor.getStyleClass().add("campo-numero");
+            Linha linha = new Linha(vencimento, valor);
+            Button remover = new Button("Remover");
+            HBox caixa = new HBox(6, vencimento, valor, remover);
+            remover.setOnAction(e -> {
+                linhas.remove(linha);
+                lista.getChildren().remove(caixa);
+                caixa.getScene().getWindow().sizeToScene();
+            });
+            linhas.add(linha);
+            lista.getChildren().add(caixa);
+        };
+        atuais.forEach(adicionar);
+        Button mais = new Button("Adicionar parcela");
+        mais.setOnAction(e -> {
+            adicionar.accept(null);
+            mais.getScene().getWindow().sizeToScene();
+        });
+        formulario.adicionarCampo("Parcelas", lista);
+        formulario.adicionarCampo("", mais);
+        return formulario.mostrar(() -> {
+            List<ParcelaEntrada> parcelas = new ArrayList<>();
+            for (Linha l : linhas) {
+                int numero = parcelas.size() + 1;
+                java.time.LocalDate data = l.vencimento().getConverter().fromString(l.vencimento().getEditor().getText());
+                parcelas.add(new ParcelaEntrada(numero, data, CampoNumero.ler(l.valor().getText(),
+                        "Valor da parcela " + numero)));
+            }
+            gravar.accept(parcelas);
+            return Boolean.TRUE;
+        }, null).isPresent();
     }
 
     /**

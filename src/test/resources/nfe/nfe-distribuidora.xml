@@ -100,6 +100,12 @@
           <vNF>367.00</vNF>
         </ICMSTot>
       </total>
+      <cobr>
+        <fat><nFat>1234</nFat><vOrig>367.00</vOrig><vLiq>367.00</vLiq></fat>
+        <dup><nDup>001</nDup><dVenc>2026-11-04</dVenc><vDup>200.00</vDup></dup>
+        <dup><nDup>002</nDup><dVenc>2026-12-04</dVenc><vDup>167.00</vDup></dup>
+        <dup><nDup>003</nDup><vDup>1.00</vDup></dup>
+      </cobr>
     </infNFe>
   </NFe>
   <protNFe versao="4.00">

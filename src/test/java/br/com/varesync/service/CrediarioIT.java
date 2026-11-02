@@ -136,7 +136,7 @@ class CrediarioIT extends IntegracaoBase {
         t.relogio.avancar(Duration.ofMinutes(1));
         long item = t.devolucoes.venda(admin, venda).itens().get(0).vendaItemId();
         return t.devolucoes.registrar(admin, new DadosDevolucao(venda, List.of(new DadosDevolucao.Item(item,
-                new BigDecimal(quantidade), false)), "Cliente desistiu", forma, null, null), null);
+                new BigDecimal(quantidade), false)), "Cliente desistiu", forma, null, null, t.contaDoReembolso(forma)), null);
     }
 
     private BigDecimal esperado() throws Exception {

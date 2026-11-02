@@ -49,9 +49,16 @@ public final class LeitorNfe {
                        BigDecimal valorTotal, boolean unidadeTributavel) {
     }
 
-    /** @param chave chave de acesso (44 dígitos), se houver */
+    /** Duplicata da cobrança ({@code cobr/dup}). */
+    public record Duplicata(String numero, LocalDate vencimento, BigDecimal valor) {
+    }
+
+    /**
+     * @param chave      chave de acesso (44 dígitos), se houver
+     * @param duplicatas as de {@code cobr/dup} que têm vencimento; vazio sem cobrança
+     */
     public record Nota(String chave, Emitente emitente, String numero, LocalDate emissao, BigDecimal valorTotal,
-                       List<Item> itens) {
+                       List<Item> itens, List<Duplicata> duplicatas) {
     }
 
     /** @throws NegocioException o arquivo não é o XML de uma NF-e, ou falta um dado obrigatório */
@@ -88,7 +95,30 @@ public final class LeitorNfe {
         }
         String chave = inf.getAttribute("Id").replaceFirst("^NFe", "");
         return new Nota(chave.isBlank() ? null : chave, emitente, texto(ide, "nNF"), emissao(ide),
-                total == null ? null : numero(total, "vNF"), List.copyOf(itens));
+                total == null ? null : numero(total, "vNF"), List.copyOf(itens), duplicatas(inf));
+    }
+
+    /** {@code dVenc} é opcional no XML: duplicata sem vencimento não dá parcela (o aviso da soma aparece na entrada). */
+    private static List<Duplicata> duplicatas(Element inf) {
+        Element cobranca = primeiro(inf, "cobr");
+        if (cobranca == null) {
+            return List.of();
+        }
+        List<Duplicata> duplicatas = new ArrayList<>();
+        NodeList dups = cobranca.getElementsByTagNameNS("*", "dup");
+        for (int i = 0; i < dups.getLength(); i++) {
+            Element dup = (Element) dups.item(i);
+            String vencimento = texto(dup, "dVenc");
+            if (vencimento.isEmpty()) {
+                continue;
+            }
+            try {
+                duplicatas.add(new Duplicata(texto(dup, "nDup"), LocalDate.parse(vencimento), numero(dup, "vDup")));
+            } catch (DateTimeParseException e) {
+                throw new NegocioException("Vencimento inválido na duplicata do XML da NF-e: \"" + vencimento + "\".");
+            }
+        }
+        return List.copyOf(duplicatas);
     }
 
     private static Item item(int numero, Element prod) {

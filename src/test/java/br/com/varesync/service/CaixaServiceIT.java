@@ -173,7 +173,7 @@ class CaixaServiceIT extends IntegracaoBase {
                         + ", aberto por Ana Admin em ");
         // Dois logins abrindo ao mesmo tempo: o índice ux_caixa_aberto_por_terminal é a última barreira.
         assertThatThrownBy(() -> new Transacao(dataSource).executar(con -> new CaixaDAO().abrir(con,
-                AcessoTeste.TERMINAL, admin.usuarioId(), reais("1"), OffsetDateTime.now(t.relogio))))
+                AcessoTeste.TERMINAL, admin.usuarioId(), reais("1"), OffsetDateTime.now(t.relogio), null)))
                 .isInstanceOf(NegocioException.class)
                 .hasMessageContaining("Já existe um caixa aberto neste terminal");
 
