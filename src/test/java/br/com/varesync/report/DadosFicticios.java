@@ -311,9 +311,34 @@ final class DadosFicticios {
         return linhas;
     }
 
+    /** F16.2: produto com principal e fator 12 (sugestão 144), um sem principal e um em ruptura sem sugestão. */
+    private static List<SugestaoCompra.Linha> sugestoes() {
+        return List.of(
+                new SugestaoCompra.Linha(7L, "Leite integral 1 L", "Frios e laticínios", "UN", false, d("40.000"),
+                        d("0.000"), d("10.000"), 4L, d("0.000"), d("144.000"), d("3.3333"), d("480.00"), 3L,
+                        "Laticínios Vale do Pardo", 3, d("12.000"), "CX", false),
+                new SugestaoCompra.Linha(9L, "Queijo muçarela", "Frios e laticínios", "KG", true, d("1.250"),
+                        d("5.000"), d("0.500"), 2L, d("0.000"), d("4.000"), d("28.0000"), d("112.00"), null, null, 0,
+                        d("1"), null, false),
+                new SugestaoCompra.Linha(11L, "Café torrado 500 g", "Mercearia", "UN", false, d("0.000"),
+                        d("0.000"), d("0.000"), null, d("0.000"), d("0.000"), d("12.4167"), d("0.00"), null, null, 0,
+                        d("1"), null, true));
+    }
+
+    /** R26: só as linhas com sugestão. */
+    static ResultadoRelatorio<SugestaoCompra.Linha> r26() {
+        return resultado(new RelSugestaoCompra(), Filtros.vazios(),
+                sugestoes().stream().filter(l -> l.sugestao().signum() > 0).toList());
+    }
+
+    /** R28: todas, com uma ruptura. */
+    static ResultadoRelatorio<SugestaoCompra.Linha> r28() {
+        return resultado(new RelCoberturaRuptura(), Filtros.vazios(), sugestoes());
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
                 r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
-                r19(), r20(), dadosCliente(), r23(), r24(), r25());
+                r19(), r20(), dadosCliente(), r23(), r24(), r25(), r26(), r28());
     }
 }

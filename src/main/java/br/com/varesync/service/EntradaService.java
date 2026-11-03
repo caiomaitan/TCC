@@ -5,6 +5,7 @@ import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CustoAtualizado;
 import br.com.varesync.model.DadosEntrada;
@@ -59,13 +60,16 @@ public class EntradaService {
     private final ConfiguracaoDAO configuracaoDAO;
     private final EstoqueService estoqueService;
     private final ContaPagarService contasPagar;
+    private final ProdutoFornecedorDAO vinculos;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public EntradaService(Transacao transacao, EntradaDAO dao, FornecedorDAO fornecedorDAO, ProdutoDAO produtoDAO,
                           EstoqueDAO estoqueDAO, ConfiguracaoDAO configuracaoDAO, EstoqueService estoqueService,
-                          ContaPagarService contasPagar, AuditoriaService auditoria, Clock clock) {
+                          ContaPagarService contasPagar, ProdutoFornecedorDAO vinculos, AuditoriaService auditoria,
+                          Clock clock) {
         this.contasPagar = contasPagar;
+        this.vinculos = vinculos;
         this.transacao = transacao;
         this.dao = dao;
         this.fornecedorDAO = fornecedorDAO;
@@ -195,14 +199,32 @@ public class EntradaService {
     /** Inclui o item na transação de quem chama (entrada aberta já conferida). */
     long adicionarItem(Connection con, long entradaId, long produtoId, BigDecimal quantidade,
                        BigDecimal custoUnitario, BigDecimal valorTotal) throws SQLException {
+        ProdutoVenda produto = produtoNovoNaEntrada(con, entradaId, produtoId);
+        Valores v = valores(quantidade, custoUnitario, valorTotal, produto.fracionada());
+        return dao.inserirItem(con, entradaId, produtoId, v.quantidade(), v.custo(), v.total());
+    }
+
+    /**
+     * Item da NF-e vinculado pelo código do fornecedor (F16.1): o custo unitário ({@code vUnCom} ÷ fator) e o valor da
+     * linha ({@code vProd}) vêm os dois da nota, para a soma dos itens continuar batendo com o valor da nota.
+     */
+    long adicionarItemDaNota(Connection con, long entradaId, long produtoId, BigDecimal quantidade,
+                             BigDecimal custoUnitario, BigDecimal valorTotal) throws SQLException {
+        ProdutoVenda produto = produtoNovoNaEntrada(con, entradaId, produtoId);
+        BigDecimal qtd = valores(quantidade, custoUnitario, null, produto.fracionada()).quantidade();
+        BigDecimal custo = ValidacaoProduto.valor(custoUnitario, "o custo unitário", Dinheiro.ESCALA_CUSTO);
+        BigDecimal total = ValidacaoProduto.valor(valorTotal, "o valor total da linha", Dinheiro.ESCALA_DINHEIRO);
+        return dao.inserirItem(con, entradaId, produtoId, qtd, custo, total);
+    }
+
+    private ProdutoVenda produtoNovoNaEntrada(Connection con, long entradaId, long produtoId) throws SQLException {
         ProdutoVenda produto = ativo(produtoDAO.buscarParaVenda(con, produtoId)
                 .orElseThrow(() -> new NegocioException("Produto não encontrado.")));
         if (dao.itemDoProduto(con, entradaId, produtoId).isPresent()) {
             throw new NegocioException("O produto " + produto.nome() + " já está nesta entrada. Altere a "
                     + "quantidade da linha em vez de lançá-lo de novo.");
         }
-        Valores v = valores(quantidade, custoUnitario, valorTotal, produto.fracionada());
-        return dao.inserirItem(con, entradaId, produtoId, v.quantidade(), v.custo(), v.total());
+        return produto;
     }
 
     /** Altera quantidade e custo (ou valor total) de um item; o produto não muda (remova e inclua outro). */
@@ -294,6 +316,7 @@ public class EntradaService {
                 throw new NegocioException("A entrada não tem itens. Inclua os produtos da nota antes de confirmar.");
             }
             itens.sort(Comparator.comparingLong(ItemEntrada::produtoId));
+            long fornecedorId = resumo(con, entradaId).fornecedorId();
             OffsetDateTime agora = OffsetDateTime.now(clock);
             BigDecimal margemMinima = configuracaoDAO.carregar(con).margemMinimaPct();
             List<CustoAtualizado> custos = new ArrayList<>();
@@ -309,6 +332,9 @@ public class EntradaService {
                         agora);
                 estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.ENTRADA_COMPRA,
                         item.quantidade(), OrigemMovimento.entradaItem(item.id()), null, item.custoUnitario());
+                // F16.1: o vínculo do produto com o fornecedor da nota guarda o último custo (por unidade de venda).
+                vinculos.atualizarUltimoCusto(con, item.produtoId(), fornecedorId, item.custoUnitario(),
+                        sessao.usuarioId(), agora);
                 custos.add(new CustoAtualizado(item.produtoId(), produto.nome(), saldo, produto.custo(),
                         item.quantidade(), item.custoUnitario(), novo));
                 sugestao(item.produtoId(), produto.nome(), novo, produto.precoVenda(), margemMinima)

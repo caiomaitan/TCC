@@ -5,19 +5,23 @@ import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Produto;
+import br.com.varesync.model.ProdutoFornecedor;
 import br.com.varesync.model.UnidadeMedida;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.NegocioException;
+import br.com.varesync.service.ProdutoFornecedorService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.RegistroEmUsoException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
+import br.com.varesync.ui.DialogosVinculo;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Gtin;
 import br.com.varesync.util.Precificacao;
 import br.com.varesync.util.Textos;
+import br.com.varesync.model.DadosVinculo;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +45,8 @@ import javafx.stage.Stage;
 
 /**
  * Cadastro de produto (6.3, Fig. 20 revisada): estoque atual somente leitura, estoque inicial só no cadastro novo,
- * códigos de barras, simulador de margem atualizado enquanto digita e aba de histórico de preço e custo.
+ * códigos de barras, simulador de margem atualizado enquanto digita, aba Fornecedores (F16.1: código no fornecedor,
+ * fator, prazo e principal) e aba de histórico de preço e custo.
  */
 public class ProdutoController {
 
@@ -50,6 +55,7 @@ public class ProdutoController {
 
     private final ProdutoService produtoService;
     private final CategoriaService categoriaService;
+    private final ProdutoFornecedorService vinculoService;
     private final Sessao sessao;
     /** Produto em edição; nulo no cadastro novo. */
     private Produto produto;
@@ -59,6 +65,18 @@ public class ProdutoController {
     @FXML private Label situacao;
     @FXML private TabPane abas;
     @FXML private Tab abaHistorico;
+    @FXML private Tab abaFornecedores;
+    @FXML private TableView<ProdutoFornecedor> tabelaVinculos;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoFornecedor;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoCodigo;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoFator;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoPrazo;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoCusto;
+    @FXML private TableColumn<ProdutoFornecedor, String> colunaVinculoPrincipal;
+    @FXML private Button botaoIncluirVinculo;
+    @FXML private Button botaoAlterarVinculo;
+    @FXML private Button botaoPrincipalVinculo;
+    @FXML private Button botaoRemoverVinculo;
     @FXML private TextField campoCodigo;
     @FXML private TextField campoNome;
     @FXML private ComboBox<Categoria> campoCategoria;
@@ -90,9 +108,11 @@ public class ProdutoController {
     @FXML private Button botaoExcluir;
     @FXML private Button botaoSituacao;
 
-    public ProdutoController(ProdutoService produtoService, CategoriaService categoriaService, Sessao sessao) {
+    public ProdutoController(ProdutoService produtoService, CategoriaService categoriaService,
+                             ProdutoFornecedorService vinculoService, Sessao sessao) {
         this.produtoService = produtoService;
         this.categoriaService = categoriaService;
+        this.vinculoService = vinculoService;
         this.sessao = sessao;
     }
 
@@ -115,6 +135,7 @@ public class ProdutoController {
         coluna(colunaUsuario, HistoricoPreco::usuarioNome);
         coluna(colunaPrecoHistorico, h -> Formatos.moeda(h.precoAnterior()) + " → " + Formatos.moeda(h.precoNovo()));
         coluna(colunaCustoHistorico, h -> custo(h.custoAnterior()) + " → " + custo(h.custoNovo()));
+        prepararVinculos();
 
         campoPreco.textProperty().addListener((obs, a, b) -> recalcular());
         campoCusto.textProperty().addListener((obs, a, b) -> recalcular());
@@ -171,6 +192,8 @@ public class ProdutoController {
             listaCodigos.getItems().clear();
             tabelaHistorico.getItems().clear();
             abaHistorico.setDisable(true);
+            tabelaVinculos.getItems().clear();
+            abaFornecedores.setDisable(true);
             botaoExcluir.setDisable(true);
             botaoSituacao.setDisable(true);
             botaoSituacao.setText("Inativar");
@@ -197,6 +220,8 @@ public class ProdutoController {
             listaCodigos.getItems().setAll(produto.codigosBarras());
             tabelaHistorico.getItems().setAll(produtoService.historico(sessao, produto.id()));
             abaHistorico.setDisable(false);
+            abaFornecedores.setDisable(false);
+            carregarVinculos(null);
             botaoExcluir.setDisable(false);
             botaoSituacao.setDisable(false);
             botaoSituacao.setText(produto.ativo() ? "Inativar" : "Reativar");
@@ -208,6 +233,104 @@ public class ProdutoController {
         recalcular();
         abas.getSelectionModel().selectFirst();
         Platform.runLater(campoNome::requestFocus);
+    }
+
+    // ----- Fornecedores (F16.1) -----
+
+    private void prepararVinculos() {
+        colunaVinculoFornecedor.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().fornecedorNome()
+                + (c.getValue().fornecedorAtivo() ? "" : " (inativo)")));
+        colunaVinculoCodigo.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                c.getValue().codigoNoFornecedor() == null ? "" : c.getValue().codigoNoFornecedor()));
+        colunaVinculoFator.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                ProdutoFornecedorService.descreverFator(c.getValue(), produto == null ? "" : produto.unidade())));
+        colunaVinculoPrazo.setCellValueFactory(c -> new ReadOnlyStringWrapper(
+                String.valueOf(c.getValue().prazoEntregaDias())));
+        colunaVinculoCusto.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().ultimoCusto() == null
+                ? Formatos.SEM_VALOR : custo(c.getValue().ultimoCusto())));
+        colunaVinculoPrincipal.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().principal() ? "Sim" : ""));
+        tabelaVinculos.getSelectionModel().selectedItemProperty().addListener((o, a, v) -> atualizarBotoesVinculo());
+        tabelaVinculos.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && tabelaVinculos.getSelectionModel().getSelectedItem() != null) {
+                alterarVinculo();
+            }
+        });
+        atualizarBotoesVinculo();
+    }
+
+    /** Recarrega a lista e seleciona o vínculo {@code selecionar}, se informado. */
+    private void carregarVinculos(Long selecionar) {
+        tabelaVinculos.getItems().setAll(vinculoService.listar(sessao, produto.id()));
+        tabelaVinculos.getItems().stream().filter(v -> selecionar != null && v.id() == selecionar).findFirst()
+                .ifPresent(v -> tabelaVinculos.getSelectionModel().select(v));
+        atualizarBotoesVinculo();
+    }
+
+    private void atualizarBotoesVinculo() {
+        ProdutoFornecedor v = tabelaVinculos.getSelectionModel().getSelectedItem();
+        botaoAlterarVinculo.setDisable(v == null);
+        botaoRemoverVinculo.setDisable(v == null);
+        botaoPrincipalVinculo.setDisable(v == null || v.principal());
+    }
+
+    @FXML
+    private void incluirVinculo() {
+        if (produto == null) {
+            return;
+        }
+        DialogosVinculo.editar(null, vinculoService.fornecedores(sessao), produto.unidade(),
+                        dados -> vinculoService.salvar(sessao, produto.id(), null, dados))
+                .ifPresent(id -> {
+                    carregarVinculos(id);
+                    Mensagem.sucesso(mensagem, "Fornecedor incluído no produto.");
+                });
+    }
+
+    @FXML
+    private void alterarVinculo() {
+        ProdutoFornecedor v = tabelaVinculos.getSelectionModel().getSelectedItem();
+        if (produto == null || v == null) {
+            return;
+        }
+        DialogosVinculo.editar(v, List.of(), produto.unidade(),
+                        dados -> vinculoService.salvar(sessao, produto.id(), v.id(), dados))
+                .ifPresent(id -> {
+                    carregarVinculos(id);
+                    Mensagem.sucesso(mensagem, "Fornecedor do produto salvo.");
+                });
+    }
+
+    @FXML
+    private void tornarPrincipal() {
+        ProdutoFornecedor v = tabelaVinculos.getSelectionModel().getSelectedItem();
+        if (produto == null || v == null) {
+            return;
+        }
+        try {
+            vinculoService.salvar(sessao, produto.id(), v.id(), new DadosVinculo(v.fornecedorId(),
+                    v.codigoNoFornecedor(), v.unidadeCompra(), v.fator(), v.prazoEntregaDias(), true));
+            carregarVinculos(v.id());
+            Mensagem.sucesso(mensagem, v.fornecedorNome() + " é agora o fornecedor principal.");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
+    @FXML
+    private void removerVinculo() {
+        ProdutoFornecedor v = tabelaVinculos.getSelectionModel().getSelectedItem();
+        if (produto == null || v == null || !Dialogos.confirmar("Remover " + v.fornecedorNome()
+                + " dos fornecedores deste produto? As notas dele deixam de reconhecer o item pelo código do "
+                + "fornecedor.")) {
+            return;
+        }
+        try {
+            vinculoService.remover(sessao, produto.id(), v.id());
+            carregarVinculos(null);
+            Mensagem.sucesso(mensagem, "Fornecedor removido do produto.");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
     }
 
     /** Categorias ativas, mais a do produto se ela foi inativada depois. */

@@ -18,6 +18,7 @@ import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.dao.RecebivelDAO;
@@ -46,12 +47,14 @@ import br.com.varesync.service.ImportacaoProdutosService;
 import br.com.varesync.service.InventarioService;
 import br.com.varesync.service.PainelService;
 import br.com.varesync.service.PrecoService;
+import br.com.varesync.service.ProdutoFornecedorService;
 import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.PromocaoService;
 import br.com.varesync.service.RecebimentoService;
 import br.com.varesync.service.RecebivelService;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Senhas;
+import br.com.varesync.service.SugestaoCompraService;
 import br.com.varesync.service.Transacao;
 import br.com.varesync.service.UnidadeService;
 import br.com.varesync.service.UsuarioService;
@@ -73,7 +76,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        ImportacaoNfeService nfe, UnidadeService unidades, ClienteService clientes,
                        CreditoService credito, DevolucaoService devolucoes, RecebimentoService recebimentos,
                        ContaFinanceiraService contas, RecebivelService recebiveis, ContaPagarService contasPagar,
-                       FluxoCaixaService fluxoCaixa) {
+                       FluxoCaixaService fluxoCaixa, ProdutoFornecedorService vinculos,
+                       SugestaoCompraService sugestao) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -113,8 +117,11 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         FornecedorService fornecedores = new FornecedorService(transacao, fornecedorDAO, clock);
         ContaPagarService contasPagar = new ContaPagarService(transacao, new ContaPagarDAO(), fornecedorDAO, contas,
                 auditoria, clock);
+        ProdutoFornecedorDAO vinculoDAO = new ProdutoFornecedorDAO();
+        ProdutoFornecedorService vinculos = new ProdutoFornecedorService(transacao, vinculoDAO, produtoDAO,
+                fornecedorDAO, clock);
         EntradaService compras = new EntradaService(transacao, new EntradaDAO(), fornecedorDAO, produtoDAO, estoqueDAO,
-                configuracaoDAO, estoque, contasPagar, auditoria, clock);
+                configuracaoDAO, estoque, contasPagar, vinculoDAO, auditoria, clock);
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, fornecedorDAO, formaPagamentoDAO, new ContaPagarDAO(), clock);
         PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, new AuditoriaDAO(),
@@ -127,7 +134,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
                 inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao,
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
-                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, compras, clock),
+                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, vinculoDAO, compras,
+                        vinculos, clock),
                 new UnidadeService(transacao, new UnidadeMedidaDAO()),
                 new ClienteService(transacao, new ClienteDAO(), creditoDAO, tituloDAO, configuracaoDAO, auditoria,
                         clock),
@@ -135,7 +143,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                         usuarioDAO, configuracaoDAO, estoque, caixa, credito, contas, auditoria, clock),
                 new RecebimentoService(transacao, new RecebimentoDAO(), tituloDAO, new ClienteDAO(), formaPagamentoDAO,
                         configuracaoDAO, caixa, recebiveis, auditoria, clock),
-                contas, recebiveis, contasPagar, new FluxoCaixaService(transacao, clock));
+                contas, recebiveis, contasPagar, new FluxoCaixaService(transacao, clock), vinculos,
+                new SugestaoCompraService(transacao, configuracaoDAO, fornecedorDAO, categoriaDAO, clock));
     }
 
     /**

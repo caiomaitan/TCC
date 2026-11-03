@@ -257,11 +257,25 @@ public class ConfiguracaoService {
                     + Configuracoes.DEVOLUCAO_PRAZO_MAXIMO + " dias.");
         }
         Configuracoes.Crediario crediario = crediario(c.crediario());
+        Configuracoes.Compras compras = compras(c.compras());
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                crediario, c.integrarCaixa());
+                crediario, c.integrarCaixa(), compras);
+    }
+
+    /** Sugestão de compra (F16.2, seção 0.4): média de 1 a 365 dias; cobertura de 0 a 365 dias. */
+    static Configuracoes.Compras compras(Configuracoes.Compras c) {
+        if (c.diasMedia() < 1 || c.diasMedia() > Configuracoes.Compras.DIAS_MAXIMO) {
+            throw new NegocioException("Os dias da média de venda devem estar entre 1 e "
+                    + Configuracoes.Compras.DIAS_MAXIMO + ".");
+        }
+        if (c.coberturaDias() < 0 || c.coberturaDias() > Configuracoes.Compras.DIAS_MAXIMO) {
+            throw new NegocioException("A cobertura deve estar entre 0 e " + Configuracoes.Compras.DIAS_MAXIMO
+                    + " dias.");
+        }
+        return c;
     }
 
     /** Crediário (F14, seção 0.4): de 1 a 60 parcelas; dias de 0 a 10 anos; juros e multa de 0 a 100%. */
@@ -425,6 +439,9 @@ public class ConfiguracaoService {
                 n.crediario().bloqueioAtrasoDias() + " dias");
         comparar(m, "integração do caixa com as contas", a.integrarCaixa() ? "ligada" : "desligada",
                 n.integrarCaixa() ? "ligada" : "desligada");
+        comparar(m, "dias da média de venda", a.compras().diasMedia() + " dias", n.compras().diasMedia() + " dias");
+        comparar(m, "cobertura da sugestão de compra", a.compras().coberturaDias() + " dias",
+                n.compras().coberturaDias() + " dias");
         return m;
     }
 

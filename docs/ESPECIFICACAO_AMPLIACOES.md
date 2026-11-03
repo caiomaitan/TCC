@@ -834,8 +834,8 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 ### F16.2 Sugestão de compra (aba de Compras e R26)
 
 - Filtro por fornecedor principal ou por categoria.
-- **Cálculo** (devoluções só entram se a F13 existir):
-  - média diária = (quantidade vendida − devolvida nos últimos `compras.dias_media` dias) ÷ dias;
+- **Cálculo:**
+  - média diária = (quantidade vendida − devolvida nos últimos `compras.dias_media` dias, pela `vw_resultado_item`) ÷ dias;
   - necessidade = média × (`cobertura_dias` + `prazo_entrega_dias` do fornecedor principal);
   - sugestão = o maior entre (necessidade − saldo − pendente em pedidos) e (`estoque_minimo` − saldo − pendente), nunca negativa;
   - arredondada para cima no múltiplo do fator (sem vínculo, fator 1).
@@ -856,8 +856,10 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 - **Entrada vinculada a pedido:**
   - nova coluna `entrada_mercadoria.pedido_id`: a entrada pode ser vinculada a um pedido ENVIADO ou PARCIAL;
   - na confirmação, soma a `quantidade_recebida` e muda o status para PARCIAL ou RECEBIDO;
+  - a quantidade recebida pode passar da pedida, e produto da nota que não está no pedido também é aceito; os dois aparecem em destaque na conferência;
   - tela de conferência pedido × nota, com quantidade e custo divergentes em destaque.
-- **Pendente em pedidos:** soma de (quantidade − recebida) dos pedidos ENVIADO e PARCIAL.
+- **Pendente em pedidos:** soma de (quantidade − recebida) dos pedidos ENVIADO e PARCIAL, sem ficar negativa em nenhum item.
+- **Cancelar pedido:** só RASCUNHO, ENVIADO ou PARCIAL. Num PARCIAL, o que faltava receber deixa de contar como pendente.
 
 ### F16.4 Relatórios, painel e gerador
 
@@ -1109,7 +1111,8 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - confirmação em toda ação destrutiva;
   - sucesso em notificação discreta;
   - foco inicial e ordem do Tab revisados;
-  - contraste mínimo AA no tema escuro.
+  - contraste mínimo AA no tema escuro;
+  - no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar.
 
 ### Aceite F21
 

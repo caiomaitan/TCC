@@ -141,6 +141,110 @@ class ImportacaoNfeIT extends IntegracaoBase {
                 .satisfies(i -> assertThat(i.quantidade()).isEqualByComparingTo("30"));
     }
 
+    // ----- F16.1: vínculo pelo código do fornecedor -----
+
+    private static final byte[] CAIXA = LeitorNfeTest.recurso("nfe-caixa-fator.xml");
+
+    /** A mesma nota com outro número (a próxima nota do fornecedor). */
+    private static byte[] proximaNota() {
+        return new String(CAIXA, java.nio.charset.StandardCharsets.UTF_8).replace("<nNF>501</nNF>", "<nNF>502</nNF>")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private long vale() {
+        return t.fornecedores.criar(admin, new DadosFornecedor("Laticínios Vale do Pardo Ltda", null,
+                "AB12CD34EFGH83", null, null, null, null, null, null));
+    }
+
+    /**
+     * Aceite F16 (vínculo pela NF-e): item sem EAN, com o cProd já vinculado, é reconhecido sozinho; 2 caixas com
+     * fator 12 viram 24 unidades e o custo é o da caixa ÷ 12. Confirmada, a entrada grava o último custo do vínculo.
+     */
+    @Test
+    void itemSemEanReconhecidoPeloCodigoDoFornecedorComFatorDoAceite() throws Exception {
+        long fornecedor = vale();
+        long leite = produto("Leite integral 1 L", "UN", null);
+        long iogurte = produto("Iogurte morango 170 g", "UN", null);
+        t.vinculos.salvar(admin, leite, null, new br.com.varesync.model.DadosVinculo(fornecedor, "LEITE-CX12", "CX",
+                new BigDecimal("12"), 3, true));
+
+        ImportacaoNfeService.Previa previa = t.nfe.ler(admin, CAIXA);
+        assertThat(previa.fornecedor().id()).isEqualTo(fornecedor);
+        ImportacaoNfeService.ItemPrevia item1 = previa.itens().get(0);
+        assertThat(item1.produto().id()).isEqualTo(leite);
+        assertThat(item1.peloFornecedor()).isTrue();
+        assertThat(item1.fator()).isEqualByComparingTo("12");
+        assertThat(previa.itens().get(1).produto()).isNull(); // IOG-170 ainda sem vínculo
+
+        long entradaId = t.nfe.gerarEntrada(admin, CAIXA, Map.of(2, iogurte));
+        List<ItemEntrada> itens = t.compras.itens(admin, entradaId);
+        ItemEntrada linhaLeite = itens.stream().filter(i -> i.produtoId() == leite).findFirst().orElseThrow();
+        assertThat(linhaLeite.quantidade()).isEqualByComparingTo("24"); // 2 CX × 12
+        assertThat(linhaLeite.custoUnitario()).isEqualByComparingTo("4.0000"); // 48,00 ÷ 12
+        assertThat(linhaLeite.valorTotal()).isEqualByComparingTo("96.00");
+        ItemEntrada linhaIogurte = itens.stream().filter(i -> i.produtoId() == iogurte).findFirst().orElseThrow();
+        assertThat(linhaIogurte.quantidade()).isEqualByComparingTo("6");
+        assertThat(linhaIogurte.custoUnitario()).isEqualByComparingTo("2.5000");
+        assertThat(t.compras.buscar(admin, entradaId).somaItens()).isEqualByComparingTo("111.00"); // bate com a nota
+
+        t.compras.confirmar(admin, entradaId);
+        assertThat(t.estoque.saldo(admin, leite).saldo()).isEqualByComparingTo("24");
+        assertThat(t.vinculos.listar(admin, leite)).singleElement()
+                .satisfies(v -> assertThat(v.ultimoCusto()).isEqualByComparingTo("4.0000"));
+        // O iogurte, escolhido à mão, ganhou o vínculo (fator 1, principal por ser o primeiro) e o último custo.
+        assertThat(t.vinculos.listar(admin, iogurte)).singleElement().satisfies(v -> {
+            assertThat(v.codigoNoFornecedor()).isEqualTo("IOG-170");
+            assertThat(v.fator()).isEqualByComparingTo("1");
+            assertThat(v.unidadeCompra()).isEqualTo("UN");
+            assertThat(v.principal()).isTrue();
+            assertThat(v.ultimoCusto()).isEqualByComparingTo("2.5000");
+        });
+    }
+
+    /** O vínculo feito à mão (com o fator) fica gravado: a próxima nota do fornecedor é reconhecida sozinha. */
+    @Test
+    void vinculoFeitoAMaoNaImportacaoValeParaAProximaNota() throws Exception {
+        long leite = produto("Leite integral 1 L", "UN", null);
+        long iogurte = produto("Iogurte morango 170 g", "UN", null);
+        // Fornecedor novo: cadastrado pela própria importação, junto com os vínculos.
+        long primeira = t.nfe.gerarEntrada(admin, CAIXA, Map.of(1, leite, 2, iogurte),
+                Map.of(1, new BigDecimal("12")));
+        assertThat(t.compras.itens(admin, primeira)).filteredOn(i -> i.produtoId() == leite).singleElement()
+                .satisfies(i -> assertThat(i.quantidade()).isEqualByComparingTo("24"));
+
+        ImportacaoNfeService.Previa proxima = t.nfe.ler(admin, proximaNota());
+        assertThat(proxima.semVinculo()).isZero();
+        assertThat(proxima.itens()).extracting(i -> i.produto().id()).containsExactly(leite, iogurte);
+        long segunda = t.nfe.gerarEntrada(admin, proximaNota(), Map.of());
+        assertThat(t.compras.itens(admin, segunda)).extracting(ItemEntrada::quantidade)
+                .usingElementComparator(BigDecimal::compareTo).containsExactlyInAnyOrder(new BigDecimal("24"),
+                        new BigDecimal("6"));
+    }
+
+    /** Escolher outro produto para um cProd já vinculado passa o código para ele (o antigo fica sem código). */
+    @Test
+    void escolherOutroProdutoParaOCodigoMoveOVinculo() throws Exception {
+        long fornecedor = vale();
+        long leite = produto("Leite integral 1 L", "UN", null);
+        long desnatado = produto("Leite desnatado 1 L", "UN", null);
+        long iogurte = produto("Iogurte morango 170 g", "UN", null);
+        t.vinculos.salvar(admin, leite, null, new br.com.varesync.model.DadosVinculo(fornecedor, "LEITE-CX12", "CX",
+                new BigDecimal("12"), 3, true));
+        t.nfe.gerarEntrada(admin, CAIXA, Map.of(1, desnatado, 2, iogurte), Map.of(1, new BigDecimal("12")));
+        assertThat(t.vinculos.listar(admin, leite)).singleElement()
+                .satisfies(v -> assertThat(v.codigoNoFornecedor()).isNull());
+        assertThat(t.vinculos.listar(admin, desnatado)).singleElement()
+                .satisfies(v -> assertThat(v.codigoNoFornecedor()).isEqualTo("LEITE-CX12"));
+        assertThat(t.nfe.ler(admin, proximaNota()).itens().get(0).produto().id()).isEqualTo(desnatado);
+    }
+
+    @Test
+    void fatorSugeridoPelaUnidadeTributavel() {
+        LeitorNfe.Nota nota = LeitorNfe.ler(XML);
+        assertThat(ImportacaoNfeService.fatorSugerido(nota.itens().get(2))).isEqualByComparingTo("24"); // 48 ÷ 2 CX
+        assertThat(ImportacaoNfeService.fatorSugerido(nota.itens().get(0))).isEqualByComparingTo("1");
+    }
+
     @Test
     void precisaDaPermissaoDeCompras() {
         t.usuarios.criar(admin, "estoquista", "Estoquista", false, EnumSet.of(Permissao.ESTOQUE), "inicial1",

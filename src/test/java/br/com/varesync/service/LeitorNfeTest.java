@@ -34,7 +34,9 @@ class LeitorNfeTest {
 
         LeitorNfe.Item cafe = nota.itens().get(0);
         assertThat(cafe).isEqualTo(new LeitorNfe.Item(1, "7891000315507", "CAFE TORRADO MOIDO 500G", "UN",
-                new java.math.BigDecimal("10.0000"), new java.math.BigDecimal("125.00"), false));
+                new java.math.BigDecimal("10.0000"), new java.math.BigDecimal("125.00"), false,
+                new LeitorNfe.Comercial("CAFE500", "UN", new java.math.BigDecimal("10.0000"),
+                        new java.math.BigDecimal("12.5000000000"))));
         LeitorNfe.Item queijo = nota.itens().get(1);
         assertThat(queijo.codigoBarras()).isNull(); // SEM GTIN
         assertThat(queijo.quantidade()).isEqualByComparingTo("3.5");

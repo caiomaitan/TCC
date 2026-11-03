@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia (F16.1) de um fornecedor com CNPJ alfanumérico (vetor A.3). Os dois itens vêm SEM GTIN: só o código
+     do fornecedor (cProd) identifica o produto. Item 1: caixa de 12 leites, 2 CX a R$ 48,00. Item 2: iogurte avulso. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000005011000005015" versao="4.00">
+      <ide>
+        <nNF>501</nNF>
+        <dhEmi>2026-10-05T09:30:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>AB12CD34EFGH83</CNPJ>
+        <xNome>Laticinios Vale do Pardo Ltda</xNome>
+        <enderEmit>
+          <xMun>Cajuru</xMun>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>LEITE-CX12</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>LEITE INTEGRAL 1L CX C/12</xProd>
+          <uCom>CX</uCom>
+          <qCom>2.0000</qCom>
+          <vUnCom>48.0000000000</vUnCom>
+          <vProd>96.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>2.0000</qTrib>
+          <vUnTrib>48.0000000000</vUnTrib>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>IOG-170</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>IOGURTE MORANGO 170G</xProd>
+          <uCom>UN</uCom>
+          <qCom>6.0000</qCom>
+          <vUnCom>2.5000000000</vUnCom>
+          <vProd>15.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>6.0000</qTrib>
+          <vUnTrib>2.5000000000</vUnTrib>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>111.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>

@@ -93,7 +93,7 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,
-   balança, segurança (bloqueio por inatividade e política de senha), backup e formas de pagamento.
+   balança, segurança (bloqueio por inatividade e política de senha), sugestão de compra, backup e formas de pagamento.
 5. **Unidades de medida** (Produtos › *Unidades…*, com a permissão Produtos): além das que vêm prontas (UN, KG, L,
    M, CX, PCT, FD, DZ), cadastre outras com sigla de até 6 letras ou números, descrição e "fracionada" (aceita
    quantidade com casas decimais). A sigla e "fracionada" só mudam, e a unidade só é excluída, enquanto nenhum produto
@@ -191,6 +191,23 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      entra pelo CMV; a receita líquida e o lucro bruto batem com o R01 e o R05);
    - **painel:** quem tem Financeiro vê o saldo das contas, o resultado líquido do mês até hoje e os alertas de contas a
      pagar vencidas e vencendo hoje e de conta com saldo negativo (o clique abre o Financeiro já filtrado).
+11. **Compras: fornecedor do produto e sugestão de compra:**
+   - **fornecedores do produto** (cadastro do produto, aba **Fornecedores**, permissão Produtos): para cada fornecedor,
+     o código do produto na nota dele (`cProd`), a unidade de compra (ex.: CX), o **fator** (quantas unidades de venda
+     vêm em 1 unidade de compra: caixa com 12 = 12) e o prazo de entrega em dias. O primeiro fornecedor já fica como
+     **principal**; o principal dá o prazo e o fator da sugestão;
+   - **XML da NF-e:** item sem código de barras reconhecido é achado pelo código do fornecedor; a quantidade vira a da
+     nota × fator e o custo, o da nota ÷ fator (2 caixas de 12 = 24 unidades). Ao escolher o produto de um item à mão, a
+     conferência pergunta o fator e guarda o vínculo para as próximas notas do fornecedor. A entrada confirmada grava o
+     último custo do fornecedor;
+   - **sugestão de compra** (tela **Compras**, aba **Sugestão de compra**, permissão Compras; F5 calcula): por
+     fornecedor principal ou por categoria. Média por dia = venda dos últimos 30 dias (já sem as devoluções) ÷ 30;
+     sugestão = o que falta para cobrir 15 dias mais o prazo de entrega, ou para chegar ao estoque mínimo (o maior),
+     arredondado para cima no fator. Mostra a cobertura atual em dias, a sugestão também na unidade de compra, o último
+     custo e o valor estimado; produto sem saldo que vendeu nos últimos 30 dias aparece em vermelho (ruptura). Os 30 e os
+     15 dias mudam em **Configurações › Compras**;
+   - **relatórios:** **R26 Sugestão de compra** e **R28 Cobertura e ruptura** (quantos dias o estoque dura e quais
+     produtos estão em ruptura).
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.

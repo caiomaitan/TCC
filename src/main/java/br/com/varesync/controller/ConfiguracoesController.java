@@ -156,6 +156,9 @@ public class ConfiguracoesController {
     @FXML private TextField campoBloqueioAtraso;
     @FXML private Tab abaFinanceiro;
     @FXML private CheckBox campoIntegrarCaixa;
+    @FXML private Tab abaCompras;
+    @FXML private TextField campoDiasMedia;
+    @FXML private TextField campoCobertura;
     @FXML private HBox painelRecebimento;
     @FXML private TextField campoTaxaForma;
     @FXML private TextField campoDiasForma;
@@ -265,7 +268,7 @@ public class ConfiguracoesController {
                 Formatos.moeda(c.getValue().diferenca())));
 
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaFinanceiro, abaBackup);
+                abaCrediario, abaFinanceiro, abaCompras, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -363,6 +366,8 @@ public class ConfiguracoesController {
         campoCarencia.setText(String.valueOf(c.crediario().carenciaDias()));
         campoBloqueioAtraso.setText(String.valueOf(c.crediario().bloqueioAtrasoDias()));
         campoIntegrarCaixa.setSelected(c.integrarCaixa());
+        campoDiasMedia.setText(String.valueOf(c.compras().diasMedia()));
+        campoCobertura.setText(String.valueOf(c.compras().coberturaDias()));
         atualizarBalanca();
     }
 
@@ -391,7 +396,9 @@ public class ConfiguracoesController {
                         inteiro(campoDiasPrimeira, "Dias até a 1ª parcela"), numero(campoJuros, "Juros ao mês"),
                         numero(campoMulta, "Multa por atraso"), inteiro(campoCarencia, "Carência"),
                         inteiro(campoBloqueioAtraso, "Atraso que pede liberação")),
-                campoIntegrarCaixa.isSelected());
+                campoIntegrarCaixa.isSelected(),
+                new Configuracoes.Compras(inteiro(campoDiasMedia, "Dias de venda na média diária"),
+                        inteiro(campoCobertura, "Cobertura desejada")));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {

@@ -44,9 +44,17 @@ public final class LeitorNfe {
      * @param codigoBarras      EAN válido, ou nulo ("SEM GTIN")
      * @param valorTotal        {@code vProd} (valor da linha)
      * @param unidadeTributavel a quantidade e o código são os tributáveis
+     * @param comercial         o item como o fornecedor vende, para o vínculo pelo código do fornecedor (F16.1)
      */
     public record Item(int numero, String codigoBarras, String descricao, String unidade, BigDecimal quantidade,
-                       BigDecimal valorTotal, boolean unidadeTributavel) {
+                       BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial) {
+    }
+
+    /**
+     * Dados comerciais do item: {@code cProd} (vazio se faltar), {@code uCom}, {@code qCom} e {@code vUnCom} (nulo se
+     * faltar).
+     */
+    public record Comercial(String codigoProduto, String unidade, BigDecimal quantidade, BigDecimal valorUnitario) {
     }
 
     /** Duplicata da cobrança ({@code cobr/dup}). */
@@ -127,14 +135,16 @@ public final class LeitorNfe {
         String unidadeComercial = texto(prod, "uCom");
         String unidadeTributavel = texto(prod, "uTrib");
         BigDecimal valor = numero(prod, "vProd");
+        Comercial comercial = new Comercial(texto(prod, "cProd"), unidadeComercial, numero(prod, "qCom"),
+                texto(prod, "vUnCom").isEmpty() ? null : numero(prod, "vUnCom"));
         boolean tributavel = eanTributavel != null && !unidadeTributavel.isEmpty()
                 && !unidadeTributavel.equalsIgnoreCase(unidadeComercial);
         if (tributavel) {
             return new Item(numero, eanTributavel, texto(prod, "xProd"), unidadeTributavel, numero(prod, "qTrib"),
-                    valor, true);
+                    valor, true, comercial);
         }
         return new Item(numero, eanComercial != null ? eanComercial : eanTributavel, texto(prod, "xProd"),
-                unidadeComercial, numero(prod, "qCom"), valor, false);
+                unidadeComercial, comercial.quantidade(), valor, false, comercial);
     }
 
     /** "SEM GTIN", vazio ou código com dígito verificador errado → nulo. */

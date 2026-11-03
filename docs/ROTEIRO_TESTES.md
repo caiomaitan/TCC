@@ -633,3 +633,24 @@ demais estão "Não executado", falta a pessoa executar.
 | CT-F15-22 | Venda no crédito a 3%, caixa com diferença de −R$ 1,00, aluguel de março pago em abril, entrada com 2 parcelas | 1. R25 do mês da venda 2. R25 de março e de abril 3. R24 de abril | 1. −R$ 3,00 em taxas e −R$ 1,00 em diferenças de caixa 2. Aluguel em março; nenhuma compra de mercadoria como despesa 3. Saída do aluguel | Coberto por `FinanceiroParteBIT`; não executado pela tela |
 | CT-F15-23 | CT-F15-17 | 1. R24 por semana 2. R23 com situação Vencidos 3. Exportar CSV e PDF | 1. Saldo no início e saldo depois de cada linha 2. Só contas vencidas, com dias de atraso 3. Arquivos abrem | 1 e 2 OK pelo roteiro de tela (capturas `09` e `10`); 3 não executado |
 | CT-F15-24 | Usuário com Relatórios, sem Financeiro | 1. Entrar 2. Relatórios | 1. Sem o menu Financeiro e sem a seção do painel 2. Sem R23, R24 e R25 | OK pelo roteiro de tela (captura `11`) |
+
+## Fase 16 — Compras, parte A (fornecedor do produto, vínculo pela NF-e, sugestão de compra, R26 e R28)
+
+Executados pelo roteiro de tela descartável (2026-11-02, `varesync_test` com 3 produtos, 30 leites e 5 pães vendidos
+hoje e a NF-e fictícia `src/test/resources/nfe/nfe-caixa-fator.xml`) quando indicado; os demais estão "Não executado",
+falta a pessoa executar.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F16-01 | Supervisor | 1. Configurações › Compras 2. Dias da média = 3 › Salvar alterações | 1. 30 e 15 dias (padrão) 2. Gravado; a auditoria registra "dias da média de venda de 30 dias para 3 dias" | OK pelo roteiro de tela (captura `01`) |
+| CT-F16-02 | Produto "Leite integral 1 L" e fornecedor ativo | 1. Produtos › abrir o leite › aba Fornecedores › Incluir… 2. Fornecedor, código LEITE-CX12, unidade cx, fator 12, prazo 3 › Incluir | 1. Lista vazia 2. Linha com o código, "12 UN por CX", prazo 3 e principal "Sim" (o primeiro nasce principal) | OK pelo roteiro de tela (capturas `02` e `03`) |
+| CT-F16-03 | CT-F16-02 | 1. Incluir… o mesmo fornecedor | 1. Recusado: "… já é fornecedor deste produto. Altere a linha dele." | OK pelo roteiro de tela (captura `04`) |
+| CT-F16-04 | Produto com dois fornecedores | 1. Selecionar o segundo › Tornar principal 2. Remover… o principal | 1. Só ele fica "Sim" 2. O produto fica sem principal | Coberto por `ProdutoFornecedorIT`; não executado pela tela |
+| CT-F16-05 | Produto UN | 1. Incluir… com fator 2,5 2. Com fator 0,5 3. Prazo 400 | 1. Recusado (inteiro na unidade UN) 2. Recusado (1 ou mais) 3. Recusado (0 a 365) | Coberto por `ProdutoFornecedorIT`; não executado pela tela |
+| CT-F16-06 | CT-F16-02; NF-e com o leite SEM GTIN (`cProd` LEITE-CX12, 2 CX a R$ 48,00) e um iogurte sem vínculo | 1. Compras › Importar XML da NF-e… | 1. Leite vinculado ("Cód. fornecedor"), quantidade "2 CX × 12 = 24"; iogurte em vermelho, sem vínculo; "Gerar entrada" desabilitado | OK pelo roteiro de tela (captura `05`) |
+| CT-F16-07 | CT-F16-06 | 1. Selecionar o iogurte › Escolher produto… › escolher 2. Fator 1 › Confirmar 3. Gerar entrada | 1. Abre o fator 2. "Escolhido agora", "6 UN × 1 = 6" 3. Entrada aberta com 24 leites a R$ 4,0000 (48,00 ÷ 12) e o iogurte; vínculo IOG-170 gravado no iogurte | OK pelo roteiro de tela (capturas `06` a `08`) |
+| CT-F16-08 | CT-F16-07 | 1. Importar a próxima nota do mesmo fornecedor (outro número) | 1. Os dois itens já vêm vinculados pelo código do fornecedor | OK pelo roteiro de tela (captura `15`) |
+| CT-F16-09 | CT-F16-07 | 1. Confirmar a entrada 2. Abrir o leite › Fornecedores | 2. Último custo R$ 4,0000 | OK pelo roteiro de tela (captura `12`; entrada confirmada pelo service) |
+| CT-F16-10 | Média de 3 dias; 30 leites vendidos hoje (saldo 40); 5 pães vendidos (saldo 0) | 1. Compras › Sugestão de compra › F5 2. Fornecedor principal = o do leite; desmarcar "Só com sugestão" 3. Estoque mínimo do leite = 200 › Calcular | 1. Leite: média 10, cobertura 4, sugestão 144 = 12 CX, R$ 460,80; pão em vermelho (ruptura) 2. Leite e iogurte do fornecedor 3. Sugestão 168 = 14 CX | OK pelo roteiro de tela (capturas `09` a `11`) |
+| CT-F16-11 | CT-F16-10 | 1. Devolver 6 leites › Calcular | 1. Média 8 (30 − 6 em 3 dias) e a sugestão cai | Coberto por `SugestaoCompraIT.devolucaoReduzAMedia`; não executado pela tela |
+| CT-F16-12 | CT-F16-10 | 1. Relatórios › R26 2. R28 3. Exportar CSV e PDF | 1. Só os produtos com sugestão, por fornecedor principal 2. Todos os ativos, o pão em ruptura primeiro, total "1 em ruptura" 3. Arquivos abrem | 1 e 2 OK pelo roteiro de tela (capturas `13` e `14`); 3 não executado (PDF coberto por `RelatorioPdfTest`) |

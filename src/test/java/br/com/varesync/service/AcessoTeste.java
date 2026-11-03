@@ -20,6 +20,7 @@ import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.ProdutoDAO;
+import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.dao.TituloReceberDAO;
@@ -80,6 +81,8 @@ final class AcessoTeste {
     final RecebivelService recebiveis;
     final ContaPagarService contasPagar;
     final FluxoCaixaService fluxoCaixa;
+    final ProdutoFornecedorService vinculos;
+    final SugestaoCompraService sugestao;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -112,8 +115,10 @@ final class AcessoTeste {
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
+        vinculos = new ProdutoFornecedorService(transacao, new ProdutoFornecedorDAO(), produtoDAO, new FornecedorDAO(),
+                relogio);
         compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
-                new ConfiguracaoDAO(), estoque, contasPagar, auditoria, relogio);
+                new ConfiguracaoDAO(), estoque, contasPagar, new ProdutoFornecedorDAO(), auditoria, relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), new FormaPagamentoDAO(), new ContaPagarDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
@@ -124,7 +129,8 @@ final class AcessoTeste {
         importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO, categoriaDAO,
                 new UnidadeMedidaDAO());
         consultaAuditoria = new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), relogio);
-        nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO, compras, relogio);
+        nfe = new ImportacaoNfeService(transacao, new FornecedorDAO(), new EntradaDAO(), produtoDAO,
+                new ProdutoFornecedorDAO(), compras, vinculos, relogio);
         unidades = new UnidadeService(transacao, new UnidadeMedidaDAO());
         clientes = new ClienteService(transacao, new ClienteDAO(), new CreditoClienteDAO(), new TituloReceberDAO(),
                 new ConfiguracaoDAO(), auditoria, relogio);
@@ -134,6 +140,7 @@ final class AcessoTeste {
         recebimentos = new RecebimentoService(transacao, new RecebimentoDAO(), new TituloReceberDAO(), new ClienteDAO(),
                 new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, recebiveis, auditoria, relogio);
         fluxoCaixa = new FluxoCaixaService(transacao, relogio);
+        sugestao = new SugestaoCompraService(transacao, new ConfiguracaoDAO(), new FornecedorDAO(), categoriaDAO, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

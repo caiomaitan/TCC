@@ -7,25 +7,25 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V12 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V13 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV12() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(12);
+    void bancoVazioRecebeV1aV13() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(13);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
-                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12')
-                    """)).isEqualTo(12);
+                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13')
+                    """)).isEqualTo(13);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                        AND table_name <> 'flyway_schema_history'
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
-                    + "devolucao_titulo da V11; 8 do financeiro da V12)")
-                    .isEqualTo(42);
+                    + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13)")
+                    .isEqualTo(43);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'
@@ -47,6 +47,8 @@ class MigracaoIT extends IntegracaoBase {
                     .as("forma \"Crédito do cliente\" da V7").isEqualTo(1);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave LIKE 'fidelidade.%'"))
                     .as("configurações da fidelidade da V7").isEqualTo(3);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave LIKE 'compras.%'"))
+                    .as("configurações da sugestão de compra da V13").isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM conta_financeira")).as("Cofre e Banco da V12")
                     .isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM categoria_despesa")).as("categorias da V12")

@@ -122,7 +122,7 @@ public final class AppContext implements AutoCloseable {
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == ProdutoController.class) {
-            return new ProdutoController(s.produtos(), s.categorias(), sessao);
+            return new ProdutoController(s.produtos(), s.categorias(), s.vinculos(), sessao);
         }
         if (tipo == CategoriasController.class) {
             return new CategoriasController(s.categorias(), sessao);
@@ -140,7 +140,8 @@ public final class AppContext implements AutoCloseable {
             return new FornecedoresController(s.fornecedores(), sessao);
         }
         if (tipo == ComprasController.class) {
-            return new ComprasController(s.compras(), s.nfe(), sessao, t -> criarController(t, navegacao, sessao));
+            return new ComprasController(s.compras(), s.nfe(), s.sugestao(), sessao,
+                    t -> criarController(t, navegacao, sessao));
         }
         if (tipo == CaixaController.class) {
             return new CaixaController(s.caixa(), s.recebimentos(), s.acesso(), fechamentoPdf, comprovantePdf,

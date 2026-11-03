@@ -7,11 +7,14 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.ResultadoEntrada;
+import br.com.varesync.report.Opcao;
+import br.com.varesync.report.SugestaoCompra;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.ImportacaoNfeService;
 import br.com.varesync.service.LeitorNfe;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.service.SugestaoCompraService;
 import br.com.varesync.ui.BuscaProdutoDialogo;
 import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.DialogoNfe;
@@ -19,6 +22,8 @@ import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCompras;
 import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.Tarefas;
+import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
@@ -37,7 +42,12 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.concurrent.Task;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -53,7 +63,8 @@ import javafx.util.Callback;
 /**
  * Compras — entrada de mercadoria (6.10): lista de entradas, dados da nota, itens (por código de barras, código ou
  * busca; custo unitário ou valor total da linha), confirmar (com o aviso de divergência do total e, depois, a
- * sugestão de reajuste) e excluir a entrada aberta. Confirmada, fica somente leitura.
+ * sugestão de reajuste) e excluir a entrada aberta. Confirmada, fica somente leitura. Aba Sugestão de compra (F16.2):
+ * por fornecedor principal ou categoria, calculada em {@link Task}, com a ruptura em destaque.
  */
 public class ComprasController {
 
@@ -66,6 +77,9 @@ public class ComprasController {
     private final Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
     private final ImportacaoNfeService importacaoNfe;
+    private final SugestaoCompraService sugestaoService;
+    /** Última sugestão calculada (todas as linhas do filtro); nula antes de calcular. */
+    private SugestaoCompraService.Resultado sugestao;
     /** Entrada mostrada nos detalhes; nula sem seleção. */
     private EntradaResumo entrada;
     /** Produto escolhido para incluir; nulo quando se altera um item ou nada foi escolhido. */
@@ -74,6 +88,30 @@ public class ComprasController {
     private ItemEntrada itemEmEdicao;
 
     @FXML private VBox raiz;
+    @FXML private TabPane abas;
+    @FXML private Tab abaSugestao;
+    @FXML private ComboBox<Opcao> sugestaoFornecedor;
+    @FXML private ComboBox<Opcao> sugestaoCategoria;
+    @FXML private CheckBox sugestaoSoComSugestao;
+    @FXML private Button botaoCalcularSugestao;
+    @FXML private ProgressIndicator progressoSugestao;
+    @FXML private Label sugestaoParametros;
+    @FXML private TableView<SugestaoCompra.Linha> tabelaSugestao;
+    @FXML private Label sugestaoVazia;
+    @FXML private TableColumn<SugestaoCompra.Linha, Long> colunaSugCodigo;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugProduto;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugFornecedor;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugSaldo;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugMedia;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugCobertura;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugPendente;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugSugestao;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugCompra;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugCusto;
+    @FXML private TableColumn<SugestaoCompra.Linha, String> colunaSugValor;
+    @FXML private Label sugestaoTotal;
+    @FXML private Label sugestaoRupturas;
+    @FXML private Label mensagemSugestao;
     @FXML private CheckBox filtroConfirmadas;
     @FXML private TableView<EntradaResumo> tabelaEntradas;
     @FXML private TableColumn<EntradaResumo, Long> colunaNumero;
@@ -115,10 +153,12 @@ public class ComprasController {
     @FXML private Label diferenca;
     @FXML private Label mensagem;
 
-    public ComprasController(EntradaService entradaService, ImportacaoNfeService importacaoNfe, Sessao sessao,
+    public ComprasController(EntradaService entradaService, ImportacaoNfeService importacaoNfe,
+                             SugestaoCompraService sugestaoService, Sessao sessao,
                              Callback<Class<?>, Object> fabricaControllers) {
         this.entradaService = entradaService;
         this.importacaoNfe = importacaoNfe;
+        this.sugestaoService = sugestaoService;
         this.sessao = sessao;
         this.fabricaControllers = fabricaControllers;
     }
@@ -165,11 +205,17 @@ public class ComprasController {
         campoQuantidade.setPromptText("0");
 
         raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_N.match(e)) {
+            if (abas.getSelectionModel().getSelectedItem() == abaSugestao) {
+                if (e.getCode() == KeyCode.F5) {
+                    e.consume();
+                    calcularSugestao();
+                }
+            } else if (CTRL_N.match(e)) {
                 e.consume();
                 nova();
             }
         });
+        prepararSugestao();
         mostrar(null);
         pesquisar();
         Platform.runLater(() -> tabelaEntradas.requestFocus());
@@ -177,6 +223,105 @@ public class ComprasController {
 
     private static <T> void texto(TableColumn<T, String> coluna, Function<T, String> valor) {
         coluna.setCellValueFactory(c -> new ReadOnlyStringWrapper(valor.apply(c.getValue())));
+    }
+
+    // ----- Sugestão de compra (F16.2) -----
+
+    static final Opcao TODOS = new Opcao(0, "Todos");
+    static final Opcao TODAS = new Opcao(0, "Todas");
+
+    private void prepararSugestao() {
+        sugestaoFornecedor.getItems().add(TODOS);
+        sugestaoFornecedor.getItems().addAll(sugestaoService.fornecedores(sessao));
+        sugestaoFornecedor.setValue(TODOS);
+        sugestaoCategoria.getItems().add(TODAS);
+        sugestaoCategoria.getItems().addAll(sugestaoService.categorias(sessao));
+        sugestaoCategoria.setValue(TODAS);
+
+        colunaSugCodigo.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().produtoId()));
+        texto(colunaSugProduto, SugestaoCompra.Linha::produto);
+        texto(colunaSugFornecedor, l -> l.fornecedor() == null ? "(sem principal)" : l.fornecedor());
+        texto(colunaSugSaldo, l -> Formatos.quantidade(l.saldo(), l.fracionada()) + " " + l.unidade());
+        texto(colunaSugMedia, l -> Formatos.quantidade(l.mediaDia(), true));
+        texto(colunaSugCobertura, l -> l.coberturaDias() == null ? Formatos.SEM_VALOR
+                : Formatos.numero(BigDecimal.valueOf(l.coberturaDias()), 0));
+        texto(colunaSugPendente, l -> Formatos.quantidade(l.pendente(), l.fracionada()));
+        texto(colunaSugSugestao, l -> Formatos.quantidade(l.sugestao(), l.fracionada()));
+        texto(colunaSugCompra, l -> l.fornecedorId() == null || l.sugestao().signum() == 0 ? ""
+                : Formatos.quantidade(l.sugestaoNaUnidadeDeCompra(), l.sugestaoNaUnidadeDeCompra()
+                .stripTrailingZeros().scale() > 0) + " " + (l.unidadeCompra() == null ? "un. de compra"
+                : l.unidadeCompra()));
+        texto(colunaSugCusto, l -> custo(l.ultimoCusto()));
+        texto(colunaSugValor, l -> Formatos.moeda(l.valorEstimado()));
+        tabelaSugestao.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(SugestaoCompra.Linha l, boolean vazio) {
+                super.updateItem(l, vazio);
+                getStyleClass().remove("linha-erro");
+                if (!vazio && l != null && l.ruptura()) {
+                    getStyleClass().add("linha-erro");
+                }
+            }
+        });
+        botaoCalcularSugestao.disableProperty().bind(progressoSugestao.visibleProperty());
+    }
+
+    @FXML
+    private void calcularSugestao() {
+        carregarSugestao();
+    }
+
+    /** Calcula em {@link Task}; "Calcular" fica desabilitado enquanto isso. */
+    Task<SugestaoCompraService.Resultado> carregarSugestao() {
+        Long fornecedorId = idOuTodos(sugestaoFornecedor.getValue());
+        Long categoriaId = idOuTodos(sugestaoCategoria.getValue());
+        Task<SugestaoCompraService.Resultado> tarefa = new Task<>() {
+            @Override
+            protected SugestaoCompraService.Resultado call() {
+                return sugestaoService.consultar(sessao, fornecedorId, categoriaId);
+            }
+        };
+        progressoSugestao.setVisible(true);
+        Mensagem.limpar(mensagemSugestao);
+        tarefa.setOnSucceeded(e -> {
+            progressoSugestao.setVisible(false);
+            sugestao = tarefa.getValue();
+            filtrarSugestao();
+        });
+        tarefa.setOnFailed(e -> {
+            progressoSugestao.setVisible(false);
+            Mensagem.erro(mensagemSugestao, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        return Tarefas.executar("sugestao-compra", tarefa);
+    }
+
+    /** Mostra a última sugestão calculada com o filtro "Só com sugestão". */
+    @FXML
+    private void filtrarSugestao() {
+        if (sugestao == null) {
+            return;
+        }
+        List<SugestaoCompra.Linha> linhas = sugestao.linhas().stream()
+                .filter(l -> !sugestaoSoComSugestao.isSelected() || l.sugestao().signum() > 0).toList();
+        tabelaSugestao.getItems().setAll(linhas);
+        sugestaoVazia.setText(sugestaoSoComSugestao.isSelected()
+                ? "Nenhum produto precisa de compra com estes filtros." : "Nenhum produto ativo com estes filtros.");
+        sugestaoParametros.setText("Média da venda líquida de devoluções dos últimos "
+                + sugestao.parametros().diasMedia() + " dias (hoje incluído) · cobertura de "
+                + sugestao.parametros().coberturaDias() + " dias + o prazo de entrega do fornecedor principal · "
+                + "arredondada para cima no fator. Pendente em pedidos: com o pedido de compra.");
+        BigDecimal total = linhas.stream().map(SugestaoCompra.Linha::valorEstimado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long comSugestao = linhas.stream().filter(l -> l.sugestao().signum() > 0).count();
+        sugestaoTotal.setText(comSugestao + (comSugestao == 1 ? " produto" : " produtos") + " a comprar · valor "
+                + "estimado " + Formatos.moeda(total));
+        long rupturas = linhas.stream().filter(SugestaoCompra.Linha::ruptura).count();
+        sugestaoRupturas.setText(rupturas == 0 ? "" : rupturas + (rupturas == 1 ? " produto" : " produtos")
+                + " em ruptura (em vermelho)");
+    }
+
+    private static Long idOuTodos(Opcao opcao) {
+        return opcao == null || opcao.id() == 0 ? null : opcao.id();
     }
 
     // ----- Lista e nota -----
@@ -248,7 +393,8 @@ public class ComprasController {
                 termo -> entradaService.pesquisarProdutos(sessao, termo),
                 id -> entradaService.produtoPorCodigo(sessao, String.valueOf(id)),
                 sessao.pode(Permissao.PRODUTOS) ? this::cadastrarProduto : null,
-                escolhidos -> importacaoNfe.gerarEntrada(sessao, xml, escolhidos))).ifPresent(id -> {
+                (escolhidos, fatores) -> importacaoNfe.gerarEntrada(sessao, xml, escolhidos, fatores)))
+                .ifPresent(id -> {
                     tabelaEntradas.getItems().setAll(entradaService.listar(sessao, filtroConfirmadas.isSelected()));
                     selecionar(id);
                     Mensagem.sucesso(mensagem, "Entrada nº " + id + " gerada pelo XML da NF-e. Confira os itens e "

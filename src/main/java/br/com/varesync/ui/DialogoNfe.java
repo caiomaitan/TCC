@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.event.ActionEvent;
@@ -30,7 +31,8 @@ import javafx.scene.layout.VBox;
 
 /**
  * Conferência do XML da NF-e antes de gerar a entrada (6.11): emitente, nota e itens com o produto vinculado pelo
- * código de barras; itens sem vínculo recebem o produto pela busca ou pelo cadastro. "Gerar entrada" só fica
+ * código de barras ou pelo código do fornecedor (F16.1, com o fator); itens sem vínculo recebem o produto pela busca ou
+ * pelo cadastro, com o fator perguntado (o vínculo fica gravado para as próximas notas). "Gerar entrada" só fica
  * disponível com todos os itens vinculados.
  */
 public final class DialogoNfe {
@@ -43,10 +45,11 @@ public final class DialogoNfe {
      * @param porId     produto escolhido na busca ou cadastrado
      * @param cadastrar abre o cadastro de produto preenchido com o item; devolve o código do produto salvo (nulo =
      *                  sem permissão de cadastrar: o botão não aparece)
-     * @param gerar     escolhas (nº do item → produto) → número da entrada gerada
+     * @param gerar     escolhas feitas à mão (nº do item → produto) e os fatores delas → número da entrada gerada
      */
     public record Acoes(Function<String, List<ProdutoResumo>> pesquisa, Function<Long, ProdutoVenda> porId,
-                        Function<LeitorNfe.Item, Optional<Long>> cadastrar, Function<Map<Integer, Long>, Long> gerar) {
+                        Function<LeitorNfe.Item, Optional<Long>> cadastrar,
+                        BiFunction<Map<Integer, Long>, Map<Integer, BigDecimal>, Long> gerar) {
     }
 
     /** @return número da entrada gerada, ou vazio se cancelado */
@@ -54,6 +57,8 @@ public final class DialogoNfe {
         LeitorNfe.Nota nota = previa.nota();
         Map<Integer, ProdutoVenda> vinculos = new LinkedHashMap<>();
         previa.itens().forEach(i -> vinculos.put(i.item().numero(), i.produto()));
+        // Escolhas feitas à mão nesta conferência e o fator de cada uma (F16.1).
+        Map<Integer, BigDecimal> fatores = new LinkedHashMap<>();
 
         Dialog<Long> dialogo = new Dialog<>();
         dialogo.setTitle(Dialogos.TITULO);
@@ -77,16 +82,25 @@ public final class DialogoNfe {
         tabela.getColumns().add(coluna("Item", 45, i -> String.valueOf(i.item().numero())));
         tabela.getColumns().add(coluna("Código de barras", 120, i -> i.item().codigoBarras() == null ? "(sem GTIN)"
                 : i.item().codigoBarras()));
-        tabela.getColumns().add(coluna("Descrição na nota", 230, i -> i.item().descricao()));
-        tabela.getColumns().add(coluna("Quantidade", 120, i -> Formatos.numero(i.item().quantidade(),
-                i.item().quantidade().stripTrailingZeros().scale() > 0 ? Dinheiro.ESCALA_QUANTIDADE : 0) + " "
-                + i.item().unidade() + (i.item().unidadeTributavel() ? " (trib.)" : "")));
+        tabela.getColumns().add(coluna("Descrição na nota", 200, i -> i.item().descricao()));
+        tabela.getColumns().add(coluna("Quantidade", 120, i -> {
+            BigDecimal fator = fatores.containsKey(i.item().numero()) ? fatores.get(i.item().numero()) : i.fator();
+            if (fator != null && vinculos.get(i.item().numero()) != null) {
+                return quantidade(i.item().comercial().quantidade()) + " " + i.item().comercial().unidade() + " × "
+                        + quantidade(fator) + " = " + quantidade(i.item().comercial().quantidade().multiply(fator));
+            }
+            return quantidade(i.item().quantidade()) + " " + i.item().unidade()
+                    + (i.item().unidadeTributavel() ? " (trib.)" : "");
+        }));
         tabela.getColumns().add(coluna("Valor", 90, i -> Formatos.moeda(i.item().valorTotal())));
-        tabela.getColumns().add(coluna("Produto no sistema", 260, i -> {
+        tabela.getColumns().add(coluna("Produto no sistema", 250, i -> {
             ProdutoVenda p = vinculos.get(i.item().numero());
             return p == null ? "— sem vínculo: escolha ou cadastre —" : p.nome() + " (código " + p.id() + ")"
                     + (p.ativo() ? "" : " — INATIVO");
         }));
+        tabela.getColumns().add(coluna("Vínculo", 115, i -> vinculos.get(i.item().numero()) == null ? ""
+                : fatores.containsKey(i.item().numero()) ? "Escolhido agora"
+                : i.peloFornecedor() ? "Cód. fornecedor" : "Cód. de barras"));
         tabela.getItems().setAll(previa.itens());
         tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tabela.setRowFactory(t -> {
@@ -130,11 +144,8 @@ public final class DialogoNfe {
                 return;
             }
             BuscaProdutoDialogo.buscar("Produto do item " + sel.item().numero() + " — " + sel.item().descricao(),
-                    "Escolher", false, primeiraPalavra(sel.item().descricao()), acoes.pesquisa()).ifPresent(p -> {
-                        vinculos.put(sel.item().numero(), acoes.porId().apply(p.id()));
-                        mensagem.setText("");
-                        atualizar.run();
-                    });
+                    "Escolher", false, primeiraPalavra(sel.item().descricao()), acoes.pesquisa())
+                    .ifPresent(p -> escolhido(sel, acoes.porId().apply(p.id()), vinculos, fatores, mensagem, atualizar));
         });
         HBox botoes = new HBox(10, escolher);
         if (acoes.cadastrar() != null) {
@@ -145,11 +156,8 @@ public final class DialogoNfe {
                     mensagem.setText("Selecione um item da lista.");
                     return;
                 }
-                acoes.cadastrar().apply(sel.item()).ifPresent(id -> {
-                    vinculos.put(sel.item().numero(), acoes.porId().apply(id));
-                    mensagem.setText("");
-                    atualizar.run();
-                });
+                acoes.cadastrar().apply(sel.item()).ifPresent(id -> escolhido(sel, acoes.porId().apply(id), vinculos,
+                        fatores, mensagem, atualizar));
             });
             botoes.getChildren().add(cadastrar);
         }
@@ -161,10 +169,11 @@ public final class DialogoNfe {
 
         Long[] gerada = new Long[1];
         gerarBotao.addEventFilter(ActionEvent.ACTION, ev -> {
+            // Só as escolhas feitas à mão: os demais itens o service vincula de novo (código de barras ou do fornecedor).
             Map<Integer, Long> escolhidos = new LinkedHashMap<>();
-            vinculos.forEach((numero, p) -> escolhidos.put(numero, p == null ? null : p.id()));
+            fatores.keySet().forEach(numero -> escolhidos.put(numero, vinculos.get(numero).id()));
             try {
-                gerada[0] = acoes.gerar().apply(escolhidos);
+                gerada[0] = acoes.gerar().apply(escolhidos, fatores);
             } catch (NegocioException ex) {
                 mensagem.setText(ex.getMessage());
                 dialogo.getDialogPane().getScene().getWindow().sizeToScene();
@@ -179,6 +188,27 @@ public final class DialogoNfe {
         atualizar.run();
         tabela.getSelectionModel().selectFirst();
         return dialogo.showAndWait();
+    }
+
+    /** Produto escolhido à mão: pergunta o fator (cancelar desfaz a escolha) e atualiza a tabela. */
+    private static void escolhido(ImportacaoNfeService.ItemPrevia sel, ProdutoVenda produto,
+                                  Map<Integer, ProdutoVenda> vinculos, Map<Integer, BigDecimal> fatores, Label mensagem,
+                                  Runnable atualizar) {
+        LeitorNfe.Comercial comercial = sel.item().comercial();
+        BigDecimal sugerido = fatores.containsKey(sel.item().numero()) ? fatores.get(sel.item().numero())
+                : sel.fator() != null ? sel.fator() : ImportacaoNfeService.fatorSugerido(sel.item());
+        DialogosVinculo.fatorDaNota(sel.item().descricao(), quantidade(comercial.quantidade()) + " "
+                        + comercial.unidade(), produto.unidade(), sugerido)
+                .ifPresent(fator -> {
+                    vinculos.put(sel.item().numero(), produto);
+                    fatores.put(sel.item().numero(), fator);
+                    mensagem.setText("");
+                    atualizar.run();
+                });
+    }
+
+    private static String quantidade(BigDecimal valor) {
+        return Formatos.numero(valor, valor.stripTrailingZeros().scale() > 0 ? Dinheiro.ESCALA_QUANTIDADE : 0);
     }
 
     /** Primeira palavra da descrição da nota, para abrir a busca já filtrada. */

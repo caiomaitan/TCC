@@ -353,3 +353,17 @@ Casos do roteiro manual: CT-F15-01 a CT-F15-16. RF22 (fluxo de caixa), RF23 (DRE
 | Exportação | R23, R24 e R25 pela infraestrutura `Relatorio<T>` (tela, CSV e PDF) | `RelatorioPdfTest` (PDF de todos os `DadosFicticios`, com `r23`, `r24` e `r25`) |
 
 Casos do roteiro manual: CT-F15-17 a CT-F15-24.
+
+## Fase 16 — Compras, parte A (RF24)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RF24 / F16.1 Banco | Migration `V13__fornecedor_do_produto.sql` (`produto_fornecedor` com `uq_pf_produto_fornecedor`, `uq_pf_codigo`, `ux_pf_principal`, CHECKs de fator, prazo, código e unidade; `compras.dias_media` e `compras.cobertura_dias`), `MensagensBanco` | `MigracaoIT` (13 migrations, 43 tabelas, configurações da V13) |
+| RF24 / F16.1 Fornecedor do produto | `ProdutoFornecedorService` (PRODUTOS: listar, salvar, remover, principal único, primeiro vínculo principal), `ProdutoFornecedorDAO`, `ProdutoFornecedor`, `DadosVinculo`; aba **Fornecedores** do cadastro do produto (`ProdutoController`, `produto.fxml`, `DialogosVinculo.editar`) | `ProdutoFornecedorIT` (principal único e troca; fornecedor repetido; código de outro produto com o nome dele; fator ≥ 1 e inteiro na unidade inteira; prazo; fornecedor inativo; exclusão em cascata; permissão) |
+| RF24 / F16.1 Vínculo pela NF-e | `LeitorNfe.Comercial` (`cProd`, `uCom`, `qCom`, `vUnCom`), `ImportacaoNfeService` (código de barras → par fornecedor × `cProd`; `qCom` × fator e `vUnCom` ÷ fator; vínculo à mão gravado por `ProdutoFornecedorService.vincularPelaNota`; `fatorSugerido`), `EntradaService.adicionarItemDaNota`, `DialogoNfe` (origem do vínculo, quantidade "2 CX × 12 = 24", fator perguntado por `DialogosVinculo.fatorDaNota`) | `ImportacaoNfeIT.itemSemEanReconhecidoPeloCodigoDoFornecedorComFatorDoAceite`, `vinculoFeitoAMaoNaImportacaoValeParaAProximaNota`, `escolherOutroProdutoParaOCodigoMoveOVinculo`, `fatorSugeridoPelaUnidadeTributavel`; `LeitorNfeTest` |
+| RF24 / F16.1 Último custo | `EntradaService.confirmar` → `ProdutoFornecedorDAO.atualizarUltimoCusto` | `ImportacaoNfeIT.itemSemEanReconhecidoPeloCodigoDoFornecedorComFatorDoAceite` |
+| RF24 / F16.2 Sugestão de compra | `report/SugestaoCompra` (consulta sobre `vw_estoque_atual` e `vw_resultado_item`, `calcular`), `SugestaoCompraService` (COMPRAS), aba **Compras › Sugestão de compra** (`ComprasController`, `compras.fxml`: fornecedor principal, categoria, "Só com sugestão", F5 em `Task`, ruptura em vermelho); `Configuracoes.Compras`, aba **Configurações › Compras**, `ConfiguracaoService.compras` | `SugestaoCompraTest` (144, 168, pendente, fator fracionado, saldo negativo, sem venda, média sem arredondar antes), `SugestaoCompraIT` (aceite com venda real; devolução reduz a média; sem principal; filtros; permissão), `ConfiguracoesTest.comprasDaV13` |
+| RF24 / F16.2 R26 e R28 | `RelSugestaoCompra` (R26), `RelCoberturaRuptura` (R28), `ParametrosRelatorio.compras`, `RelatorioService.gerar` | `SugestaoCompraIT.relatoriosR26ER28`, `RelatoriosParte2Test.catalogoTemOsRelatoriosNaOrdemDosCodigos`, `RelatorioPdfTest` e `ExportadorCsvTest` (com `DadosFicticios.r26`/`r28`), `GeradorDemoIT.relatoriosDeSessentaDiasEmMenosDeTresSegundos` |
+
+Casos do roteiro manual: CT-F16-01 a CT-F16-12. RF25 (pedido de compra), o pendente em pedidos, "Gerar pedido", o R27, o
+painel e o gerador ficam para a parte B.

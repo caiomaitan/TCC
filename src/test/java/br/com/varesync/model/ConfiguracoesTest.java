@@ -44,6 +44,8 @@ class ConfiguracoesTest {
         m.put("crediario.carencia_dias", "0");
         m.put("crediario.bloqueio_atraso_dias", "30");
         m.put("financeiro.integrar_caixa", "false");
+        m.put("compras.dias_media", "30");
+        m.put("compras.cobertura_dias", "15");
         return m;
     }
 
@@ -86,6 +88,21 @@ class ConfiguracoesTest {
         assertThat(Configuracoes.de(m).integrarCaixa()).isTrue();
         assertThat(Configuracoes.PADRAO.comIntegrarCaixa(true).paraMapa())
                 .containsEntry("financeiro.integrar_caixa", "true");
+    }
+
+    /** V13 (F16.2): média de 30 dias e cobertura de 15; média 0 ou acima de 365 volta ao padrão, cobertura 0 vale. */
+    @Test
+    void comprasDaV13() {
+        assertThat(Configuracoes.PADRAO.compras()).isEqualTo(new Configuracoes.Compras(30, 15));
+        Map<String, String> m = v2();
+        m.put("compras.dias_media", "60");
+        m.put("compras.cobertura_dias", "0");
+        assertThat(Configuracoes.de(m).compras()).isEqualTo(new Configuracoes.Compras(60, 0));
+        m.put("compras.dias_media", "0");
+        m.put("compras.cobertura_dias", "366");
+        assertThat(Configuracoes.de(m).compras()).isEqualTo(Configuracoes.Compras.PADRAO);
+        assertThat(Configuracoes.PADRAO.comCompras(new Configuracoes.Compras(7, 10)).paraMapa())
+                .containsEntry("compras.dias_media", "7").containsEntry("compras.cobertura_dias", "10");
     }
 
     /** V10 (F14): lê as chaves do crediário; parcelas fora de 1 a 60 voltam ao padrão. */

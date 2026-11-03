@@ -138,7 +138,7 @@ public class RelatorioService {
             Configuracoes config = configuracaoDAO.carregar(con);
             ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(),
                     config.margemMinimaPct(),
-                    agora.atZoneSameInstant(clock.getZone()).toLocalDate());
+                    agora.atZoneSameInstant(clock.getZone()).toLocalDate(), config.compras());
             Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
                     ? filtros.comDias(config.diasSemGiro()) : filtros;
             if (relatorio.filtros().contains(TipoFiltro.MES) && usados.financeiro().mes() == null) {

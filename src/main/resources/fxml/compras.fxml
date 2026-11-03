@@ -5,7 +5,10 @@
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
@@ -13,88 +16,139 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<!-- Compras — entrada de mercadoria (6.10): lista de entradas; itens da entrada escolhida; confirmar e excluir.
-     Ctrl+N cria uma entrada. -->
+<!-- Compras: aba Entradas — entrada de mercadoria (6.10): lista de entradas; itens da entrada escolhida; confirmar e
+     excluir. Ctrl+N cria uma entrada. Aba Sugestão de compra (F16.2): por fornecedor principal ou categoria. -->
 <VBox fx:id="raiz" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.ComprasController"
       spacing="10" styleClass="tela-cadastro">
 
-    <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="Compras — entrada de mercadoria" styleClass="titulo"/>
-        <Region HBox.hgrow="ALWAYS"/>
-        <CheckBox fx:id="filtroConfirmadas" text="Mostrar confirmadas" onAction="#pesquisar"/>
-        <Button text="Importar XML da NF-e…" onAction="#importarNfe"/>
-        <Button text="Nova entrada… (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
-    </HBox>
+    <Label text="Compras" styleClass="titulo"/>
 
-    <SplitPane orientation="VERTICAL" dividerPositions="0.3" VBox.vgrow="ALWAYS">
-        <TableView fx:id="tabelaEntradas">
-            <placeholder><Label text="Nenhuma entrada. Lance uma nota em &quot;Nova entrada…&quot;."/></placeholder>
-            <columns>
-                <TableColumn fx:id="colunaNumero" text="Nº" prefWidth="55" styleClass="coluna-numero"/>
-                <TableColumn fx:id="colunaFornecedor" text="Fornecedor" prefWidth="230"/>
-                <TableColumn fx:id="colunaNota" text="Nota" prefWidth="80"/>
-                <TableColumn fx:id="colunaEmissao" text="Emissão" prefWidth="90"/>
-                <TableColumn fx:id="colunaValorNota" text="Valor da nota" prefWidth="110" styleClass="coluna-numero"/>
-                <TableColumn fx:id="colunaSomaItens" text="Soma dos itens" prefWidth="110" styleClass="coluna-numero"/>
-                <TableColumn fx:id="colunaItens" text="Itens" prefWidth="55" styleClass="coluna-numero"/>
-                <TableColumn fx:id="colunaSituacao" text="Situação" prefWidth="90"/>
-                <TableColumn fx:id="colunaConfirmada" text="Confirmada em / por" prefWidth="220"/>
-            </columns>
-            <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
-        </TableView>
+    <TabPane fx:id="abas" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+        <Tab text="Entradas">
+            <VBox spacing="10">
+                <padding><Insets top="10" right="2" bottom="2" left="2"/></padding>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Entrada de mercadoria" styleClass="titulo-secao"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <CheckBox fx:id="filtroConfirmadas" text="Mostrar confirmadas" onAction="#pesquisar"/>
+                    <Button text="Importar XML da NF-e…" onAction="#importarNfe"/>
+                    <Button text="Nova entrada… (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
+                </HBox>
 
-        <VBox spacing="8">
-            <HBox alignment="CENTER_LEFT" spacing="10">
-                <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao"/>
-                <Label fx:id="situacao" styleClass="subtitulo"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota"/>
-                <Button fx:id="botaoParcelas" text="Parcelas…" onAction="#editarParcelas"/>
-                <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir"/>
-                <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar"
-                        styleClass="botao-primario"/>
-            </HBox>
+                <SplitPane orientation="VERTICAL" dividerPositions="0.3" VBox.vgrow="ALWAYS">
+                    <TableView fx:id="tabelaEntradas">
+                        <placeholder><Label text="Nenhuma entrada. Lance uma nota em &quot;Nova entrada…&quot;."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaNumero" text="Nº" prefWidth="55" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaFornecedor" text="Fornecedor" prefWidth="230"/>
+                            <TableColumn fx:id="colunaNota" text="Nota" prefWidth="80"/>
+                            <TableColumn fx:id="colunaEmissao" text="Emissão" prefWidth="90"/>
+                            <TableColumn fx:id="colunaValorNota" text="Valor da nota" prefWidth="110" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaSomaItens" text="Soma dos itens" prefWidth="110" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaItens" text="Itens" prefWidth="55" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaSituacao" text="Situação" prefWidth="90"/>
+                            <TableColumn fx:id="colunaConfirmada" text="Confirmada em / por" prefWidth="220"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
 
-            <HBox fx:id="painelItem" alignment="CENTER_LEFT" spacing="8" styleClass="painel-formulario">
-                <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
-                <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230"
-                           onAction="#escolherProduto"/>
-                <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem"
-                       HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
-                <Label text="Qtd. *"/>
-                <TextField fx:id="campoQuantidade" prefWidth="80" styleClass="campo-numero" onAction="#focarValor"/>
-                <ComboBox fx:id="modoValor" prefWidth="160"/>
-                <TextField fx:id="campoValor" prefWidth="100" styleClass="campo-numero" onAction="#gravarItem"/>
-                <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
-                <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
-                <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>
-            </HBox>
+                    <VBox spacing="8">
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao"/>
+                            <Label fx:id="situacao" styleClass="subtitulo"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota"/>
+                            <Button fx:id="botaoParcelas" text="Parcelas…" onAction="#editarParcelas"/>
+                            <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir"/>
+                            <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar"
+                                    styleClass="botao-primario"/>
+                        </HBox>
 
-            <TableView fx:id="tabelaItens" VBox.vgrow="ALWAYS">
-                <placeholder><Label fx:id="semItens" text="Nenhum item nesta entrada."/></placeholder>
-                <columns>
-                    <TableColumn fx:id="colunaItemCodigo" text="Código" prefWidth="65" styleClass="coluna-numero"/>
-                    <TableColumn fx:id="colunaItemBarras" text="Código de barras" prefWidth="120"/>
-                    <TableColumn fx:id="colunaItemProduto" text="Produto" prefWidth="250"/>
-                    <TableColumn fx:id="colunaItemUnidade" text="Un." prefWidth="45"/>
-                    <TableColumn fx:id="colunaItemQuantidade" text="Quantidade" prefWidth="90" styleClass="coluna-numero"/>
-                    <TableColumn fx:id="colunaItemCusto" text="Custo unit." prefWidth="100" styleClass="coluna-numero"/>
-                    <TableColumn fx:id="colunaItemValor" text="Valor total" prefWidth="100" styleClass="coluna-numero"/>
-                    <TableColumn fx:id="colunaItemCustoAtual" text="Custo médio atual" prefWidth="120" styleClass="coluna-numero"/>
-                    <TableColumn fx:id="colunaItemPreco" text="Preço de venda" prefWidth="100" styleClass="coluna-numero"/>
-                </columns>
-                <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
-            </TableView>
-            <HBox alignment="CENTER_LEFT" spacing="24">
-                <Label fx:id="totalItens" styleClass="valor-destaque"/>
-                <Label fx:id="totalNota" styleClass="subtitulo"/>
-                <Label fx:id="diferenca" styleClass="subtitulo"/>
-            </HBox>
-            <Label fx:id="mensagem" wrapText="true"/>
-        </VBox>
-    </SplitPane>
+                        <HBox fx:id="painelItem" alignment="CENTER_LEFT" spacing="8" styleClass="painel-formulario">
+                            <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                            <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230"
+                                       onAction="#escolherProduto"/>
+                            <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem"
+                                   HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                            <Label text="Qtd. *"/>
+                            <TextField fx:id="campoQuantidade" prefWidth="80" styleClass="campo-numero" onAction="#focarValor"/>
+                            <ComboBox fx:id="modoValor" prefWidth="160"/>
+                            <TextField fx:id="campoValor" prefWidth="100" styleClass="campo-numero" onAction="#gravarItem"/>
+                            <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
+                            <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
+                            <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>
+                        </HBox>
 
-    <Label text="Ctrl+N nova entrada · Itens: leia o código (Enter), digite a quantidade (Enter) e o custo ou o valor da linha (Enter inclui) · Clique num item para alterá-lo"
-           styleClass="subtitulo"/>
+                        <TableView fx:id="tabelaItens" VBox.vgrow="ALWAYS">
+                            <placeholder><Label fx:id="semItens" text="Nenhum item nesta entrada."/></placeholder>
+                            <columns>
+                                <TableColumn fx:id="colunaItemCodigo" text="Código" prefWidth="65" styleClass="coluna-numero"/>
+                                <TableColumn fx:id="colunaItemBarras" text="Código de barras" prefWidth="120"/>
+                                <TableColumn fx:id="colunaItemProduto" text="Produto" prefWidth="250"/>
+                                <TableColumn fx:id="colunaItemUnidade" text="Un." prefWidth="45"/>
+                                <TableColumn fx:id="colunaItemQuantidade" text="Quantidade" prefWidth="90" styleClass="coluna-numero"/>
+                                <TableColumn fx:id="colunaItemCusto" text="Custo unit." prefWidth="100" styleClass="coluna-numero"/>
+                                <TableColumn fx:id="colunaItemValor" text="Valor total" prefWidth="100" styleClass="coluna-numero"/>
+                                <TableColumn fx:id="colunaItemCustoAtual" text="Custo médio atual" prefWidth="120" styleClass="coluna-numero"/>
+                                <TableColumn fx:id="colunaItemPreco" text="Preço de venda" prefWidth="100" styleClass="coluna-numero"/>
+                            </columns>
+                            <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                        </TableView>
+                        <HBox alignment="CENTER_LEFT" spacing="24">
+                            <Label fx:id="totalItens" styleClass="valor-destaque"/>
+                            <Label fx:id="totalNota" styleClass="subtitulo"/>
+                            <Label fx:id="diferenca" styleClass="subtitulo"/>
+                        </HBox>
+                        <Label fx:id="mensagem" wrapText="true"/>
+                    </VBox>
+                </SplitPane>
+
+                <Label text="Ctrl+N nova entrada · Itens: leia o código (Enter), digite a quantidade (Enter) e o custo ou o valor da linha (Enter inclui) · Clique num item para alterá-lo"
+                       styleClass="subtitulo"/>
+            </VBox>
+        </Tab>
+
+        <Tab fx:id="abaSugestao" text="Sugestão de compra">
+            <VBox spacing="10">
+                <padding><Insets top="10" right="2" bottom="2" left="2"/></padding>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Fornecedor principal"/>
+                    <ComboBox fx:id="sugestaoFornecedor" prefWidth="240"/>
+                    <Label text="Categoria"/>
+                    <ComboBox fx:id="sugestaoCategoria" prefWidth="180"/>
+                    <CheckBox fx:id="sugestaoSoComSugestao" text="Só com sugestão" selected="true"
+                              onAction="#filtrarSugestao"/>
+                    <Button fx:id="botaoCalcularSugestao" text="Calcular (F5)" onAction="#calcularSugestao"
+                            styleClass="botao-primario"/>
+                    <ProgressIndicator fx:id="progressoSugestao" prefWidth="22" prefHeight="22" visible="false"/>
+                </HBox>
+                <Label fx:id="sugestaoParametros" styleClass="subtitulo" wrapText="true" minHeight="-Infinity"/>
+                <TableView fx:id="tabelaSugestao" VBox.vgrow="ALWAYS">
+                    <placeholder><Label fx:id="sugestaoVazia" text="Escolha os filtros e clique em Calcular."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaSugCodigo" text="Código" prefWidth="52" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugProduto" text="Produto" prefWidth="165"/>
+                        <TableColumn fx:id="colunaSugFornecedor" text="Fornecedor principal" prefWidth="140"/>
+                        <TableColumn fx:id="colunaSugSaldo" text="Saldo" prefWidth="62" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugMedia" text="Média/dia" prefWidth="74" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugCobertura" text="Cobertura" prefWidth="74" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugPendente" text="Pendente" prefWidth="68" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugSugestao" text="Sugestão" prefWidth="70" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugCompra" text="Un. compra" prefWidth="78" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugCusto" text="Último custo" prefWidth="92" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSugValor" text="Valor estimado" prefWidth="104" styleClass="coluna-numero"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <HBox alignment="CENTER_LEFT" spacing="24">
+                    <Label fx:id="sugestaoTotal" styleClass="valor-destaque"/>
+                    <Label fx:id="sugestaoRupturas" styleClass="subtitulo"/>
+                </HBox>
+                <Label fx:id="mensagemSugestao" wrapText="true"/>
+                <Label text="F5 calcula · Cobertura: dias que o saldo dura na média · Un. compra: a sugestão em embalagens do fornecedor principal · Fornecedor principal, prazo e fator: cadastro do produto, aba Fornecedores · Dias da média e cobertura desejada: Configurações › Compras · Em vermelho, produto sem saldo que vendeu nos últimos 30 dias"
+                       styleClass="subtitulo" wrapText="true" minHeight="-Infinity"/>
+            </VBox>
+        </Tab>
+    </TabPane>
 </VBox>

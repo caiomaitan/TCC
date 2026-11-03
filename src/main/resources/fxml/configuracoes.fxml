@@ -176,6 +176,20 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Ligada, a abertura retira o fundo de troco de uma conta, a sangria entra numa conta, o suprimento sai de uma conta e o fechamento leva o dinheiro contado para uma conta. Ligue depois de lançar o saldo inicial das contas (menu Financeiro). Vale para os caixas abertos depois de ligar; um caixa continua como foi aberto até o fechamento."/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaCompras" text="Compras">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Dias de venda na média diária" minWidth="230"/>
+                    <TextField fx:id="campoDiasMedia" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Cobertura desejada (dias)" minWidth="230"/>
+                    <TextField fx:id="campoCobertura" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="A sugestão de compra (tela Compras) usa a venda dos últimos dias, já sem as devoluções, para calcular a média por dia, e sugere o que falta para cobrir os dias de cobertura mais o prazo de entrega do fornecedor principal, sem ficar abaixo do estoque mínimo. O fornecedor principal, o prazo e o fator de cada produto ficam no cadastro do produto, aba Fornecedores."/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
