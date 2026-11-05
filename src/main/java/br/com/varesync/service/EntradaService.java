@@ -4,22 +4,27 @@ import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FornecedorDAO;
+import br.com.varesync.dao.PedidoCompraDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.ConferenciaPedido;
 import br.com.varesync.model.CustoAtualizado;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
 import br.com.varesync.model.ItemEntrada;
+import br.com.varesync.model.ItemPedido;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParcelaEntrada;
+import br.com.varesync.model.PedidoCompra;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.ResultadoEntrada;
 import br.com.varesync.model.SituacaoProduto;
 import br.com.varesync.model.StatusEntrada;
+import br.com.varesync.model.StatusPedido;
 import br.com.varesync.model.SugestaoReajuste;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.util.CustoMedio;
@@ -35,7 +40,9 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -61,15 +68,17 @@ public class EntradaService {
     private final EstoqueService estoqueService;
     private final ContaPagarService contasPagar;
     private final ProdutoFornecedorDAO vinculos;
+    private final PedidoCompraDAO pedidos;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public EntradaService(Transacao transacao, EntradaDAO dao, FornecedorDAO fornecedorDAO, ProdutoDAO produtoDAO,
                           EstoqueDAO estoqueDAO, ConfiguracaoDAO configuracaoDAO, EstoqueService estoqueService,
-                          ContaPagarService contasPagar, ProdutoFornecedorDAO vinculos, AuditoriaService auditoria,
-                          Clock clock) {
+                          ContaPagarService contasPagar, ProdutoFornecedorDAO vinculos, PedidoCompraDAO pedidos,
+                          AuditoriaService auditoria, Clock clock) {
         this.contasPagar = contasPagar;
         this.vinculos = vinculos;
+        this.pedidos = pedidos;
         this.transacao = transacao;
         this.dao = dao;
         this.fornecedorDAO = fornecedorDAO;
@@ -133,9 +142,92 @@ public class EntradaService {
         transacao.executar(con -> {
             exigirAberta(con, entradaId);
             EntradaResumo atual = resumo(con, entradaId);
+            if (atual.pedidoId() != null && !Objects.equals(dados.fornecedorId(), atual.fornecedorId())) {
+                throw new NegocioException("A entrada está vinculada ao pedido nº " + atual.pedidoId() + ", do "
+                        + "fornecedor " + atual.fornecedorNome() + ". Desvincule o pedido antes de trocar o fornecedor.");
+            }
             dao.alterar(con, entradaId, validar(con, dados, entradaId, atual.fornecedorId()));
             return null;
         });
+    }
+
+    // ----- Pedido de compra (F16.3) -----
+
+    /** Pedidos ENVIADO e PARCIAL do fornecedor da entrada, que ela pode atender. */
+    public List<PedidoCompra> pedidosParaVincular(Sessao sessao, long entradaId) {
+        sessao.exigir(Permissao.COMPRAS);
+        return transacao.executar(con -> pedidos.listar(con, StatusPedido.EM_ABERTO,
+                resumo(con, entradaId).fornecedorId()));
+    }
+
+    /**
+     * Vincula a entrada aberta a um pedido ENVIADO ou PARCIAL do mesmo fornecedor (nulo desvincula). A soma da
+     * recebida e a mudança do pedido para PARCIAL ou RECEBIDO acontecem só na confirmação.
+     */
+    public void vincularPedido(Sessao sessao, long entradaId, Long pedidoId) {
+        sessao.exigir(Permissao.COMPRAS);
+        transacao.executar(con -> {
+            exigirAberta(con, entradaId);
+            if (pedidoId != null) {
+                exigirPedidoParaReceber(con, pedidoId, resumo(con, entradaId));
+            }
+            dao.vincularPedido(con, entradaId, pedidoId);
+            return null;
+        });
+    }
+
+    /**
+     * Conferência pedido × nota da entrada vinculada: cada produto do pedido (pedida, recebida por outras entradas,
+     * nesta nota, custo previsto e da nota) e, depois, os produtos da nota que não estão no pedido. Na entrada já
+     * confirmada, a recebida antes desconta o que esta nota trouxe.
+     *
+     * @throws NegocioException entrada sem pedido
+     */
+    public ConferenciaPedido conferencia(Sessao sessao, long entradaId) {
+        sessao.exigir(Permissao.COMPRAS);
+        return transacao.executar(con -> {
+            EntradaResumo e = resumo(con, entradaId);
+            if (e.pedidoId() == null) {
+                throw new NegocioException("A entrada nº " + entradaId + " não está vinculada a um pedido.");
+            }
+            PedidoCompra pedido = pedidos.buscar(con, e.pedidoId())
+                    .orElseThrow(() -> new NegocioException("Pedido não encontrado."));
+            Map<Long, ItemEntrada> daNota = new LinkedHashMap<>();
+            for (ItemEntrada i : dao.itens(con, entradaId)) {
+                daNota.put(i.produtoId(), i);
+            }
+            List<ConferenciaPedido.Linha> linhas = new ArrayList<>();
+            for (ItemPedido p : pedidos.itens(con, pedido.id())) {
+                ItemEntrada n = daNota.remove(p.produtoId());
+                BigDecimal antes = p.quantidadeRecebida();
+                if (!e.aberta() && n != null) {
+                    antes = antes.subtract(n.quantidade()).max(BigDecimal.ZERO);
+                }
+                linhas.add(new ConferenciaPedido.Linha(p.produtoId(), p.produtoNome(), p.unidade(), p.fracionada(),
+                        p.quantidade(), antes, n == null ? null : n.quantidade(), p.custoPrevisto(),
+                        n == null ? null : n.custoUnitario()));
+            }
+            for (ItemEntrada n : daNota.values()) {
+                linhas.add(new ConferenciaPedido.Linha(n.produtoId(), n.produtoNome(), n.unidade(),
+                        n.unidadeFracionada(), null, BigDecimal.ZERO, n.quantidade(), null, n.custoUnitario()));
+            }
+            return new ConferenciaPedido(pedido, linhas);
+        });
+    }
+
+    /** Pedido do mesmo fornecedor e ENVIADO ou PARCIAL (trava o pedido). */
+    private void exigirPedidoParaReceber(Connection con, long pedidoId, EntradaResumo entrada) throws SQLException {
+        StatusPedido status = pedidos.travar(con, pedidoId)
+                .orElseThrow(() -> new NegocioException("Pedido não encontrado."));
+        PedidoCompra pedido = pedidos.buscar(con, pedidoId).orElseThrow();
+        if (pedido.fornecedorId() != entrada.fornecedorId()) {
+            throw new NegocioException("O pedido nº " + pedidoId + " é de " + pedido.fornecedorNome() + " e a "
+                    + "entrada é de " + entrada.fornecedorNome() + ".");
+        }
+        if (!status.emAberto()) {
+            throw new NegocioException("O pedido nº " + pedidoId + " está " + status.rotulo().toLowerCase(
+                    Formatos.PT_BR) + ": só um pedido enviado ou parcial recebe entrada. Desvincule-o da entrada.");
+        }
     }
 
     /** Exclui a entrada aberta com os itens (6.10: "ABERTA: pode editar e excluir"). */
@@ -316,7 +408,11 @@ public class EntradaService {
                 throw new NegocioException("A entrada não tem itens. Inclua os produtos da nota antes de confirmar.");
             }
             itens.sort(Comparator.comparingLong(ItemEntrada::produtoId));
-            long fornecedorId = resumo(con, entradaId).fornecedorId();
+            EntradaResumo aberta = resumo(con, entradaId);
+            long fornecedorId = aberta.fornecedorId();
+            if (aberta.pedidoId() != null) {
+                exigirPedidoParaReceber(con, aberta.pedidoId(), aberta); // trava o pedido antes dos saldos
+            }
             OffsetDateTime agora = OffsetDateTime.now(clock);
             BigDecimal margemMinima = configuracaoDAO.carregar(con).margemMinimaPct();
             List<CustoAtualizado> custos = new ArrayList<>();
@@ -341,13 +437,29 @@ public class EntradaService {
                         .ifPresent(sugestoes::add);
             }
             dao.marcarConfirmada(con, entradaId, sessao.usuarioId(), agora);
+            String pedido = aberta.pedidoId() == null ? "" : " " + receberNoPedido(con, aberta.pedidoId(), itens);
             EntradaResumo confirmada = resumo(con, entradaId);
             int titulos = contasPagar.gerarDaEntrada(con, sessao, confirmada, dao.parcelas(con, entradaId));
             auditoria.registrar(con, sessao, AcaoAuditoria.ENTRADA_CONFIRMADA, AuditoriaService.ENTIDADE_ENTRADA,
                     entradaId, descreverConfirmacao(confirmada, custos)
-                            + (titulos == 0 ? "" : " " + titulos + " título(s) a pagar gerado(s)."));
+                            + (titulos == 0 ? "" : " " + titulos + " título(s) a pagar gerado(s).") + pedido);
             return new ResultadoEntrada(confirmada, custos, sugestoes, margemMinima);
         });
+    }
+
+    /**
+     * F16.3: soma a quantidade de cada item na recebida do pedido (produto fora do pedido é aceito e não soma) e muda o
+     * pedido para RECEBIDO, se nada mais falta, ou PARCIAL.
+     *
+     * @return "Pedido nº 3: parcial." ou "Pedido nº 3: recebido.", para a auditoria
+     */
+    private String receberNoPedido(Connection con, long pedidoId, List<ItemEntrada> itens) throws SQLException {
+        for (ItemEntrada item : itens) {
+            pedidos.somarRecebida(con, pedidoId, item.produtoId(), item.quantidade());
+        }
+        StatusPedido novo = pedidos.temPendente(con, pedidoId) ? StatusPedido.PARCIAL : StatusPedido.RECEBIDO;
+        pedidos.alterarStatus(con, pedidoId, novo);
+        return "Pedido nº " + pedidoId + ": " + novo.rotulo().toLowerCase(Formatos.PT_BR) + ".";
     }
 
     // ----- Regras internas -----

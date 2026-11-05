@@ -19,6 +19,7 @@ import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
+import br.com.varesync.dao.PedidoCompraDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PromocaoDAO;
@@ -83,6 +84,7 @@ final class AcessoTeste {
     final FluxoCaixaService fluxoCaixa;
     final ProdutoFornecedorService vinculos;
     final SugestaoCompraService sugestao;
+    final PedidoCompraService pedidos;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -118,7 +120,8 @@ final class AcessoTeste {
         vinculos = new ProdutoFornecedorService(transacao, new ProdutoFornecedorDAO(), produtoDAO, new FornecedorDAO(),
                 relogio);
         compras = new EntradaService(transacao, new EntradaDAO(), new FornecedorDAO(), produtoDAO, new EstoqueDAO(),
-                new ConfiguracaoDAO(), estoque, contasPagar, new ProdutoFornecedorDAO(), auditoria, relogio);
+                new ConfiguracaoDAO(), estoque, contasPagar, new ProdutoFornecedorDAO(), new PedidoCompraDAO(), auditoria,
+                relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), new FormaPagamentoDAO(), new ContaPagarDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
@@ -141,6 +144,8 @@ final class AcessoTeste {
                 new FormaPagamentoDAO(), new ConfiguracaoDAO(), caixa, recebiveis, auditoria, relogio);
         fluxoCaixa = new FluxoCaixaService(transacao, relogio);
         sugestao = new SugestaoCompraService(transacao, new ConfiguracaoDAO(), new FornecedorDAO(), categoriaDAO, relogio);
+        pedidos = new PedidoCompraService(transacao, new PedidoCompraDAO(), new FornecedorDAO(), produtoDAO,
+                new ProdutoFornecedorDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

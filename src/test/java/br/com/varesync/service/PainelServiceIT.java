@@ -13,6 +13,7 @@ import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Filtros;
+import br.com.varesync.report.RelCoberturaRuptura;
 import br.com.varesync.report.RelVendasPeriodo;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -162,7 +163,32 @@ class PainelServiceIT extends IntegracaoBase {
         assertThat(painel.alertas().abaixoDoMinimo()).as("sem ESTOQUE").isNull();
         assertThat(painel.alertas().precoAbaixoDoCusto()).as("sem PRODUTOS").isNull();
         assertThat(painel.alertas().inventariosAbertos()).as("sem INVENTARIO").isNull();
+        assertThat(painel.alertas().rupturas()).as("sem COMPRAS").isNull();
         assertThat(painel.alertas().caixaAberto()).as("tem PDV").isPresent();
+    }
+
+    /**
+     * F16.4: ruptura = produto ativo com saldo ≤ 0 que vendeu nos últimos 30 dias (o mesmo do R28), só para quem tem
+     * COMPRAS. O leite (20) zera com a venda de 19; o arroz, com saldo 2 e sem venda, não entra.
+     */
+    @Test
+    void alertaDeRupturaParaQuemTemCompras() {
+        assertThat(t.painel.carregar(admin).alertas().rupturas()).isZero();
+        vender(leite, "19");
+        Painel painel = t.painel.carregar(admin);
+        assertThat(painel.alertas().rupturas()).isEqualTo(1);
+        assertThat(painel.alertas().algum()).isTrue();
+
+        long rupturasR28 = t.relatorios.gerar(admin, new RelCoberturaRuptura(), Filtros.vazios()).linhas().stream()
+                .filter(l -> l.ruptura()).count();
+        assertThat(rupturasR28).isEqualTo(1);
+
+        t.relogio.avancar(Duration.ofDays(30)); // a venda saiu da janela de 30 dias
+        assertThat(t.painel.carregar(admin).alertas().rupturas()).isZero();
+
+        t.usuarios.criar(admin, "comprador", "Comprador", false, EnumSet.of(Permissao.COMPRAS), "inicial1",
+                "inicial1");
+        assertThat(t.painel.carregar(t.acesso.entrar("comprador", "inicial1")).alertas().rupturas()).isZero();
     }
 
     @Test

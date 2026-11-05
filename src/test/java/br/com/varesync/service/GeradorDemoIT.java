@@ -26,6 +26,7 @@ import br.com.varesync.report.RelCurvaAbc;
 import br.com.varesync.report.RelDevolucoes;
 import br.com.varesync.report.RelFormasPagamento;
 import br.com.varesync.report.RelMovimentacao;
+import br.com.varesync.report.RelPedidosPendentes;
 import br.com.varesync.report.RelPerdasAjustes;
 import br.com.varesync.report.RelRentabilidadeCategoria;
 import br.com.varesync.report.RelSemGiro;
@@ -227,6 +228,47 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(r17.linhas()).hasSize(3);
         assertThat(Coluna.soma(r17.linhas(), RelComprasFornecedor.Linha::valor))
                 .isEqualByComparingTo(umValor("SELECT sum(valor_total_nota) FROM entrada_mercadoria"));
+    }
+
+    /**
+     * F16.4: vínculos produto × fornecedor com fator e prazo, um pedido por entrada semanal (enviado 3 dias antes,
+     * vinculado e recebido) e o pedido da próxima entrega de cada fornecedor pendente, que aparece no R27 e reduz a
+     * sugestão; o último custo do vínculo é o da última entrada.
+     */
+    @Test
+    void vinculosEPedidosDaFase16() throws Exception {
+        assertThat(resultado.vinculos()).isEqualTo(contar("SELECT count(*) FROM produto_fornecedor")).isPositive();
+        assertThat(contar("SELECT count(*) FROM produto_fornecedor WHERE NOT principal")).isZero();
+        assertThat(contar("SELECT count(*) FROM produto_fornecedor WHERE fator > 1")).as("caixas de 6, 12 e 24")
+                .isPositive();
+        assertThat(coluna("SELECT DISTINCT fator::int FROM produto_fornecedor ORDER BY 1")).containsExactly(1L, 6L,
+                12L, 24L);
+        assertThat(contar("""
+                SELECT count(*) FROM produto_fornecedor pf
+                 WHERE pf.ultimo_custo <> (SELECT i.custo_unitario FROM entrada_mercadoria_item i
+                                             JOIN entrada_mercadoria e ON e.id = i.entrada_id
+                                            WHERE i.produto_id = pf.produto_id ORDER BY e.confirmado_em DESC LIMIT 1)
+                """)).as("último custo = o da última entrada").isZero();
+
+        assertThat(resultado.pedidos()).isEqualTo(contar("SELECT count(*) FROM pedido_compra"))
+                .isEqualTo(resultado.entradas() + resultado.pedidosPendentes());
+        assertThat(resultado.pedidosPendentes()).isEqualTo(3);
+        assertThat(contar("SELECT count(*) FROM entrada_mercadoria WHERE pedido_id IS NULL")).isZero();
+        assertThat(contar("SELECT count(*) FROM pedido_compra WHERE status = 'RECEBIDO'"))
+                .isEqualTo(resultado.entradas());
+        assertThat(contar("SELECT count(*) FROM pedido_compra WHERE status = 'ENVIADO'")).isEqualTo(3);
+        assertThat(contar("""
+                SELECT count(*) FROM pedido_compra p JOIN entrada_mercadoria e ON e.pedido_id = p.id
+                 WHERE p.enviado_em >= e.confirmado_em
+                    OR p.enviado_em::date < (e.confirmado_em - interval '3 days')::date
+                """)).as("pedido enviado até 3 dias antes da entrega").isZero();
+
+        ResultadoRelatorio<RelPedidosPendentes.Linha> r27 = t.relatorios.gerar(admin, new RelPedidosPendentes(),
+                Filtros.vazios());
+        assertThat(r27.linhas().stream().map(RelPedidosPendentes.Linha::pedidoId).distinct().count()).isEqualTo(3);
+        assertThat(t.sugestao.consultar(admin, null, null).linhas()).as("o pendente reduz a sugestão")
+                .anySatisfy(l -> assertThat(l.pendente()).isPositive());
+        assertThat(t.auditoria(AcaoAuditoria.PEDIDO_ENVIADO)).hasSize(resultado.pedidos());
     }
 
     /** F12.8: 150 clientes, cerca de 40% das vendas identificadas, fidelidade ligada com 1% e alguns usos de crédito. */

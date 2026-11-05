@@ -11,21 +11,23 @@ import org.junit.jupiter.api.Test;
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV13() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(13);
+    void bancoVazioRecebeV1aV14() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(14);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
-                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13')
-                    """)).isEqualTo(13);
+                     WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
+                                                   '14')
+                    """)).isEqualTo(14);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                        AND table_name <> 'flyway_schema_history'
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
-                    + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13)")
-                    .isEqualTo(43);
+                    + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13; pedido_compra e "
+                    + "pedido_compra_item da V14)")
+                    .isEqualTo(45);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'

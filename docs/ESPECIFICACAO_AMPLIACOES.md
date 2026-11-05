@@ -860,6 +860,11 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
   - tela de conferência pedido × nota, com quantidade e custo divergentes em destaque.
 - **Pendente em pedidos:** soma de (quantidade − recebida) dos pedidos ENVIADO e PARCIAL, sem ficar negativa em nenhum item.
 - **Cancelar pedido:** só RASCUNHO, ENVIADO ou PARCIAL. Num PARCIAL, o que faltava receber deixa de contar como pendente.
+- **Gerar pedido (botão da sugestão):**
+  - cria um pedido RASCUNHO para cada fornecedor principal das linhas marcadas;
+  - a quantidade é a sugestão, e o custo previsto é o último custo do vínculo (sem ele, o custo do produto);
+  - linha sem fornecedor principal ativo fica de fora, com aviso.
+- **Fornecedor inativo:** não recebe pedido novo, e o vínculo dele deixa de valer como principal na sugestão (prazo 0 e fator 1, com aviso na linha).
 
 ### F16.4 Relatórios, painel e gerador
 

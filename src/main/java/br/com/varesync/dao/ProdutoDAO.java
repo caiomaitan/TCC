@@ -34,9 +34,9 @@ public class ProdutoDAO {
 
     /** Onde o produto já foi usado; qualquer vínculo impede a exclusão (6.3). */
     public record Vinculos(boolean vendas, boolean movimentos, boolean inventarios, boolean entradas,
-                           boolean promocoes) {
+                           boolean promocoes, boolean pedidos) {
         public boolean algum() {
-            return vendas || movimentos || inventarios || entradas || promocoes;
+            return vendas || movimentos || inventarios || entradas || promocoes || pedidos;
         }
     }
 
@@ -371,16 +371,17 @@ public class ProdutoDAO {
                        EXISTS (SELECT 1 FROM movimento_estoque WHERE produto_id = ?),
                        EXISTS (SELECT 1 FROM inventario_item WHERE produto_id = ?),
                        EXISTS (SELECT 1 FROM entrada_mercadoria_item WHERE produto_id = ?),
-                       EXISTS (SELECT 1 FROM promocao WHERE produto_id = ?)
+                       EXISTS (SELECT 1 FROM promocao WHERE produto_id = ?),
+                       EXISTS (SELECT 1 FROM pedido_compra_item WHERE produto_id = ?)
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            for (int i = 1; i <= 5; i++) {
+            for (int i = 1; i <= 6; i++) {
                 ps.setLong(i, id);
             }
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return new Vinculos(rs.getBoolean(1), rs.getBoolean(2), rs.getBoolean(3), rs.getBoolean(4),
-                        rs.getBoolean(5));
+                        rs.getBoolean(5), rs.getBoolean(6));
             }
         }
     }

@@ -26,7 +26,9 @@ import java.util.List;
  *       negativa, arredondada para cima no múltiplo do fator do fornecedor principal (sem principal: prazo 0 e fator
  *       1).</li>
  * </ul>
- * O pendente em pedidos de compra só existe a partir da parte B da F16 (pedido de compra); até lá é zero.
+ * O pendente é a soma de (quantidade − recebida) dos pedidos de compra ENVIADO e PARCIAL, sem ficar negativo em nenhum
+ * item (F16.3). Fornecedor principal inativo deixa de valer como principal: prazo 0, fator 1 e o custo do produto,
+ * com aviso na linha.
  */
 public final class SugestaoCompra {
 
@@ -42,14 +44,15 @@ public final class SugestaoCompra {
      * @param mediaDia      média de venda por dia, 3 casas
      * @param coberturaDias dias que o saldo dura na média (inteiros, para baixo); nulo sem venda na média
      * @param ultimoCusto   do fornecedor principal; sem ele, o último custo do produto ou o custo médio
-     * @param fornecedorId  fornecedor principal, nulo sem ele
+     * @param fornecedorId  fornecedor principal ativo, nulo sem ele (ou com o principal inativo)
+     * @param aviso         "Fornecedor principal inativo (…)" quando o principal está inativo; nulo sem aviso
      * @param ruptura       saldo ≤ 0 e houve venda nos últimos 30 dias
      */
     public record Linha(long produtoId, String produto, String categoria, String unidade, boolean fracionada,
                         BigDecimal saldo, BigDecimal estoqueMinimo, BigDecimal mediaDia, Long coberturaDias,
                         BigDecimal pendente, BigDecimal sugestao, BigDecimal ultimoCusto, BigDecimal valorEstimado,
                         Long fornecedorId, String fornecedor, int prazoEntregaDias, BigDecimal fator,
-                        String unidadeCompra, boolean ruptura) {
+                        String unidadeCompra, boolean ruptura, String aviso) {
 
         /** Sugestão na unidade de compra (sugestão ÷ fator, exato porque a sugestão é múltiplo do fator). */
         public BigDecimal sugestaoNaUnidadeDeCompra() {
@@ -101,7 +104,8 @@ public final class SugestaoCompra {
                 SELECT e.produto_id, e.nome, e.categoria_nome, e.unidade, um.fracionada, e.saldo, e.estoque_minimo,
                        coalesce(p.ultimo_custo, p.custo) AS custo_produto,
                        pf.fornecedor_id, f.razao_social, pf.prazo_entrega_dias, pf.fator, pf.unidade_compra,
-                       pf.ultimo_custo AS custo_vinculo,
+                       pf.ultimo_custo AS custo_vinculo, f.ativo AS fornecedor_ativo,
+                       coalesce(pend.pendente, 0) AS pendente,
                        coalesce(v.liquido, 0) AS liquido, coalesce(v.vendido_recente, 0) AS vendido_recente
                   FROM vw_estoque_atual e
                   JOIN produto p                ON p.id = e.produto_id
@@ -115,8 +119,13 @@ public final class SugestaoCompra {
                                FROM vw_resultado_item r
                               WHERE r.data_hora >= ? AND r.data_hora < ?
                               GROUP BY r.produto_id) v ON v.produto_id = e.produto_id
+                  LEFT JOIN (SELECT i.produto_id, sum(greatest(i.quantidade - i.quantidade_recebida, 0)) AS pendente
+                               FROM pedido_compra_item i
+                               JOIN pedido_compra pc ON pc.id = i.pedido_id
+                              WHERE pc.status IN ('ENVIADO', 'PARCIAL')
+                              GROUP BY i.produto_id) pend ON pend.produto_id = e.produto_id
                  WHERE e.ativo
-                   AND (CAST(? AS BIGINT) IS NULL OR pf.fornecedor_id = ?)
+                   AND (CAST(? AS BIGINT) IS NULL OR (pf.fornecedor_id = ? AND f.ativo))
                    AND (CAST(? AS BIGINT) IS NULL OR e.categoria_id = ?)
                  ORDER BY e.nome, e.produto_id
                 """;
@@ -142,21 +151,30 @@ public final class SugestaoCompra {
     }
 
     private static Linha ler(ResultSet rs, Configuracoes.Compras compras) throws SQLException {
-        Long fornecedor = rs.getObject("fornecedor_id") == null ? null : rs.getLong("fornecedor_id");
-        int prazo = fornecedor == null ? 0 : rs.getInt("prazo_entrega_dias");
-        BigDecimal fator = fornecedor == null ? BigDecimal.ONE : rs.getBigDecimal("fator");
+        boolean temPrincipal = rs.getObject("fornecedor_id") != null;
+        // F16.3: o principal inativo deixa de valer (prazo 0, fator 1 e o custo do produto), com aviso.
+        boolean ativo = temPrincipal && rs.getBoolean("fornecedor_ativo");
+        Long fornecedor = ativo ? rs.getLong("fornecedor_id") : null;
+        String aviso = temPrincipal && !ativo ? avisoInativo(rs.getString("razao_social")) : null;
+        int prazo = ativo ? rs.getInt("prazo_entrega_dias") : 0;
+        BigDecimal fator = ativo ? rs.getBigDecimal("fator") : BigDecimal.ONE;
         BigDecimal saldo = rs.getBigDecimal("saldo");
-        // Pendente em pedidos de compra: parte B da F16.
-        BigDecimal pendente = BigDecimal.ZERO.setScale(Dinheiro.ESCALA_QUANTIDADE);
+        BigDecimal pendente = rs.getBigDecimal("pendente").setScale(Dinheiro.ESCALA_QUANTIDADE, Dinheiro.ARREDONDAMENTO);
         Calculo c = calcular(rs.getBigDecimal("liquido"), compras.diasMedia(), compras.coberturaDias(), prazo, saldo,
                 pendente, rs.getBigDecimal("estoque_minimo"), fator);
-        BigDecimal custo = rs.getBigDecimal("custo_vinculo") != null ? rs.getBigDecimal("custo_vinculo")
+        BigDecimal custo = ativo && rs.getBigDecimal("custo_vinculo") != null ? rs.getBigDecimal("custo_vinculo")
                 : rs.getBigDecimal("custo_produto");
         return new Linha(rs.getLong("produto_id"), rs.getString("nome"), rs.getString("categoria_nome"),
                 rs.getString("unidade"), rs.getBoolean("fracionada"), saldo, rs.getBigDecimal("estoque_minimo"),
                 c.mediaDia(), c.coberturaDias(), pendente, c.sugestao(), custo, Dinheiro.multiplicar(c.sugestao(), custo),
-                fornecedor, rs.getString("razao_social"), prazo, fator, rs.getString("unidade_compra"),
-                saldo.signum() <= 0 && rs.getBigDecimal("vendido_recente").signum() > 0);
+                fornecedor, ativo ? rs.getString("razao_social") : null, prazo, fator,
+                ativo ? rs.getString("unidade_compra") : null,
+                saldo.signum() <= 0 && rs.getBigDecimal("vendido_recente").signum() > 0, aviso);
+    }
+
+    /** Aviso da linha com o fornecedor principal inativo (F16.3). */
+    public static String avisoInativo(String fornecedor) {
+        return "Fornecedor principal inativo (" + fornecedor + "): prazo 0 e fator 1";
     }
 
     private static OffsetDateTime inicio(LocalDate hoje, int dias, ZoneId zona) {

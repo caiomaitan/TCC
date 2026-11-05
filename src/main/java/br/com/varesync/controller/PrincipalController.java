@@ -298,6 +298,12 @@ public class PrincipalController {
             }
 
             @Override
+            public void abrirRupturas() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.COMPRAS);
+                loader.<ComprasController>getController().mostrarRupturas();
+            }
+
+            @Override
             public void abrirContasFinanceiras() {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.FINANCEIRO);
                 loader.<FinanceiroController>getController().mostrarContas();

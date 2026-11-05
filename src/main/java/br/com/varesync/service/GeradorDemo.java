@@ -13,8 +13,10 @@ import br.com.varesync.model.DadosCliente;
 import br.com.varesync.model.DadosDevolucao;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.DadosFornecedor;
+import br.com.varesync.model.DadosPedido;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.DadosTituloPagar;
+import br.com.varesync.model.DadosVinculo;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.GrupoDespesa;
@@ -57,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,7 +110,8 @@ public class GeradorDemo {
                             int itensCancelados, LocalDate inicio, LocalDate fim, long inventarioId,
                             int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
                             int devolucoes, int clientesComLimite, int vendasCrediario, int recebimentos,
-                            int titulosVencidos, int contasPagas, int recebiveisConciliados) {
+                            int titulosVencidos, int contasPagas, int recebiveisConciliados, int vinculos,
+                            int pedidos, int pedidosPendentes) {
     }
 
     /** Crediário (F14.4): 30 clientes com limite; deles, parte das vendas identificadas vai a prazo. */
@@ -155,6 +159,10 @@ public class GeradorDemo {
     static final BigDecimal IMPOSTO_PCT = new BigDecimal("6");
     /** Duplicatas da entrada semanal: 2, a 28 e a 56 dias da emissão. */
     static final int DIAS_DUPLICATA = 28;
+    /** Pedido de compra (F16.4): enviado 3 dias antes da entrega, o prazo de entrega dos vínculos. */
+    static final int PRAZO_PEDIDO_DIAS = 3;
+    /** Fatores das caixas dos produtos vendidos em unidade inteira (o fracionado vem a granel, fator 1). */
+    private static final int[] FATORES = {6, 12, 24};
 
     private record ContasDemo(long cofre, long banco) {
     }
@@ -224,6 +232,8 @@ public class GeradorDemo {
     private final ContaFinanceiraService contas;
     private final RecebivelService recebiveis;
     private final ContaPagarService contasPagar;
+    private final ProdutoFornecedorService vinculos;
+    private final PedidoCompraService pedidos;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -236,7 +246,7 @@ public class GeradorDemo {
                        InventarioService inventarios, FornecedorService fornecedores, EntradaService compras,
                        ClienteService clientes, DevolucaoService devolucoes, RecebimentoService recebimentos,
                        ConfiguracaoService configuracoes, ContaFinanceiraService contas, RecebivelService recebiveis,
-                       ContaPagarService contasPagar,
+                       ContaPagarService contasPagar, ProdutoFornecedorService vinculos, PedidoCompraService pedidos,
                        DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
                        AuditoriaService auditoria) {
         this.recebimentos = recebimentos;
@@ -244,6 +254,8 @@ public class GeradorDemo {
         this.contas = contas;
         this.recebiveis = recebiveis;
         this.contasPagar = contasPagar;
+        this.vinculos = vinculos;
+        this.pedidos = pedidos;
         this.relogio = relogio;
         this.relogioReal = relogioReal;
         this.transacao = transacao;
@@ -369,6 +381,10 @@ public class GeradorDemo {
             progresso.informar(++feito[0], totalPassos, "Cadastrando produtos (" + (i + 1) + " de "
                     + catalogo.size() + ")");
         }
+        // Compras (F16.4): vínculos produto × fornecedor com fator e prazo, semente própria (não muda o resto).
+        posicionar(vespera, LocalTime.of(9, 30), zona);
+        int vinculosFeitos = vincular(supervisor, catalogo, fornecedoresDemo, fornecedorIds, produtoIds,
+                new Random(SEMENTE + 8));
         // Clientes e fidelidade (F12.8): 150 clientes na véspera e cashback de 1% ligado.
         ligarFidelidade(supervisor);
         List<Long> clienteIds = new ArrayList<>();
@@ -409,6 +425,20 @@ public class GeradorDemo {
             }
         }
         Map<Forma, List<FormaPagamento>> formas = formas(supervisor);
+        // Pedidos (F16.4): cada entrada semanal tem o seu pedido, enviado PRAZO_PEDIDO_DIAS dias antes; os que cairiam
+        // antes do primeiro dia saem na véspera.
+        Map<CompraPlano, Long> pedidoDaCompra = new HashMap<>();
+        int pedidosFeitos = 0;
+        int pedidosPendentes = 0;
+        int pedidoDaVespera = 0;
+        for (CompraPlano compra : comprasPlano) {
+            if (compra.dia() - PRAZO_PEDIDO_DIAS < 1) {
+                posicionar(vespera, LocalTime.of(12, 0).plusMinutes(pedidoDaVespera++), zona);
+                pedidoDaCompra.put(compra, pedir(gerente, compra.itens(), fornecedorIds.get(compra.fornecedor()),
+                        produtoIds, dias.get(compra.dia() - 1).data()));
+                pedidosFeitos++;
+            }
+        }
 
         int vendasFeitas = 0;
         int vendasComCliente = 0;
@@ -420,7 +450,7 @@ public class GeradorDemo {
         for (DiaPlano dia : dias) {
             for (CompraPlano compra : comprasPorDia.getOrDefault(dia.numero(), List.of())) {
                 comprar(gerente, compra, fornecedoresDemo.get(compra.fornecedor()),
-                        fornecedorIds.get(compra.fornecedor()), produtoIds, dia.data(), zona);
+                        fornecedorIds.get(compra.fornecedor()), produtoIds, dia.data(), zona, pedidoDaCompra.get(compra));
                 entradas++;
                 progresso.informar(++feito[0], totalPassos, "Dia " + dia.numero() + " de " + DIAS + " ("
                         + Formatos.data(dia.data()) + "): entrada de mercadoria de "
@@ -519,6 +549,32 @@ public class GeradorDemo {
             }
             posicionar(dia.data(), LocalTime.of(20, 10), zona);
             caixa.fechar(tarde, contado(aberto.id(), execucao));
+            // Pedidos (F16.4) das entregas daqui a PRAZO_PEDIDO_DIAS dias, depois do fechamento do caixa.
+            int pedidoDoDia = 0;
+            for (CompraPlano compra : comprasPlano) {
+                if (compra.dia() - PRAZO_PEDIDO_DIAS == dia.numero()) {
+                    posicionar(dia.data(), LocalTime.of(20, 30).plusMinutes(pedidoDoDia++), zona);
+                    pedidoDaCompra.put(compra, pedir(gerente, compra.itens(), fornecedorIds.get(compra.fornecedor()),
+                            produtoIds, dias.get(compra.dia() - 1).data()));
+                    pedidosFeitos++;
+                }
+            }
+            // No último dia, o pedido da próxima entrega de cada fornecedor fica enviado (pendente na sugestão e no
+            // R27), com os itens da última entrada.
+            if (dia.numero() == DIAS) {
+                for (int f = 0; f < fornecedorIds.size(); f++) {
+                    int fornecedor = f;
+                    Optional<CompraPlano> ultima = comprasPlano.stream().filter(c -> c.fornecedor() == fornecedor)
+                            .reduce((a, b) -> b);
+                    if (ultima.isPresent()) {
+                        posicionar(dia.data(), LocalTime.of(20, 30).plusMinutes(pedidoDoDia++), zona);
+                        pedir(gerente, ultima.get().itens(), fornecedorIds.get(f), produtoIds,
+                                dias.get(ultima.get().dia() - 1).data().plusDays(7));
+                        pedidosFeitos++;
+                        pedidosPendentes++;
+                    }
+                }
+            }
         }
 
         relogio.ajustar(relogioReal.instant());
@@ -527,7 +583,8 @@ public class GeradorDemo {
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
                 vendasComCliente, usosDeCredito, devolucoesFeitas, comLimite.size(), vendasCrediario,
-                recebimentosFeitos, titulosVencidos, pagamentos, conciliados);
+                recebimentosFeitos, titulosVencidos, pagamentos, conciliados, vinculosFeitos, pedidosFeitos,
+                pedidosPendentes);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
@@ -539,7 +596,9 @@ public class GeradorDemo {
                             + " contas pagas, " + resultado.recebiveisConciliados() + " recebíveis conciliados, "
                             + resultado.clientes()
                             + " clientes, " + resultado.fornecedores()
-                            + " fornecedores e " + resultado.entradas() + " entradas de mercadoria de "
+                            + " fornecedores (" + resultado.vinculos() + " vínculos com produtos), "
+                            + resultado.pedidos() + " pedidos de compra (" + resultado.pedidosPendentes()
+                            + " pendentes) e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
         });
@@ -794,7 +853,7 @@ public class GeradorDemo {
      * dos itens, itens às 6h40 e confirmação às 6h50 (antes da abertura do caixa, do inventário e dos reajustes).
      */
     private void comprar(Sessao gerente, CompraPlano compra, FornecedorDemo fornecedor, long fornecedorId,
-                         List<Long> produtoIds, LocalDate data, ZoneId zona) {
+                         List<Long> produtoIds, LocalDate data, ZoneId zona, Long pedidoId) {
         posicionar(data, LocalTime.of(6, 40), zona);
         BigDecimal total = compra.itens().stream().map(ItemCompra::valorTotal).reduce(BigDecimal.ZERO,
                 BigDecimal::add);
@@ -814,7 +873,55 @@ public class GeradorDemo {
                 new ParcelaEntrada(1, emissao.plusDays(DIAS_DUPLICATA), primeira),
                 new ParcelaEntrada(2, emissao.plusDays(2L * DIAS_DUPLICATA), total.subtract(primeira))));
         posicionar(data, LocalTime.of(6, 50), zona);
+        if (pedidoId != null) {
+            compras.vincularPedido(gerente, id, pedidoId); // F16.4: a entrada atende o pedido da semana
+        }
         compras.confirmar(gerente, id);
+    }
+
+    // ----- Compras (F16.4) -----
+
+    /**
+     * Um vínculo (principal) de cada produto reposto com o seu fornecedor: código "F1-1003" (fornecedor e posição no
+     * catálogo), caixa de 6, 12 ou 24 para os vendidos em unidade inteira e granel (KG, fator 1) para os fracionados,
+     * prazo de {@value #PRAZO_PEDIDO_DIAS} dias.
+     *
+     * @return vínculos criados
+     */
+    private int vincular(Sessao supervisor, List<ItemCatalogo> catalogo, List<FornecedorDemo> fornecedoresDemo,
+                         List<Long> fornecedorIds, List<Long> produtoIds, Random r) {
+        int criados = 0;
+        for (int p = 0; p < catalogo.size(); p++) {
+            ItemCatalogo item = catalogo.get(p);
+            for (int f = 0; f < fornecedoresDemo.size(); f++) {
+                if (!reposto(item, fornecedoresDemo.get(f))) {
+                    continue;
+                }
+                boolean granel = item.pesavel() || !"UN".equals(item.unidade());
+                BigDecimal fator = granel ? BigDecimal.ONE : BigDecimal.valueOf(FATORES[r.nextInt(FATORES.length)]);
+                vinculos.salvar(supervisor, produtoIds.get(p), null, new DadosVinculo(fornecedorIds.get(f),
+                        "F" + (f + 1) + "-" + (1000 + p), granel ? item.unidade() : "CX", fator, PRAZO_PEDIDO_DIAS,
+                        true));
+                criados++;
+            }
+        }
+        return criados;
+    }
+
+    /**
+     * Pedido de compra enviado com os itens da entrega (na unidade de venda, como a entrada) e o custo previsto do
+     * último custo do vínculo (sem ele, o custo do produto), com a previsão de entrega.
+     *
+     * @return número do pedido
+     */
+    private long pedir(Sessao gerente, List<ItemCompra> itens, long fornecedorId, List<Long> produtoIds,
+                       LocalDate entrega) {
+        long id = pedidos.criar(gerente, new DadosPedido(fornecedorId, entrega, null));
+        for (ItemCompra item : itens) {
+            pedidos.adicionarItem(gerente, id, produtoIds.get(item.produto()), item.quantidade(), null);
+        }
+        pedidos.enviar(gerente, id);
+        return id;
     }
 
     // ----- Financeiro (F15.8) -----

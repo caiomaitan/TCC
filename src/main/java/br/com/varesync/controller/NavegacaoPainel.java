@@ -22,6 +22,9 @@ public interface NavegacaoPainel {
     /** Financeiro, aba Contas a pagar, só as em aberto com vencimento de {@code de} (nulo = sem limite) até {@code ate}. */
     void abrirContasAPagar(LocalDate de, LocalDate ate);
 
+    /** Compras, aba Sugestão de compra, só com os produtos em ruptura (F16.4). */
+    void abrirRupturas();
+
     /** Financeiro, aba Contas, com a conta de saldo negativo selecionada. */
     void abrirContasFinanceiras();
 }

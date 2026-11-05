@@ -191,7 +191,7 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      entra pelo CMV; a receita líquida e o lucro bruto batem com o R01 e o R05);
    - **painel:** quem tem Financeiro vê o saldo das contas, o resultado líquido do mês até hoje e os alertas de contas a
      pagar vencidas e vencendo hoje e de conta com saldo negativo (o clique abre o Financeiro já filtrado).
-11. **Compras: fornecedor do produto e sugestão de compra:**
+11. **Compras: fornecedor do produto, sugestão e pedido de compra:**
    - **fornecedores do produto** (cadastro do produto, aba **Fornecedores**, permissão Produtos): para cada fornecedor,
      o código do produto na nota dele (`cProd`), a unidade de compra (ex.: CX), o **fator** (quantas unidades de venda
      vêm em 1 unidade de compra: caixa com 12 = 12) e o prazo de entrega em dias. O primeiro fornecedor já fica como
@@ -205,9 +205,21 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
      sugestão = o que falta para cobrir 15 dias mais o prazo de entrega, ou para chegar ao estoque mínimo (o maior),
      arredondado para cima no fator. Mostra a cobertura atual em dias, a sugestão também na unidade de compra, o último
      custo e o valor estimado; produto sem saldo que vendeu nos últimos 30 dias aparece em vermelho (ruptura). Os 30 e os
-     15 dias mudam em **Configurações › Compras**;
-   - **relatórios:** **R26 Sugestão de compra** e **R28 Cobertura e ruptura** (quantos dias o estoque dura e quais
-     produtos estão em ruptura).
+     15 dias mudam em **Configurações › Compras**. O que falta receber dos pedidos enviados e parciais (**Pendente**)
+     é descontado. Fornecedor principal inativo deixa de valer (prazo 0 e fator 1, linha em amarelo);
+   - **gerar pedido:** marque as linhas na coluna **Pedir** (ou **Marcar os com sugestão**) e clique em **Gerar
+     pedido…**: sai um rascunho para cada fornecedor principal, com a sugestão e o último custo; produto sem fornecedor
+     principal ativo fica de fora, com aviso;
+   - **pedidos de compra** (tela **Compras**, aba **Pedidos**, Ctrl+N cria um): o rascunho recebe os itens (quantidade
+     na unidade de venda e custo previsto); **Enviar pedido…** o fecha para edição, e **PDF do pedido…** gera o arquivo
+     para o fornecedor, com as quantidades também em caixas. Fornecedor inativo não recebe pedido novo. **Cancelar
+     pedido…** vale para rascunho, enviado ou parcial;
+   - **entrada com pedido:** na entrada aberta, **Pedido…** escolhe o pedido enviado do mesmo fornecedor que a nota
+     atende, e **Conferir com o pedido…** mostra o que faltava, o que veio e os custos, com as diferenças em destaque.
+     Ao confirmar a entrada, as quantidades entram como recebidas e o pedido fica **Parcial** ou **Recebido**;
+   - **relatórios:** **R26 Sugestão de compra**, **R27 Pedidos pendentes** (o que falta receber, com os atrasados) e
+     **R28 Cobertura e ruptura** (quantos dias o estoque dura e quais produtos estão em ruptura);
+   - **painel:** quem tem Compras vê o alerta de produtos em ruptura; o clique abre a Sugestão de compra só com eles.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -260,7 +272,9 @@ dias depois da venda, em dinheiro, vale-troca ou outro, alguns avariados. No fin
 com R$ 5.000,00 de saldo inicial no Cofre, põe taxa de 1% (1 dia) no débito, 3% (30 dias) no crédito e 0% (mesmo dia)
 no PIX, deposita o Cofre no Banco e concilia os recebíveis toda segunda-feira (até o domingo anterior), lança aluguel,
 energia, salários e os impostos de 6% da receita de cada mês (pagos no vencimento; a última conta de energia fica em
-aberto) e registra duas duplicatas por entrada de mercadoria. Ele **recusa** um banco que já tenha vendas ou
+aberto) e registra duas duplicatas por entrada de mercadoria. Em compras, vincula cada produto reposto ao seu
+fornecedor (caixas de 6, 12 ou 24, prazo de 3 dias) e lança um pedido de compra enviado 3 dias antes de cada entrada,
+que a entrada recebe; o pedido da próxima entrega de cada fornecedor fica pendente. Ele **recusa** um banco que já tenha vendas ou
 movimentos nas contas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):

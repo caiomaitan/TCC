@@ -339,6 +339,10 @@ public class PainelController {
                 alertas.getChildren().add(aviso);
             }
         }
+        if (a.rupturas() != null && a.rupturas() > 0) {
+            alerta(plural(a.rupturas(), "produto está", "produtos estão") + " em ruptura (sem estoque e com venda nos "
+                    + "últimos 30 dias) — ver na Sugestão de compra", () -> navegacao.abrirRupturas());
+        }
         if (a.pagarVencidas() != null && a.pagarVencidas().quantidade() > 0) {
             alerta(plural(a.pagarVencidas().quantidade(), "conta a pagar vencida", "contas a pagar vencidas") + " ("
                     + Formatos.moeda(a.pagarVencidas().valor()) + ") — ver no Financeiro",

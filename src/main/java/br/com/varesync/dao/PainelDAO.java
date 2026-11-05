@@ -87,6 +87,25 @@ public class PainelDAO {
         return contar(con, "SELECT count(*) FROM produto WHERE ativo AND preco_venda < custo");
     }
 
+    /**
+     * Ruptura (F16.4): produtos ativos com saldo ≤ 0 que venderam desde {@code inicio} (os últimos 30 dias, como o R28
+     * e a sugestão de compra).
+     */
+    public int contarRupturas(Connection con, OffsetDateTime inicio) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT count(*) FROM vw_estoque_atual e
+                 WHERE e.ativo AND e.saldo <= 0
+                   AND EXISTS (SELECT 1 FROM vw_resultado_item r
+                                WHERE r.produto_id = e.produto_id AND r.tipo = 'VENDA' AND r.data_hora >= ?)
+                """)) {
+            ps.setObject(1, inicio);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     public int contarInventariosAbertos(Connection con) throws SQLException {
         return contar(con, "SELECT count(*) FROM inventario WHERE status = 'ABERTO'");
     }

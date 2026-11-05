@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -93,9 +94,17 @@ public class FornecedorService {
         transacao.executar(con -> {
             Fornecedor atual = travar(con, id);
             int entradas = dao.contarEntradas(con, id);
-            if (entradas > 0) {
+            int pedidos = dao.contarPedidos(con, id); // F16.3
+            if (entradas > 0 || pedidos > 0) {
+                List<String> partes = new ArrayList<>();
+                if (entradas > 0) {
+                    partes.add((entradas == 1 ? "1 entrada" : entradas + " entradas") + " de mercadoria");
+                }
+                if (pedidos > 0) {
+                    partes.add(pedidos == 1 ? "1 pedido de compra" : pedidos + " pedidos de compra");
+                }
                 throw new RegistroEmUsoException("O fornecedor \"" + atual.razaoSocial() + "\" não pode ser excluído "
-                        + "porque tem " + (entradas == 1 ? "1 entrada" : entradas + " entradas") + " de mercadoria. "
+                        + "porque tem " + String.join(" e ", partes) + ". "
                         + "Você pode inativá-lo: ele sai da escolha de novas entradas, mas continua nas entradas "
                         + "lançadas e nos relatórios.");
             }

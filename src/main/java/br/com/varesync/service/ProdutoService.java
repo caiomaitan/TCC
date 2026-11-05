@@ -410,6 +410,9 @@ public class ProdutoService {
         if (v.entradas()) {
             partes.add("entrada de mercadoria");
         }
+        if (v.pedidos()) {
+            partes.add("pedido de compra");
+        }
         if (v.promocoes()) {
             partes.add("promoção");
         }

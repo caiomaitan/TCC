@@ -14,7 +14,8 @@ public final class Relatorios {
             new RelVendasHoraDia(), new RelSemGiro(), new RelPerdasAjustes(), new RelAlteracoesPreco(),
             new RelCancelamentos(), new RelComprasFornecedor(), new RelClientes(), new RelSaldosCredito(),
             new RelDevolucoes(), new RelTitulosReceber(), new RelRecebimentos(), new RelContasPagar(),
-            new RelFluxoCaixa(), new RelDre(), new RelSugestaoCompra(), new RelCoberturaRuptura());
+            new RelFluxoCaixa(), new RelDre(), new RelSugestaoCompra(), new RelPedidosPendentes(),
+            new RelCoberturaRuptura());
 
     private Relatorios() {
     }

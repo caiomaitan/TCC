@@ -30,7 +30,7 @@ public class EntradaDAO {
     private static final String SELECT_RESUMO = """
             SELECT e.id, e.fornecedor_id, f.razao_social, e.numero_documento, e.data_emissao, e.valor_total_nota,
                    e.status, e.criado_em, uc.nome AS criado_por_nome, e.confirmado_em,
-                   ucf.nome AS confirmado_por_nome,
+                   ucf.nome AS confirmado_por_nome, e.pedido_id,
                    (SELECT count(*) FROM entrada_mercadoria_item i WHERE i.entrada_id = e.id) AS total_itens,
                    (SELECT coalesce(sum(i.valor_total), 0) FROM entrada_mercadoria_item i
                      WHERE i.entrada_id = e.id) AS soma_itens
@@ -280,6 +280,19 @@ public class EntradaDAO {
         }
     }
 
+    /** Vincula a entrada ao pedido de compra (nulo desvincula), F16.3. */
+    public void vincularPedido(Connection con, long id, Long pedidoId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("UPDATE entrada_mercadoria SET pedido_id = ? WHERE id = ?")) {
+            if (pedidoId == null) {
+                ps.setNull(1, Types.BIGINT);
+            } else {
+                ps.setLong(1, pedidoId);
+            }
+            ps.setLong(2, id);
+            ps.executeUpdate();
+        }
+    }
+
     private static int definir(PreparedStatement ps, Gravacao g) throws SQLException {
         int i = 1;
         ps.setLong(i++, g.fornecedorId());
@@ -295,7 +308,8 @@ public class EntradaDAO {
                 rs.getBigDecimal("valor_total_nota"), StatusEntrada.valueOf(rs.getString("status")),
                 rs.getObject("criado_em", OffsetDateTime.class), rs.getString("criado_por_nome"),
                 rs.getObject("confirmado_em", OffsetDateTime.class), rs.getString("confirmado_por_nome"),
-                rs.getInt("total_itens"), rs.getBigDecimal("soma_itens"));
+                rs.getInt("total_itens"), rs.getBigDecimal("soma_itens"),
+                rs.getObject("pedido_id") == null ? null : rs.getLong("pedido_id"));
     }
 
     private static ItemEntrada lerItem(ResultSet rs) throws SQLException {

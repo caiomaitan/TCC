@@ -51,6 +51,7 @@ class FxmlTest {
             "/fxml/devolucoes.fxml, br.com.varesync.controller.DevolucoesController",
             "/fxml/devolucao.fxml, br.com.varesync.controller.DevolucaoController",
             "/fxml/compras.fxml, br.com.varesync.controller.ComprasController",
+            "/fxml/pedidos.fxml, br.com.varesync.controller.PedidosController",
             "/fxml/promocoes.fxml, br.com.varesync.controller.PromocoesController",
             "/fxml/importacao-produtos.fxml, br.com.varesync.controller.ImportacaoProdutosController"
     })

@@ -46,7 +46,10 @@ public enum AcaoAuditoria {
     TITULO_PAGAR_CRIADO("Conta a pagar lançada"),
     TITULO_PAGAR_CANCELADO("Conta a pagar cancelada"),
     TITULO_PAGAR_PAGO("Pagamento de conta"),
-    PAGAMENTO_ESTORNADO("Pagamento de conta estornado");
+    PAGAMENTO_ESTORNADO("Pagamento de conta estornado"),
+    PEDIDO_CRIADO("Pedido de compra criado"),
+    PEDIDO_ENVIADO("Pedido de compra enviado"),
+    PEDIDO_CANCELADO("Pedido de compra cancelado");
 
     private final String rotulo;
 

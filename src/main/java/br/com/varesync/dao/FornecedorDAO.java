@@ -131,8 +131,16 @@ public class FornecedorDAO {
 
     /** Quantas entradas de mercadoria usam o fornecedor (com alguma, ele não pode ser excluído). */
     public int contarEntradas(Connection con, long id) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement(
-                "SELECT count(*) FROM entrada_mercadoria WHERE fornecedor_id = ?")) {
+        return contar(con, "SELECT count(*) FROM entrada_mercadoria WHERE fornecedor_id = ?", id);
+    }
+
+    /** Quantos pedidos de compra (F16.3) usam o fornecedor (com algum, ele não pode ser excluído). */
+    public int contarPedidos(Connection con, long id) throws SQLException {
+        return contar(con, "SELECT count(*) FROM pedido_compra WHERE fornecedor_id = ?", id);
+    }
+
+    private static int contar(Connection con, String sql, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();

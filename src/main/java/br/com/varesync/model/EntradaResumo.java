@@ -8,12 +8,13 @@ import java.util.Optional;
 
 /**
  * Cabeçalho de uma entrada de mercadoria (6.10): fornecedor, nota, situação, quem lançou e quem confirmou, e o número
- * e a soma dos itens. {@code confirmadoEm} e {@code confirmadoPorNome} são nulos enquanto aberta.
+ * e a soma dos itens. {@code confirmadoEm} e {@code confirmadoPorNome} são nulos enquanto aberta; {@code pedidoId}, o
+ * pedido de compra vinculado (F16.3), nulo sem pedido.
  */
 public record EntradaResumo(long id, long fornecedorId, String fornecedorNome, String numeroDocumento,
                             LocalDate dataEmissao, BigDecimal valorTotalNota, StatusEntrada status,
                             OffsetDateTime criadoEm, String criadoPorNome, OffsetDateTime confirmadoEm,
-                            String confirmadoPorNome, int totalItens, BigDecimal somaItens) {
+                            String confirmadoPorNome, int totalItens, BigDecimal somaItens, Long pedidoId) {
 
     public boolean aberta() {
         return status == StatusEntrada.ABERTA;

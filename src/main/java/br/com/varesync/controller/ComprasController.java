@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.ItemEntrada;
 import br.com.varesync.model.ParcelaEntrada;
+import br.com.varesync.model.PedidoCompra;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
@@ -13,6 +14,7 @@ import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.ImportacaoNfeService;
 import br.com.varesync.service.LeitorNfe;
 import br.com.varesync.service.NegocioException;
+import br.com.varesync.service.PedidoCompraService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.SugestaoCompraService;
 import br.com.varesync.ui.BuscaProdutoDialogo;
@@ -20,6 +22,7 @@ import br.com.varesync.ui.CampoNumero;
 import br.com.varesync.ui.DialogoNfe;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCompras;
+import br.com.varesync.ui.DialogosPedido;
 import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
@@ -32,12 +35,16 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.Tooltip;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -78,6 +85,9 @@ public class ComprasController {
     private final Callback<Class<?>, Object> fabricaControllers;
     private final ImportacaoNfeService importacaoNfe;
     private final SugestaoCompraService sugestaoService;
+    private final PedidoCompraService pedidoService;
+    /** Produtos marcados na sugestão para o "Gerar pedido" (F16.3). */
+    private final Set<Long> marcados = new HashSet<>();
     /** Última sugestão calculada (todas as linhas do filtro); nula antes de calcular. */
     private SugestaoCompraService.Resultado sugestao;
     /** Entrada mostrada nos detalhes; nula sem seleção. */
@@ -90,6 +100,14 @@ public class ComprasController {
     @FXML private VBox raiz;
     @FXML private TabPane abas;
     @FXML private Tab abaSugestao;
+    @FXML private Tab abaPedidos;
+    @FXML private VBox pedidos;
+    @FXML private PedidosController pedidosController;
+    @FXML private CheckBox sugestaoSoRuptura;
+    @FXML private TableColumn<SugestaoCompra.Linha, Long> colunaSugMarcar;
+    @FXML private Button botaoGerarPedido;
+    @FXML private Button botaoPedido;
+    @FXML private Button botaoConferir;
     @FXML private ComboBox<Opcao> sugestaoFornecedor;
     @FXML private ComboBox<Opcao> sugestaoCategoria;
     @FXML private CheckBox sugestaoSoComSugestao;
@@ -154,11 +172,12 @@ public class ComprasController {
     @FXML private Label mensagem;
 
     public ComprasController(EntradaService entradaService, ImportacaoNfeService importacaoNfe,
-                             SugestaoCompraService sugestaoService, Sessao sessao,
+                             SugestaoCompraService sugestaoService, PedidoCompraService pedidoService, Sessao sessao,
                              Callback<Class<?>, Object> fabricaControllers) {
         this.entradaService = entradaService;
         this.importacaoNfe = importacaoNfe;
         this.sugestaoService = sugestaoService;
+        this.pedidoService = pedidoService;
         this.sessao = sessao;
         this.fabricaControllers = fabricaControllers;
     }
@@ -210,7 +229,7 @@ public class ComprasController {
                     e.consume();
                     calcularSugestao();
                 }
-            } else if (CTRL_N.match(e)) {
+            } else if (abas.getSelectionModel().getSelectedItem() != abaPedidos && CTRL_N.match(e)) {
                 e.consume();
                 nova();
             }
@@ -240,7 +259,33 @@ public class ComprasController {
 
         colunaSugCodigo.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().produtoId()));
         texto(colunaSugProduto, SugestaoCompra.Linha::produto);
-        texto(colunaSugFornecedor, l -> l.fornecedor() == null ? "(sem principal)" : l.fornecedor());
+        colunaSugMarcar.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().produtoId()));
+        colunaSugMarcar.setCellFactory(c -> new TableCell<>() {
+            private final CheckBox marca = new CheckBox();
+
+            {
+                marca.setOnAction(e -> {
+                    SugestaoCompra.Linha l = getTableRow() == null ? null : getTableRow().getItem();
+                    if (l != null) {
+                        marcar(l.produtoId(), marca.isSelected());
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(Long produtoId, boolean vazio) {
+                super.updateItem(produtoId, vazio);
+                setText(null);
+                if (vazio || produtoId == null) {
+                    setGraphic(null);
+                } else {
+                    marca.setSelected(marcados.contains(produtoId));
+                    setGraphic(marca);
+                }
+            }
+        });
+        texto(colunaSugFornecedor, l -> l.fornecedor() != null ? l.fornecedor()
+                : l.aviso() != null ? "(principal inativo)" : "(sem principal)");
         texto(colunaSugSaldo, l -> Formatos.quantidade(l.saldo(), l.fracionada()) + " " + l.unidade());
         texto(colunaSugMedia, l -> Formatos.quantidade(l.mediaDia(), true));
         texto(colunaSugCobertura, l -> l.coberturaDias() == null ? Formatos.SEM_VALOR
@@ -257,13 +302,88 @@ public class ComprasController {
             @Override
             protected void updateItem(SugestaoCompra.Linha l, boolean vazio) {
                 super.updateItem(l, vazio);
-                getStyleClass().remove("linha-erro");
+                getStyleClass().removeAll("linha-erro", "linha-aviso");
+                setTooltip(null);
                 if (!vazio && l != null && l.ruptura()) {
                     getStyleClass().add("linha-erro");
+                } else if (!vazio && l != null && l.aviso() != null) {
+                    getStyleClass().add("linha-aviso");
+                }
+                if (!vazio && l != null && l.aviso() != null) {
+                    setTooltip(new Tooltip(l.aviso()));
                 }
             }
         });
         botaoCalcularSugestao.disableProperty().bind(progressoSugestao.visibleProperty());
+        botaoGerarPedido.disableProperty().bind(progressoSugestao.visibleProperty());
+    }
+
+    private void marcar(long produtoId, boolean marcado) {
+        if (marcado) {
+            marcados.add(produtoId);
+        } else {
+            marcados.remove(produtoId);
+        }
+        mostrarMarcados();
+    }
+
+    private void mostrarMarcados() {
+        botaoGerarPedido.setText(marcados.isEmpty() ? "Gerar pedido…" : "Gerar pedido (" + marcados.size() + ")…");
+    }
+
+    /** Marca as linhas visíveis com sugestão maior que zero. */
+    @FXML
+    private void marcarComSugestao() {
+        tabelaSugestao.getItems().stream().filter(l -> l.sugestao().signum() > 0)
+                .forEach(l -> marcados.add(l.produtoId()));
+        tabelaSugestao.refresh();
+        mostrarMarcados();
+    }
+
+    @FXML
+    private void desmarcarSugestao() {
+        marcados.clear();
+        tabelaSugestao.refresh();
+        mostrarMarcados();
+    }
+
+    /**
+     * "Gerar pedido" (F16.3): um rascunho por fornecedor principal das linhas marcadas, com a sugestão e o último custo;
+     * as linhas sem fornecedor principal ativo ficam de fora, com aviso. Depois mostra os pedidos na aba Pedidos.
+     */
+    @FXML
+    private void gerarPedido() {
+        if (marcados.isEmpty()) {
+            Mensagem.erro(mensagemSugestao, "Marque na coluna Pedir os produtos que vão para o pedido (ou use "
+                    + "\"Marcar os com sugestão\").");
+            return;
+        }
+        if (!Dialogos.confirmar("Gerar pedidos de compra com os " + marcados.size() + " produto(s) marcado(s)?\n\n"
+                + "Sai um rascunho para cada fornecedor principal, com a quantidade da sugestão e o último custo. "
+                + "Produto sem fornecedor principal ativo fica de fora.")) {
+            return;
+        }
+        try {
+            PedidoCompraService.Geracao g = pedidoService.gerarDaSugestao(sessao, marcados);
+            marcados.clear();
+            mostrarMarcados();
+            tabelaSugestao.refresh();
+            String aviso = g.avisos().isEmpty() ? "" : "Ficaram de fora: " + String.join(" ", g.avisos());
+            abas.getSelectionModel().select(abaPedidos);
+            pedidosController.mostrarCriados(g.pedidos(), aviso);
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagemSugestao, e.getMessage());
+        }
+    }
+
+    /** Alerta de ruptura do painel (F16.4): aba Sugestão de compra com todos os produtos em ruptura. */
+    public void mostrarRupturas() {
+        abas.getSelectionModel().select(abaSugestao);
+        sugestaoFornecedor.setValue(TODOS);
+        sugestaoCategoria.setValue(TODAS);
+        sugestaoSoComSugestao.setSelected(false);
+        sugestaoSoRuptura.setSelected(true);
+        carregarSugestao();
     }
 
     @FXML
@@ -302,14 +422,16 @@ public class ComprasController {
             return;
         }
         List<SugestaoCompra.Linha> linhas = sugestao.linhas().stream()
-                .filter(l -> !sugestaoSoComSugestao.isSelected() || l.sugestao().signum() > 0).toList();
+                .filter(l -> !sugestaoSoComSugestao.isSelected() || l.sugestao().signum() > 0)
+                .filter(l -> !sugestaoSoRuptura.isSelected() || l.ruptura()).toList();
         tabelaSugestao.getItems().setAll(linhas);
-        sugestaoVazia.setText(sugestaoSoComSugestao.isSelected()
+        sugestaoVazia.setText(sugestaoSoRuptura.isSelected() ? "Nenhum produto em ruptura com estes filtros."
+                : sugestaoSoComSugestao.isSelected()
                 ? "Nenhum produto precisa de compra com estes filtros." : "Nenhum produto ativo com estes filtros.");
         sugestaoParametros.setText("Média da venda líquida de devoluções dos últimos "
                 + sugestao.parametros().diasMedia() + " dias (hoje incluído) · cobertura de "
                 + sugestao.parametros().coberturaDias() + " dias + o prazo de entrega do fornecedor principal · "
-                + "arredondada para cima no fator. Pendente em pedidos: com o pedido de compra.");
+                + "menos o saldo e o pendente dos pedidos enviados e parciais · arredondada para cima no fator.");
         BigDecimal total = linhas.stream().map(SugestaoCompra.Linha::valorEstimado)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         long comSugestao = linhas.stream().filter(l -> l.sugestao().signum() > 0).count();
@@ -425,6 +547,41 @@ public class ComprasController {
         });
     }
 
+    /** Vincula a entrada aberta a um pedido enviado ou parcial do mesmo fornecedor (F16.3), ou desvincula. */
+    @FXML
+    private void escolherPedido() {
+        if (entrada == null || !entrada.aberta()) {
+            return;
+        }
+        EntradaResumo atual = entrada;
+        try {
+            List<PedidoCompra> abertos = entradaService.pedidosParaVincular(sessao, atual.id());
+            if (DialogosPedido.escolherPedido(atual.titulo(), abertos, atual.pedidoId(),
+                    pedidoId -> entradaService.vincularPedido(sessao, atual.id(), pedidoId))) {
+                pesquisar();
+                EntradaResumo gravada = entradaService.buscar(sessao, atual.id());
+                Mensagem.sucesso(mensagem, gravada.pedidoId() == null ? "Entrada sem pedido."
+                        : "Entrada vinculada ao pedido nº " + gravada.pedidoId() + ". Confira com o pedido antes de "
+                        + "confirmar.");
+            }
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
+    /** Conferência pedido × nota (F16.3), com as divergências em destaque. */
+    @FXML
+    private void conferirPedido() {
+        if (entrada == null || entrada.pedidoId() == null) {
+            return;
+        }
+        try {
+            DialogosPedido.conferir(entrada.titulo(), entradaService.conferencia(sessao, entrada.id()));
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
     /** Parcelas da nota (F15.3): ao confirmar a entrada, cada uma vira um título a pagar. */
     @FXML
     private void editarParcelas() {
@@ -472,10 +629,13 @@ public class ComprasController {
         boolean aberta = selecionada != null && selecionada.aberta();
         painelItem.setDisable(!aberta);
         // Confirmada (ou sem seleção), os botões somem: desabilitados, cortavam o título da entrada.
-        for (Button botao : List.of(botaoEditarNota, botaoParcelas, botaoExcluir, botaoConfirmar)) {
+        for (Button botao : List.of(botaoEditarNota, botaoPedido, botaoParcelas, botaoExcluir, botaoConfirmar)) {
             botao.setVisible(aberta);
             botao.setManaged(aberta);
         }
+        boolean comPedido = selecionada != null && selecionada.pedidoId() != null;
+        botaoConferir.setVisible(comPedido);
+        botaoConferir.setManaged(comPedido);
         botaoRemover.setDisable(true);
         if (selecionada == null) {
             tituloEntrada.setText("Selecione uma entrada");
@@ -487,7 +647,7 @@ public class ComprasController {
             diferenca.setText("");
             return;
         }
-        tituloEntrada.setText(selecionada.titulo());
+        tituloEntrada.setText(selecionada.titulo() + (comPedido ? " · pedido nº " + selecionada.pedidoId() : ""));
         situacao.setText(aberta ? "Aberta — lançada por " + selecionada.criadoPorNome() + " em "
                 + Formatos.dataHora(selecionada.criadoEm())
                 : "Confirmada por " + selecionada.confirmadoPorNome() + " em "
@@ -676,6 +836,13 @@ public class ComprasController {
                 .append('\n'));
         if (!parcelas.isEmpty()) {
             texto.append('\n').append(parcelas.size()).append(" parcela(s) vão virar contas a pagar.\n");
+        }
+        if (e.pedidoId() != null) {
+            texto.append("\nAs quantidades entram como recebidas no pedido nº ").append(e.pedidoId()).append(".\n");
+            if (entradaService.conferencia(sessao, e.id()).temDivergencia()) {
+                texto.append("ATENÇÃO: a nota tem quantidade ou custo diferente do pedido (veja \"Conferir com o "
+                        + "pedido…\").\n");
+            }
         }
         texto.append("\nO estoque e o custo médio dos produtos serão atualizados. Depois de confirmada, a entrada não "
                 + "pode mais ser alterada (correções só por ajuste de estoque).");

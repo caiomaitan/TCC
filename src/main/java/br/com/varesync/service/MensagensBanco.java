@@ -76,6 +76,10 @@ public final class MensagensBanco {
             Map.entry("ck_pf_fator", "O fator deve ser 1 ou mais"),
             Map.entry("ck_pf_custo", "O último custo não pode ser negativo"),
             Map.entry("ck_pf_prazo", "O prazo de entrega deve estar entre 0 e 365 dias"),
+            Map.entry("uq_pci_produto", "Este produto já está no pedido. Altere a quantidade da linha"),
+            Map.entry("ck_pci_quantidade", "A quantidade deve ser maior que zero"),
+            Map.entry("ck_pci_custo", "O custo previsto não pode ser negativo"),
+            Map.entry("ck_pc_status", "Situação do pedido inválida"),
             // Estoque
             Map.entry("ck_me_sinal", "A quantidade do movimento não corresponde ao tipo (entrada ou saída)"),
             Map.entry("ck_me_origem", "Informe o motivo do ajuste"),

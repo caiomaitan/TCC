@@ -17,11 +17,12 @@ import java.util.Optional;
  * @param pagarVencidas      contas a pagar em aberto vencidas antes de hoje (FINANCEIRO, F15.6)
  * @param pagarHoje          contas a pagar em aberto que vencem hoje (FINANCEIRO)
  * @param contasNegativas    contas financeiras com saldo negativo (FINANCEIRO); vazia sem a permissão
+ * @param rupturas           produtos ativos com saldo ≤ 0 que venderam nos últimos 30 dias (COMPRAS, F16.4)
  */
 public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, Optional<CaixaSessao> caixaAberto,
                             Integer inventariosAbertos, BackupAtrasado backupAtrasado,
                             TitulosVencidos titulosVencidos, ContasAPagar pagarVencidas, ContasAPagar pagarHoje,
-                            List<ContaFinanceira> contasNegativas) {
+                            List<ContaFinanceira> contasNegativas, Integer rupturas) {
 
     /** Títulos em aberto com vencimento antes de hoje: quantos e quanto em aberto (RECEBIMENTO, F14.4). */
     public record TitulosVencidos(int quantidade, BigDecimal valor) {
@@ -49,7 +50,8 @@ public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, 
                 || positivo(inventariosAbertos) || backupAtrasado != null
                 || (titulosVencidos != null && titulosVencidos.quantidade() > 0)
                 || (pagarVencidas != null && pagarVencidas.quantidade() > 0)
-                || (pagarHoje != null && pagarHoje.quantidade() > 0) || !contasNegativas.isEmpty();
+                || (pagarHoje != null && pagarHoje.quantidade() > 0) || !contasNegativas.isEmpty()
+                || positivo(rupturas);
     }
 
     private static boolean positivo(Integer valor) {

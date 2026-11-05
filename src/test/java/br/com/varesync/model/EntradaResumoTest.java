@@ -12,7 +12,7 @@ class EntradaResumoTest {
     private static EntradaResumo entrada(String numero, String valorNota, String soma) {
         return new EntradaResumo(9, 1, "Distribuidora Teste Ltda", numero, null,
                 valorNota == null ? null : new BigDecimal(valorNota), StatusEntrada.ABERTA, OffsetDateTime.now(),
-                "Ana Admin", null, null, 2, new BigDecimal(soma));
+                "Ana Admin", null, null, 2, new BigDecimal(soma), null);
     }
 
     @Test

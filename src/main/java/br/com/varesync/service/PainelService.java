@@ -17,6 +17,7 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.report.Dre;
+import br.com.varesync.report.SugestaoCompra;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -42,6 +43,7 @@ import java.util.Optional;
  * Fase 8.</li>
  * <li>Só com FINANCEIRO (F15.6): saldo das contas, resultado líquido do DRE do dia 1º até hoje e os alertas de contas
  * a pagar vencidas, vencendo hoje e de conta com saldo negativo.</li>
+ * <li>Com COMPRAS (F16.4): produtos em ruptura (saldo ≤ 0 e venda nos últimos 30 dias).</li>
  * </ul>
  */
 public class PainelService {
@@ -118,10 +120,12 @@ public class PainelService {
         Optional<CaixaSessao> caixa = sessao.pode(Permissao.PDV) ? caixaService.caixaAberto(con, sessao)
                 : Optional.empty();
         Integer inventarios = sessao.pode(Permissao.INVENTARIO) ? painelDAO.contarInventariosAbertos(con) : null;
+        Integer rupturas = sessao.pode(Permissao.COMPRAS) ? painelDAO.contarRupturas(con, hoje.minusDays(
+                SugestaoCompra.DIAS_RUPTURA - 1L).atStartOfDay(clock.getZone()).toOffsetDateTime()) : null;
         AlertasPainel.TitulosVencidos vencidos = sessao.pode(Permissao.RECEBIMENTO)
                 ? tituloDAO.vencidos(con, LocalDate.now(clock)) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
-                vencidos, pagarVencidas, pagarHoje, negativas);
+                vencidos, pagarVencidas, pagarHoje, negativas, rupturas);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */
