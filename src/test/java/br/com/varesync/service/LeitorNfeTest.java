@@ -98,6 +98,19 @@ class LeitorNfeTest {
                 .hasMessage("O XML da NF-e não tem itens.");
     }
 
+    /** F17.2: o grupo rastro (nLote, qLote, dVal) vem com o item, na ordem da nota; sem rastro, lista vazia. */
+    @Test
+    void rastroDosLotes() {
+        LeitorNfe.Item item = LeitorNfe.ler(recurso("nfe-rastro-lotes.xml")).itens().get(0);
+        assertThat(item.rastros()).containsExactly(
+                new LeitorNfe.Rastro("l2610a", new java.math.BigDecimal("1.000"), LocalDate.of(2026, 10, 20)),
+                new LeitorNfe.Rastro("L2610B", new java.math.BigDecimal("2.000"), LocalDate.of(2026, 11, 10)));
+        assertThat(ImportacaoNfeService.lotesDoRastro(item, new java.math.BigDecimal("36")))
+                .extracting(l -> l.codigo() + "=" + l.quantidade().toPlainString())
+                .containsExactly("L2610A=12.000", "L2610B=24.000");
+        assertThat(LeitorNfe.ler(recurso("nfe-caixa-fator.xml")).itens().get(0).rastros()).isEmpty();
+    }
+
     @Test
     void doctypeEEntidadesExternasSaoRecusados() {
         String xxe = "<?xml version=\"1.0\"?><!DOCTYPE NFe [<!ENTITY x SYSTEM \"file:///c:/windows/win.ini\">]>"

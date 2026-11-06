@@ -3,6 +3,7 @@ package br.com.varesync.config;
 import br.com.varesync.dao.AuditoriaDAO;
 import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.CategoriaDAO;
+import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.dao.ClienteDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.ContaFinanceiraDAO;
@@ -95,6 +96,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         CategoriaDAO categoriaDAO = new CategoriaDAO();
         EstoqueDAO estoqueDAO = new EstoqueDAO();
         EstoqueService estoque = new EstoqueService(transacao, produtoDAO, estoqueDAO, new MovimentoEstoqueDAO(),
+                new LoteDAO(),
                 auditoria, clock);
         CategoriaService categorias = new CategoriaService(transacao, categoriaDAO);
         ProdutoService produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),

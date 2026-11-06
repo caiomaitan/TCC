@@ -2,6 +2,7 @@ package br.com.varesync.dao;
 
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.ItemEntrada;
+import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.StatusEntrada;
 import java.math.BigDecimal;
@@ -254,6 +255,46 @@ public class EntradaDAO {
             ps.setLong(4, itemId);
             ps.setLong(5, entradaId);
             return ps.executeUpdate();
+        }
+    }
+
+    /** F17.2: divisão do item em lotes, por validade e código. */
+    public List<LoteEntrada> lotesDoItem(Connection con, long itemId) throws SQLException {
+        List<LoteEntrada> lotes = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT codigo, validade, quantidade FROM entrada_mercadoria_item_lote
+                 WHERE entrada_item_id = ?
+                 ORDER BY validade, codigo, id
+                """)) {
+            ps.setLong(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    lotes.add(new LoteEntrada(rs.getString(1), rs.getObject(2, LocalDate.class),
+                            rs.getBigDecimal(3)));
+                }
+            }
+        }
+        return lotes;
+    }
+
+    /** F17.2: troca a divisão do item em lotes (lista vazia: sem divisão). */
+    public void substituirLotesDoItem(Connection con, long itemId, List<LoteEntrada> lotes) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "DELETE FROM entrada_mercadoria_item_lote WHERE entrada_item_id = ?")) {
+            ps.setLong(1, itemId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = con.prepareStatement("""
+                INSERT INTO entrada_mercadoria_item_lote (entrada_item_id, codigo, validade, quantidade)
+                VALUES (?, ?, ?, ?)
+                """)) {
+            for (LoteEntrada l : lotes) {
+                ps.setLong(1, itemId);
+                ps.setString(2, l.codigo());
+                ps.setObject(3, l.validade());
+                ps.setBigDecimal(4, l.quantidade());
+                ps.executeUpdate();
+            }
         }
     }
 

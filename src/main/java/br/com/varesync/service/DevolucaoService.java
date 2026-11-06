@@ -342,13 +342,14 @@ public class DevolucaoService {
                     ? perda.substring(0, EstoqueService.TAMANHO_MAXIMO_MOTIVO) : perda;
             for (Gravado g : gravados) {
                 ItemDevolucao item = g.devolvido().item();
-                estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.DEVOLUCAO_VENDA,
+                long entrada = estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.DEVOLUCAO_VENDA,
                         g.devolvido().quantidade(), OrigemMovimento.devolucaoItem(g.itemId()), null,
                         item.custoUnitario());
                 if (g.devolvido().avariado()) {
+                    // F17.2: a perda sai dos mesmos lotes em que a devolução entrou, nas mesmas quantidades.
                     estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.PERDA,
                             g.devolvido().quantidade().negate(), OrigemMovimento.NENHUMA, motivoPerda,
-                            item.custoUnitario());
+                            item.custoUnitario(), estoqueService.lotesDoMovimento(con, entrada));
                 }
             }
 

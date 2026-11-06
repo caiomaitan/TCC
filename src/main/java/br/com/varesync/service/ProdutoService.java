@@ -140,7 +140,7 @@ public class ProdutoService {
     public long criar(Sessao sessao, DadosProduto dados) {
         sessao.exigir(Permissao.PRODUTOS);
         Validado v = validarCampos(dados);
-        return transacao.executar(con -> inserir(con, sessao, v, dados.estoqueInicial(), MOTIVO_ESTOQUE_INICIAL,
+        return transacao.executar(con -> inserir(con, sessao, v, dados, MOTIVO_ESTOQUE_INICIAL,
                 ""));
     }
 
@@ -153,13 +153,15 @@ public class ProdutoService {
      */
     long criar(Connection con, Sessao sessao, DadosProduto dados, String motivoEstoque, String origem)
             throws SQLException {
-        return inserir(con, sessao, validarCampos(dados), dados.estoqueInicial(), motivoEstoque, origem);
+        return inserir(con, sessao, validarCampos(dados), dados, motivoEstoque, origem);
     }
 
-    private long inserir(Connection con, Sessao sessao, Validado v, BigDecimal estoqueInicial, String motivoEstoque,
+    private long inserir(Connection con, Sessao sessao, Validado v, DadosProduto dados, String motivoEstoque,
                          String origem) throws SQLException {
         UnidadeMedida unidade = unidade(con, v.unidade);
         BigDecimal minimo = ValidacaoProduto.quantidade(v.estoqueMinimo, "O estoque mínimo", unidade.fracionada());
+        BigDecimal estoqueInicial = dados.estoqueInicial();
+        boolean controla = Boolean.TRUE.equals(dados.controlaValidade());
         BigDecimal inicial = estoqueInicial == null ? BigDecimal.ZERO
                 : ValidacaoProduto.quantidade(estoqueInicial, "O estoque inicial", unidade.fracionada());
         if (inicial.signum() < 0) {
@@ -172,9 +174,15 @@ public class ProdutoService {
 
         long id = produtoDAO.inserir(con, gravacao(v, minimo), sessao.usuarioId(), OffsetDateTime.now(clock));
         produtoDAO.definirCodigos(con, id, v.codigos);
+        if (controla) {
+            // F17: ligado antes do estoque inicial, que vai para o lote escolhido ou para o "SEM LOTE".
+            estoqueService.definirControle(con, sessao, id, true);
+        }
         if (inicial.signum() > 0) {
             estoqueService.movimentar(con, sessao, id, TipoMovimento.AJUSTE_ENTRADA, inicial,
-                    OrigemMovimento.NENHUMA, motivoEstoque, null);
+                    OrigemMovimento.NENHUMA, motivoEstoque, null,
+                    controla && dados.loteInicial() != null ? List.of(dados.loteInicial().comQuantidade(inicial))
+                            : null);
         }
 
         StringBuilder descricao = new StringBuilder("Produto ").append(descrever(id, v.nome))
@@ -187,6 +195,9 @@ public class ProdutoService {
         if (inicial.signum() > 0) {
             descricao.append(", estoque inicial ").append(Formatos.quantidade(inicial, unidade.fracionada()));
         }
+        if (controla) {
+            descricao.append(", com controle de validade e lotes");
+        }
         auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
                 descricao.toString());
         return id;
@@ -197,6 +208,9 @@ public class ProdutoService {
         sessao.exigir(Permissao.PRODUTOS);
         Validado v = validarCampos(dados);
         transacao.executar(con -> {
+            if (dados.controlaValidade() != null) {
+                estoqueService.travarSaldo(con, id); // saldo antes do produto, na ordem da entrada de mercadoria
+            }
             Produto atual = travar(con, id);
             UnidadeMedida unidade = unidade(con, v.unidade);
             BigDecimal minimo = ValidacaoProduto.quantidade(v.estoqueMinimo, "O estoque mínimo", unidade.fracionada());
@@ -218,8 +232,32 @@ public class ProdutoService {
                 auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_ALTERADO, AuditoriaService.ENTIDADE_PRODUTO,
                         id, "Produto " + descrever(id, atual.nome()) + ": " + String.join("; ", mudancas));
             }
+            if (dados.controlaValidade() != null) {
+                controle(con, sessao, id, dados.controlaValidade());
+            }
             return null;
         });
+    }
+
+    /**
+     * F17.2: liga ou desliga o controle de validade e lotes, com auditoria. Ao ligar, a diferença entre o saldo do
+     * produto e a soma dos lotes vira saldo inicial (na primeira vez, todo o saldo vai para o "SEM LOTE"); ao
+     * desligar, os lotes ficam parados.
+     */
+    public void definirControleValidade(Sessao sessao, long id, boolean ligar) {
+        sessao.exigir(Permissao.PRODUTOS);
+        transacao.executar(con -> {
+            controle(con, sessao, id, ligar);
+            return null;
+        });
+    }
+
+    private void controle(Connection con, Sessao sessao, long id, boolean ligar) throws SQLException {
+        java.util.Optional<String> descricao = estoqueService.definirControle(con, sessao, id, ligar);
+        if (descricao.isPresent()) {
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONTROLE_VALIDADE_ALTERADO,
+                    AuditoriaService.ENTIDADE_PRODUTO, id, descricao.get());
+        }
     }
 
     /** Inativo não aparece no PDV nem na busca padrão, mas continua nos relatórios. */

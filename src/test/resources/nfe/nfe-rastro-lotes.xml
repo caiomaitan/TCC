@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia (F17.2): 3 caixas de 12 leites, SEM GTIN, vinculadas pelo código do fornecedor (fator 12), com o grupo
+     rastro de dois lotes na unidade comercial (qLote 1 e 2 caixas). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000006011000006015" versao="4.00">
+      <ide>
+        <nNF>601</nNF>
+        <dhEmi>2026-10-05T09:30:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>AB12CD34EFGH83</CNPJ>
+        <xNome>Laticinios Vale do Pardo Ltda</xNome>
+        <enderEmit>
+          <xMun>Cajuru</xMun>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>LEITE-CX12</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>LEITE INTEGRAL 1L CX C/12</xProd>
+          <uCom>CX</uCom>
+          <qCom>3.0000</qCom>
+          <vUnCom>48.0000000000</vUnCom>
+          <vProd>144.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>3.0000</qTrib>
+          <vUnTrib>48.0000000000</vUnTrib>
+          <rastro>
+            <nLote> l2610a </nLote>
+            <qLote>1.000</qLote>
+            <dFab>2026-10-01</dFab>
+            <dVal>2026-10-20</dVal>
+          </rastro>
+          <rastro>
+            <nLote>L2610B</nLote>
+            <qLote>2.000</qLote>
+            <dFab>2026-10-03</dFab>
+            <dVal>2026-11-10</dVal>
+          </rastro>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>144.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>

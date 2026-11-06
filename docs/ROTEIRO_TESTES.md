@@ -678,3 +678,21 @@ demais estão "Não executado", falta a pessoa executar.
 | CT-F16-25 | Fornecedor inativo | 1. Pedidos › Novo pedido… 2. Enviar um rascunho dele | 1. Ele não aparece na lista 2. Recusado: "… está inativo e não recebe pedido novo" | 1 OK pelo roteiro de tela (captura `14`); 2 coberto por `PedidoCompraIT.fornecedorInativo` |
 | CT-F16-26 | Pedido rascunho | 1. Ler o código de um produto já no pedido › quantidade › Incluir 2. Quantidade 1,5 num produto UN 3. Ctrl+N na aba Pedidos | 1. Recusado: "já está neste pedido" 2. Recusado 3. Abre "Novo pedido de compra" | 1 e 2 cobertos por `PedidoCompraIT.rascunhoEnvioEItens`; não executado pela tela (teclado de verdade) |
 | CT-F16-27 | Banco vazio | 1. Configurações › Dados de demonstração › Gerar 2. Compras › Pedidos (situação Todas) 3. Relatórios › R27 | 2. Um pedido recebido por entrada semanal e um enviado por fornecedor (a próxima entrega) 3. Os 3 pedidos enviados | Coberto por `GeradorDemoIT.vinculosEPedidosDaFase16`; não executado pela tela |
+
+## Fase 17 — Validade e lotes, parte A (banco e regras, sem tela nova)
+
+Nesta parte não há tela nova: o cadastro com a caixa "Controla validade e lotes", a aba Lotes do Estoque, a escolha do
+lote no ajuste e a divisão da entrada são da parte B. Os casos abaixo valem como roteiro para depois da parte B; hoje
+estão cobertos pelos testes de integração indicados (`LoteServiceIT`, banco `varesync_test`) e "Não executado" pela
+tela.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F17-01 | Produto com controle, lote A (vence em 10 dias, 20 un) e B (40 dias, 20 un) | 1. Vender 25 2. Cancelar a venda | 1. A com 0 e B com 15 (FEFO) 2. A com 20 e B com 20 | Coberto por `LoteServiceIT.fefoDoAceite` e `cancelamentoVoltaParaOsLotesDaVendaDoAceite`; não executado pela tela |
+| CT-F17-02 | Produto com 5 no "SEM LOTE" e lote A com 20 | 1. Vender 8 | 1. "SEM LOTE" com 0 e A com 17 | Coberto por `LoteServiceIT.semLotePrimeiroDoAceite`; não executado pela tela |
+| CT-F17-03 | CT-F17-01 sem o cancelamento | 1. Devolver 3 2. Devolver mais 4 3. Em outra venda de 25, devolver 1 avariado | 1. Volta para B 2. 2 para B e 2 para A 3. B recebe 1 e perde 1; saldos dos lotes não mudam | Coberto por `LoteServiceIT.devolucaoParcialNaOrdemInversaDoAceite` e `devolucaoAvariadaEntraESaiDoMesmoLoteDoAceite`; não executado pela tela |
+| CT-F17-04 | Produto sem controle com saldo 13 | 1. Vender 3 2. Ligar o controle 3. Devolver 2 da venda do passo 1 | 2. 10 no "SEM LOTE" (auditoria "saldo inicial de 10 UN no SEM LOTE") 3. "SEM LOTE" com 12 | Coberto por `LoteServiceIT.vendaAntesDoControleEDevolucaoParaOSemLoteDoAceite`; não executado pela tela |
+| CT-F17-05 | Produto com controle; entrada aberta com 30 un | 1. Confirmar sem divisão 2. Dividir 10 + 15 e confirmar 3. Dividir 10 + 20 e confirmar | 1. Recusado: "O produto … controla validade: divida o item em lotes" 2. Recusado: "soma 25, mas o item tem 30" 3. Dois lotes com 10 e 20 | Coberto por `LoteServiceIT.entradaEmDoisLotesDoAceite`; não executado pela tela |
+| CT-F17-06 | Leite com controle e vínculo LEITE-CX12 (fator 12) | 1. Importar `src/test/resources/nfe/nfe-rastro-lotes.xml` (3 CX, rastro com qLote 1 e 2) 2. Confirmar | 1. Divisão L2610A 12 e L2610B 24 2. Lotes com 12 e 24 | Coberto por `LoteServiceIT.rastroDaNfeComFatorDoAceite`, `rastroQueNaoSomaEsperaADivisaoSerAcertada`, `LeitorNfeTest.rastroDosLotes`; não executado pela tela |
+| CT-F17-07 | Produto com controle e só o lote A (20); estoque negativo permitido | 1. Vender 30 2. Transferir 2 de A (depois de nova entrada) para o "SEM LOTE" 3. Transferir mais do que a origem tem | 1. A com 0 e "SEM LOTE" com −10 2. Saldo do produto não muda 3. Recusado: "tem só …" | Coberto por `LoteServiceIT.faltaSaiDoSemLoteNegativoDoAceite` e `transferenciaEntreLotesDoAceite`; não executado pela tela |
+| CT-F17-08 | CT-F17-01 | 1. Perda por vencimento sem lote 2. Perda por vencimento de 5 no lote B 3. Movimento inserido direto no banco, sem lotes | 1. Recusado: "escolha o lote que venceu" 2. B com 15 e estoque com 35 3. Recusado no commit: "não foi distribuído nos lotes" | Coberto por `LoteServiceIT.perdaPorVencimentoNoLoteEscolhidoDoAceite` e `movimentoSemDistribuicaoRecusadoNoCommitDoAceite`; não executado pela tela |

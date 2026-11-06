@@ -17,6 +17,7 @@ import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
+import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.PedidoCompraDAO;
@@ -98,7 +99,8 @@ final class AcessoTeste {
         usuarios = new UsuarioService(transacao, usuarioDAO, new ConfiguracaoDAO(), auditoria, senhas, relogio);
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
-        estoque = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(), auditoria,
+        estoque = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(), new LoteDAO(),
+                auditoria,
                 relogio);
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),

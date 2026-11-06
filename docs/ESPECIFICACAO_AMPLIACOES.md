@@ -888,51 +888,80 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 
 - Nova coluna `produto.controla_validade BOOLEAN NOT NULL DEFAULT false`.
 - **`lote`:**
-  - campos: `produto_id`, `codigo` (pode ser vazio), `validade` (nula = sem validade conhecida), `criado_em/por`;
-  - índice único em (`produto_id`, `codigo`, coalesce(`validade`, 'infinity'));
-  - o lote especial "SEM LOTE" (sem validade) existe no máximo uma vez por produto.
+  - campos: `produto_id`, `codigo` (pode ser vazio; gravado sem espaços nas pontas e em maiúsculas), `validade`, `criado_em/por`;
+  - índice único em (`produto_id`, `codigo`, coalesce(`validade`, 'infinity')): o mesmo código com outra validade é outro lote, e o lote sem código é identificado pela validade;
+  - a validade só fica nula no "SEM LOTE": o lote de código vazio e sem validade, no máximo um por produto, criado quando for preciso.
 - **Razão `lote_movimento`:**
-  - campos: `lote_id`, `movimento_estoque_id` (nulo só nos tipos sem movimento de estoque), `tipo` (MOVIMENTO, SALDO_INICIAL ou TRANSFERENCIA), `quantidade` (≠ 0, com sinal), `usuario_id` e `criado_em`;
-  - um movimento de estoque pode ser dividido em várias linhas.
-- **Saldo** protegido em `lote_saldo`.
-- **`vw_lote_inconsistente`** acusa duas coisas:
+  - campos: `lote_id`, `tipo` (MOVIMENTO, SALDO_INICIAL ou TRANSFERENCIA), `movimento_estoque_id` (só no MOVIMENTO), `transferencia_id` (só na TRANSFERENCIA), `quantidade` (≠ 0, com sinal), `usuario_id` e `criado_em`;
+  - um movimento de estoque pode ser dividido em várias linhas;
+  - o trigger recusa a linha se o lote for de outro produto, se o sinal for diferente do sinal do movimento ou se o produto estiver com o controle desligado;
+  - imutável: sem UPDATE e sem DELETE.
+- **Transferência:** tabela `lote_transferencia` (`produto_id`, lote de origem, lote de destino, `quantidade` > 0, `motivo`, `usuario_id`, `criado_em`). As duas linhas TRANSFERENCIA do razão apontam para ela.
+- **Saldo** protegido em `lote_saldo`, alterado só pelo trigger do razão. Nenhum lote fica negativo, exceto o "SEM LOTE".
+- **`vw_lote_inconsistente`** acusa três coisas:
   - saldo do lote diferente da soma do razão;
-  - num produto com o controle ligado, soma dos saldos dos lotes diferente do saldo do produto.
-- **Garantia no banco:** um trigger de restrição adiado (`DEFERRABLE INITIALLY DEFERRED`) em `movimento_estoque` confere, no commit, que todo movimento de produto com o controle ligado foi inteiramente distribuído em `lote_movimento`.
-- **Entrada em vários lotes:** tabela `entrada_mercadoria_item_lote` (`entrada_item_id`, `codigo`, `validade`, `quantidade`).
+  - num produto com o controle ligado, soma dos saldos dos lotes diferente do saldo do produto;
+  - transferência cujas linhas não somam zero.
+- **Garantia no banco:** um trigger de restrição adiado (`DEFERRABLE INITIALLY DEFERRED`) em `movimento_estoque` confere, no commit, que todo movimento de produto com o controle ligado foi inteiramente distribuído em `lote_movimento` (a soma das linhas é a quantidade do movimento).
+- **Entrada em vários lotes:** tabela `entrada_mercadoria_item_lote` (`entrada_item_id`, `codigo`, `validade` obrigatória, `quantidade` > 0 na unidade do produto). Código e validade não se repetem no mesmo item, e a divisão é apagada junto com o item.
+- A configuração `validade.alerta_dias` (seção 0.4) entra nesta migration.
 
 ### F17.2 Regras (só para produtos com controle de validade)
 
-- **Onde fica a distribuição:** dentro de `EstoqueService.movimentar`, o único caminho do estoque, que passa a receber opcionalmente a lista de lotes.
+- **Onde fica a distribuição:** dentro de `EstoqueService.movimentar`, o único caminho do estoque. Ele passa a receber, opcionalmente, a lista de lotes (lote existente, ou lote novo com código e validade), cuja soma tem de ser a quantidade do movimento. Sem a lista, vale a regra do tipo do movimento, abaixo. Em produto sem controle, a lista é ignorada.
+- **Concorrência:**
+  - o `movimentar` lê o controle do produto e os saldos dos lotes depois do INSERT do movimento, que já trava a linha do produto em `produto_estoque`; assim, duas vendas simultâneas do mesmo produto não consomem o mesmo lote;
+  - a transferência e o ligar ou desligar do controle, que não têm movimento, travam antes o saldo do produto (`EstoqueDAO.travarSaldo`);
+  - não é preciso travar cada lote.
 - **Saídas** (venda, ajuste de saída, perda sem lote escolhido, inventário negativo):
-  - consomem os lotes com saldo por FEFO: validade mais próxima primeiro, lotes sem validade por último;
+  - primeiro o saldo positivo do "SEM LOTE": validade desconhecida conta como a mais próxima (em geral, é a mercadoria de antes do controle);
+  - depois os lotes com saldo, por FEFO: validade mais próxima primeiro e, no empate, o lote mais antigo;
   - se os lotes não bastarem, o resto sai do "SEM LOTE", que pode ficar negativo e entra no alerta.
+- **Saída com lote escolhido** (ajuste de saída ou perda): sai do lote escolhido, e a quantidade não pode passar do saldo dele.
 - **Entradas:**
-  - **compra:** pela divisão em lotes da entrada; lote e validade são obrigatórios. O grupo `rastro` da NF-e (`nLote`, `qLote`, `dVal`) preenche os lotes quando existir;
+  - **compra:** pela divisão em lotes do item, que precisa somar a quantidade do item; a validade é obrigatória e o código, opcional. Item de produto com controle sem divisão impede a confirmação, com mensagem que diga qual é o produto. Em produto sem controle, a divisão é ignorada;
+  - **NF-e:** o grupo `rastro` (`nLote`, `qLote`, `dVal`) preenche a divisão dos itens de produto com controle. Cada `qLote` é convertido pela mesma razão da quantidade do item (quantidade do item ÷ `qCom`; pelo vínculo, é o fator), com 3 casas. Se a soma não bater com a quantidade do item, a entrada só confirma depois de a divisão ser acertada;
   - **cancelamento de venda:** volta exatamente para os lotes de onde a mercadoria saiu, pelo `lote_movimento` da venda;
-  - **devolução parcial:** volta na ordem inversa do consumo (o último lote consumido primeiro);
-  - **ajuste de entrada:** vai para o lote escolhido no diálogo ou para o "SEM LOTE";
+  - **devolução:** volta na ordem inversa do consumo (a última linha do razão da venda primeiro), descontado o que já voltou para cada lote em devoluções anteriores do mesmo item;
+  - **devolução avariada:** a entrada segue a regra da devolução, e a perda sai dos mesmos lotes, nas mesmas quantidades; o saldo dos lotes não muda;
+  - **venda feita com o controle desligado** (sem linhas no razão): o cancelamento e a devolução voltam para o "SEM LOTE";
+  - **ajuste de entrada** (inclusive o estoque inicial do cadastro): vai para o lote escolhido (existente, ou novo com validade) ou, sem escolha, para o "SEM LOTE";
   - **sobra de inventário:** vai para o "SEM LOTE".
-- **Perda por vencimento:** o usuário escolhe o lote; o motivo é "Vencimento".
-- **Transferência entre lotes** do mesmo produto (ESTOQUE, com motivo): sem movimento de estoque, duas linhas TRANSFERENCIA que somam zero. Serve para corrigir lote digitado errado.
-- **Ligar o controle:** lança no "SEM LOTE" a diferença entre o saldo do produto e a soma dos lotes (SALDO_INICIAL). Isso vale para a primeira vez e para quando o controle volta a ser ligado.
-- **Desligar o controle:** os lotes deixam de ser movimentados e saem dos alertas e da conferência.
+- **Perda por vencimento:** o lote é obrigatório; o motivo é "Vencimento".
+- **Transferência entre lotes** do mesmo produto (ESTOQUE, com motivo):
+  - não gera movimento de estoque: grava a `lote_transferencia` e as duas linhas TRANSFERENCIA;
+  - a origem precisa ter saldo, inclusive o "SEM LOTE"; o destino pode ser um lote novo (código e validade);
+  - serve para corrigir lote digitado errado e para passar o "SEM LOTE" para os lotes certos depois de uma contagem.
+- **Ligar o controle** (no cadastro do produto, com auditoria):
+  - a diferença entre o saldo do produto e a soma dos lotes é lançada como SALDO_INICIAL;
+  - positiva, entra no "SEM LOTE"; negativa, sai dos lotes como uma saída (regra acima);
+  - na primeira vez não há lotes, e todo o saldo vai para o "SEM LOTE".
+- **Desligar o controle:** os lotes deixam de ser movimentados (o banco recusa linhas no razão) e saem dos alertas e da conferência. Os saldos ficam parados até o controle voltar.
 
 ### F17.3 Telas, relatórios, painel e gerador
 
-- **Estoque:** nova aba "Lotes", com lote, validade, saldo, dias para vencer e transferência.
-- **Entrada de mercadoria:** divisão do item em lotes (código, validade e quantidade).
+- **Cadastro do produto:** caixa "Controla validade e lotes". Ao ligar, a tela avisa que o saldo atual vai para o "SEM LOTE".
+- **Estoque:**
+  - nova aba "Lotes": lote, validade, saldo, dias para vencer, o razão do lote selecionado e a transferência; o "SEM LOTE" negativo aparece em destaque;
+  - no ajuste e na perda, a escolha do lote (obrigatória na perda por vencimento).
+- **Entrada de mercadoria:** divisão do item em lotes (código, validade e quantidade), já preenchida pelo rastro da NF-e, mostrando a diferença para a quantidade do item.
 - **R29 Validade:** lotes a vencer em N dias e vencidos, com o valor a custo.
-- **Painel:** alertas "N lotes vencem em até X dias" e "N lotes vencidos", para quem tem ESTOQUE.
+- **Painel** (para quem tem ESTOQUE): alertas "N lotes vencem em até X dias", "N lotes vencidos" e "N produtos com saldo negativo no SEM LOTE".
 - **Gerador:** perecíveis (laticínios, frios, padaria) com controle e lotes.
 
 ### Aceite F17
 
 - **FEFO:** lote A (vence em 10 dias, 20 un) e lote B (vence em 40 dias, 20 un). Uma venda de 25 deixa A com 0 e B com 15.
-- **Cancelamento:** cancelar essa venda devolve 20 para A e 5 para B.
-- **Devolução parcial:** sem o cancelamento, devolver 3 dessa venda volta para B.
+- **SEM LOTE primeiro:** com 5 no "SEM LOTE" e o lote A com 20, uma venda de 8 deixa o "SEM LOTE" com 0 e A com 17.
+- **Cancelamento:** cancelar a venda de 25 devolve 20 para A e 5 para B.
+- **Devolução parcial:** sem o cancelamento, devolver 3 dessa venda volta para B; devolver depois mais 4 volta 2 para B e 2 para A.
+- **Devolução avariada:** na mesma venda de 25, sem outras devoluções, devolver 1 avariado faz o lote B receber 1 e perder 1; os saldos dos lotes não mudam.
+- **Venda sem controle:** a devolução de uma venda feita antes de ligar o controle volta para o "SEM LOTE".
 - **Entrada em lotes:** entrada de 30 em dois lotes (10 + 20) cria os dois lotes com esses saldos.
-- **Transferência:** passar 2 do lote A para o "SEM LOTE" mantém o saldo do produto.
+- **NF-e:** 3 CX (fator 12) com rastro de dois lotes (`qLote` 1 e 2) viram lotes de 12 e 24.
+- **Ligar o controle:** produto com saldo 10 e sem lotes fica com 10 no "SEM LOTE".
+- **Negativo:** com estoque negativo permitido, uma venda de 30 com só o lote A (20) deixa A com 0 e o "SEM LOTE" com −10.
+- **Transferência:** passar 2 do lote A para o "SEM LOTE" mantém o saldo do produto; passar mais do que a origem tem é recusado.
 - **Perda:** a perda por vencimento no lote escolhido baixa o lote e o estoque.
 - **Garantia:** movimento de produto com controle sem distribuição em lotes é recusado no commit.
 - **Alerta:** aparece quando faltam 7 dias ou menos para vencer.
@@ -1117,6 +1146,7 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - sucesso em notificação discreta;
   - foco inicial e ordem do Tab revisados;
   - contraste mínimo AA no tema escuro;
+  - os cortes em 1280×720 que ficaram nas pendências das fases anteriores (por exemplo, os títulos do R27) são corrigidos;
   - no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar.
 
 ### Aceite F21

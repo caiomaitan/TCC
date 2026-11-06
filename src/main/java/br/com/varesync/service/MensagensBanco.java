@@ -107,7 +107,9 @@ public final class MensagensBanco {
             Map.entry("ck_fp_taxa", "A taxa deve estar entre 0 e 20%"),
             Map.entry("ck_fp_dias", "Os dias para receber devem estar entre 0 e 60"),
             Map.entry("ck_fp_conta_destino", "Dinheiro, crédito do cliente e crediário não têm conta de destino"),
-            Map.entry("ck_tp_pago", "O pago não pode passar do valor da conta"));
+            Map.entry("ck_tp_pago", "O pago não pode passar do valor da conta"),
+            Map.entry("uq_emil_lote", "Este lote (código e validade) já está na divisão do item"),
+            Map.entry("ck_lt_quantidade", "A quantidade da transferência deve ser maior que zero"));
 
     private MensagensBanco() {
     }

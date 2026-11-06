@@ -109,6 +109,33 @@ public class ProdutoDAO {
         }
     }
 
+    /** F17: o produto controla validade e lotes? Vazio se o produto não existe. */
+    public Optional<Boolean> controlaValidade(Connection con, long id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("SELECT controla_validade FROM produto WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(rs.getBoolean(1)) : Optional.empty();
+            }
+        }
+    }
+
+    /** F17: liga ou desliga o controle de validade (quem chama já travou o saldo do produto). */
+    public void definirControleValidade(Connection con, long id, boolean ligado, long usuarioId, OffsetDateTime agora)
+            throws SQLException {
+        String sql = """
+                UPDATE produto
+                   SET controla_validade = ?, atualizado_por = ?, atualizado_em = ?
+                 WHERE id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setBoolean(1, ligado);
+            ps.setLong(2, usuarioId);
+            ps.setObject(3, agora);
+            ps.setLong(4, id);
+            ps.executeUpdate();
+        }
+    }
+
     /** Nome, custo médio e preço do produto, lidos com a linha travada (confirmação da entrada de mercadoria). */
     public record CustoTravado(String nome, BigDecimal custo, BigDecimal precoVenda) {
     }

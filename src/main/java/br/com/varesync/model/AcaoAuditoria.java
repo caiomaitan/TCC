@@ -49,7 +49,9 @@ public enum AcaoAuditoria {
     PAGAMENTO_ESTORNADO("Pagamento de conta estornado"),
     PEDIDO_CRIADO("Pedido de compra criado"),
     PEDIDO_ENVIADO("Pedido de compra enviado"),
-    PEDIDO_CANCELADO("Pedido de compra cancelado");
+    PEDIDO_CANCELADO("Pedido de compra cancelado"),
+    CONTROLE_VALIDADE_ALTERADO("Controle de validade ligado ou desligado"),
+    LOTE_TRANSFERIDO("Transferência entre lotes");
 
     private final String rotulo;
 

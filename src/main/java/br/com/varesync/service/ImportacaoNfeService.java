@@ -6,7 +6,9 @@ import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.Fornecedor;
+import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.ParcelaEntrada;
+import br.com.varesync.model.ParteLote;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoFornecedor;
 import br.com.varesync.model.ProdutoVenda;
@@ -125,7 +127,8 @@ public class ImportacaoNfeService {
         LeitorNfe.Nota nota = LeitorNfe.ler(xml);
         String documento = documento(nota.emitente());
         return transacao.executar(con -> {
-            record Linha(long produtoId, BigDecimal quantidade, BigDecimal valor, BigDecimal custo, String itens) {
+            record Linha(long produtoId, BigDecimal quantidade, BigDecimal valor, BigDecimal custo, String itens,
+                         List<LoteEntrada> lotes) {
             }
             record Manual(long produtoId, LeitorNfe.Item item, BigDecimal fator) {
             }
@@ -153,11 +156,14 @@ public class ImportacaoNfeService {
                         : item.comercial().quantidade().multiply(fator);
                 BigDecimal custo = fator == null || item.comercial().valorUnitario() == null ? null
                         : item.comercial().valorUnitario().divide(fator, Dinheiro.ESCALA_CUSTO, Dinheiro.ARREDONDAMENTO);
+                List<LoteEntrada> lotes = lotesDoRastro(item, quantidade);
                 Linha anterior = linhas.get(produtoId);
                 linhas.put(produtoId, anterior == null
-                        ? new Linha(produtoId, quantidade, item.valorTotal(), custo, String.valueOf(item.numero()))
+                        ? new Linha(produtoId, quantidade, item.valorTotal(), custo, String.valueOf(item.numero()),
+                        lotes)
                         : new Linha(produtoId, anterior.quantidade().add(quantidade),
-                        anterior.valor().add(item.valorTotal()), null, anterior.itens() + ", " + item.numero()));
+                        anterior.valor().add(item.valorTotal()), null, anterior.itens() + ", " + item.numero(),
+                        juntar(anterior.lotes(), lotes)));
             }
 
             long fornecedorId = fornecedor != null ? fornecedor.id() : cadastrar(con, nota);
@@ -165,12 +171,20 @@ public class ImportacaoNfeService {
                     nota.numero() == null ? "" : nota.numero(), nota.emissao(), nota.valorTotal()));
             for (Linha linha : linhas.values()) {
                 try {
+                    long itemId;
                     if (linha.custo() != null) {
-                        entradaService.adicionarItemDaNota(con, entradaId, linha.produtoId(), linha.quantidade(),
-                                linha.custo(), linha.valor());
+                        itemId = entradaService.adicionarItemDaNota(con, entradaId, linha.produtoId(),
+                                linha.quantidade(), linha.custo(), linha.valor());
                     } else {
-                        entradaService.adicionarItem(con, entradaId, linha.produtoId(), linha.quantidade(), null,
-                                linha.valor());
+                        itemId = entradaService.adicionarItem(con, entradaId, linha.produtoId(), linha.quantidade(),
+                                null, linha.valor());
+                    }
+                    // F17.2: o rastro da nota preenche a divisão em lotes do produto com controle de validade; se a
+                    // soma não bater com a quantidade do item, a confirmação espera a divisão ser acertada.
+                    if (!linha.lotes().isEmpty()
+                            && produtoDAO.controlaValidade(con, linha.produtoId()).orElse(false)) {
+                        entradaService.salvarLotesDoItem(con, entradaDAO.buscarItem(con, entradaId, itemId)
+                                .orElseThrow(), linha.lotes());
                     }
                 } catch (NegocioException e) {
                     throw new NegocioException("Item " + linha.itens() + " da nota: " + e.getMessage(), e);
@@ -186,6 +200,40 @@ public class ImportacaoNfeService {
                     .map(d -> new ParcelaEntrada(0, d.vencimento(), d.valor())).toList());
             return entradaId;
         });
+    }
+
+    /**
+     * Lotes do grupo {@code rastro} na unidade do produto (F17.2): cada {@code qLote} pela mesma razão da quantidade do
+     * item (quantidade do item ÷ {@code qCom}; pelo vínculo, o fator), com 3 casas. Rastro sem validade é ignorado (a
+     * divisão fica para conferir).
+     */
+    static List<LoteEntrada> lotesDoRastro(LeitorNfe.Item item, BigDecimal quantidadeDoItem) {
+        BigDecimal qCom = item.comercial().quantidade();
+        List<LoteEntrada> lotes = new ArrayList<>();
+        for (LeitorNfe.Rastro r : item.rastros()) {
+            if (r.validade() == null || r.quantidade() == null || r.quantidade().signum() <= 0) {
+                continue;
+            }
+            BigDecimal q = qCom == null || qCom.signum() == 0 ? r.quantidade()
+                    : r.quantidade().multiply(quantidadeDoItem).divide(qCom, Dinheiro.ESCALA_QUANTIDADE,
+                    Dinheiro.ARREDONDAMENTO);
+            lotes = juntar(lotes, List.of(new LoteEntrada(ParteLote.normalizarCodigo(r.lote()), r.validade(),
+                    q.setScale(Dinheiro.ESCALA_QUANTIDADE, Dinheiro.ARREDONDAMENTO))));
+        }
+        return lotes;
+    }
+
+    /** Junta as divisões, somando o mesmo lote (código e validade). */
+    private static List<LoteEntrada> juntar(List<LoteEntrada> a, List<LoteEntrada> b) {
+        Map<String, LoteEntrada> juntos = new LinkedHashMap<>();
+        for (LoteEntrada l : a) {
+            juntos.put(l.codigo() + "|" + l.validade(), l);
+        }
+        for (LoteEntrada l : b) {
+            juntos.merge(l.codigo() + "|" + l.validade(), l, (x, y) -> new LoteEntrada(x.codigo(), x.validade(),
+                    x.quantidade().add(y.quantidade())));
+        }
+        return new ArrayList<>(juntos.values());
     }
 
     /**

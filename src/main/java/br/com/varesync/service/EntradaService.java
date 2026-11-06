@@ -15,8 +15,10 @@ import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
 import br.com.varesync.model.ItemEntrada;
 import br.com.varesync.model.ItemPedido;
+import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParcelaEntrada;
+import br.com.varesync.model.ParteLote;
 import br.com.varesync.model.PedidoCompra;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
@@ -344,6 +346,62 @@ public class EntradaService {
         });
     }
 
+    // ----- Divisão do item em lotes (F17.2) -----
+
+    public List<LoteEntrada> lotesDoItem(Sessao sessao, long entradaId, long itemId) {
+        sessao.exigir(Permissao.COMPRAS);
+        return transacao.executar(con -> {
+            dao.buscarItem(con, entradaId, itemId)
+                    .orElseThrow(() -> new NegocioException("Item não encontrado nesta entrada."));
+            return dao.lotesDoItem(con, itemId);
+        });
+    }
+
+    /**
+     * Troca a divisão do item em lotes (código opcional, validade obrigatória, quantidade maior que zero na unidade do
+     * produto; código e validade não se repetem). A soma pode ficar diferente da quantidade do item enquanto a entrada
+     * está aberta: a confirmação é que exige a soma certa.
+     */
+    public void salvarLotesDoItem(Sessao sessao, long entradaId, long itemId, List<LoteEntrada> lotes) {
+        sessao.exigir(Permissao.COMPRAS);
+        transacao.executar(con -> {
+            exigirAberta(con, entradaId);
+            ItemEntrada item = dao.buscarItem(con, entradaId, itemId)
+                    .orElseThrow(() -> new NegocioException("Item não encontrado nesta entrada."));
+            salvarLotesDoItem(con, item, lotes);
+            return null;
+        });
+    }
+
+    /** Na transação de quem chama (entrada aberta já conferida; importação da NF-e). */
+    void salvarLotesDoItem(Connection con, ItemEntrada item, List<LoteEntrada> lotes) throws SQLException {
+        List<LoteEntrada> normalizados = new ArrayList<>();
+        java.util.Set<String> vistos = new java.util.HashSet<>();
+        for (LoteEntrada l : lotes) {
+            int n = normalizados.size() + 1;
+            String codigo = ParteLote.normalizarCodigo(l.codigo());
+            if (codigo.length() > EstoqueService.TAMANHO_MAXIMO_CODIGO_LOTE) {
+                throw new NegocioException("O código do lote " + n + " pode ter no máximo "
+                        + EstoqueService.TAMANHO_MAXIMO_CODIGO_LOTE + " caracteres.");
+            }
+            if (l.validade() == null) {
+                throw new NegocioException("Informe a validade do lote " + n + " do produto " + item.produtoNome()
+                        + ".");
+            }
+            if (l.quantidade() == null || l.quantidade().signum() <= 0) {
+                throw new NegocioException("A quantidade do lote " + n + " deve ser maior que zero.");
+            }
+            BigDecimal qtd = ValidacaoProduto.quantidade(l.quantidade(), "A quantidade do lote " + n,
+                    item.unidadeFracionada());
+            if (!vistos.add(codigo + "|" + l.validade())) {
+                throw new NegocioException("O lote " + br.com.varesync.model.Lote.descrever(codigo, l.validade())
+                        + " aparece duas vezes na divisão do item.");
+            }
+            normalizados.add(new LoteEntrada(codigo, l.validade(), qtd));
+        }
+        dao.substituirLotesDoItem(con, item.id(), normalizados);
+    }
+
     // ----- Parcelas (F15.3) -----
 
     public List<ParcelaEntrada> parcelas(Sessao sessao, long entradaId) {
@@ -408,6 +466,13 @@ public class EntradaService {
                 throw new NegocioException("A entrada não tem itens. Inclua os produtos da nota antes de confirmar.");
             }
             itens.sort(Comparator.comparingLong(ItemEntrada::produtoId));
+            // F17.2: item de produto com controle de validade precisa da divisão em lotes somando a quantidade.
+            java.util.Map<Long, List<ParteLote>> lotes = new java.util.HashMap<>();
+            for (ItemEntrada item : itens) {
+                if (produtoDAO.controlaValidade(con, item.produtoId()).orElse(false)) {
+                    lotes.put(item.id(), partesDoItem(con, item));
+                }
+            }
             EntradaResumo aberta = resumo(con, entradaId);
             long fornecedorId = aberta.fornecedorId();
             if (aberta.pedidoId() != null) {
@@ -427,7 +492,8 @@ public class EntradaService {
                 produtoDAO.atualizarCusto(con, item.produtoId(), novo, item.custoUnitario(), sessao.usuarioId(),
                         agora);
                 estoqueService.movimentar(con, sessao, item.produtoId(), TipoMovimento.ENTRADA_COMPRA,
-                        item.quantidade(), OrigemMovimento.entradaItem(item.id()), null, item.custoUnitario());
+                        item.quantidade(), OrigemMovimento.entradaItem(item.id()), null, item.custoUnitario(),
+                        lotes.get(item.id()));
                 // F16.1: o vínculo do produto com o fornecedor da nota guarda o último custo (por unidade de venda).
                 vinculos.atualizarUltimoCusto(con, item.produtoId(), fornecedorId, item.custoUnitario(),
                         sessao.usuarioId(), agora);
@@ -445,6 +511,23 @@ public class EntradaService {
                             + (titulos == 0 ? "" : " " + titulos + " título(s) a pagar gerado(s).") + pedido);
             return new ResultadoEntrada(confirmada, custos, sugestoes, margemMinima);
         });
+    }
+
+    /** Divisão do item em lotes, conferida antes da confirmação: existe e soma a quantidade do item. */
+    private List<ParteLote> partesDoItem(Connection con, ItemEntrada item) throws SQLException {
+        List<LoteEntrada> divisao = dao.lotesDoItem(con, item.id());
+        if (divisao.isEmpty()) {
+            throw new NegocioException("O produto " + item.produtoNome() + " controla validade: divida o item em "
+                    + "lotes (validade e quantidade) antes de confirmar a entrada.");
+        }
+        BigDecimal soma = divisao.stream().map(LoteEntrada::quantidade).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (soma.compareTo(item.quantidade()) != 0) {
+            throw new NegocioException("A divisão em lotes do produto " + item.produtoNome() + " soma "
+                    + Formatos.quantidade(soma, item.unidadeFracionada()) + ", mas o item tem "
+                    + Formatos.quantidade(item.quantidade(), item.unidadeFracionada())
+                    + ". Acerte a divisão antes de confirmar a entrada.");
+        }
+        return divisao.stream().map(l -> ParteLote.novo(l.codigo(), l.validade(), l.quantidade())).toList();
     }
 
     /**

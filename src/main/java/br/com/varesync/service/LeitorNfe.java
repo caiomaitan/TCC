@@ -47,7 +47,24 @@ public final class LeitorNfe {
      * @param comercial         o item como o fornecedor vende, para o vínculo pelo código do fornecedor (F16.1)
      */
     public record Item(int numero, String codigoBarras, String descricao, String unidade, BigDecimal quantidade,
-                       BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial) {
+                       BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial, List<Rastro> rastros) {
+
+        public Item {
+            rastros = rastros == null ? List.of() : List.copyOf(rastros);
+        }
+
+        /** Item sem o grupo {@code rastro}. */
+        public Item(int numero, String codigoBarras, String descricao, String unidade, BigDecimal quantidade,
+                    BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial) {
+            this(numero, codigoBarras, descricao, unidade, quantidade, valorTotal, unidadeTributavel, comercial,
+                    List.of());
+        }
+    }
+
+    /**
+     * Grupo {@code rastro} do item (F17.2): {@code nLote}, {@code qLote} (na unidade comercial do item) e {@code dVal}.
+     */
+    public record Rastro(String lote, BigDecimal quantidade, LocalDate validade) {
     }
 
     /**
@@ -139,12 +156,30 @@ public final class LeitorNfe {
                 texto(prod, "vUnCom").isEmpty() ? null : numero(prod, "vUnCom"));
         boolean tributavel = eanTributavel != null && !unidadeTributavel.isEmpty()
                 && !unidadeTributavel.equalsIgnoreCase(unidadeComercial);
+        List<Rastro> rastros = rastros(prod);
         if (tributavel) {
             return new Item(numero, eanTributavel, texto(prod, "xProd"), unidadeTributavel, numero(prod, "qTrib"),
-                    valor, true, comercial);
+                    valor, true, comercial, rastros);
         }
         return new Item(numero, eanComercial != null ? eanComercial : eanTributavel, texto(prod, "xProd"),
-                unidadeComercial, comercial.quantidade(), valor, false, comercial);
+                unidadeComercial, comercial.quantidade(), valor, false, comercial, rastros);
+    }
+
+    /** Grupos {@code rastro} filhos diretos de {@code prod} (NF-e 4.00), na ordem da nota. */
+    private static List<Rastro> rastros(Element prod) {
+        List<Rastro> rastros = new ArrayList<>();
+        for (Node n = prod.getFirstChild(); n != null; n = n.getNextSibling()) {
+            if (n instanceof Element e && "rastro".equals(e.getLocalName())) {
+                String validade = texto(e, "dVal");
+                try {
+                    rastros.add(new Rastro(texto(e, "nLote"), numero(e, "qLote"),
+                            validade.isEmpty() ? null : LocalDate.parse(validade)));
+                } catch (DateTimeParseException ex) {
+                    throw new NegocioException("Validade de lote inválida no XML da NF-e: \"" + validade + "\".");
+                }
+            }
+        }
+        return rastros;
     }
 
     /** "SEM GTIN", vazio ou código com dígito verificador errado → nulo. */
