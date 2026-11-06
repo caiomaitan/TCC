@@ -2,6 +2,8 @@ package br.com.varesync.controller;
 
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.ConteudoLiquido;
+import br.com.varesync.model.UnidadeConteudo;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Lote;
@@ -90,6 +92,9 @@ public class ProdutoController {
     @FXML private TextField campoPreco;
     @FXML private TextField campoCusto;
     @FXML private TextField campoEstoqueMinimo;
+    @FXML private TextField campoConteudo;
+    @FXML private ComboBox<UnidadeConteudo> campoUnidadeConteudo;
+    @FXML private Label precoPorMedida;
     @FXML private Label rotuloEstoqueInicial;
     @FXML private TextField campoEstoqueInicial;
     @FXML private CheckBox campoControlaValidade;
@@ -154,6 +159,11 @@ public class ProdutoController {
         campoMargemDesejada.textProperty().addListener((obs, a, b) -> recalcular());
         campoUnidade.valueProperty().addListener((obs, a, b) -> atualizarPlu());
         campoPlu.textProperty().addListener((obs, a, b) -> atualizarPlu());
+        campoUnidadeConteudo.getItems().setAll(UnidadeConteudo.values());
+        campoConteudo.textProperty().addListener((obs, a, b) -> atualizarPrecoPorMedida());
+        campoUnidadeConteudo.valueProperty().addListener((obs, a, b) -> atualizarPrecoPorMedida());
+        campoPreco.textProperty().addListener((obs, a, b) -> atualizarPrecoPorMedida());
+        campoUnidade.valueProperty().addListener((obs, a, b) -> atualizarPrecoPorMedida());
 
         rotuloEstoqueInicial.managedProperty().bind(rotuloEstoqueInicial.visibleProperty());
         campoEstoqueInicial.managedProperty().bind(campoEstoqueInicial.visibleProperty());
@@ -208,6 +218,8 @@ public class ProdutoController {
             campoPreco.setText("");
             campoCusto.setText("");
             campoEstoqueMinimo.setText("");
+            campoConteudo.setText("");
+            campoUnidadeConteudo.setValue(null);
             campoEstoqueInicial.setText("");
             campoEstoqueInicial.setVisible(true);
             campoControlaValidade.setSelected(false);
@@ -236,6 +248,9 @@ public class ProdutoController {
             // sem separador de milhar: "1.234" seria lido como 1,234 (Dinheiro.ler)
             campoEstoqueMinimo.setText(produto.estoqueMinimo().stripTrailingZeros().toPlainString().replace('.', ','));
             campoEstoqueInicial.setVisible(false);
+            campoConteudo.setText(produto.conteudo().vazio() ? ""
+                    : produto.conteudo().quantidade().stripTrailingZeros().toPlainString().replace('.', ','));
+            campoUnidadeConteudo.setValue(produto.conteudo().unidade());
             campoControlaValidade.setSelected(produto.controlaValidade());
             estoqueAtual.setText(Formatos.quantidade(produto.estoqueAtual(), produto.unidadeFracionada()) + " "
                     + produto.unidade());
@@ -530,7 +545,8 @@ public class ProdutoController {
                 List.copyOf(listaCodigos.getItems()),
                 produto == null ? ler(campoEstoqueInicial, "Estoque inicial") : null,
                 campoControlaValidade.isSelected(),
-                produto == null && campoControlaValidade.isSelected() ? loteInicial() : null);
+                produto == null && campoControlaValidade.isSelected() ? loteInicial() : null,
+                lerConteudo());
     }
 
     /**
@@ -646,6 +662,31 @@ public class ProdutoController {
         } catch (NegocioException e) {
             return Optional.empty();
         }
+    }
+
+    /** F18.1: conteúdo líquido digitado; quantidade vazia = sem conteúdo (a unidade é ignorada). */
+    private ConteudoLiquido lerConteudo() {
+        BigDecimal quantidade = ler(campoConteudo, "Conteúdo líquido");
+        if (quantidade == null) {
+            return ConteudoLiquido.SEM;
+        }
+        return new ConteudoLiquido(quantidade, campoUnidadeConteudo.getValue());
+    }
+
+    /** "= R$ 17,98 o kg" ao lado do conteúdo, com o preço de venda digitado. */
+    private void atualizarPrecoPorMedida() {
+        Optional<BigDecimal> quantidade = lerSemErro(campoConteudo);
+        Optional<BigDecimal> preco = lerSemErro(campoPreco);
+        UnidadeConteudo unidade = campoUnidadeConteudo.getValue();
+        UnidadeMedida venda = campoUnidade.getValue();
+        boolean porMedida = venda != null && ("KG".equals(venda.sigla()) || "L".equals(venda.sigla()));
+        if (quantidade.isEmpty() || quantidade.get().signum() <= 0 || preco.isEmpty() || unidade == null
+                || porMedida) {
+            precoPorMedida.setText("");
+            return;
+        }
+        BigDecimal valor = new ConteudoLiquido(quantidade.get(), unidade).precoPorMedida(preco.get());
+        precoPorMedida.setText("= " + Formatos.moeda(valor) + " o " + unidade.medida() + " na etiqueta");
     }
 
     private Integer lerPlu() {

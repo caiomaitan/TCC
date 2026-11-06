@@ -196,6 +196,13 @@ public class ProdutosController {
                 (PromocoesController c) -> { });
     }
 
+    /** Etiquetas de gôndola (F18.1). */
+    @FXML
+    private void abrirEtiquetas() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/etiquetas.fxml", "Etiquetas de gôndola",
+                fabricaControllers, (EtiquetasController c) -> { });
+    }
+
     /** Importação por planilha (6.11); ao fechar, refaz a busca e a lista de categorias (pode ter criado novas). */
     @FXML
     private void abrirImportacao() {

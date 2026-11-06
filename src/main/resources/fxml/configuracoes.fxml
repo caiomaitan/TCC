@@ -202,6 +202,31 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Nos produtos com o controle de validade e lotes ligado (cadastro do produto), o lote com saldo que vence em até estes dias aparece em amarelo na aba Lotes do Estoque e entra no alerta do Painel e no relatório R29 Validade. Os lotes vencidos com saldo aparecem em vermelho até a perda por vencimento ou o inventário."/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaEtiquetas" text="Etiquetas">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Folha A4: etiquetas por linha" minWidth="230"/>
+                    <TextField fx:id="campoEtiquetaColunas" prefWidth="60" styleClass="campo-numero"/>
+                    <Label text="linhas por folha"/>
+                    <TextField fx:id="campoEtiquetaLinhas" prefWidth="60" styleClass="campo-numero"/>
+                    <Label styleClass="subtitulo" text="(de 1 a 6 por linha e de 1 a 20 linhas; padrão 3 × 8)"/>
+                </HBox>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Impressora térmica" minWidth="230"/>
+                    <ComboBox fx:id="campoImpressoraTermica" editable="true" prefWidth="320"/>
+                    <Button fx:id="botaoImprimirTeste" text="Imprimir teste" onAction="#imprimirTeste"/>
+                </HBox>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Modelo da etiqueta (ZPL ou DPL)" minWidth="230"/>
+                    <Button text="Exemplo ZPL (Zebra)" onAction="#exemploZpl"/>
+                    <Button text="Exemplo DPL (Datamax e Allegro)" onAction="#exemploDpl"/>
+                </HBox>
+                <TextArea fx:id="campoModeloTermica" prefRowCount="11" VBox.vgrow="ALWAYS" styleClass="texto-modelo"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Variáveis: {NOME} (ou {NOME:30}, cortado em 30 caracteres), {PRECO}, {PRECO_DE} (preço normal, só na promoção), {UNIDADE}, {CODBARRAS}, {PLU}, {CODIGO} e {VALIDADE} (fim da promoção). Os preços saem sem &quot;R$&quot; (12,90), o que não se aplica sai vazio, o texto vai sem acentos e &lt;STX&gt; vira o caractere STX do DPL. Uma etiqueta por unidade da quantidade. Os exemplos são um ponto de partida: confira-os na impressora da loja com &quot;Imprimir teste&quot;, que usa o modelo e a impressora como estão na tela."/>
+                <Label fx:id="mensagemEtiquetas" wrapText="true" minHeight="-Infinity"/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>

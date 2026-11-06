@@ -27,11 +27,13 @@ public final class Produto {
     private final String atualizadoPorNome;
     private final List<CodigoBarras> codigosBarras;
     private final boolean controlaValidade;
+    private final ConteudoLiquido conteudo;
 
     public Produto(long id, String nome, Long categoriaId, String categoriaNome, String unidade,
                    boolean unidadeFracionada, BigDecimal precoVenda, BigDecimal custo, BigDecimal estoqueMinimo,
                    Integer plu, boolean ativo, BigDecimal estoqueAtual, OffsetDateTime atualizadoEm,
-                   String atualizadoPorNome, List<CodigoBarras> codigosBarras, boolean controlaValidade) {
+                   String atualizadoPorNome, List<CodigoBarras> codigosBarras, boolean controlaValidade,
+                   ConteudoLiquido conteudo) {
         this.id = id;
         this.nome = nome;
         this.categoriaId = categoriaId;
@@ -48,6 +50,7 @@ public final class Produto {
         this.atualizadoPorNome = atualizadoPorNome;
         this.codigosBarras = List.copyOf(codigosBarras);
         this.controlaValidade = controlaValidade;
+        this.conteudo = conteudo == null ? ConteudoLiquido.SEM : conteudo;
     }
 
     public long id() {
@@ -117,6 +120,11 @@ public final class Produto {
     /** F17: o produto controla validade e lotes? */
     public boolean controlaValidade() {
         return controlaValidade;
+    }
+
+    /** F18.1: conteúdo líquido da embalagem; {@link ConteudoLiquido#SEM} quando não informado. */
+    public ConteudoLiquido conteudo() {
+        return conteudo;
     }
 
     public Optional<String> codigoPrincipal() {

@@ -13,6 +13,7 @@ import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.EtiquetaDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
@@ -41,6 +42,7 @@ import br.com.varesync.service.CreditoService;
 import br.com.varesync.service.DevolucaoService;
 import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
+import br.com.varesync.service.EtiquetaService;
 import br.com.varesync.service.FluxoCaixaService;
 import br.com.varesync.service.FornecedorService;
 import br.com.varesync.service.GeradorDemo;
@@ -80,7 +82,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        CreditoService credito, DevolucaoService devolucoes, RecebimentoService recebimentos,
                        ContaFinanceiraService contas, RecebivelService recebiveis, ContaPagarService contasPagar,
                        FluxoCaixaService fluxoCaixa, ProdutoFornecedorService vinculos,
-                       SugestaoCompraService sugestao, PedidoCompraService pedidos) {
+                       SugestaoCompraService sugestao, PedidoCompraService pedidos,
+                       EtiquetaService etiquetas) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -150,7 +153,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 contas, recebiveis, contasPagar, new FluxoCaixaService(transacao, clock), vinculos,
                 new SugestaoCompraService(transacao, configuracaoDAO, fornecedorDAO, categoriaDAO, clock),
                 new PedidoCompraService(transacao, new PedidoCompraDAO(), fornecedorDAO, produtoDAO, vinculoDAO,
-                        configuracaoDAO, auditoria, clock));
+                        configuracaoDAO, auditoria, clock),
+                new EtiquetaService(transacao, new EtiquetaDAO(), configuracaoDAO, auditoria, clock));
     }
 
     /**

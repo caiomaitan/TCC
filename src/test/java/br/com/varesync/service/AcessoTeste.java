@@ -14,6 +14,7 @@ import br.com.varesync.dao.RecebivelDAO;
 import br.com.varesync.dao.DevolucaoDAO;
 import br.com.varesync.dao.EntradaDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.EtiquetaDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
@@ -86,6 +87,7 @@ final class AcessoTeste {
     final ProdutoFornecedorService vinculos;
     final SugestaoCompraService sugestao;
     final PedidoCompraService pedidos;
+    final EtiquetaService etiquetas;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -148,6 +150,7 @@ final class AcessoTeste {
         sugestao = new SugestaoCompraService(transacao, new ConfiguracaoDAO(), new FornecedorDAO(), categoriaDAO, relogio);
         pedidos = new PedidoCompraService(transacao, new PedidoCompraDAO(), new FornecedorDAO(), produtoDAO,
                 new ProdutoFornecedorDAO(), new ConfiguracaoDAO(), auditoria, relogio);
+        etiquetas = new EtiquetaService(transacao, new EtiquetaDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

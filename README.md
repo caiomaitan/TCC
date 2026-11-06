@@ -388,6 +388,14 @@ reajuste ou promoção de produto pesável tem de ser feito também na balança.
 quantidade diferente da pesada. No modo `PESO` (a etiqueta traz os gramas), o sistema calcula o total com o próprio
 preço e esse cuidado não é necessário.
 
+**Etiquetas de gôndola** (Produtos › Etiquetas…): lista os produtos com a etiqueta pendente (preço ou promoção diferente
+da última etiqueta impressa) e imprime em PDF A4 (`etiqueta.colunas` × `etiqueta.linhas` por folha, padrão 3 × 8) ou na
+impressora térmica. Ao começar a usar, se as gôndolas já estão etiquetadas, use **Marcar como em dia**: sem isso, todos
+os produtos com estoque aparecem pendentes. Para a térmica, em Configurações › Etiquetas escolha a impressora (o nome
+dela no Windows), carregue o exemplo ZPL (Zebra) ou DPL (Datamax e Allegro), ajuste as posições ao tamanho da etiqueta
+da loja e confira com **Imprimir teste** antes de usar: os exemplos são um ponto de partida e não foram testados em
+todas as impressoras.
+
 ## 9. Empacotamento (jpackage)
 
 Gera a pasta `VareSync` com `VareSync.exe` e o Java embutido (app-image do `jpackage`, sem instalador). Precisa do JDK

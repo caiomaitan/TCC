@@ -14,6 +14,7 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
+import br.com.varesync.report.ImpressaoTermica;
 import br.com.varesync.service.BackupService;
 import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ContaFinanceiraService;
@@ -37,6 +38,7 @@ import br.com.varesync.util.Gtin;
 import br.com.varesync.util.Textos;
 import java.io.File;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,6 +88,8 @@ public class ConfiguracoesController {
     private final ClienteService clienteService;
     private final ContaFinanceiraService contaService;
     private final GeradorDemo geradorDemo;
+    private final ImpressaoTermica impressaoTermica;
+    private final Clock clock;
     private final Sessao sessao;
     /** O que está gravado (base do "Desfazer" e do que não é editado aqui, como o backup). */
     private Configuracoes gravadas;
@@ -208,13 +212,23 @@ public class ConfiguracoesController {
     @FXML private Button botaoGerarDemo;
     @FXML private ProgressBar progressoDemo;
     @FXML private Label situacaoDemo;
+    @FXML private Tab abaEtiquetas;
+    @FXML private TextField campoEtiquetaColunas;
+    @FXML private TextField campoEtiquetaLinhas;
+    @FXML private ComboBox<String> campoImpressoraTermica;
+    @FXML private TextArea campoModeloTermica;
+    @FXML private Button botaoImprimirTeste;
+    @FXML private Label mensagemEtiquetas;
     @FXML private TextArea resultadoDemo;
 
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
                                    EstoqueService estoqueService, CreditoService creditoService,
                                    ClienteService clienteService, ContaFinanceiraService contaService,
-                                   GeradorDemo geradorDemo, Sessao sessao) {
+                                   GeradorDemo geradorDemo, ImpressaoTermica impressaoTermica, Clock clock,
+                                   Sessao sessao) {
+        this.impressaoTermica = impressaoTermica;
+        this.clock = clock;
         this.contaService = contaService;
         this.clienteService = clienteService;
         this.configuracaoService = configuracaoService;
@@ -273,13 +287,15 @@ public class ConfiguracoesController {
                 Formatos.moeda(c.getValue().diferenca())));
 
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaBackup);
+                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaEtiquetas, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
             barraSalvar.setManaged(visivel);
             if (aba == abaBackup) {
                 atualizarBackup();
+            } else if (aba == abaEtiquetas) {
+                carregarImpressoras();
             } else if (aba == abaAuditoria && !auditoriaPreparada) {
                 prepararAuditoria();
             }
@@ -374,6 +390,10 @@ public class ConfiguracoesController {
         campoDiasMedia.setText(String.valueOf(c.compras().diasMedia()));
         campoCobertura.setText(String.valueOf(c.compras().coberturaDias()));
         campoAlertaValidade.setText(String.valueOf(c.validadeAlertaDias()));
+        campoEtiquetaColunas.setText(String.valueOf(c.etiquetas().colunas()));
+        campoEtiquetaLinhas.setText(String.valueOf(c.etiquetas().linhas()));
+        campoImpressoraTermica.getEditor().setText(c.etiquetas().impressoraTermica());
+        campoModeloTermica.setText(c.etiquetas().modeloTermica());
         atualizarBalanca();
     }
 
@@ -405,7 +425,10 @@ public class ConfiguracoesController {
                 campoIntegrarCaixa.isSelected(),
                 new Configuracoes.Compras(inteiro(campoDiasMedia, "Dias de venda na média diária"),
                         inteiro(campoCobertura, "Cobertura desejada")),
-                inteiro(campoAlertaValidade, "Alerta de validade"));
+                inteiro(campoAlertaValidade, "Alerta de validade"),
+                new Configuracoes.Etiquetas(inteiro(campoEtiquetaColunas, "Etiquetas por linha"),
+                        inteiro(campoEtiquetaLinhas, "Linhas por folha"), campoModeloTermica.getText(),
+                        campoImpressoraTermica.getEditor().getText()));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -934,5 +957,64 @@ public class ConfiguracoesController {
                 .append("\nInventário aplicado: nº ").append(r.inventarioId())
                 .append("\nPeríodo: ").append(Formatos.data(r.inicio())).append(" a ").append(Formatos.data(r.fim()));
         return texto.toString();
+    }
+
+    // ----- Etiquetas (F18.1) -----
+
+    /** Lista as impressoras instaladas no combo da térmica, mantendo o nome digitado. */
+    private void carregarImpressoras() {
+        String atual = campoImpressoraTermica.getEditor().getText();
+        try {
+            campoImpressoraTermica.getItems().setAll(ImpressaoTermica.impressorasInstaladas());
+        } catch (RuntimeException e) {
+            campoImpressoraTermica.getItems().clear();
+        }
+        campoImpressoraTermica.getEditor().setText(atual);
+    }
+
+    @FXML
+    private void exemploZpl() {
+        usarExemplo(ImpressaoTermica.Exemplo.ZPL);
+    }
+
+    @FXML
+    private void exemploDpl() {
+        usarExemplo(ImpressaoTermica.Exemplo.DPL);
+    }
+
+    private void usarExemplo(ImpressaoTermica.Exemplo exemplo) {
+        if (!Textos.vazio(campoModeloTermica.getText())
+                && !Dialogos.confirmar("Trocar o modelo atual pelo exemplo " + exemplo.rotulo() + "?")) {
+            return;
+        }
+        campoModeloTermica.setText(exemplo.texto());
+        Mensagem.informar(mensagemEtiquetas, "Exemplo " + exemplo.rotulo() + " carregado. Confira-o com uma "
+                + "impressão de teste na impressora da loja e salve as alterações.");
+    }
+
+    /** Imprime um produto fictício com o modelo e a impressora como estão na tela (sem precisar salvar antes). */
+    @FXML
+    private void imprimirTeste() {
+        String impressora = campoImpressoraTermica.getEditor().getText();
+        String modelo = campoModeloTermica.getText();
+        LocalDate hoje = LocalDate.now(clock);
+        Task<Void> tarefa = new Task<>() {
+            @Override
+            protected Void call() {
+                impressaoTermica.imprimirTeste(impressora, modelo, hoje);
+                return null;
+            }
+        };
+        botaoImprimirTeste.setDisable(true);
+        Mensagem.informar(mensagemEtiquetas, "Enviando a etiqueta de teste…");
+        tarefa.setOnSucceeded(e -> {
+            botaoImprimirTeste.setDisable(false);
+            Mensagem.sucesso(mensagemEtiquetas, "Etiqueta de teste enviada para \"" + impressora.strip() + "\".");
+        });
+        tarefa.setOnFailed(e -> {
+            botaoImprimirTeste.setDisable(false);
+            Mensagem.erro(mensagemEtiquetas, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        Tarefas.executar("etiqueta-teste", tarefa);
     }
 }

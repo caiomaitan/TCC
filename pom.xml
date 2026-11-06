@@ -27,6 +27,7 @@
         <assertj.version>3.27.7</assertj.version>
         <bcrypt.version>0.10.2</bcrypt.version>
         <jasperreports.version>7.0.8</jasperreports.version>
+        <zxing.version>3.5.4</zxing.version>
 
         <main.class>br.com.varesync.Launcher</main.class>
     </properties>
@@ -105,6 +106,13 @@
             <groupId>net.sf.jasperreports</groupId>
             <artifactId>jasperreports-jdt</artifactId>
             <version>${jasperreports.version}</version>
+        </dependency>
+
+        <!-- Códigos de barras das etiquetas de gôndola (F18, seção 0.6 das ampliações) -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>${zxing.version}</version>
         </dependency>
 
         <!-- Log -->

@@ -51,7 +51,9 @@ public enum AcaoAuditoria {
     PEDIDO_ENVIADO("Pedido de compra enviado"),
     PEDIDO_CANCELADO("Pedido de compra cancelado"),
     CONTROLE_VALIDADE_ALTERADO("Controle de validade ligado ou desligado"),
-    LOTE_TRANSFERIDO("Transferência entre lotes");
+    LOTE_TRANSFERIDO("Transferência entre lotes"),
+    ETIQUETAS_IMPRESSAS("Etiquetas de gôndola impressas"),
+    ETIQUETAS_EM_DIA("Etiquetas marcadas como em dia");
 
     private final String rotulo;
 

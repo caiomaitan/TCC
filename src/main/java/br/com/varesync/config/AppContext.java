@@ -22,6 +22,9 @@ import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
 import br.com.varesync.controller.PromocoesController;
+import br.com.varesync.controller.EtiquetasController;
+import br.com.varesync.report.EtiquetasPdf;
+import br.com.varesync.report.ImpressaoTermica;
 import br.com.varesync.controller.RelatoriosController;
 import br.com.varesync.controller.TrocaSenhaController;
 import br.com.varesync.controller.UsuariosController;
@@ -58,6 +61,8 @@ public final class AppContext implements AutoCloseable {
     private final BackupService backup;
     private final ComprovantePdf comprovantePdf = new ComprovantePdf();
     private final ImpressaoComprovante impressaoComprovante = new ImpressaoComprovante(comprovantePdf);
+    private final ImpressaoTermica impressaoTermica = new ImpressaoTermica();
+    private final EtiquetasPdf etiquetasPdf = new EtiquetasPdf();
     private final RelatorioPdf relatorioPdf = new RelatorioPdf();
     private final FechamentoCaixaPdf fechamentoPdf = new FechamentoCaixaPdf();
 
@@ -164,10 +169,14 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    s.credito(), s.clientes(), s.contas(), geradorDemo, sessao);
+                    s.credito(), s.clientes(), s.contas(), geradorDemo, impressaoTermica, clock, sessao);
         }
         if (tipo == FinanceiroController.class) {
             return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), s.fluxoCaixa(), sessao);
+        }
+        if (tipo == EtiquetasController.class) {
+            return new EtiquetasController(s.etiquetas(), s.produtos(), s.categorias(), etiquetasPdf,
+                    impressaoTermica, sessao);
         }
         if (tipo == PromocoesController.class) {
             return new PromocoesController(s.promocoes(), s.produtos(), sessao);

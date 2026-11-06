@@ -8,6 +8,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.ConteudoLiquido;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.OrigemMovimento;
@@ -172,7 +173,9 @@ public class ProdutoService {
         conferirPluLivre(con, v.plu, null);
         conferirCodigosLivres(con, v.codigos, null);
 
-        long id = produtoDAO.inserir(con, gravacao(v, minimo), sessao.usuarioId(), OffsetDateTime.now(clock));
+        ConteudoLiquido conteudo = v.conteudo == null ? ConteudoLiquido.SEM : v.conteudo;
+        long id = produtoDAO.inserir(con, gravacao(v, minimo, conteudo), sessao.usuarioId(),
+                OffsetDateTime.now(clock));
         produtoDAO.definirCodigos(con, id, v.codigos);
         if (controla) {
             // F17: ligado antes do estoque inicial, que vai para o lote escolhido ou para o "SEM LOTE".
@@ -197,6 +200,9 @@ public class ProdutoService {
         }
         if (controla) {
             descricao.append(", com controle de validade e lotes");
+        }
+        if (!conteudo.vazio()) {
+            descricao.append(", conteúdo líquido ").append(conteudo.descricao());
         }
         auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
                 descricao.toString());
@@ -224,10 +230,16 @@ public class ProdutoService {
             conferirPluLivre(con, v.plu, id);
             conferirCodigosLivres(con, v.codigos, id);
 
-            produtoDAO.alterar(con, id, gravacao(v, minimo), sessao.usuarioId(), OffsetDateTime.now(clock));
+            ConteudoLiquido conteudo = v.conteudo == null ? atual.conteudo() : v.conteudo;
+            produtoDAO.alterar(con, id, gravacao(v, minimo, conteudo), sessao.usuarioId(),
+                    OffsetDateTime.now(clock));
             produtoDAO.definirCodigos(con, id, v.codigos);
 
             List<String> mudancas = mudancas(atual, v, minimo, unidade, categoriaNome);
+            if (!atual.conteudo().igual(conteudo)) {
+                mudancas.add("conteúdo líquido alterado de " + semConteudo(atual.conteudo()) + " para "
+                        + semConteudo(conteudo));
+            }
             if (!mudancas.isEmpty()) {
                 auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_ALTERADO, AuditoriaService.ENTIDADE_PRODUTO,
                         id, "Produto " + descrever(id, atual.nome()) + ": " + String.join("; ", mudancas));
@@ -304,7 +316,8 @@ public class ProdutoService {
 
     /** Campos já normalizados e validados (o que não depende do banco). */
     private record Validado(String nome, Long categoriaId, String unidade, BigDecimal preco, BigDecimal custo,
-                            BigDecimal estoqueMinimo, Integer plu, List<CodigoBarras> codigos) {
+                            BigDecimal estoqueMinimo, Integer plu, List<CodigoBarras> codigos,
+                            ConteudoLiquido conteudo) {
     }
 
     private static Validado validarCampos(DadosProduto dados) {
@@ -317,11 +330,12 @@ public class ProdutoService {
         BigDecimal minimo = dados.estoqueMinimo() == null ? BigDecimal.ZERO : dados.estoqueMinimo();
         List<CodigoBarras> codigos = ValidacaoProduto.codigos(dados.codigosBarras());
         return new Validado(nome, dados.categoriaId(), dados.unidade().strip(), preco, custo, minimo, dados.plu(),
-                codigos);
+                codigos, ValidacaoProduto.conteudo(dados.conteudo()));
     }
 
-    private static ProdutoDAO.Gravacao gravacao(Validado v, BigDecimal minimo) {
-        return new ProdutoDAO.Gravacao(v.nome, v.categoriaId, v.unidade, v.preco, v.custo, minimo, v.plu);
+    private static ProdutoDAO.Gravacao gravacao(Validado v, BigDecimal minimo, ConteudoLiquido conteudo) {
+        return new ProdutoDAO.Gravacao(v.nome, v.categoriaId, v.unidade, v.preco, v.custo, minimo, v.plu,
+                conteudo);
     }
 
     private Produto travar(Connection con, long id) throws SQLException {
@@ -472,6 +486,10 @@ public class ProdutoService {
 
     private static String semCategoria(String nome) {
         return nome == null ? "(sem categoria)" : nome;
+    }
+
+    private static String semConteudo(ConteudoLiquido conteudo) {
+        return conteudo.vazio() ? "(sem)" : conteudo.descricao();
     }
 
     private static String semValor(Object valor) {

@@ -47,6 +47,10 @@ class ConfiguracoesTest {
         m.put("compras.dias_media", "30");
         m.put("compras.cobertura_dias", "15");
         m.put("validade.alerta_dias", "7"); // V15 (F17)
+        m.put("etiqueta.colunas", "3"); // V16 (F18.1)
+        m.put("etiqueta.linhas", "8");
+        m.put("etiqueta.modelo_termica", "");
+        m.put("etiqueta.impressora_termica", "");
         return m;
     }
 

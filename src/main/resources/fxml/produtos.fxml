@@ -18,6 +18,7 @@
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label text="Produtos" styleClass="titulo"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Etiquetas…" onAction="#abrirEtiquetas"/>
         <Button text="Promoções…" onAction="#abrirPromocoes"/>
         <Button text="Importar planilha…" onAction="#abrirImportacao"/>
         <Button text="Categorias…" onAction="#abrirCategorias"/>

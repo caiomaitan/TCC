@@ -1,6 +1,7 @@
 package br.com.varesync.service;
 
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.ConteudoLiquido;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Gtin;
 import br.com.varesync.util.Textos;
@@ -24,6 +25,8 @@ final class ValidacaoProduto {
     /** NUMERIC(12,2) e NUMERIC(14,4) aceitam até 10 dígitos inteiros; NUMERIC(14,3), até 11. */
     private static final BigDecimal LIMITE_VALOR = new BigDecimal("10000000000");
     private static final BigDecimal LIMITE_QUANTIDADE = new BigDecimal("100000000000");
+    /** {@code produto.conteudo_quantidade} é NUMERIC(12,3). */
+    private static final BigDecimal LIMITE_CONTEUDO = new BigDecimal("1000000000");
 
     private ValidacaoProduto() {
     }
@@ -93,6 +96,30 @@ final class ValidacaoProduto {
             throw new NegocioException(rotulo + " está acima do limite permitido.");
         }
         return quantidade.setScale(Dinheiro.ESCALA_QUANTIDADE, Dinheiro.ARREDONDAMENTO);
+    }
+
+    /**
+     * Conteúdo líquido (F18.1), opcional: nulo continua nulo (não muda) e {@link ConteudoLiquido#SEM} continua sem;
+     * senão quantidade maior que zero, até 3 casas, e a unidade (g, kg, ml ou L).
+     */
+    static ConteudoLiquido conteudo(ConteudoLiquido conteudo) {
+        if (conteudo == null || conteudo.vazio()) {
+            return conteudo;
+        }
+        if (conteudo.quantidade() == null) {
+            throw new NegocioException("Informe a quantidade do conteúdo líquido (ex.: 500) ou deixe a unidade vazia.");
+        }
+        if (conteudo.unidade() == null) {
+            throw new NegocioException("Escolha a unidade do conteúdo líquido (g, kg, ml ou L).");
+        }
+        if (conteudo.quantidade().signum() <= 0) {
+            throw new NegocioException("O conteúdo líquido deve ser maior que zero.");
+        }
+        BigDecimal quantidade = quantidade(conteudo.quantidade(), "O conteúdo líquido", true);
+        if (quantidade.compareTo(LIMITE_CONTEUDO) >= 0) {
+            throw new NegocioException("O conteúdo líquido está acima do limite permitido.");
+        }
+        return new ConteudoLiquido(quantidade, conteudo.unidade());
     }
 
     /**

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Etiquetas de gôndola (F18.1): critério, lista com a quantidade, PDF, térmica e "Marcar como em dia". -->
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.varesync.controller.EtiquetasController"
+      spacing="10" styleClass="tela-cadastro" prefWidth="1200" prefHeight="640">
+    <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+    <Label text="Etiquetas de gôndola" styleClass="titulo"/>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Produtos"/>
+        <ComboBox fx:id="campoCriterio" prefWidth="210"/>
+        <HBox fx:id="painelDesde" alignment="CENTER_LEFT" spacing="8">
+            <DatePicker fx:id="campoDesde" prefWidth="130"/>
+        </HBox>
+        <HBox fx:id="painelEntrada" alignment="CENTER_LEFT" spacing="8">
+            <Label text="Entrada nº"/>
+            <TextField fx:id="campoEntrada" prefWidth="90" styleClass="campo-numero" onAction="#carregar"/>
+        </HBox>
+        <HBox fx:id="painelCategoria" alignment="CENTER_LEFT" spacing="8">
+            <ComboBox fx:id="campoCategoria" prefWidth="200"/>
+        </HBox>
+        <Button fx:id="botaoCarregar" text="Carregar" onAction="#carregar"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <TextField fx:id="campoProduto" promptText="Incluir: código, código de barras ou nome" prefWidth="290"
+                   onAction="#adicionarProduto"/>
+        <Button text="Remover (Del)" onAction="#remover"/>
+    </HBox>
+
+    <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
+        <placeholder><Label text="Nenhum produto na lista."/></placeholder>
+        <columns>
+            <TableColumn fx:id="colunaCodigo" text="Código" prefWidth="60" styleClass="coluna-numero" editable="false"/>
+            <TableColumn fx:id="colunaNome" text="Produto" prefWidth="290" editable="false"/>
+            <TableColumn fx:id="colunaPreco" text="Preço na etiqueta" prefWidth="340" editable="false"/>
+            <TableColumn fx:id="colunaBarras" text="Código de barras" prefWidth="150" editable="false"/>
+            <TableColumn fx:id="colunaUltima" text="Última etiqueta" prefWidth="210" editable="false"/>
+            <TableColumn fx:id="colunaQuantidade" text="Qtd." prefWidth="50" styleClass="coluna-numero"/>
+        </columns>
+        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+    </TableView>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label fx:id="resumo" styleClass="subtitulo"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label text="Clique duas vezes na quantidade para mudá-la. Em amarelo, as pendentes." styleClass="subtitulo"/>
+    </HBox>
+
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="Posição inicial na 1ª folha"/>
+        <TextField fx:id="campoPosicao" prefWidth="60" styleClass="campo-numero"/>
+        <Label fx:id="dicaPosicao" styleClass="subtitulo"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="botaoEmDia" text="Marcar como em dia" onAction="#marcarEmDia"/>
+        <Button fx:id="botaoTermica" text="Imprimir na térmica" onAction="#imprimirTermica"/>
+        <Button fx:id="botaoPdf" text="Gerar PDF…" onAction="#gerarPdf" styleClass="botao-primario"/>
+    </HBox>
+    <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity"/>
+</VBox>

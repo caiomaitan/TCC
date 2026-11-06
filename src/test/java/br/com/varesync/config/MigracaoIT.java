@@ -7,19 +7,19 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V15 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V16 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV15() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(15);
+    void bancoVazioRecebeV1aV16() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(16);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
                      WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
-                                                   '14', '15')
-                    """)).isEqualTo(15);
+                                                   '14', '15', '16')
+                    """)).isEqualTo(16);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -27,8 +27,8 @@ class MigracaoIT extends IntegracaoBase {
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
                     + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13; pedido_compra e "
                     + "pedido_compra_item da V14; lote, lote_saldo, lote_movimento, lote_transferencia e "
-                    + "entrada_mercadoria_item_lote da V15)")
-                    .isEqualTo(50);
+                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16)")
+                    .isEqualTo(51);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'
@@ -56,6 +56,11 @@ class MigracaoIT extends IntegracaoBase {
                     .as("configurações da sugestão de compra da V13").isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave = 'validade.alerta_dias' "
                     + "AND valor = '7'")).as("alerta de validade da V15").isEqualTo(1);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave LIKE 'etiqueta.%'"))
+                    .as("configurações das etiquetas da V16").isEqualTo(4);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = "
+                    + "'produto' AND column_name IN ('conteudo_quantidade', 'conteudo_unidade')"))
+                    .as("conteúdo líquido do produto da V16").isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM conta_financeira")).as("Cofre e Banco da V12")
                     .isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM categoria_despesa")).as("categorias da V12")

@@ -1,6 +1,8 @@
 package br.com.varesync.dao;
 
 import br.com.varesync.model.CodigoBarras;
+import br.com.varesync.model.ConteudoLiquido;
+import br.com.varesync.model.UnidadeConteudo;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoResumo;
@@ -25,7 +27,7 @@ public class ProdutoDAO {
 
     /** Valores gravados no INSERT/UPDATE, já validados pelo service. */
     public record Gravacao(String nome, Long categoriaId, String unidade, BigDecimal precoVenda, BigDecimal custo,
-                           BigDecimal estoqueMinimo, Integer plu) {
+                           BigDecimal estoqueMinimo, Integer plu, ConteudoLiquido conteudo) {
     }
 
     /** Produto que já usa um código de barras. */
@@ -47,7 +49,8 @@ public class ProdutoDAO {
     private static final String COLUNAS = """
             SELECT p.id, p.nome, p.categoria_id, c.nome AS categoria_nome, p.unidade, u.fracionada,
                    p.preco_venda, p.custo, p.estoque_minimo, p.plu, p.ativo, pe.quantidade AS estoque,
-                   p.atualizado_em, us.nome AS atualizado_por_nome, p.controla_validade
+                   p.atualizado_em, us.nome AS atualizado_por_nome, p.controla_validade,
+                   p.conteudo_quantidade, p.conteudo_unidade
               FROM produto p
               JOIN unidade_medida u   ON u.sigla = p.unidade
               JOIN produto_estoque pe ON pe.produto_id = p.id
@@ -58,8 +61,9 @@ public class ProdutoDAO {
     public long inserir(Connection con, Gravacao g, long usuarioId, OffsetDateTime agora) throws SQLException {
         String sql = """
                 INSERT INTO produto (nome, categoria_id, unidade, preco_venda, custo, estoque_minimo, plu,
+                                     conteudo_quantidade, conteudo_unidade,
                                      criado_em, criado_por, atualizado_em, atualizado_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -81,7 +85,8 @@ public class ProdutoDAO {
         String sql = """
                 UPDATE produto
                    SET nome = ?, categoria_id = ?, unidade = ?, preco_venda = ?, custo = ?, estoque_minimo = ?,
-                       plu = ?, atualizado_por = ?, atualizado_em = ?
+                       plu = ?, conteudo_quantidade = ?, conteudo_unidade = ?, atualizado_por = ?,
+                       atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -516,7 +521,21 @@ public class ProdutoDAO {
         } else {
             ps.setInt(7, g.plu());
         }
-        return 8;
+        ConteudoLiquido conteudo = g.conteudo() == null ? ConteudoLiquido.SEM : g.conteudo();
+        ps.setBigDecimal(8, conteudo.quantidade());
+        ps.setString(9, conteudo.vazio() ? null : conteudo.unidade().sigla());
+        return 10;
+    }
+
+    /** F18.1: conteúdo líquido gravado, ou {@link ConteudoLiquido#SEM}. */
+    public static ConteudoLiquido lerConteudo(ResultSet rs) throws SQLException {
+        BigDecimal quantidade = rs.getBigDecimal("conteudo_quantidade");
+        String unidade = rs.getString("conteudo_unidade");
+        if (quantidade == null || unidade == null) {
+            return ConteudoLiquido.SEM;
+        }
+        return UnidadeConteudo.daSigla(unidade).map(u -> new ConteudoLiquido(quantidade, u))
+                .orElse(ConteudoLiquido.SEM);
     }
 
     private static Produto lerProduto(ResultSet rs, List<CodigoBarras> codigos) throws SQLException {
@@ -539,6 +558,7 @@ public class ProdutoDAO {
                 rs.getObject("atualizado_em", OffsetDateTime.class),
                 rs.getString("atualizado_por_nome"),
                 codigos,
-                rs.getBoolean("controla_validade"));
+                rs.getBoolean("controla_validade"),
+                lerConteudo(rs));
     }
 }

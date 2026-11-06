@@ -77,7 +77,7 @@ As permissões existentes cobrem o resto: pedidos e sugestão de compra (COMPRAS
 | F15 | `financeiro.integrar_caixa` = false (ligar depois de lançar o saldo inicial das contas) |
 | F16 | `compras.dias_media` = 30 · `compras.cobertura_dias` = 15 |
 | F17 | `validade.alerta_dias` = 7 |
-| F18 | `etiqueta.colunas` = 3 · `etiqueta.linhas` = 8 · `etiqueta.modelo_termica` = (vazio) · `balanca.pasta_carga` = (vazio) |
+| F18 | `etiqueta.colunas` = 3 · `etiqueta.linhas` = 8 · `etiqueta.modelo_termica` = (vazio) · `etiqueta.impressora_termica` = (vazio) · `balanca.pasta_carga` = (vazio) |
 | F19 | `empresa.regime_tributario` = SIMPLES (SIMPLES ou NORMAL) · `empresa.uf` = (vazio) · `empresa.ie` = (vazio) |
 
 Todas entram na classe `Configuracoes` e são editadas na tela de Configurações, na aba da área (existente ou nova), com validação e auditoria `CONFIGURACAO_ALTERADA`.
@@ -990,26 +990,35 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 ### F18.1 Etiquetas (permissão PRODUTOS)
 
 - **Seleção de produtos**, por um destes critérios:
+  - pendentes (o padrão);
   - preço alterado desde uma data (pelo histórico);
   - produtos de uma entrada de mercadoria;
   - categoria;
   - lista manual.
-- **Etiquetas pendentes:** produtos ativos com estoque > 0 cujo preço vigente hoje (com promoção) é diferente do preço da última etiqueta impressa, ou que nunca tiveram etiqueta.
+
+  A lista mostra o preço que vai na etiqueta e deixa mudar a quantidade de cada produto (padrão 1).
+- **Etiquetas pendentes:** produtos ativos com estoque > 0 cujo preço vigente hoje (com promoção) ou cuja promoção vigente é diferente da última etiqueta impressa, ou que nunca tiveram etiqueta.
   - A tabela `etiqueta_impressao` (`produto_id`, `preco`, `promocao_id`, `usuario_id`, `criado_em`) registra cada impressão.
   - Reimprimir é sempre possível.
-- **PDF A4**, com `etiqueta.colunas` × `etiqueta.linhas` etiquetas por folha. Cada etiqueta mostra:
-  - nome, preço em destaque, unidade e data;
-  - preço por kg ou litro, quando fizer sentido;
-  - código de barras EAN-13 ou EAN-8 desenhado (ZXing);
-  - em promoção, "DE R$ X POR R$ Y", com a validade da promoção;
+  - **"Marcar como em dia"** registra a impressão sem imprimir. Serve para começar a usar a função quando as gôndolas já estão etiquetadas; sem isso, no primeiro dia, todos os produtos ficam pendentes.
+- **Conteúdo líquido** (opcional, no cadastro do produto, em migration nova): quantidade e unidade (g, kg, ml ou L), para o preço por kg ou litro.
+- **PDF A4**, com `etiqueta.colunas` × `etiqueta.linhas` etiquetas por folha e a posição inicial na primeira folha (para aproveitar uma folha já usada). Cada etiqueta mostra:
+  - nome, preço em destaque, unidade e data da impressão;
+  - preço por kg ou litro, quando o produto tem conteúdo líquido (por exemplo, 500 g a R$ 8,99 → R$ 17,98 o kg); no produto vendido em KG ou L, o próprio preço já é por kg ou litro;
+  - código de barras desenhado (ZXing): o principal do produto, se for EAN-13, EAN-8 ou UPC-A; sem um desses, a etiqueta sai sem código de barras, com o código interno. O pesável mostra o PLU, sem código de barras;
+  - em promoção, "DE R$ X POR R$ Y", com "Oferta válida até" o fim da promoção;
   - com a F20, "A partir de N un: R$ Z".
 - **Impressora térmica:**
-  - modelo de texto ZPL ou DPL em `etiqueta.modelo_termica`, com as variáveis {NOME}, {PRECO}, {PRECO_DE}, {UNIDADE}, {CODBARRAS} e {VALIDADE};
-  - enviado em modo RAW à impressora escolhida;
-  - botão "Imprimir teste".
+  - modelo de texto ZPL ou DPL em `etiqueta.modelo_termica`, com as variáveis {NOME} (ou {NOME:n}, cortado em n caracteres), {PRECO}, {PRECO_DE}, {UNIDADE}, {CODBARRAS}, {PLU}, {CODIGO} e {VALIDADE} (fim da promoção). Os preços saem sem "R$" (por exemplo, 12,90), e as variáveis que não se aplicam saem vazias;
+  - o texto enviado sai sem acentos, porque as impressoras térmicas costumam não ter a tabela de caracteres certa;
+  - enviado em modo RAW à impressora de `etiqueta.impressora_termica`, uma etiqueta por unidade da quantidade;
+  - modelos de exemplo, ZPL (Zebra) e DPL (Datamax e Allegro), para começar; precisam ser conferidos na impressora da loja;
+  - botão "Imprimir teste", com um produto fictício.
+- **Configurações:** aba nova "Etiquetas", com colunas, linhas, impressora térmica e modelo (com os exemplos e o "Imprimir teste").
 - **Testes:**
   - o código de barras do PDF é lido de volta (ZXing) e confere com o EAN do produto;
-  - o texto RAW gerado confere com o esperado.
+  - o texto RAW gerado confere com o esperado, inclusive {NOME:n} e a retirada dos acentos;
+  - nenhum teste envia nada para impressora de verdade.
 
 ### F18.2 Carga de balança
 
@@ -1028,14 +1037,17 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 
   Isso resolve o risco registrado na Fase 8: etiqueta com valor total impressa por balança com preço desatualizado.
 
-### F18.3 Painel
+### F18.3 Painel e gerador
 
 - Alertas "N produtos com etiqueta pendente" e "carga de balança pendente", para quem tem PRODUTOS.
+- **Gerador:** etiquetas impressas e uma carga de balança no começo do período, para o painel mostrar só o que mudou depois.
 
 ### Aceite F18
 
-- **Pendências:** alterar o preço de 3 produtos gera 3 etiquetas pendentes. Imprimir em PDF zera as pendências, e a reimpressão continua possível.
+- **Pendências:** com as etiquetas em dia, alterar o preço de 3 produtos gera 3 etiquetas pendentes. Imprimir em PDF zera as pendências, e a reimpressão continua possível.
+- **Começo:** "Marcar como em dia" zera as pendências sem imprimir.
 - **Promoção:** produto em promoção sai como "DE/POR"; quando a promoção termina, a etiqueta volta a ficar pendente.
+- **Preço por kg:** produto de 500 g a R$ 8,99 mostra R$ 17,98 o kg.
 - **Código de barras:** o código do PDF é lido no teste e confere com o EAN.
 - **Térmica:** o texto ZPL ou DPL gerado para um produto confere com o esperado.
 - **Carga de balança:** contém só pesáveis com PLU, usa o preço promocional do dia e fica pendente depois de uma alteração de preço.

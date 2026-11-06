@@ -38,6 +38,8 @@ public class ConfiguracaoService {
     static final int TAMANHO_ENDERECO = 200;
     static final int TAMANHO_RODAPE = 200;
     static final int TAMANHO_FORMA = 40;
+    static final int TAMANHO_IMPRESSORA = 200;
+    static final int TAMANHO_MODELO = 10_000;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
     private static final BigDecimal TAXA_MAXIMA = BigDecimal.valueOf(20);
     private static final int DIAS_RECEBIMENTO_MAXIMO = 60;
@@ -266,9 +268,26 @@ public class ConfiguracaoService {
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                crediario, c.integrarCaixa(), compras, c.validadeAlertaDias());
+                crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()));
     }
 
+
+    /** Etiquetas (F18.1): de 1 a 6 colunas e 1 a 20 linhas; impressora até 200 e modelo até 10.000 caracteres. */
+    static Configuracoes.Etiquetas etiquetas(Configuracoes.Etiquetas e) {
+        if (e.colunas() < 1 || e.colunas() > Configuracoes.Etiquetas.COLUNAS_MAXIMO) {
+            throw new NegocioException("As etiquetas por linha devem estar entre 1 e "
+                    + Configuracoes.Etiquetas.COLUNAS_MAXIMO + ".");
+        }
+        if (e.linhas() < 1 || e.linhas() > Configuracoes.Etiquetas.LINHAS_MAXIMO) {
+            throw new NegocioException("As linhas de etiquetas por folha devem estar entre 1 e "
+                    + Configuracoes.Etiquetas.LINHAS_MAXIMO + ".");
+        }
+        String impressora = e.impressoraTermica() == null ? "" : e.impressoraTermica().strip();
+        String modelo = e.modeloTermica() == null ? "" : e.modeloTermica().strip();
+        limite(impressora, TAMANHO_IMPRESSORA, "O nome da impressora térmica");
+        limite(modelo, TAMANHO_MODELO, "O modelo da etiqueta térmica");
+        return new Configuracoes.Etiquetas(e.colunas(), e.linhas(), modelo, impressora);
+    }
     /** Sugestão de compra (F16.2, seção 0.4): média de 1 a 365 dias; cobertura de 0 a 365 dias. */
     static Configuracoes.Compras compras(Configuracoes.Compras c) {
         if (c.diasMedia() < 1 || c.diasMedia() > Configuracoes.Compras.DIAS_MAXIMO) {
@@ -447,6 +466,17 @@ public class ConfiguracaoService {
         comparar(m, "cobertura da sugestão de compra", a.compras().coberturaDias() + " dias",
                 n.compras().coberturaDias() + " dias");
         comparar(m, "alerta de validade dos lotes", a.validadeAlertaDias() + " dias", n.validadeAlertaDias() + " dias");
+        comparar(m, "etiquetas por linha na folha", String.valueOf(a.etiquetas().colunas()),
+                String.valueOf(n.etiquetas().colunas()));
+        comparar(m, "linhas de etiquetas na folha", String.valueOf(a.etiquetas().linhas()),
+                String.valueOf(n.etiquetas().linhas()));
+        comparar(m, "impressora térmica", texto(a.etiquetas().impressoraTermica()),
+                texto(n.etiquetas().impressoraTermica()));
+        if (!a.etiquetas().modeloTermica().equals(n.etiquetas().modeloTermica())) {
+            m.add(n.etiquetas().modeloTermica().isEmpty() ? "modelo da impressora térmica apagado"
+                    : "modelo da impressora térmica alterado (" + n.etiquetas().modeloTermica().length()
+                    + " caracteres)");
+        }
         return m;
     }
 

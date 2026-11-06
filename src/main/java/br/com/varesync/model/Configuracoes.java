@@ -10,7 +10,7 @@ import java.util.Optional;
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
  * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
  * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14; e da V12: {@code financeiro.integrar_caixa}, F15.1;
- * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
+ * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
  * ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
@@ -19,7 +19,8 @@ import java.util.Optional;
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
                             Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
                             Fidelidade fidelidade, int devolucaoPrazoDias, Crediario crediario,
-                            boolean integrarCaixa, Compras compras, int validadeAlertaDias) {
+                            boolean integrarCaixa, Compras compras, int validadeAlertaDias,
+                            Etiquetas etiquetas) {
 
     public static final String EMPRESA_NOME = "empresa.nome";
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
@@ -55,6 +56,10 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String COMPRAS_DIAS_MEDIA = "compras.dias_media";
     public static final String COMPRAS_COBERTURA = "compras.cobertura_dias";
     public static final String VALIDADE_ALERTA_DIAS = "validade.alerta_dias";
+    public static final String ETIQUETA_COLUNAS = "etiqueta.colunas";
+    public static final String ETIQUETA_LINHAS = "etiqueta.linhas";
+    public static final String ETIQUETA_MODELO_TERMICA = "etiqueta.modelo_termica";
+    public static final String ETIQUETA_IMPRESSORA_TERMICA = "etiqueta.impressora_termica";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
@@ -129,12 +134,28 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         public static final Compras PADRAO = new Compras(30, 15);
     }
 
-    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13 e V15). */
+    /**
+     * Etiquetas de gôndola (F18.1): {@code colunas} × {@code linhas} etiquetas por folha A4; modelo ZPL ou DPL e nome
+     * da impressora térmica (vazios = não configurada).
+     */
+    public record Etiquetas(int colunas, int linhas, String modeloTermica, String impressoraTermica) {
+
+        public static final int COLUNAS_MAXIMO = 6;
+        public static final int LINHAS_MAXIMO = 20;
+        public static final Etiquetas PADRAO = new Etiquetas(3, 8, "", "");
+
+        public int porFolha() {
+            return colunas * linhas;
+        }
+    }
+
+    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13, V15 e V16). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
             "Obrigado pela preferência!", new Seguranca(15, PoliticaSenha.PADRAO), Fidelidade.PADRAO,
-            DEVOLUCAO_PRAZO_PADRAO, Crediario.PADRAO, false, Compras.PADRAO, VALIDADE_ALERTA_PADRAO);
+            DEVOLUCAO_PRAZO_PADRAO, Crediario.PADRAO, false, Compras.PADRAO, VALIDADE_ALERTA_PADRAO,
+            Etiquetas.PADRAO);
 
     /** Minutos sem atividade até bloquear a tela (0 = desligado). */
     public int inatividadeMinutos() {
@@ -147,67 +168,83 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
         return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca,
-                fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comBackup(Backup outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, outro, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comRodape(String outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca,
-                fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comSeguranca(Seguranca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                outra, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                outra, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comFidelidade(Fidelidade outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, outra, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, outra, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comDevolucaoPrazo(int dias) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, dias, crediario, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, dias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comCrediario(Crediario outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, outro, integrarCaixa, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, outro, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas);
     }
 
     public Configuracoes comIntegrarCaixa(boolean integrar) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrar, compras, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrar, compras, validadeAlertaDias, etiquetas);
     }
 
     public Configuracoes comCompras(Compras outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias, etiquetas);
     }
 
     public Configuracoes comValidadeAlertaDias(int dias) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, dias);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, dias, etiquetas);
+    }
+
+    public Configuracoes comEtiquetas(Etiquetas outras) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                outras);
     }
 
     public Configuracoes comInatividade(int minutos) {
@@ -259,7 +296,10 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 logico(valores, FINANCEIRO_INTEGRAR_CAIXA, p.integrarCaixa),
                 new Compras(inteiro(valores, COMPRAS_DIAS_MEDIA, 1, Compras.DIAS_MAXIMO).orElse(p.compras.diasMedia()),
                         inteiro(valores, COMPRAS_COBERTURA, 0, Compras.DIAS_MAXIMO).orElse(p.compras.coberturaDias())),
-                inteiro(valores, VALIDADE_ALERTA_DIAS, 0, VALIDADE_ALERTA_MAXIMO).orElse(p.validadeAlertaDias));
+                inteiro(valores, VALIDADE_ALERTA_DIAS, 0, VALIDADE_ALERTA_MAXIMO).orElse(p.validadeAlertaDias),
+                new Etiquetas(inteiro(valores, ETIQUETA_COLUNAS, 1, Etiquetas.COLUNAS_MAXIMO).orElse(p.etiquetas.colunas()),
+                        inteiro(valores, ETIQUETA_LINHAS, 1, Etiquetas.LINHAS_MAXIMO).orElse(p.etiquetas.linhas()),
+                        texto(valores, ETIQUETA_MODELO_TERMICA, ""), texto(valores, ETIQUETA_IMPRESSORA_TERMICA, "")));
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -299,6 +339,10 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(COMPRAS_DIAS_MEDIA, String.valueOf(compras.diasMedia()));
         m.put(COMPRAS_COBERTURA, String.valueOf(compras.coberturaDias()));
         m.put(VALIDADE_ALERTA_DIAS, String.valueOf(validadeAlertaDias));
+        m.put(ETIQUETA_COLUNAS, String.valueOf(etiquetas.colunas()));
+        m.put(ETIQUETA_LINHAS, String.valueOf(etiquetas.linhas()));
+        m.put(ETIQUETA_MODELO_TERMICA, etiquetas.modeloTermica());
+        m.put(ETIQUETA_IMPRESSORA_TERMICA, etiquetas.impressoraTermica());
         return m;
     }
 
