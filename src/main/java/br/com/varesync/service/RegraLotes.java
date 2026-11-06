@@ -3,6 +3,7 @@ package br.com.varesync.service;
 import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.model.Lote;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -29,6 +30,17 @@ final class RegraLotes {
      * faltar sai do "SEM LOTE", que pode ficar negativo.
      */
     static List<Parte> saida(List<Lote> lotes, BigDecimal quantidade) {
+        return saida(lotes, quantidade, null);
+    }
+
+    /**
+     * Saída da venda: como {@link #saida(List, BigDecimal)}, mas os lotes vencidos (validade anterior a
+     * {@code hoje}) ficam por último, depois dos outros e antes da falta no "SEM LOTE": mercadoria vencida não é
+     * vendida.
+     *
+     * @param hoje nulo = sem distinção (as outras saídas, em que o vencido sai antes por ser o mais antigo)
+     */
+    static List<Parte> saida(List<Lote> lotes, BigDecimal quantidade, LocalDate hoje) {
         Lote semLote = lotes.stream().filter(Lote::semLote).findFirst().orElse(null);
         Map<Long, BigDecimal> partes = new LinkedHashMap<>();
         BigDecimal resta = quantidade;
@@ -39,7 +51,8 @@ final class RegraLotes {
         }
         List<Lote> fefo = lotes.stream()
                 .filter(l -> !l.semLote() && l.saldo().signum() > 0)
-                .sorted(Comparator.comparing(Lote::validade)
+                .sorted(Comparator.comparing((Lote l) -> hoje != null && l.validade().isBefore(hoje))
+                        .thenComparing(Lote::validade)
                         .thenComparing(Lote::criadoEm)
                         .thenComparingLong(Lote::id))
                 .toList();

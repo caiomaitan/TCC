@@ -100,7 +100,7 @@ final class AcessoTeste {
         ProdutoDAO produtoDAO = new ProdutoDAO();
         CategoriaDAO categoriaDAO = new CategoriaDAO();
         estoque = new EstoqueService(transacao, produtoDAO, new EstoqueDAO(), new MovimentoEstoqueDAO(), new LoteDAO(),
-                auditoria,
+                new ConfiguracaoDAO(), auditoria,
                 relogio);
         categorias = new CategoriaService(transacao, categoriaDAO);
         produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
@@ -127,7 +127,7 @@ final class AcessoTeste {
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), new FormaPagamentoDAO(), new ContaPagarDAO(), relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
-                new TituloReceberDAO(), new ContaFinanceiraDAO(), relogio);
+                new TituloReceberDAO(), new ContaFinanceiraDAO(), new LoteDAO(), new ConfiguracaoDAO(), relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
                 new ContaFinanceiraDAO(), auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);

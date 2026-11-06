@@ -1,7 +1,9 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.ContaFinanceiraDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.TituloReceberDAO;
 import br.com.varesync.dao.AuditoriaDAO;
@@ -44,6 +46,8 @@ import java.util.Optional;
  * <li>Só com FINANCEIRO (F15.6): saldo das contas, resultado líquido do DRE do dia 1º até hoje e os alertas de contas
  * a pagar vencidas, vencendo hoje e de conta com saldo negativo.</li>
  * <li>Com COMPRAS (F16.4): produtos em ruptura (saldo ≤ 0 e venda nos últimos 30 dias).</li>
+ * <li>Com ESTOQUE (F17.3): lotes vencendo em até {@code validade.alerta_dias} dias, lotes vencidos com saldo e
+ * produtos com o "SEM LOTE" negativo, só de produtos ativos com o controle ligado.</li>
  * </ul>
  */
 public class PainelService {
@@ -58,11 +62,15 @@ public class PainelService {
     private final AuditoriaDAO auditoriaDAO;
     private final TituloReceberDAO tituloDAO;
     private final ContaFinanceiraDAO contaDAO;
+    private final LoteDAO loteDAO;
+    private final ConfiguracaoDAO configuracaoDAO;
     private final Clock clock;
 
     public PainelService(Transacao transacao, PainelDAO painelDAO, EstoqueDAO estoqueDAO, CaixaService caixaService,
                          AuditoriaDAO auditoriaDAO, TituloReceberDAO tituloDAO, ContaFinanceiraDAO contaDAO,
-                         Clock clock) {
+                         LoteDAO loteDAO, ConfiguracaoDAO configuracaoDAO, Clock clock) {
+        this.loteDAO = loteDAO;
+        this.configuracaoDAO = configuracaoDAO;
         this.tituloDAO = tituloDAO;
         this.contaDAO = contaDAO;
         this.transacao = transacao;
@@ -124,8 +132,10 @@ public class PainelService {
                 SugestaoCompra.DIAS_RUPTURA - 1L).atStartOfDay(clock.getZone()).toOffsetDateTime()) : null;
         AlertasPainel.TitulosVencidos vencidos = sessao.pode(Permissao.RECEBIMENTO)
                 ? tituloDAO.vencidos(con, LocalDate.now(clock)) : null;
+        AlertasPainel.Lotes lotes = sessao.pode(Permissao.ESTOQUE)
+                ? loteDAO.contarAlertas(con, hoje, configuracaoDAO.carregar(con).validadeAlertaDias()) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
-                vencidos, pagarVencidas, pagarHoje, negativas, rupturas);
+                vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */

@@ -1,7 +1,11 @@
 package br.com.varesync.dao;
 
+import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.Lote;
+import br.com.varesync.model.MovimentoKardex;
+import br.com.varesync.model.MovimentoLote;
 import br.com.varesync.model.TipoLoteMovimento;
+import br.com.varesync.model.TipoMovimento;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -186,6 +190,91 @@ public class LoteDAO {
             ps.setLong(1, devolucaoItemId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(rs.getLong(1)) : Optional.empty();
+            }
+        }
+    }
+
+    /**
+     * Razão do lote (F17.3), do mais antigo para o mais recente: o documento do movimento de estoque ("Venda nº 12",
+     * "Entrada nº 3"…) ou o motivo; na transferência, o outro lote e o motivo.
+     */
+    public List<MovimentoLote> razao(Connection con, long loteId) throws SQLException {
+        String sql = """
+                SELECT lm.criado_em, lm.tipo, lm.quantidade, u.nome AS usuario_nome, m.tipo AS tipo_movimento,
+                       m.motivo, vi.venda_id, ii.inventario_id, ei.entrada_id, di.devolucao_id,
+                       t.motivo AS motivo_transferencia, t.lote_origem_id,
+                       lo.codigo AS origem_codigo, lo.validade AS origem_validade,
+                       ld.codigo AS destino_codigo, ld.validade AS destino_validade
+                  FROM lote_movimento lm
+                  JOIN usuario u                       ON u.id = lm.usuario_id
+                  LEFT JOIN movimento_estoque m        ON m.id = lm.movimento_estoque_id
+                  LEFT JOIN venda_item vi              ON vi.id = m.venda_item_id
+                  LEFT JOIN inventario_item ii         ON ii.id = m.inventario_item_id
+                  LEFT JOIN entrada_mercadoria_item ei ON ei.id = m.entrada_item_id
+                  LEFT JOIN devolucao_item di          ON di.id = m.devolucao_item_id
+                  LEFT JOIN lote_transferencia t       ON t.id = lm.transferencia_id
+                  LEFT JOIN lote lo                    ON lo.id = t.lote_origem_id
+                  LEFT JOIN lote ld                    ON ld.id = t.lote_destino_id
+                 WHERE lm.lote_id = ?
+                 ORDER BY lm.criado_em, lm.id
+                """;
+        List<MovimentoLote> linhas = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, loteId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    TipoLoteMovimento tipo = TipoLoteMovimento.valueOf(rs.getString("tipo"));
+                    String tipoMovimento = rs.getString("tipo_movimento");
+                    TipoMovimento movimento = tipoMovimento == null ? null : TipoMovimento.valueOf(tipoMovimento);
+                    linhas.add(new MovimentoLote(rs.getObject("criado_em", OffsetDateTime.class),
+                            MovimentoLote.tipo(tipo, movimento), documento(rs, tipo, loteId),
+                            rs.getBigDecimal("quantidade"), rs.getString("usuario_nome")));
+                }
+            }
+        }
+        return linhas;
+    }
+
+    private static String documento(ResultSet rs, TipoLoteMovimento tipo, long loteId) throws SQLException {
+        switch (tipo) {
+            case SALDO_INICIAL:
+                return "Controle de validade ligado";
+            case TRANSFERENCIA:
+                boolean saiu = rs.getLong("lote_origem_id") == loteId;
+                String outro = saiu
+                        ? Lote.descrever(rs.getString("destino_codigo"), rs.getObject("destino_validade", LocalDate.class))
+                        : Lote.descrever(rs.getString("origem_codigo"), rs.getObject("origem_validade", LocalDate.class));
+                return (saiu ? "Para o lote " : "Do lote ") + outro + ": " + rs.getString("motivo_transferencia");
+            default:
+                MovimentoKardex m = new MovimentoKardex(0, null, null, null, null, null, null, null,
+                        Jdbc.lerLong(rs, "venda_id"), Jdbc.lerLong(rs, "inventario_id"),
+                        Jdbc.lerLong(rs, "entrada_id"), rs.getString("motivo"), Jdbc.lerLong(rs, "devolucao_id"));
+                return m.origem();
+        }
+    }
+
+    /**
+     * Contagens dos alertas do painel (F17.3), só de produtos ativos com o controle ligado: lotes com saldo positivo
+     * que vencem de hoje até {@code hoje + dias}, lotes vencidos com saldo positivo e produtos com o "SEM LOTE"
+     * negativo.
+     */
+    public AlertasPainel.Lotes contarAlertas(Connection con, LocalDate hoje, int dias) throws SQLException {
+        String sql = """
+                SELECT count(*) FILTER (WHERE l.validade >= ? AND l.validade <= ? AND s.saldo > 0),
+                       count(*) FILTER (WHERE l.validade < ? AND s.saldo > 0),
+                       count(DISTINCT l.produto_id) FILTER (WHERE l.validade IS NULL AND l.codigo = '' AND s.saldo < 0)
+                  FROM lote l
+                  JOIN lote_saldo s ON s.lote_id = l.id
+                  JOIN produto p    ON p.id = l.produto_id
+                 WHERE p.ativo AND p.controla_validade
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setObject(1, hoje);
+            ps.setObject(2, hoje.plusDays(dias));
+            ps.setObject(3, hoje);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return new AlertasPainel.Lotes(dias, rs.getInt(1), rs.getInt(2), rs.getInt(3));
             }
         }
     }

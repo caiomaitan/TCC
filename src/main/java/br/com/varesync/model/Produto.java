@@ -26,11 +26,12 @@ public final class Produto {
     private final OffsetDateTime atualizadoEm;
     private final String atualizadoPorNome;
     private final List<CodigoBarras> codigosBarras;
+    private final boolean controlaValidade;
 
     public Produto(long id, String nome, Long categoriaId, String categoriaNome, String unidade,
                    boolean unidadeFracionada, BigDecimal precoVenda, BigDecimal custo, BigDecimal estoqueMinimo,
                    Integer plu, boolean ativo, BigDecimal estoqueAtual, OffsetDateTime atualizadoEm,
-                   String atualizadoPorNome, List<CodigoBarras> codigosBarras) {
+                   String atualizadoPorNome, List<CodigoBarras> codigosBarras, boolean controlaValidade) {
         this.id = id;
         this.nome = nome;
         this.categoriaId = categoriaId;
@@ -46,6 +47,7 @@ public final class Produto {
         this.atualizadoEm = atualizadoEm;
         this.atualizadoPorNome = atualizadoPorNome;
         this.codigosBarras = List.copyOf(codigosBarras);
+        this.controlaValidade = controlaValidade;
     }
 
     public long id() {
@@ -110,6 +112,11 @@ public final class Produto {
     /** Principal primeiro. */
     public List<CodigoBarras> codigosBarras() {
         return codigosBarras;
+    }
+
+    /** F17: o produto controla validade e lotes? */
+    public boolean controlaValidade() {
+        return controlaValidade;
     }
 
     public Optional<String> codigoPrincipal() {

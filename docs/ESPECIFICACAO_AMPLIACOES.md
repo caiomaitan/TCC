@@ -916,6 +916,7 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 - **Saídas** (venda, ajuste de saída, perda sem lote escolhido, inventário negativo):
   - primeiro o saldo positivo do "SEM LOTE": validade desconhecida conta como a mais próxima (em geral, é a mercadoria de antes do controle);
   - depois os lotes com saldo, por FEFO: validade mais próxima primeiro e, no empate, o lote mais antigo;
+  - **na venda**, os lotes vencidos (validade anterior a hoje) ficam por último, depois dos outros: mercadoria vencida não é vendida, e o saldo dela continua no alerta até a perda por vencimento ou o inventário. Nas outras saídas, eles seguem o FEFO e, como a validade deles é a mais antiga, saem antes dos outros lotes: numa falta de inventário, a mercadoria vencida é a primeira candidata a ter sumido;
   - se os lotes não bastarem, o resto sai do "SEM LOTE", que pode ficar negativo e entra no alerta.
 - **Saída com lote escolhido** (ajuste de saída ou perda): sai do lote escolhido, e a quantidade não pode passar do saldo dele.
 - **Entradas:**
@@ -940,14 +941,26 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 
 ### F17.3 Telas, relatórios, painel e gerador
 
-- **Cadastro do produto:** caixa "Controla validade e lotes". Ao ligar, a tela avisa que o saldo atual vai para o "SEM LOTE".
+- **Cadastro do produto:**
+  - caixa "Controla validade e lotes";
+  - no produto novo com estoque inicial, lote e validade opcionais para esse estoque (sem eles, ele vai para o "SEM LOTE");
+  - ao ligar num produto existente, a tela avisa que o saldo atual vai para o "SEM LOTE" e que a transferência passa esse saldo para os lotes certos; ao desligar, avisa que os lotes ficam parados e saem dos alertas.
 - **Estoque:**
-  - nova aba "Lotes": lote, validade, saldo, dias para vencer, o razão do lote selecionado e a transferência; o "SEM LOTE" negativo aparece em destaque;
-  - no ajuste e na perda, a escolha do lote (obrigatória na perda por vencimento).
-- **Entrada de mercadoria:** divisão do item em lotes (código, validade e quantidade), já preenchida pelo rastro da NF-e, mostrando a diferença para a quantidade do item.
-- **R29 Validade:** lotes a vencer em N dias e vencidos, com o valor a custo.
-- **Painel** (para quem tem ESTOQUE): alertas "N lotes vencem em até X dias", "N lotes vencidos" e "N produtos com saldo negativo no SEM LOTE".
-- **Gerador:** perecíveis (laticínios, frios, padaria) com controle e lotes.
+  - nova aba "Lotes", para o produto escolhido na consulta: lote, validade, saldo, dias para vencer e situação (vencido e "SEM LOTE" negativo em vermelho; vencendo em até `validade.alerta_dias` em amarelo). Os lotes zerados ficam ocultos, com a opção de mostrar. Em produto sem controle, a aba diz isso e onde ligar;
+  - o razão do lote selecionado (data, tipo, documento ou motivo, quantidade) e o botão "Transferir…" (destino: lote existente ou novo, com código e validade; quantidade; motivo);
+  - na consulta, o filtro "Só com SEM LOTE negativo";
+  - no ajuste e na perda de produto com controle, o lote: na saída e na perda, "Automático (FEFO)" ou um lote; na entrada, o "SEM LOTE", um lote existente ou um lote novo; na perda por vencimento, o lote é obrigatório.
+- **Entrada de mercadoria:** botão "Lotes…" no item de produto com controle, com a divisão (código, validade e quantidade), já preenchida pelo rastro da NF-e, e o quanto falta dividir; a lista de itens destaca os que estão com a divisão incompleta.
+- **R29 Validade:** lotes com saldo positivo, de produtos ativos com o controle ligado, que vencem em até N dias (padrão `validade.alerta_dias`) e, se marcado, os vencidos. Colunas: produto, categoria, lote, validade, dias para vencer (negativo = vencido), saldo, custo médio e valor a custo, com os totais. O "SEM LOTE" não entra, porque não tem validade.
+- **Painel** (para quem tem ESTOQUE), só com produtos ativos com o controle ligado:
+  - "N lotes vencem em até X dias" e "N lotes vencidos" (lotes com saldo positivo); o clique abre o R29 já filtrado (sem a permissão RELATORIOS, abre o Estoque);
+  - "N produtos com saldo negativo no SEM LOTE"; o clique abre o Estoque com o filtro "Só com SEM LOTE negativo".
+- **Configurações:** `validade.alerta_dias` numa aba nova "Estoque", e a `vw_lote_inconsistente` no Diagnóstico.
+- **Gerador:**
+  - perecíveis embalados de "Frios e laticínios" e "Padaria" com o controle ligado desde o cadastro;
+  - cada entrada semanal desses produtos vira um lote, com validade de algumas semanas;
+  - a perda por vencimento baixa a sobra dos lotes vencidos, menos a de um ou dois perto do fim;
+  - no fim há lotes vencendo em até 7 dias e lotes vencidos com saldo, e o GeradorDemoIT confere isso no R29 e no painel.
 
 ### Aceite F17
 
@@ -961,10 +974,13 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 - **NF-e:** 3 CX (fator 12) com rastro de dois lotes (`qLote` 1 e 2) viram lotes de 12 e 24.
 - **Ligar o controle:** produto com saldo 10 e sem lotes fica com 10 no "SEM LOTE".
 - **Negativo:** com estoque negativo permitido, uma venda de 30 com só o lote A (20) deixa A com 0 e o "SEM LOTE" com −10.
+- **Vencido na venda:** com o lote V vencido ontem (5 un) e o lote A (vence em 10 dias, 20 un), uma venda de 3 sai de A; já uma falta de 2 no inventário sai de V.
 - **Transferência:** passar 2 do lote A para o "SEM LOTE" mantém o saldo do produto; passar mais do que a origem tem é recusado.
 - **Perda:** a perda por vencimento no lote escolhido baixa o lote e o estoque.
 - **Garantia:** movimento de produto com controle sem distribuição em lotes é recusado no commit.
-- **Alerta:** aparece quando faltam 7 dias ou menos para vencer.
+- **Alerta:** aparece quando faltam 7 dias ou menos para vencer; o lote vencido com saldo entra em "N lotes vencidos".
+- **Entrada pela tela:** a divisão feita em "Lotes…" cria os lotes; com a divisão incompleta, a confirmação diz qual produto falta.
+- **Gerador:** o R29 e o painel mostram lotes vencendo e vencidos.
 - **Consistência:** `vw_lote_inconsistente` e `vw_estoque_inconsistente` ficam vazias.
 
 ---

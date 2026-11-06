@@ -6,6 +6,8 @@
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
@@ -28,11 +30,12 @@
         <TextField fx:id="campoBusca" promptText="Nome, código ou código de barras" HBox.hgrow="ALWAYS"
                    onAction="#pesquisar"/>
         <CheckBox fx:id="filtroAbaixoMinimo" text="Só abaixo do mínimo" onAction="#pesquisar"/>
+        <CheckBox fx:id="filtroSemLoteNegativo" text="Só com SEM LOTE negativo" onAction="#pesquisar"/>
         <CheckBox fx:id="filtroInativos" text="Mostrar inativos" onAction="#pesquisar"/>
         <Button text="Buscar" onAction="#pesquisar"/>
     </HBox>
 
-    <SplitPane orientation="VERTICAL" dividerPositions="0.38" VBox.vgrow="ALWAYS">
+    <SplitPane orientation="VERTICAL" dividerPositions="0.3" VBox.vgrow="ALWAYS">
         <VBox spacing="6">
             <TableView fx:id="tabelaProdutos" VBox.vgrow="ALWAYS">
                 <placeholder><Label text="Nenhum produto encontrado."/></placeholder>
@@ -72,6 +75,10 @@
                 <Label fx:id="valorEstoque" text="—" styleClass="valor-destaque" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
             </GridPane>
 
+            <TabPane fx:id="abasProduto" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+            <Tab text="Movimentação">
+            <VBox spacing="8">
+            <padding><Insets top="8"/></padding>
             <HBox alignment="CENTER_LEFT" spacing="10">
                 <Label text="Movimentação de"/>
                 <DatePicker fx:id="dataInicio" prefWidth="130"/>
@@ -95,6 +102,45 @@
                 </columns>
                 <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
             </TableView>
+            </VBox>
+            </Tab>
+            <Tab fx:id="abaLotes" text="Lotes">
+            <VBox spacing="8">
+            <padding><Insets top="8"/></padding>
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <Label fx:id="avisoLotes" wrapText="true" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                <CheckBox fx:id="mostrarZerados" text="Mostrar lotes zerados" onAction="#atualizarLotes"/>
+                <Button fx:id="botaoTransferir" text="Transferir…" onAction="#transferir"/>
+            </HBox>
+            <SplitPane dividerPositions="0.5" VBox.vgrow="ALWAYS">
+                <TableView fx:id="tabelaLotes">
+                    <placeholder><Label fx:id="semLotes" text="Selecione um produto para ver os lotes."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaLote" text="Lote" prefWidth="90"/>
+                        <TableColumn fx:id="colunaValidade" text="Validade" prefWidth="90"/>
+                        <TableColumn fx:id="colunaSaldoLote" text="Saldo" prefWidth="65" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaDias" text="Dias p/ vencer" prefWidth="110" minWidth="105" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaSituacaoLote" text="Situação" prefWidth="150"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+                <VBox spacing="6">
+                    <Label fx:id="tituloRazao" text="Razão do lote" styleClass="subtitulo"/>
+                    <TableView fx:id="tabelaRazao" VBox.vgrow="ALWAYS">
+                        <placeholder><Label text="Selecione um lote para ver o razão."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaRazaoData" text="Data/hora" prefWidth="120"/>
+                            <TableColumn fx:id="colunaRazaoTipo" text="Tipo" prefWidth="130"/>
+                            <TableColumn fx:id="colunaRazaoDocumento" text="Documento ou motivo" prefWidth="200"/>
+                            <TableColumn fx:id="colunaRazaoQuantidade" text="Quantidade" prefWidth="90" styleClass="coluna-numero"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
+                </VBox>
+            </SplitPane>
+            </VBox>
+            </Tab>
+            </TabPane>
         </VBox>
     </SplitPane>
 

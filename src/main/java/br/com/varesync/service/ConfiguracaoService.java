@@ -258,11 +258,15 @@ public class ConfiguracaoService {
         }
         Configuracoes.Crediario crediario = crediario(c.crediario());
         Configuracoes.Compras compras = compras(c.compras());
+        if (c.validadeAlertaDias() < 0 || c.validadeAlertaDias() > Configuracoes.VALIDADE_ALERTA_MAXIMO) {
+            throw new NegocioException("O alerta de validade deve estar entre 0 (só no dia do vencimento) e "
+                    + Configuracoes.VALIDADE_ALERTA_MAXIMO + " dias.");
+        }
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
                 telefone == null ? "" : telefone),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                crediario, c.integrarCaixa(), compras);
+                crediario, c.integrarCaixa(), compras, c.validadeAlertaDias());
     }
 
     /** Sugestão de compra (F16.2, seção 0.4): média de 1 a 365 dias; cobertura de 0 a 365 dias. */
@@ -442,6 +446,7 @@ public class ConfiguracaoService {
         comparar(m, "dias da média de venda", a.compras().diasMedia() + " dias", n.compras().diasMedia() + " dias");
         comparar(m, "cobertura da sugestão de compra", a.compras().coberturaDias() + " dias",
                 n.compras().coberturaDias() + " dias");
+        comparar(m, "alerta de validade dos lotes", a.validadeAlertaDias() + " dias", n.validadeAlertaDias() + " dias");
         return m;
     }
 

@@ -13,6 +13,7 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.report.FiltroFinanceiro;
+import br.com.varesync.report.FiltroValidade;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.ParametrosRelatorio;
@@ -146,6 +147,10 @@ public class RelatorioService {
                 usados = usados.comFinanceiro(new FiltroFinanceiro(f.categoriaDespesa(), f.agrupamento(),
                         YearMonth.from(parametros.hoje())));
             }
+            if (relatorio.filtros().contains(TipoFiltro.VALIDADE) && usados.validade().dias() == null) {
+                usados = usados.comValidade(new FiltroValidade(config.validadeAlertaDias(),
+                        usados.validade().incluirVencidos()));
+            }
             List<T> linhas = relatorio.consultar(con, usados, parametros);
             String loja = config.loja().nome().isBlank() ? "VareSync" : config.loja().nome();
             return new ResultadoRelatorio<>(relatorio, usados, relatorio.colunas(usados), linhas, loja,
@@ -177,6 +182,11 @@ public class RelatorioService {
                 && (filtros.dias() < 1 || filtros.dias() > RelSemGiro.DIAS_MAXIMO)) {
             throw new NegocioException("Os dias sem venda devem estar entre 1 e " + RelSemGiro.DIAS_MAXIMO + ".");
         }
+        if (relatorio.filtros().contains(TipoFiltro.VALIDADE) && filtros.validade().dias() != null
+                && (filtros.validade().dias() < 0 || filtros.validade().dias() > Configuracoes.VALIDADE_ALERTA_MAXIMO)) {
+            throw new NegocioException("Os dias para vencer devem estar entre 0 e "
+                    + Configuracoes.VALIDADE_ALERTA_MAXIMO + ".");
+        }
         if (relatorio.filtros().contains(TipoFiltro.CRITERIO) && filtros.criterio() != null
                 && !relatorio.criterios().contains(filtros.criterio())) {
             throw new NegocioException("Critério " + filtros.criterio().rotulo().toLowerCase()
@@ -187,6 +197,12 @@ public class RelatorioService {
             throw new NegocioException("O tipo " + filtros.tipo().descricao().toLowerCase()
                     + " não se aplica a este relatório.");
         }
+    }
+
+    /** Dias do filtro do R29 ao abrir a tela: {@code validade.alerta_dias} (F17.3). */
+    public int validadeAlertaDias(Sessao sessao) {
+        sessao.exigir(Permissao.RELATORIOS);
+        return transacao.executar(con -> configuracaoDAO.carregar(con).validadeAlertaDias());
     }
 
     /** {@code relatorio.dias_sem_giro} ({@link Configuracoes}: o valor da V2 se faltar ou for inválido). */

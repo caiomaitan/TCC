@@ -7,6 +7,7 @@ import br.com.varesync.BancoTeste;
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.config.Servicos;
 import br.com.varesync.model.AcaoAuditoria;
+import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DiaPainel;
 import br.com.varesync.model.Painel;
@@ -15,6 +16,7 @@ import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.report.Agrupamento;
 import br.com.varesync.report.Coluna;
 import br.com.varesync.report.FiltroFinanceiro;
+import br.com.varesync.report.FiltroValidade;
 import br.com.varesync.report.FluxoCaixa;
 import br.com.varesync.report.RelDre;
 import br.com.varesync.report.Filtros;
@@ -41,6 +43,7 @@ import br.com.varesync.report.RelVendasPeriodo;
 import br.com.varesync.report.FiltroCrediario;
 import br.com.varesync.report.RelRecebimentos;
 import br.com.varesync.report.RelTitulosReceber;
+import br.com.varesync.report.RelValidade;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.report.SituacaoTitulo;
 import java.math.BigDecimal;
@@ -549,6 +552,40 @@ class GeradorDemoIT extends IntegracaoBase {
                         l.canceladoPor().equals("Carlos Pereira") ? "" : "Carlos Pereira (carlos)"));
         assertThat(vendasCanceladas).anyMatch(l -> !l.liberadoPor().isEmpty());
         assertThat(r16.linhas()).anyMatch(l -> l.tipo().equals("Item"));
+    }
+
+    /**
+     * Validade e lotes (F17.3): os perecíveis embalados têm o controle ligado e um lote por entrada semanal; a sobra
+     * vencida virou perda por vencimento, menos a dos últimos dias. No fim, o R29 e o painel mostram lotes vencendo em
+     * até 7 dias e lotes vencidos com saldo; os lotes continuam consistentes ({@code IntegracaoBase}).
+     */
+    @Test
+    void lotesVencendoEVencidosNoR29ENoPainel() throws Exception {
+        assertThat(contar("SELECT count(*) FROM produto WHERE controla_validade"))
+                .isEqualTo(GeradorDemo.VALIDADE_DIAS.size());
+        assertThat(contar("""
+                SELECT count(*) FROM produto p JOIN categoria c ON c.id = p.categoria_id
+                 WHERE p.controla_validade AND c.nome NOT IN ('Frios e laticínios', 'Padaria')
+                """)).isZero();
+        assertThat(contar("SELECT count(*) FROM entrada_mercadoria_item_lote")).isPositive();
+        assertThat(contar("SELECT count(*) FROM lote WHERE codigo <> ''")).isGreaterThan(20);
+        assertThat(contar("SELECT count(*) FROM movimento_estoque WHERE tipo = 'PERDA' AND motivo LIKE 'Vencimento:%'"))
+                .isPositive();
+
+        Servicos hoje = Servicos.montar(BancoTeste.dataSource(), HOJE, AcessoTeste.TERMINAL,
+                new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        ResultadoRelatorio<RelValidade.Linha> r29 = hoje.relatorios().gerar(admin, new RelValidade(),
+                Filtros.vazios().comValidade(new FiltroValidade(7, true)));
+        assertThat(r29.linhas()).anyMatch(l -> l.diasParaVencer() >= 0 && l.diasParaVencer() <= 7)
+                .anyMatch(RelValidade.Linha::vencido)
+                .allSatisfy(l -> assertThat(l.saldo()).isPositive())
+                .allSatisfy(l -> assertThat(l.diasParaVencer())
+                        .isGreaterThanOrEqualTo(-GeradorDemo.DIAS_VENCIDOS_SEM_PERDA));
+        AlertasPainel.Lotes alertas = hoje.painel().carregar(admin).alertas().lotes();
+        assertThat(alertas.vencendo()).isEqualTo(r29.linhas().stream().filter(l -> !l.vencido()).count());
+        assertThat(alertas.vencidos()).isEqualTo(r29.linhas().stream().filter(RelValidade.Linha::vencido).count());
+        LOG.info("Lotes no fim: {} vencendo em até 7 dias, {} vencidos, {} SEM LOTE negativos", alertas.vencendo(),
+                alertas.vencidos(), alertas.semLoteNegativo());
     }
 
     @Test

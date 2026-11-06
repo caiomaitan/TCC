@@ -4,6 +4,8 @@ import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.HistoricoPreco;
+import br.com.varesync.model.Lote;
+import br.com.varesync.model.ParteLote;
 import br.com.varesync.model.Produto;
 import br.com.varesync.model.ProdutoFornecedor;
 import br.com.varesync.model.UnidadeMedida;
@@ -15,6 +17,7 @@ import br.com.varesync.service.RegistroEmUsoException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosVinculo;
+import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -32,7 +35,9 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -41,6 +46,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 
 /**
@@ -86,7 +92,13 @@ public class ProdutoController {
     @FXML private TextField campoEstoqueMinimo;
     @FXML private Label rotuloEstoqueInicial;
     @FXML private TextField campoEstoqueInicial;
+    @FXML private CheckBox campoControlaValidade;
+    @FXML private Label rotuloLoteInicial;
+    @FXML private HBox painelLoteInicial;
+    @FXML private TextField campoLoteInicial;
+    @FXML private DatePicker campoValidadeInicial;
     @FXML private Label estoqueAtual;
+    @FXML private Label rotuloEstoqueAtual;
     @FXML private TextField campoPlu;
     @FXML private Label ultimaAlteracao;
     @FXML private TextField campoNovoCodigo;
@@ -146,6 +158,18 @@ public class ProdutoController {
         rotuloEstoqueInicial.managedProperty().bind(rotuloEstoqueInicial.visibleProperty());
         campoEstoqueInicial.managedProperty().bind(campoEstoqueInicial.visibleProperty());
         rotuloEstoqueInicial.visibleProperty().bind(campoEstoqueInicial.visibleProperty());
+        // F17.3: lote e validade do estoque inicial só no produto novo com o controle ligado.
+        campoValidadeInicial.setConverter(new ConversorData());
+        painelLoteInicial.visibleProperty().bind(campoEstoqueInicial.visibleProperty()
+                .and(campoControlaValidade.selectedProperty()));
+        painelLoteInicial.managedProperty().bind(painelLoteInicial.visibleProperty());
+        rotuloLoteInicial.visibleProperty().bind(painelLoteInicial.visibleProperty());
+        rotuloLoteInicial.managedProperty().bind(painelLoteInicial.visibleProperty());
+        // No produto novo, o estoque atual é "—" e o lugar dele fica com o estoque inicial (a tela cabe em 1280×720).
+        estoqueAtual.visibleProperty().bind(campoEstoqueInicial.visibleProperty().not());
+        estoqueAtual.managedProperty().bind(estoqueAtual.visibleProperty());
+        rotuloEstoqueAtual.visibleProperty().bind(estoqueAtual.visibleProperty());
+        rotuloEstoqueAtual.managedProperty().bind(estoqueAtual.visibleProperty());
     }
 
     private static void coluna(TableColumn<HistoricoPreco, String> coluna, Function<HistoricoPreco, String> valor) {
@@ -186,6 +210,9 @@ public class ProdutoController {
             campoEstoqueMinimo.setText("");
             campoEstoqueInicial.setText("");
             campoEstoqueInicial.setVisible(true);
+            campoControlaValidade.setSelected(false);
+            campoLoteInicial.clear();
+            campoValidadeInicial.setValue(null);
             estoqueAtual.setText(Formatos.SEM_VALOR);
             campoPlu.setText("");
             ultimaAlteracao.setText(Formatos.SEM_VALOR);
@@ -209,6 +236,7 @@ public class ProdutoController {
             // sem separador de milhar: "1.234" seria lido como 1,234 (Dinheiro.ler)
             campoEstoqueMinimo.setText(produto.estoqueMinimo().stripTrailingZeros().toPlainString().replace('.', ','));
             campoEstoqueInicial.setVisible(false);
+            campoControlaValidade.setSelected(produto.controlaValidade());
             estoqueAtual.setText(Formatos.quantidade(produto.estoqueAtual(), produto.unidadeFracionada()) + " "
                     + produto.unidade());
             estoqueAtual.getStyleClass().remove("negativo");
@@ -468,6 +496,9 @@ public class ProdutoController {
         try {
             DadosProduto dados = lerFormulario();
             Long id = produto == null ? null : produto.id();
+            if (id != null && !confirmarControleValidade()) {
+                return;
+            }
             List<String> avisos = produtoService.avisos(sessao, id, dados);
             if (!avisos.isEmpty() && !Dialogos.confirmar(String.join("\n", avisos) + "\n\nSalvar mesmo assim?")) {
                 return;
@@ -497,7 +528,45 @@ public class ProdutoController {
                 ler(campoEstoqueMinimo, "Estoque mínimo"),
                 lerPlu(),
                 List.copyOf(listaCodigos.getItems()),
-                produto == null ? ler(campoEstoqueInicial, "Estoque inicial") : null);
+                produto == null ? ler(campoEstoqueInicial, "Estoque inicial") : null,
+                campoControlaValidade.isSelected(),
+                produto == null && campoControlaValidade.isSelected() ? loteInicial() : null);
+    }
+
+    /**
+     * F17.3: ao ligar o controle num produto existente, avisa que o saldo atual vai para o "SEM LOTE" (e que a
+     * transferência passa esse saldo para os lotes certos); ao desligar, que os lotes ficam parados e saem dos
+     * alertas. Sem mudança no controle, não pergunta nada.
+     */
+    private boolean confirmarControleValidade() {
+        boolean ligar = campoControlaValidade.isSelected();
+        if (ligar == produto.controlaValidade()) {
+            return true;
+        }
+        String saldo = Formatos.quantidade(produto.estoqueAtual(), produto.unidadeFracionada()) + " "
+                + produto.unidade();
+        return Dialogos.confirmar(ligar
+                ? "Ligar o controle de validade e lotes de \"" + produto.nome() + "\"?\n\nO saldo atual (" + saldo
+                        + ") que ainda não está em lotes vai para o \"" + Lote.SEM_LOTE + "\". Depois, em Estoque › "
+                        + "aba Lotes, use \"Transferir…\" para passar esse saldo para os lotes certos (código e "
+                        + "validade). A partir de agora, a entrada de mercadoria pede a divisão em lotes."
+                : "Desligar o controle de validade e lotes de \"" + produto.nome() + "\"?\n\nOs lotes ficam "
+                        + "parados como estão, saem dos alertas e do relatório de validade e não são mais "
+                        + "movimentados. Se o controle voltar, a diferença para o saldo do produto vai para o \""
+                        + Lote.SEM_LOTE + "\".");
+    }
+
+    /** Lote do estoque inicial (F17.3): sem código nem validade, vai para o "SEM LOTE". */
+    private ParteLote loteInicial() {
+        String codigo = Textos.normalizarEspacos(campoLoteInicial.getText());
+        if (codigo.isEmpty() && campoValidadeInicial.getValue() == null) {
+            return null;
+        }
+        if (campoValidadeInicial.getValue() == null) {
+            throw new NegocioException("Informe a validade do lote do estoque inicial (ou apague o código para "
+                    + "deixar o estoque no " + Lote.SEM_LOTE + ").");
+        }
+        return ParteLote.novo(codigo, campoValidadeInicial.getValue(), null);
     }
 
     @FXML

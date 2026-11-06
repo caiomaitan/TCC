@@ -18,35 +18,36 @@ import java.util.Set;
  * @param fornecedor fornecedor das entradas (R17); nulo = todos
  * @param crediario filtros do R21 e do R22 (F14.4); nunca nulo
  * @param financeiro filtros do R23, do R24 e do R25 (F15); nunca nulo
+ * @param validade filtro do R29 (F17.3); nunca nulo
  */
 public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer topN, Criterio criterio,
                       boolean soAbaixoDoMinimo, boolean incluirInativos, Opcao produto, TipoMovimento tipo,
                       boolean detalharVendas, Integer dias, Opcao fornecedor, FiltroCrediario crediario,
-                      FiltroFinanceiro financeiro) {
+                      FiltroFinanceiro financeiro, FiltroValidade validade) {
 
     public static Filtros vazios() {
         return new Filtros(null, null, null, null, null, false, false, null, null, false, null, null,
-                FiltroCrediario.VAZIO, FiltroFinanceiro.VAZIO);
+                FiltroCrediario.VAZIO, FiltroFinanceiro.VAZIO, FiltroValidade.VAZIO);
     }
 
     public Filtros comPeriodo(Periodo novo) {
         return new Filtros(novo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comOperador(Opcao novo) {
         return new Filtros(periodo, novo, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comCategoria(Opcao nova) {
         return new Filtros(periodo, operador, nova, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comRanking(Integer novoTopN, Criterio novoCriterio) {
         return new Filtros(periodo, operador, categoria, novoTopN, novoCriterio, soAbaixoDoMinimo, incluirInativos,
-                produto, tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                produto, tipo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comCriterio(Criterio novo) {
@@ -55,42 +56,47 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
 
     public Filtros comEstoque(boolean soAbaixo, boolean inativos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixo, inativos, produto, tipo,
-                detalharVendas, dias, fornecedor, crediario, financeiro);
+                detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comProduto(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, novo,
-                tipo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comTipo(TipoMovimento novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                novo, detalharVendas, dias, fornecedor, crediario, financeiro);
+                novo, detalharVendas, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comDetalhe(boolean detalhar) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalhar, dias, fornecedor, crediario, financeiro);
+                tipo, detalhar, dias, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comDias(Integer novos) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, novos, fornecedor, crediario, financeiro);
+                tipo, detalharVendas, novos, fornecedor, crediario, financeiro, validade);
     }
 
     public Filtros comFornecedor(Opcao novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, novo, crediario, financeiro);
+                tipo, detalharVendas, dias, novo, crediario, financeiro, validade);
     }
 
     public Filtros comCrediario(FiltroCrediario novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, novo, financeiro);
+                tipo, detalharVendas, dias, fornecedor, novo, financeiro, validade);
     }
 
     public Filtros comFinanceiro(FiltroFinanceiro novo) {
         return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
-                tipo, detalharVendas, dias, fornecedor, crediario, novo);
+                tipo, detalharVendas, dias, fornecedor, crediario, novo, validade);
+    }
+
+    public Filtros comValidade(FiltroValidade novo) {
+        return new Filtros(periodo, operador, categoria, topN, criterio, soAbaixoDoMinimo, incluirInativos, produto,
+                tipo, detalharVendas, dias, fornecedor, crediario, financeiro, novo);
     }
 
     public Criterio criterioOuPadrao() {
@@ -167,6 +173,10 @@ public record Filtros(Periodo periodo, Opcao operador, Opcao categoria, Integer 
         }
         if (usados.contains(TipoFiltro.DIAS) && dias != null) {
             partes.add("Sem venda há " + dias + (dias == 1 ? " dia" : " dias") + " ou mais");
+        }
+        if (usados.contains(TipoFiltro.VALIDADE) && validade.dias() != null) {
+            partes.add("Vencem em até " + validade.dias() + (validade.dias() == 1 ? " dia" : " dias")
+                    + (validade.incluirVencidos() ? ", com os vencidos" : ", sem os vencidos"));
         }
         if (usados.contains(TipoFiltro.SO_ABAIXO_MINIMO) && soAbaixoDoMinimo) {
             partes.add("Só abaixo do mínimo");

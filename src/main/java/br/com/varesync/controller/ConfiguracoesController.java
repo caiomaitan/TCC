@@ -52,6 +52,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
@@ -157,6 +158,10 @@ public class ConfiguracoesController {
     @FXML private Tab abaFinanceiro;
     @FXML private CheckBox campoIntegrarCaixa;
     @FXML private Tab abaCompras;
+    @FXML private Tab abaEstoque;
+    @FXML private TextField campoAlertaValidade;
+    @FXML private Label resultadoLotes;
+    @FXML private ListView<String> listaLotes;
     @FXML private TextField campoDiasMedia;
     @FXML private TextField campoCobertura;
     @FXML private HBox painelRecebimento;
@@ -268,7 +273,7 @@ public class ConfiguracoesController {
                 Formatos.moeda(c.getValue().diferenca())));
 
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaFinanceiro, abaCompras, abaBackup);
+                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaBackup);
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -368,6 +373,7 @@ public class ConfiguracoesController {
         campoIntegrarCaixa.setSelected(c.integrarCaixa());
         campoDiasMedia.setText(String.valueOf(c.compras().diasMedia()));
         campoCobertura.setText(String.valueOf(c.compras().coberturaDias()));
+        campoAlertaValidade.setText(String.valueOf(c.validadeAlertaDias()));
         atualizarBalanca();
     }
 
@@ -398,7 +404,8 @@ public class ConfiguracoesController {
                         inteiro(campoBloqueioAtraso, "Atraso que pede liberação")),
                 campoIntegrarCaixa.isSelected(),
                 new Configuracoes.Compras(inteiro(campoDiasMedia, "Dias de venda na média diária"),
-                        inteiro(campoCobertura, "Cobertura desejada")));
+                        inteiro(campoCobertura, "Cobertura desejada")),
+                inteiro(campoAlertaValidade, "Alerta de validade"));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -762,7 +769,8 @@ public class ConfiguracoesController {
 
     /** Estoque (6.4) e crédito dos clientes (F12.3): as duas views de inconsistência precisam vir vazias. */
     private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito,
-                               List<InconsistenciaAbatimento> abatimento, List<InconsistenciaConta> conta) {
+                               List<InconsistenciaAbatimento> abatimento, List<InconsistenciaConta> conta,
+                               List<String> lotes) {
     }
 
     @FXML
@@ -771,7 +779,8 @@ public class ConfiguracoesController {
             @Override
             protected Diagnostico call() {
                 return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao),
-                        clienteService.diagnosticoAbatimentos(sessao), contaService.diagnostico(sessao));
+                        clienteService.diagnosticoAbatimentos(sessao), contaService.diagnostico(sessao),
+                        estoqueService.diagnosticoLotes(sessao));
             }
         };
         botaoVerificar.setDisable(true);
@@ -780,8 +789,18 @@ public class ConfiguracoesController {
         Mensagem.limpar(resultadoCredito);
         Mensagem.limpar(resultadoAbatimento);
         Mensagem.limpar(resultadoConta);
+        Mensagem.limpar(resultadoLotes);
         tarefa.setOnSucceeded(e -> {
             concluir();
+            List<String> lotes = tarefa.getValue().lotes();
+            listaLotes.getItems().setAll(lotes);
+            if (lotes.isEmpty()) {
+                Mensagem.sucesso(resultadoLotes, "Tudo certo: o saldo de todos os lotes confere com o razão e, nos "
+                        + "produtos com controle de validade, a soma dos lotes confere com o saldo do produto.");
+            } else {
+                Mensagem.erro(resultadoLotes, lotes.size() + " diferença(s) nos lotes. Isso indica alteração feita fora "
+                        + "do sistema; anote as linhas e procure o suporte.");
+            }
             List<InconsistenciaConta> conta = tarefa.getValue().conta();
             tabelaConta.getItems().setAll(conta);
             if (conta.isEmpty()) {

@@ -6,8 +6,10 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
@@ -190,6 +192,16 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="A sugestão de compra (tela Compras) usa a venda dos últimos dias, já sem as devoluções, para calcular a média por dia, e sugere o que falta para cobrir os dias de cobertura mais o prazo de entrega do fornecedor principal, sem ficar abaixo do estoque mínimo. O fornecedor principal, o prazo e o fator de cada produto ficam no cadastro do produto, aba Fornecedores."/>
             </VBox>
         </Tab>
+        <Tab fx:id="abaEstoque" text="Estoque">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Alerta de validade (dias antes)" minWidth="230"/>
+                    <TextField fx:id="campoAlertaValidade" prefWidth="90" styleClass="campo-numero"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Nos produtos com o controle de validade e lotes ligado (cadastro do produto), o lote com saldo que vence em até estes dias aparece em amarelo na aba Lotes do Estoque e entra no alerta do Painel e no relatório R29 Validade. Os lotes vencidos com saldo aparecem em vermelho até a perda por vencimento ou o inventário."/>
+            </VBox>
+        </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
@@ -302,16 +314,17 @@
             </VBox>
         </Tab>
         <Tab text="Diagnóstico">
+            <ScrollPane fitToWidth="true" styleClass="painel-formulario">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque; o saldo de crédito de cada cliente, à soma do seu extrato; e o abatido de cada título e de cada devolução, à soma dos abatimentos por parcela. O esperado é não haver nenhuma diferença: os saldos só mudam por movimento."/>
+                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque; o saldo de crédito de cada cliente, à soma do seu extrato; o abatido de cada título e de cada devolução, à soma dos abatimentos por parcela; e o saldo de cada lote, à soma do seu razão (e, nos produtos com controle de validade, a soma dos lotes, ao saldo do produto). O esperado é não haver nenhuma diferença: os saldos só mudam por movimento."/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Button fx:id="botaoVerificar" text="Verificar agora" onAction="#verificar"
                             styleClass="botao-primario"/>
                     <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
                     <Label fx:id="resultado" wrapText="true"/>
                 </HBox>
-                <TableView fx:id="tabelaInconsistencias" VBox.vgrow="ALWAYS">
+                <TableView fx:id="tabelaInconsistencias" VBox.vgrow="ALWAYS" minHeight="90" prefHeight="140">
                     <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
                     <columns>
                         <TableColumn fx:id="colunaProduto" text="Produto" prefWidth="320"/>
@@ -369,7 +382,13 @@
                     </columns>
                     <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
                 </TableView>
+                <Label text="Lotes (validade)" styleClass="titulo-secao"/>
+                <Label fx:id="resultadoLotes" wrapText="true" minHeight="-Infinity"/>
+                <ListView fx:id="listaLotes" VBox.vgrow="ALWAYS" minHeight="70" prefHeight="90">
+                    <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
+                </ListView>
             </VBox>
+            </ScrollPane>
         </Tab>
         <Tab text="Dados de demonstração">
             <VBox spacing="10" styleClass="painel-formulario">

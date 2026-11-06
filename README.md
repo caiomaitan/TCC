@@ -93,7 +93,8 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,
-   balança, segurança (bloqueio por inatividade e política de senha), sugestão de compra, backup e formas de pagamento.
+   balança, segurança (bloqueio por inatividade e política de senha), sugestão de compra, alerta de validade dos lotes,
+   backup e formas de pagamento.
 5. **Unidades de medida** (Produtos › *Unidades…*, com a permissão Produtos): além das que vêm prontas (UN, KG, L,
    M, CX, PCT, FD, DZ), cadastre outras com sigla de até 6 letras ou números, descrição e "fracionada" (aceita
    quantidade com casas decimais). A sigla e "fracionada" só mudam, e a unidade só é excluída, enquanto nenhum produto
@@ -220,6 +221,24 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    - **relatórios:** **R26 Sugestão de compra**, **R27 Pedidos pendentes** (o que falta receber, com os atrasados) e
      **R28 Cobertura e ruptura** (quantos dias o estoque dura e quais produtos estão em ruptura);
    - **painel:** quem tem Compras vê o alerta de produtos em ruptura; o clique abre a Sugestão de compra só com eles.
+12. **Validade e lotes** (perecíveis):
+   - **ligar:** no cadastro do produto, marque **Controla validade e lotes**. No produto novo com estoque inicial, informe
+     o lote (código opcional) e a validade desse estoque; sem eles, ele fica no **"SEM LOTE"** (validade desconhecida).
+     Num produto que já tem saldo, a tela avisa que o saldo atual vai para o "SEM LOTE"; depois, em **Estoque › aba
+     Lotes › Transferir…**, passe esse saldo para os lotes certos. Ao desligar, os lotes ficam parados e saem dos alertas;
+   - **entrada de mercadoria:** o item de produto com controle fica em amarelo até ser dividido em lotes pelo botão
+     **Lotes…** (código, validade e quantidade, com o quanto falta dividir); a entrada só confirma com a divisão
+     completa. O XML da NF-e com o grupo `rastro` já traz a divisão;
+   - **saídas:** a venda tira primeiro do "SEM LOTE" e depois do lote que vence antes (FEFO), deixando os vencidos por
+     último; o ajuste de saída e a perda deixam escolher o lote ("Automático" = a mesma regra, sem pular os vencidos), e
+     a **perda por vencimento** exige o lote. Cancelamento e devolução voltam para os lotes de onde a mercadoria saiu;
+   - **aba Lotes do Estoque** (permissão Estoque): lote, validade, saldo, dias para vencer e situação (vencido e "SEM
+     LOTE" negativo em vermelho; vencendo em até 7 dias em amarelo), o razão do lote selecionado e **Transferir…**
+     (para outro lote ou um lote novo; não muda o estoque do produto). O filtro **Só com SEM LOTE negativo** acha os
+     produtos que venderam mais do que os lotes tinham;
+   - **R29 Validade** e **painel:** lotes que vencem em até N dias (e, se marcado, os vencidos), com o valor a custo;
+     quem tem Estoque vê no painel "N lotes vencem em até 7 dias", "N lotes vencidos" e os produtos com o "SEM LOTE"
+     negativo. Os 7 dias mudam em **Configurações › Estoque**.
 
 Cinco senhas erradas seguidas bloqueiam o usuário por 5 minutos; o supervisor pode desbloquear antes, em
 **Usuários**.
@@ -274,7 +293,9 @@ no PIX, deposita o Cofre no Banco e concilia os recebíveis toda segunda-feira (
 energia, salários e os impostos de 6% da receita de cada mês (pagos no vencimento; a última conta de energia fica em
 aberto) e registra duas duplicatas por entrada de mercadoria. Em compras, vincula cada produto reposto ao seu
 fornecedor (caixas de 6, 12 ou 24, prazo de 3 dias) e lança um pedido de compra enviado 3 dias antes de cada entrada,
-que a entrada recebe; o pedido da próxima entrega de cada fornecedor fica pendente. Ele **recusa** um banco que já tenha vendas ou
+que a entrada recebe; o pedido da próxima entrega de cada fornecedor fica pendente. Os perecíveis embalados de Frios e
+laticínios e Padaria controlam validade: cada entrada semanal vira um lote, a sobra vencida vira perda por vencimento
+e, no fim, há lotes vencendo nos próximos dias e lotes vencidos da última semana com saldo (no painel e no R29). Ele **recusa** um banco que já tenha vendas ou
 movimentos nas contas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):

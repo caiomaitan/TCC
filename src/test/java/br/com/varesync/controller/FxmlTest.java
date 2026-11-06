@@ -1,6 +1,7 @@
 package br.com.varesync.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +63,10 @@ class FxmlTest {
             fxml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
         assertThat(fxml).contains("fx:controller=\"" + controller + "\"");
+        // XML bem formado (as aspas de um atributo não podem aparecer dentro dele): o resto do teste lê por expressão.
+        assertThatCode(() -> javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new java.io.ByteArrayInputStream(fxml.getBytes(StandardCharsets.UTF_8))))
+                .as("XML de %s", recurso).doesNotThrowAnyException();
 
         Class<?> tipo = Class.forName(controller, false, FxmlTest.class.getClassLoader());
         Set<String> campos = Arrays.stream(tipo.getDeclaredFields()).map(f -> f.getName()).collect(Collectors.toSet());

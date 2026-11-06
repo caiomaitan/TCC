@@ -67,6 +67,29 @@ class RegraLotesTest {
                 .containsExactly("1=3", "9=2");
     }
 
+    /**
+     * Aceite vencido na venda: V venceu ontem (5) e A vence em 10 dias (20). Na venda de 3, sai de A; na saída sem a
+     * data de hoje (inventário, ajuste, perda), o FEFO puro tira de V.
+     */
+    @Test
+    void vencidoFicaPorUltimoSoNaVendaDoAceite() {
+        List<Lote> lotes = List.of(lote(1, "A", 10, "20"), lote(2, "V", -1, "5"));
+        assertThat(texto(RegraLotes.saida(lotes, q("3"), HOJE))).containsExactly("1=3");
+        assertThat(texto(RegraLotes.saida(lotes, q("2")))).containsExactly("2=2");
+    }
+
+    /**
+     * Na venda, o vencido sai depois dos outros lotes e antes da falta no "SEM LOTE"; o "SEM LOTE" positivo continua
+     * primeiro, e o lote que vence hoje não está vencido.
+     */
+    @Test
+    void naVendaVencidoAntesDaFaltaEDepoisDoSemLote() {
+        List<Lote> lotes = List.of(semLote(9, "2"), lote(1, "A", 10, "3"), lote(2, "V", -3, "4"),
+                lote(3, "H", 0, "1"));
+        assertThat(texto(RegraLotes.saida(lotes, q("12"), HOJE)))
+                .containsExactly("9=4", "3=1", "1=3", "2=4");
+    }
+
     /** Empate na validade: o lote mais antigo primeiro; lote zerado é pulado. */
     @Test
     void empateNaValidadeSaiDoMaisAntigo() {

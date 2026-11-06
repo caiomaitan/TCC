@@ -336,6 +336,41 @@ class LoteServiceIT extends IntegracaoBase {
     }
 
     /** Inventário: a falta sai por FEFO; a sobra vai para o "SEM LOTE". */
+    /**
+     * Vencido na venda: V venceu ontem (5) e A vence em 10 dias (20); uma venda de 3 sai de A. Já uma falta de 2 no
+     * inventário sai de V (FEFO puro: a mercadoria vencida é a primeira candidata a ter sumido).
+     */
+    @Test
+    void vencidoNaVendaFicaPorUltimoDoAceite() {
+        long p = produto("Iogurte morango 170 g", true, null);
+        entrarNoLote(p, "V", -1, "5");
+        entrarNoLote(p, "A", 10, "20");
+        vender(p, 3);
+        assertThat(saldoLote(p, "V")).isEqualByComparingTo("5");
+        assertThat(saldoLote(p, "A")).isEqualByComparingTo("17");
+
+        long inv = t.inventarios.criar(admin, "Conferência dos iogurtes");
+        t.inventarios.incluirProduto(admin, inv, p);
+        t.inventarios.registrarContagem(admin, inv, t.inventarios.itensContagem(admin, inv).get(0).itemId(),
+                q("20"));
+        t.inventarios.aplicar(admin, inv);
+        assertThat(saldoLote(p, "V")).isEqualByComparingTo("3");
+        assertThat(saldoLote(p, "A")).isEqualByComparingTo("17");
+        assertThat(saldo(p)).isEqualByComparingTo("20");
+    }
+
+    /** Na venda, o vencido só sai depois dos outros lotes; o que faltar vai para o "SEM LOTE" negativo. */
+    @Test
+    void vendaMaiorQueOsLotesBonsUsaOVencidoAntesDoSemLote() {
+        long p = produto("Requeijão 200 g", true, null);
+        entrarNoLote(p, "V", -2, "4");
+        entrarNoLote(p, "A", 5, "3");
+        vender(p, 9);
+        assertThat(saldoLote(p, "A")).isEqualByComparingTo("0");
+        assertThat(saldoLote(p, "V")).isEqualByComparingTo("0");
+        assertThat(saldoLote(p, null)).isEqualByComparingTo("-2");
+    }
+
     @Test
     void inventarioFaltaPorFefoESobraNoSemLote() {
         long p = iogurteComAeB();

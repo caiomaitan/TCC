@@ -4,6 +4,8 @@ import br.com.varesync.model.CustoAtualizado;
 import br.com.varesync.model.DadosEntrada;
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
+import br.com.varesync.model.ItemEntrada;
+import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.ParcelaEntrada;
 import br.com.varesync.model.ResultadoEntrada;
 import br.com.varesync.model.SugestaoReajuste;
@@ -134,6 +136,111 @@ public final class DialogosCompras {
                         "Valor da parcela " + numero)));
             }
             gravar.accept(parcelas);
+            return Boolean.TRUE;
+        }, null).isPresent();
+    }
+
+    /**
+     * Divisão do item em lotes (F17.3): uma linha por lote, com código (opcional), validade e quantidade, e o quanto
+     * falta dividir, atualizado enquanto digita. A divisão pode ser gravada incompleta; a confirmação da entrada é que
+     * exige que ela some a quantidade do item.
+     *
+     * @param item   item da entrada (produto com controle de validade)
+     * @param atuais divisão já gravada (a do rastro da NF-e, por exemplo)
+     * @return true se gravou
+     */
+    public static boolean lotes(ItemEntrada item, List<LoteEntrada> atuais, Consumer<List<LoteEntrada>> gravar) {
+        String unidade = " " + item.unidade();
+        DialogoFormulario formulario = new DialogoFormulario("Lotes — " + item.produtoNome(),
+                "Divida as " + Formatos.quantidade(item.quantidade(), item.unidadeFracionada()) + unidade
+                        + " do item pelos lotes da nota: validade obrigatória, código opcional. A entrada só confirma "
+                        + "quando a divisão soma a quantidade do item.", "Salvar");
+        record Linha(TextField codigo, DatePicker validade, TextField quantidade) {
+        }
+        List<Linha> linhas = new ArrayList<>();
+        VBox lista = new VBox(6);
+        Label falta = new Label();
+        falta.getStyleClass().add("subtitulo");
+        Runnable recalcular = () -> {
+            BigDecimal soma = BigDecimal.ZERO;
+            for (Linha l : linhas) {
+                try {
+                    if (!Textos.vazio(l.quantidade().getText())) {
+                        soma = soma.add(Dinheiro.ler(l.quantidade().getText()));
+                    }
+                } catch (IllegalArgumentException e) {
+                    // texto ainda incompleto: conta como zero até ficar válido
+                }
+            }
+            BigDecimal resta = item.quantidade().subtract(soma);
+            falta.getStyleClass().remove("negativo");
+            if (resta.signum() == 0) {
+                falta.setText("Divisão completa: " + Formatos.quantidade(soma, item.unidadeFracionada()) + unidade
+                        + ".");
+            } else {
+                falta.setText((resta.signum() > 0 ? "Falta dividir " : "A divisão passou em ")
+                        + Formatos.quantidade(resta.abs(), item.unidadeFracionada()) + unidade + " (dividido: "
+                        + Formatos.quantidade(soma, item.unidadeFracionada()) + " de "
+                        + Formatos.quantidade(item.quantidade(), item.unidadeFracionada()) + ").");
+                falta.getStyleClass().add("negativo");
+            }
+        };
+        Consumer<LoteEntrada> adicionar = l -> {
+            TextField codigo = new TextField(l == null ? "" : l.codigo());
+            codigo.setPromptText("código (opcional)");
+            codigo.setPrefWidth(120);
+            DatePicker validade = new DatePicker(l == null ? null : l.validade());
+            validade.setConverter(new ConversorData());
+            validade.setPromptText("validade");
+            validade.setPrefWidth(130);
+            TextField quantidade = new TextField(l == null ? ""
+                    : l.quantidade().stripTrailingZeros().toPlainString().replace('.', ','));
+            quantidade.setPromptText("quantidade");
+            quantidade.setPrefWidth(90);
+            quantidade.getStyleClass().add("campo-numero");
+            quantidade.textProperty().addListener((o, a, b) -> recalcular.run());
+            Linha linha = new Linha(codigo, validade, quantidade);
+            Button remover = new Button("Remover");
+            HBox caixa = new HBox(6, codigo, validade, quantidade, remover);
+            remover.setOnAction(e -> {
+                linhas.remove(linha);
+                lista.getChildren().remove(caixa);
+                recalcular.run();
+                caixa.getScene().getWindow().sizeToScene();
+            });
+            linhas.add(linha);
+            lista.getChildren().add(caixa);
+        };
+        atuais.forEach(adicionar);
+        if (atuais.isEmpty()) {
+            adicionar.accept(null);
+        }
+        recalcular.run();
+        Button mais = new Button("Adicionar lote");
+        mais.setOnAction(e -> {
+            adicionar.accept(null);
+            mais.getScene().getWindow().sizeToScene();
+        });
+        formulario.adicionarCampo("Lotes", lista);
+        formulario.adicionarCampo("", mais);
+        formulario.adicionarCampo("", falta);
+        return formulario.mostrar(() -> {
+            List<LoteEntrada> lotes = new ArrayList<>();
+            for (Linha l : linhas) {
+                int n = lotes.size() + 1;
+                boolean vazia = Textos.vazio(l.codigo().getText()) && Textos.vazio(l.quantidade().getText())
+                        && Textos.vazio(l.validade().getEditor().getText());
+                if (vazia) {
+                    continue; // linha em branco é ignorada
+                }
+                java.time.LocalDate data = l.validade().getConverter().fromString(l.validade().getEditor().getText());
+                if (!Textos.vazio(l.validade().getEditor().getText()) && data == null) {
+                    throw new NegocioException("Validade do lote " + n + " inválida: use dd/mm/aaaa.");
+                }
+                lotes.add(new LoteEntrada(l.codigo().getText(), data,
+                        CampoNumero.ler(l.quantidade().getText(), "Quantidade do lote " + n)));
+            }
+            gravar.accept(lotes);
             return Boolean.TRUE;
         }, null).isPresent();
     }

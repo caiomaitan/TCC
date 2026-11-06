@@ -69,6 +69,12 @@
             <TextField fx:id="campoDias" prefWidth="60" styleClass="campo-numero"/>
             <Label text="dias ou mais"/>
         </HBox>
+        <HBox fx:id="grupoValidade" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Vencem em até"/>
+            <TextField fx:id="campoDiasValidade" prefWidth="60" styleClass="campo-numero"/>
+            <Label text="dias"/>
+            <CheckBox fx:id="filtroVencidos" text="Incluir os vencidos"/>
+        </HBox>
         <HBox fx:id="grupoSituacao" alignment="CENTER_LEFT" spacing="6">
             <Label text="Situação:"/>
             <ComboBox fx:id="escolhaSituacao" prefWidth="140"/>

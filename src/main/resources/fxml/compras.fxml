@@ -59,12 +59,12 @@
                             <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao"/>
                             <Label fx:id="situacao" styleClass="subtitulo"/>
                             <Region HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota"/>
-                            <Button fx:id="botaoPedido" text="Pedido…" onAction="#escolherPedido"/>
-                            <Button fx:id="botaoConferir" text="Conferir com o pedido…" onAction="#conferirPedido"/>
-                            <Button fx:id="botaoParcelas" text="Parcelas…" onAction="#editarParcelas"/>
-                            <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir"/>
-                            <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar"
+                            <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota" minWidth="-Infinity"/>
+                            <Button fx:id="botaoPedido" text="Pedido…" onAction="#escolherPedido" minWidth="-Infinity"/>
+                            <Button fx:id="botaoConferir" text="Conferir com o pedido…" onAction="#conferirPedido" minWidth="-Infinity"/>
+                            <Button fx:id="botaoParcelas" text="Parcelas…" onAction="#editarParcelas" minWidth="-Infinity"/>
+                            <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir" minWidth="-Infinity"/>
+                            <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar" minWidth="-Infinity"
                                     styleClass="botao-primario"/>
                         </HBox>
 
@@ -74,7 +74,7 @@
                                        onAction="#escolherProduto"/>
                             <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem"
                                    HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
-                            <Label text="Qtd. *"/>
+                            <Label text="Qtd. *" minWidth="-Infinity"/>
                             <TextField fx:id="campoQuantidade" prefWidth="80" styleClass="campo-numero" onAction="#focarValor"/>
                             <ComboBox fx:id="modoValor" prefWidth="160"/>
                             <TextField fx:id="campoValor" prefWidth="100" styleClass="campo-numero" onAction="#gravarItem"/>
@@ -102,6 +102,8 @@
                             <Label fx:id="totalItens" styleClass="valor-destaque"/>
                             <Label fx:id="totalNota" styleClass="subtitulo"/>
                             <Label fx:id="diferenca" styleClass="subtitulo"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="botaoLotes" text="Lotes…" onAction="#dividirEmLotes" minWidth="-Infinity"/>
                         </HBox>
                         <Label fx:id="mensagem" wrapText="true"/>
                     </VBox>

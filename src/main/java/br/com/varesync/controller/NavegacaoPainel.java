@@ -27,4 +27,13 @@ public interface NavegacaoPainel {
 
     /** Financeiro, aba Contas, com a conta de saldo negativo selecionada. */
     void abrirContasFinanceiras();
+
+    /**
+     * F17.3: R29 já filtrado (lotes que vencem em até {@code dias} dias e, se {@code vencidos}, os vencidos); sem a
+     * permissão RELATORIOS, o Estoque.
+     */
+    void abrirValidade(int dias, boolean vencidos);
+
+    /** Estoque já filtrado em "Só com SEM LOTE negativo" (F17.3). */
+    void abrirSemLoteNegativo();
 }

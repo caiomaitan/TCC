@@ -78,6 +78,7 @@ public class ComprasController {
     static final String CUSTO_UNITARIO = "Custo unitário";
     static final String VALOR_DA_LINHA = "Valor total da linha";
     private static final String NEGATIVO = "negativo";
+    private static final String DIVISAO_INCOMPLETA = "linha-aviso";
     private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final EntradaService entradaService;
@@ -155,6 +156,7 @@ public class ComprasController {
     @FXML private TextField campoValor;
     @FXML private Button botaoGravarItem;
     @FXML private Button botaoRemover;
+    @FXML private Button botaoLotes;
     @FXML private TableView<ItemEntrada> tabelaItens;
     @FXML private Label semItens;
     @FXML private TableColumn<ItemEntrada, Long> colunaItemCodigo;
@@ -215,6 +217,22 @@ public class ComprasController {
             }
             botaoRemover.setDisable(item == null || entrada == null || !entrada.aberta());
         });
+        tabelaItens.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(ItemEntrada item, boolean vazio) {
+                super.updateItem(item, vazio);
+                getStyleClass().remove(DIVISAO_INCOMPLETA);
+                setTooltip(null);
+                if (!vazio && item != null && item.divisaoIncompleta() && entrada != null && entrada.aberta()) {
+                    getStyleClass().add(DIVISAO_INCOMPLETA);
+                    setTooltip(new Tooltip(textoFaltaDividir(item)));
+                }
+            }
+        });
+        texto(colunaItemProduto, i -> i.produtoNome() + (i.divisaoIncompleta() && entrada != null && entrada.aberta()
+                ? " — lotes: " + textoFaltaDividir(i) : ""));
+        tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, anterior, item) ->
+                atualizarBotaoLotes(item));
 
         modoValor.getItems().setAll(CUSTO_UNITARIO, VALOR_DA_LINHA);
         modoValor.setValue(CUSTO_UNITARIO);
@@ -637,6 +655,7 @@ public class ComprasController {
         botaoConferir.setVisible(comPedido);
         botaoConferir.setManaged(comPedido);
         botaoRemover.setDisable(true);
+        atualizarBotaoLotes(null);
         if (selecionada == null) {
             tituloEntrada.setText("Selecione uma entrada");
             situacao.setText("");
@@ -813,6 +832,45 @@ public class ComprasController {
         }
     }
 
+    // ----- Divisão em lotes (F17.3) -----
+
+    private void atualizarBotaoLotes(ItemEntrada item) {
+        boolean pode = item != null && item.controlaValidade() && entrada != null && entrada.aberta();
+        botaoLotes.setDisable(!pode);
+    }
+
+    /** "faltam 6 UN" ou "passou 2 UN". */
+    private static String textoFaltaDividir(ItemEntrada item) {
+        BigDecimal falta = item.faltaDividir();
+        return (falta.signum() > 0 ? "faltam " : "passou ")
+                + Formatos.quantidade(falta.abs(), item.unidadeFracionada()) + " " + item.unidade();
+    }
+
+    /** "Lotes…": divisão do item selecionado em lotes (código, validade e quantidade). */
+    @FXML
+    private void dividirEmLotes() {
+        ItemEntrada item = itemEmEdicao != null ? itemEmEdicao : tabelaItens.getSelectionModel().getSelectedItem();
+        if (entrada == null || !entrada.aberta() || item == null || !item.controlaValidade()) {
+            return;
+        }
+        long entradaId = entrada.id();
+        try {
+            boolean gravou = DialogosCompras.lotes(item, entradaService.lotesDoItem(sessao, entradaId, item.id()),
+                    lotes -> entradaService.salvarLotesDoItem(sessao, entradaId, item.id(), lotes));
+            if (gravou) {
+                limparItem();
+                atualizarEntrada(item.id());
+                ItemEntrada atual = tabelaItens.getItems().stream().filter(i -> i.id() == item.id()).findFirst()
+                        .orElse(item);
+                Mensagem.sucesso(mensagem, "Lotes de " + item.produtoNome() + " gravados"
+                        + (atual.divisaoIncompleta() ? ": " + textoFaltaDividir(atual) + " para completar a divisão."
+                        : ": divisão completa."));
+            }
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
     // ----- Confirmar -----
 
     /** Confirmação com o resumo e, se houver, o aviso de que a soma dos itens difere do valor da nota. */
@@ -824,6 +882,15 @@ public class ComprasController {
         EntradaResumo e = entradaService.buscar(sessao, entrada.id());
         if (e.totalItens() == 0) {
             Mensagem.erro(mensagem, "A entrada não tem itens. Inclua os produtos da nota antes de confirmar.");
+            return;
+        }
+        // F17.3: item de produto com validade precisa da divisão em lotes somando a quantidade.
+        List<ItemEntrada> incompletos = entradaService.itens(sessao, e.id()).stream()
+                .filter(ItemEntrada::divisaoIncompleta).toList();
+        if (!incompletos.isEmpty()) {
+            Mensagem.erro(mensagem, "Falta dividir em lotes (botão \"Lotes…\"): " + incompletos.stream()
+                    .map(i -> i.produtoNome() + " (" + textoFaltaDividir(i) + ")")
+                    .collect(java.util.stream.Collectors.joining("; ")) + ".");
             return;
         }
         StringBuilder texto = new StringBuilder("Confirmar a entrada nº ").append(e.id()).append(" (")

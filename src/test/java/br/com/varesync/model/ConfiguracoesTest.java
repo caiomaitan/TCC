@@ -46,6 +46,7 @@ class ConfiguracoesTest {
         m.put("financeiro.integrar_caixa", "false");
         m.put("compras.dias_media", "30");
         m.put("compras.cobertura_dias", "15");
+        m.put("validade.alerta_dias", "7"); // V15 (F17)
         return m;
     }
 
@@ -118,6 +119,19 @@ class ConfiguracoesTest {
                 .containsEntry("crediario.juros_mes_pct", "1.5");
         m.put("crediario.max_parcelas", "0");
         assertThat(Configuracoes.de(m).crediario().maxParcelas()).isEqualTo(3);
+    }
+
+    /** V15 (F17): o prazo do alerta de validade; fora de 0 a 365 volta ao padrão. */
+    @Test
+    void validadeDaV15() {
+        Map<String, String> m = v2();
+        m.put("validade.alerta_dias", "3");
+        assertThat(Configuracoes.de(m).validadeAlertaDias()).isEqualTo(3);
+        assertThat(Configuracoes.PADRAO.comValidadeAlertaDias(10).paraMapa()).containsEntry("validade.alerta_dias", "10");
+        m.put("validade.alerta_dias", "-1");
+        assertThat(Configuracoes.de(m).validadeAlertaDias()).isEqualTo(7);
+        m.put("validade.alerta_dias", "0");
+        assertThat(Configuracoes.de(m).validadeAlertaDias()).isZero();
     }
 
     @Test

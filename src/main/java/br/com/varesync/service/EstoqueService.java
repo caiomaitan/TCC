@@ -1,5 +1,6 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
@@ -8,6 +9,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.Lote;
 import br.com.varesync.model.MotivoPerda;
+import br.com.varesync.model.MovimentoLote;
 import br.com.varesync.model.Kardex;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParteLote;
@@ -50,11 +52,14 @@ public class EstoqueService {
     private final EstoqueDAO estoqueDAO;
     private final MovimentoEstoqueDAO movimentoDAO;
     private final LoteDAO loteDAO;
+    private final ConfiguracaoDAO configuracaoDAO;
     private final AuditoriaService auditoria;
     private final Clock clock;
 
     public EstoqueService(Transacao transacao, ProdutoDAO produtoDAO, EstoqueDAO estoqueDAO,
-                          MovimentoEstoqueDAO movimentoDAO, LoteDAO loteDAO, AuditoriaService auditoria, Clock clock) {
+                          MovimentoEstoqueDAO movimentoDAO, LoteDAO loteDAO, ConfiguracaoDAO configuracaoDAO,
+                          AuditoriaService auditoria, Clock clock) {
+        this.configuracaoDAO = configuracaoDAO;
         this.transacao = transacao;
         this.produtoDAO = produtoDAO;
         this.estoqueDAO = estoqueDAO;
@@ -134,7 +139,9 @@ public class EstoqueService {
             partes = escolhidos(con, sessao, produtoId, lotes, quantidade, saida, fracionada, agora);
         } else {
             partes = switch (tipo) {
-                case VENDA, AJUSTE_SAIDA, PERDA -> RegraLotes.saida(loteDAO.listar(con, produtoId), quantidade);
+                // Na venda, o vencido fica por último (F17.2); nas outras saídas, FEFO puro.
+                case VENDA -> RegraLotes.saida(loteDAO.listar(con, produtoId), quantidade, LocalDate.now(clock));
+                case AJUSTE_SAIDA, PERDA -> RegraLotes.saida(loteDAO.listar(con, produtoId), quantidade);
                 case INVENTARIO -> saida ? RegraLotes.saida(loteDAO.listar(con, produtoId), quantidade)
                         : List.of(new RegraLotes.Parte(semLoteId(con, produtoId).orElse(null), quantidade));
                 case AJUSTE_ENTRADA ->
@@ -262,6 +269,83 @@ public class EstoqueService {
     }
 
     /**
+     * Aba Lotes do Estoque (F17.3): se o produto controla validade, os lotes com saldo (o "SEM LOTE" primeiro) e o
+     * prazo do alerta ({@code validade.alerta_dias}), para destacar os que vencem logo.
+     */
+    public LotesDoProduto lotesDoProduto(Sessao sessao, long produtoId) {
+        sessao.exigir(Permissao.ESTOQUE);
+        return transacao.executar(con -> {
+            boolean controla = produtoDAO.controlaValidade(con, produtoId)
+                    .orElseThrow(() -> new NegocioException("Produto não encontrado."));
+            return new LotesDoProduto(controla, configuracaoDAO.carregar(con).validadeAlertaDias(),
+                    LocalDate.now(clock), loteDAO.listar(con, produtoId));
+        });
+    }
+
+    /**
+     * Lotes de um produto, com o que a tela precisa para destacá-los.
+     *
+     * @param alertaDias o lote que vence de hoje até hoje + {@code alertaDias} está "vencendo"
+     */
+    public record LotesDoProduto(boolean controla, int alertaDias, LocalDate hoje, List<Lote> lotes) {
+
+        public LotesDoProduto {
+            lotes = List.copyOf(lotes);
+        }
+
+        /** Dias para vencer (negativo = vencido); nulo no "SEM LOTE". */
+        public Long diasParaVencer(Lote lote) {
+            return lote.validade() == null ? null
+                    : java.time.temporal.ChronoUnit.DAYS.between(hoje, lote.validade());
+        }
+
+        /** "Vencido", "Vence hoje", "Vence em 3 dias", "SEM LOTE negativo", "OK" ou vazio (zerado). */
+        public String situacao(Lote lote) {
+            if (lote.semLote()) {
+                return lote.saldo().signum() < 0 ? "Negativo" : "Validade desconhecida";
+            }
+            long dias = diasParaVencer(lote);
+            if (lote.saldo().signum() <= 0) {
+                return "Zerado";
+            }
+            if (dias < 0) {
+                return "Vencido";
+            }
+            if (dias <= alertaDias) {
+                return dias == 0 ? "Vence hoje" : dias == 1 ? "Vence amanhã" : "Vence em " + dias + " dias";
+            }
+            return "OK";
+        }
+
+        /** Vencido com saldo ou "SEM LOTE" negativo: em vermelho. */
+        public boolean critico(Lote lote) {
+            return lote.semLote() ? lote.saldo().signum() < 0
+                    : lote.saldo().signum() > 0 && diasParaVencer(lote) < 0;
+        }
+
+        /** Vencendo em até {@code alertaDias} (com saldo): em amarelo. */
+        public boolean vencendo(Lote lote) {
+            if (lote.semLote() || lote.saldo().signum() <= 0) {
+                return false;
+            }
+            long dias = diasParaVencer(lote);
+            return dias >= 0 && dias <= alertaDias;
+        }
+    }
+
+    /** Razão do lote (F17.3): data, tipo, documento ou motivo e quantidade, do mais antigo para o mais recente. */
+    public List<MovimentoLote> razaoDoLote(Sessao sessao, long produtoId, long loteId) {
+        sessao.exigir(Permissao.ESTOQUE);
+        return transacao.executar(con -> {
+            Lote lote = loteDAO.buscar(con, loteId).orElseThrow(() -> new NegocioException("Lote não encontrado."));
+            if (lote.produtoId() != produtoId) {
+                throw new NegocioException("O lote " + lote.descricao() + " não é deste produto.");
+            }
+            return loteDAO.razao(con, loteId);
+        });
+    }
+
+    /**
      * Liga ou desliga o controle de validade na transação de quem chama (cadastro do produto, que confere a permissão e
      * grava a auditoria). Trava o saldo do produto antes. Ao ligar, a diferença entre o saldo do produto e a soma dos
      * lotes vira SALDO_INICIAL: positiva, no "SEM LOTE"; negativa, sai dos lotes como uma saída. Ao desligar, os lotes
@@ -371,11 +455,20 @@ public class EstoqueService {
      */
     public List<SaldoEstoque> pesquisar(Sessao sessao, String texto, boolean soAbaixoDoMinimo,
                                         boolean incluirInativos) {
+        return pesquisar(sessao, texto, soAbaixoDoMinimo, incluirInativos, false);
+    }
+
+    /**
+     * @param soSemLoteNegativo só produtos com o controle de validade ligado e o "SEM LOTE" negativo (F17.3)
+     */
+    public List<SaldoEstoque> pesquisar(Sessao sessao, String texto, boolean soAbaixoDoMinimo,
+                                        boolean incluirInativos, boolean soSemLoteNegativo) {
         sessao.exigir(Permissao.ESTOQUE);
         String termo = Textos.normalizarEspacos(texto);
         EstoqueDAO.Filtro filtro = Textos.soDigitos(termo)
-                ? new EstoqueDAO.Filtro(null, termo, soAbaixoDoMinimo, incluirInativos)
-                : new EstoqueDAO.Filtro(Textos.normalizarBusca(termo), null, soAbaixoDoMinimo, incluirInativos);
+                ? new EstoqueDAO.Filtro(null, termo, soAbaixoDoMinimo, incluirInativos, soSemLoteNegativo)
+                : new EstoqueDAO.Filtro(Textos.normalizarBusca(termo), null, soAbaixoDoMinimo, incluirInativos,
+                soSemLoteNegativo);
         return transacao.executar(con -> estoqueDAO.pesquisar(con, filtro));
     }
 

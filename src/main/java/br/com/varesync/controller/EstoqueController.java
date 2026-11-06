@@ -1,6 +1,8 @@
 package br.com.varesync.controller;
 
+import br.com.varesync.model.Lote;
 import br.com.varesync.model.MovimentoKardex;
+import br.com.varesync.model.MovimentoLote;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.ResultadoAjuste;
 import br.com.varesync.model.SaldoEstoque;
@@ -18,6 +20,7 @@ import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import javafx.application.Platform;
@@ -32,6 +35,8 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -49,15 +54,20 @@ public class EstoqueController {
     private static final String NEGATIVO = "negativo";
     private static final String ABAIXO_DO_MINIMO = "abaixo-minimo";
     private static final String SALDO_ANTERIOR = "saldo-anterior";
+    private static final String LOTE_CRITICO = "linha-erro";
+    private static final String LOTE_VENCENDO = "linha-aviso";
 
     private final EstoqueService estoqueService;
     private final Sessao sessao;
     /** Produto do cabeçalho e do kardex; nulo sem seleção. */
     private SaldoEstoque produto;
+    /** Lotes do produto selecionado (F17.3); nulo sem seleção. */
+    private EstoqueService.LotesDoProduto lotes;
 
     @FXML private VBox raiz;
     @FXML private TextField campoBusca;
     @FXML private CheckBox filtroAbaixoMinimo;
+    @FXML private CheckBox filtroSemLoteNegativo;
     @FXML private CheckBox filtroInativos;
     @FXML private TableView<SaldoEstoque> tabelaProdutos;
     @FXML private TableColumn<SaldoEstoque, Long> colunaCodigo;
@@ -87,6 +97,24 @@ public class EstoqueController {
     @FXML private TableColumn<MovimentoKardex, String> colunaCusto;
     @FXML private TableColumn<MovimentoKardex, String> colunaUsuario;
     @FXML private TableColumn<MovimentoKardex, String> colunaOrigem;
+    @FXML private TabPane abasProduto;
+    @FXML private Tab abaLotes;
+    @FXML private Label avisoLotes;
+    @FXML private CheckBox mostrarZerados;
+    @FXML private Button botaoTransferir;
+    @FXML private TableView<Lote> tabelaLotes;
+    @FXML private Label semLotes;
+    @FXML private TableColumn<Lote, String> colunaLote;
+    @FXML private TableColumn<Lote, String> colunaValidade;
+    @FXML private TableColumn<Lote, BigDecimal> colunaSaldoLote;
+    @FXML private TableColumn<Lote, String> colunaDias;
+    @FXML private TableColumn<Lote, String> colunaSituacaoLote;
+    @FXML private Label tituloRazao;
+    @FXML private TableView<MovimentoLote> tabelaRazao;
+    @FXML private TableColumn<MovimentoLote, String> colunaRazaoData;
+    @FXML private TableColumn<MovimentoLote, String> colunaRazaoTipo;
+    @FXML private TableColumn<MovimentoLote, String> colunaRazaoDocumento;
+    @FXML private TableColumn<MovimentoLote, BigDecimal> colunaRazaoQuantidade;
 
     public EstoqueController(EstoqueService estoqueService, Sessao sessao) {
         this.estoqueService = estoqueService;
@@ -146,6 +174,8 @@ public class EstoqueController {
         colunaUsuario.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().usuarioNome()));
         colunaOrigem.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().origem()));
 
+        prepararLotes();
+
         StringConverter<LocalDate> conversor = conversorData();
         dataInicio.setConverter(conversor);
         dataFim.setConverter(conversor);
@@ -174,11 +204,18 @@ public class EstoqueController {
         pesquisar();
     }
 
+    /** Abre já filtrando os produtos com o "SEM LOTE" negativo (alerta do painel, F17.3). */
+    public void mostrarSemLoteNegativo() {
+        filtroSemLoteNegativo.setSelected(true);
+        pesquisar();
+        abasProduto.getSelectionModel().select(abaLotes);
+    }
+
     @FXML
     private void pesquisar() {
         Long selecionado = produto == null ? null : produto.produtoId();
         tabelaProdutos.getItems().setAll(estoqueService.pesquisar(sessao, campoBusca.getText(),
-                filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected()));
+                filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected(), filtroSemLoteNegativo.isSelected()));
         long abaixo = tabelaProdutos.getItems().stream().filter(SaldoEstoque::abaixoDoMinimo).count();
         int total = tabelaProdutos.getItems().size();
         resumo.setText((total == 1 ? "1 produto" : total + " produtos")
@@ -215,6 +252,7 @@ public class EstoqueController {
             valorEstoque.setText(Formatos.SEM_VALOR);
             semMovimentos.setText("Selecione um produto para ver a movimentação.");
             tabelaKardex.getItems().clear();
+            mostrarLotes();
             return;
         }
         tituloProduto.setText(saldo.descricao() + (saldo.ativo() ? "" : " — inativo"));
@@ -225,6 +263,7 @@ public class EstoqueController {
         custoMedio.setText(custo(saldo.custo()));
         valorEstoque.setText(Formatos.moeda(saldo.valorEmEstoque()));
         atualizarKardex();
+        mostrarLotes();
     }
 
     @FXML
@@ -252,10 +291,150 @@ public class EstoqueController {
             return;
         }
         long id = produto.produtoId();
-        DialogosEstoque.ajustar(produto.descricao(), quantidade(produto.saldo()),
-                        (tipo, quantidade, motivo, observacao) -> estoqueService.ajustar(sessao, id, tipo,
-                                CampoNumero.ler(quantidade, "Quantidade"), motivo, observacao))
+        // F17.3: com o controle ligado, o diálogo oferece o lote (lidos agora, com o saldo atual).
+        List<Lote> doProduto = estoqueService.lotesDoProduto(sessao, id).controla()
+                ? estoqueService.lotes(sessao, id) : null;
+        DialogosEstoque.ajustar(produto.descricao(), quantidade(produto.saldo()), doProduto,
+                        produto.unidadeFracionada(),
+                        (tipo, quantidade, motivo, observacao, lote) -> estoqueService.ajustar(sessao, id, tipo,
+                                CampoNumero.ler(quantidade, "Quantidade"), motivo, observacao, lote))
                 .ifPresent(this::ajustado);
+    }
+
+    // ----- Lotes (F17.3) -----
+
+    private void prepararLotes() {
+        colunaLote.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().semLote() ? Lote.SEM_LOTE
+                : c.getValue().codigo().isEmpty() ? "(sem código)" : c.getValue().codigo()));
+        colunaValidade.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().validade() == null ? "—"
+                : Formatos.data(c.getValue().validade())));
+        colunaSaldoLote.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().saldo()));
+        colunaSaldoLote.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(BigDecimal valor, boolean vazio) {
+                super.updateItem(valor, vazio);
+                setText(vazio || valor == null || produto == null ? null
+                        : Formatos.quantidade(valor, produto.unidadeFracionada()));
+            }
+        });
+        colunaDias.setCellValueFactory(c -> {
+            Long dias = lotes == null ? null : lotes.diasParaVencer(c.getValue());
+            return new ReadOnlyStringWrapper(dias == null ? "—" : String.valueOf(dias));
+        });
+        colunaSituacaoLote.setCellValueFactory(c -> new ReadOnlyStringWrapper(lotes == null ? ""
+                : lotes.situacao(c.getValue())));
+        tabelaLotes.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(Lote lote, boolean vazio) {
+                super.updateItem(lote, vazio);
+                getStyleClass().removeAll(LOTE_CRITICO, LOTE_VENCENDO);
+                if (!vazio && lote != null && lotes != null) {
+                    if (lotes.critico(lote)) {
+                        getStyleClass().add(LOTE_CRITICO);
+                    } else if (lotes.vencendo(lote)) {
+                        getStyleClass().add(LOTE_VENCENDO);
+                    }
+                }
+            }
+        });
+        tabelaLotes.getSelectionModel().selectedItemProperty().addListener((o, a, lote) -> mostrarRazao(lote));
+        colunaRazaoData.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.dataHora(c.getValue().criadoEm())));
+        colunaRazaoTipo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().tipo()));
+        colunaRazaoDocumento.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().documento()));
+        colunaRazaoQuantidade.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().quantidade()));
+        colunaRazaoQuantidade.setCellFactory(col -> celulaComSinal());
+    }
+
+    /** Lotes do produto selecionado: os zerados só com "Mostrar lotes zerados"; em produto sem controle, o aviso. */
+    private void mostrarLotes() {
+        Long selecionado = Optional.ofNullable(tabelaLotes.getSelectionModel().getSelectedItem()).map(Lote::id)
+                .orElse(null);
+        tabelaLotes.getItems().clear();
+        tabelaRazao.getItems().clear();
+        tituloRazao.setText("Razão do lote");
+        if (produto == null) {
+            lotes = null;
+            avisoLotes.setText("");
+            semLotes.setText("Selecione um produto para ver os lotes.");
+            botaoTransferir.setDisable(true);
+            return;
+        }
+        lotes = estoqueService.lotesDoProduto(sessao, produto.produtoId());
+        if (!lotes.controla()) {
+            avisoLotes.setText("Este produto não controla validade e lotes. Para ligar, abra o produto em Produtos e "
+                    + "marque \"Controla validade e lotes\".");
+            semLotes.setText("Produto sem controle de validade.");
+            botaoTransferir.setDisable(true);
+            return;
+        }
+        List<Lote> visiveis = lotes.lotes().stream()
+                .filter(l -> mostrarZerados.isSelected() || l.saldo().signum() != 0).toList();
+        long ocultos = lotes.lotes().size() - visiveis.size();
+        avisoLotes.setText("Vencido e " + Lote.SEM_LOTE + " negativo em vermelho; vencendo em até "
+                + lotes.alertaDias() + (lotes.alertaDias() == 1 ? " dia" : " dias") + " em amarelo."
+                + (ocultos == 0 ? "" : " " + (ocultos == 1 ? "1 lote zerado oculto." : ocultos + " lotes zerados ocultos.")));
+        semLotes.setText("Nenhum lote com saldo. A entrada de mercadoria e o ajuste de entrada criam os lotes.");
+        tabelaLotes.getItems().setAll(visiveis);
+        visiveis.stream().filter(l -> selecionado != null && l.id() == selecionado).findFirst()
+                .ifPresent(l -> tabelaLotes.getSelectionModel().select(l));
+        botaoTransferir.setDisable(tabelaLotes.getSelectionModel().getSelectedItem() == null);
+    }
+
+    @FXML
+    private void atualizarLotes() {
+        mostrarLotes();
+    }
+
+    private void mostrarRazao(Lote lote) {
+        botaoTransferir.setDisable(lote == null || lotes == null || !lotes.controla());
+        if (lote == null || produto == null) {
+            tabelaRazao.getItems().clear();
+            tituloRazao.setText("Razão do lote");
+            return;
+        }
+        tituloRazao.setText("Razão do lote " + lote.descricao());
+        tabelaRazao.getItems().setAll(estoqueService.razaoDoLote(sessao, produto.produtoId(), lote.id()));
+        tabelaRazao.scrollTo(Math.max(0, tabelaRazao.getItems().size() - 1));
+    }
+
+    /** "Transferir…": do lote selecionado para um lote existente ou novo (ESTOQUE, com motivo). */
+    @FXML
+    private void transferir() {
+        Lote origem = tabelaLotes.getSelectionModel().getSelectedItem();
+        if (produto == null || origem == null || lotes == null || !lotes.controla()) {
+            return;
+        }
+        long id = produto.produtoId();
+        SaldoEstoque doProduto = produto;
+        boolean feito = DialogosEstoque.transferir(produto.descricao(), origem, lotes.lotes(),
+                produto.unidadeFracionada(), (destino, quantidade, motivo) -> estoqueService.transferirEntreLotes(
+                        sessao, id, origem.id(), destino.comQuantidade(CampoNumero.ler(quantidade, "Quantidade")),
+                        motivo));
+        if (feito) {
+            mostrarLotes();
+            Mensagem.sucesso(mensagem, "Transferência registrada no produto " + doProduto.nome()
+                    + ". O estoque do produto não mudou.");
+        }
+    }
+
+    /** Quantidade do razão com sinal (+/−), na unidade do produto; negativa em vermelho. */
+    private TableCell<MovimentoLote, BigDecimal> celulaComSinal() {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(BigDecimal valor, boolean vazio) {
+                super.updateItem(valor, vazio);
+                getStyleClass().remove(NEGATIVO);
+                if (vazio || valor == null || produto == null) {
+                    setText(null);
+                    return;
+                }
+                setText((valor.signum() < 0 ? "−" : "+")
+                        + Formatos.quantidade(valor.abs(), produto.unidadeFracionada()));
+                if (valor.signum() < 0) {
+                    getStyleClass().add(NEGATIVO);
+                }
+            }
+        };
     }
 
     @FXML

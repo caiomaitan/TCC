@@ -47,7 +47,7 @@ public class ProdutoDAO {
     private static final String COLUNAS = """
             SELECT p.id, p.nome, p.categoria_id, c.nome AS categoria_nome, p.unidade, u.fracionada,
                    p.preco_venda, p.custo, p.estoque_minimo, p.plu, p.ativo, pe.quantidade AS estoque,
-                   p.atualizado_em, us.nome AS atualizado_por_nome
+                   p.atualizado_em, us.nome AS atualizado_por_nome, p.controla_validade
               FROM produto p
               JOIN unidade_medida u   ON u.sigla = p.unidade
               JOIN produto_estoque pe ON pe.produto_id = p.id
@@ -538,6 +538,7 @@ public class ProdutoDAO {
                 rs.getBigDecimal("estoque"),
                 rs.getObject("atualizado_em", OffsetDateTime.class),
                 rs.getString("atualizado_por_nome"),
-                codigos);
+                codigos,
+                rs.getBoolean("controla_validade"));
     }
 }

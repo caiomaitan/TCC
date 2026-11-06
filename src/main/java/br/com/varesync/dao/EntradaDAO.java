@@ -43,7 +43,9 @@ public class EntradaDAO {
 
     private static final String SELECT_ITEM = """
             SELECT i.id, i.produto_id, p.nome, p.unidade, u.fracionada, i.quantidade, i.custo_unitario,
-                   i.valor_total, p.custo AS custo_atual, p.preco_venda,
+                   i.valor_total, p.custo AS custo_atual, p.preco_venda, p.controla_validade,
+                   (SELECT coalesce(sum(l.quantidade), 0) FROM entrada_mercadoria_item_lote l
+                     WHERE l.entrada_item_id = i.id) AS quantidade_em_lotes,
                    (SELECT c.codigo FROM produto_codigo_barras c WHERE c.produto_id = p.id AND c.principal)
                        AS codigo_barras
               FROM entrada_mercadoria_item i
@@ -357,6 +359,7 @@ public class EntradaDAO {
         return new ItemEntrada(rs.getLong("id"), rs.getLong("produto_id"), rs.getString("nome"),
                 rs.getString("codigo_barras"), rs.getString("unidade"), rs.getBoolean("fracionada"),
                 rs.getBigDecimal("quantidade"), rs.getBigDecimal("custo_unitario"), rs.getBigDecimal("valor_total"),
-                rs.getBigDecimal("custo_atual"), rs.getBigDecimal("preco_venda"));
+                rs.getBigDecimal("custo_atual"), rs.getBigDecimal("preco_venda"), rs.getBoolean("controla_validade"),
+                rs.getBigDecimal("quantidade_em_lotes"));
     }
 }

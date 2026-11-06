@@ -22,7 +22,12 @@ public class EstoqueDAO {
      * Filtros da consulta. {@code termoNome} já normalizado (minúsculo e sem acento); {@code digitos} só dígitos
      * (código interno ou código de barras exato).
      */
-    public record Filtro(String termoNome, String digitos, boolean soAbaixoDoMinimo, boolean incluirInativos) {
+    public record Filtro(String termoNome, String digitos, boolean soAbaixoDoMinimo, boolean incluirInativos,
+                         boolean soSemLoteNegativo) {
+
+        public Filtro(String termoNome, String digitos, boolean soAbaixoDoMinimo, boolean incluirInativos) {
+            this(termoNome, digitos, soAbaixoDoMinimo, incluirInativos, false);
+        }
     }
 
     private static final String COLUNAS = """
@@ -52,6 +57,14 @@ public class EstoqueDAO {
         }
         if (!filtro.incluirInativos()) {
             sql.append(" AND e.ativo");
+        }
+        if (filtro.soSemLoteNegativo()) {
+            sql.append("""
+                     AND p.controla_validade
+                     AND EXISTS (SELECT 1 FROM lote l JOIN lote_saldo s ON s.lote_id = l.id
+                                  WHERE l.produto_id = e.produto_id AND l.codigo = '' AND l.validade IS NULL
+                                    AND s.saldo < 0)
+                    """);
         }
         sql.append(" ORDER BY p.nome_busca, e.produto_id");
 

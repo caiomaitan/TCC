@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.AlertasPainel;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ContaFinanceira;
+import br.com.varesync.model.Lote;
 import br.com.varesync.model.DiaPainel;
 import br.com.varesync.model.FinanceiroPainel;
 import br.com.varesync.model.IndicadoresDia;
@@ -354,6 +355,23 @@ public class PainelController {
             alerta(plural(a.pagarHoje().quantidade(), "conta a pagar vence", "contas a pagar vencem") + " hoje ("
                     + Formatos.moeda(a.pagarHoje().valor()) + ") — ver no Financeiro",
                     () -> navegacao.abrirContasAPagar(hoje, hoje));
+        }
+        if (a.lotes() != null) {
+            AlertasPainel.Lotes l = a.lotes();
+            String destino = sessao.pode(Permissao.RELATORIOS) ? " — ver no relatório de validade" : " — ver no Estoque";
+            if (l.vencendo() > 0) {
+                alerta(plural(l.vencendo(), "lote vence", "lotes vencem") + " em até " + l.dias()
+                        + (l.dias() == 1 ? " dia" : " dias") + destino,
+                        () -> navegacao.abrirValidade(l.dias(), false));
+            }
+            if (l.vencidos() > 0) {
+                alerta(plural(l.vencidos(), "lote vencido", "lotes vencidos") + " com saldo (fazer a perda por "
+                        + "vencimento)" + destino, () -> navegacao.abrirValidade(l.dias(), true));
+            }
+            if (l.semLoteNegativo() > 0) {
+                alerta(plural(l.semLoteNegativo(), "produto", "produtos") + " com saldo negativo no "
+                        + Lote.SEM_LOTE + " — ver no Estoque", () -> navegacao.abrirSemLoteNegativo());
+            }
         }
         for (ContaFinanceira c : a.contasNegativas()) {
             alerta("A conta " + c.nome() + " está com saldo negativo (" + Formatos.moeda(c.saldo())

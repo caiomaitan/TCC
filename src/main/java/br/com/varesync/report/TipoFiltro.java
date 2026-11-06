@@ -20,5 +20,7 @@ public enum TipoFiltro {
     FORMA_PAGAMENTO,
     CATEGORIA_DESPESA,
     AGRUPAMENTO,
-    MES
+    MES,
+    /** R29: vencem em até N dias e "incluir vencidos" (F17.3). */
+    VALIDADE
 }

@@ -2,6 +2,7 @@ package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.Permissao;
 import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.BackupService;
@@ -307,6 +308,22 @@ public class PrincipalController {
             public void abrirContasFinanceiras() {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.FINANCEIRO);
                 loader.<FinanceiroController>getController().mostrarContas();
+            }
+
+            @Override
+            public void abrirValidade(int dias, boolean vencidos) {
+                if (sessao.pode(Permissao.RELATORIOS)) {
+                    FXMLLoader loader = abrirFiltrado(ItemMenu.RELATORIOS);
+                    loader.<RelatoriosController>getController().mostrarValidade(dias, vencidos);
+                } else {
+                    abrirFiltrado(ItemMenu.ESTOQUE);
+                }
+            }
+
+            @Override
+            public void abrirSemLoteNegativo() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.ESTOQUE);
+                loader.<EstoqueController>getController().mostrarSemLoteNegativo();
             }
         };
     }

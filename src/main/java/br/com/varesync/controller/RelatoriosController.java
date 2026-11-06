@@ -8,9 +8,11 @@ import br.com.varesync.report.Criterio;
 import br.com.varesync.report.ExportadorCsv;
 import br.com.varesync.report.FiltroCrediario;
 import br.com.varesync.report.FiltroFinanceiro;
+import br.com.varesync.report.FiltroValidade;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.RelTitulosReceber;
+import br.com.varesync.report.RelValidade;
 import br.com.varesync.report.Relatorio;
 import br.com.varesync.report.RelatorioPdf;
 import br.com.varesync.report.ResultadoRelatorio;
@@ -119,6 +121,9 @@ public class RelatoriosController {
     @FXML private CheckBox filtroAbaixoMinimo;
     @FXML private CheckBox filtroInativos;
     @FXML private CheckBox filtroDetalhar;
+    @FXML private HBox grupoValidade;
+    @FXML private TextField campoDiasValidade;
+    @FXML private CheckBox filtroVencidos;
     @FXML private Button botaoGerar;
     @FXML private ProgressIndicator progresso;
     @FXML private Label mensagem;
@@ -196,6 +201,8 @@ public class RelatoriosController {
         vencimentoAte.setConverter(new ConversorData());
         campoTopN.setText("20");
         campoDias.setText(String.valueOf(relatorioService.diasSemGiroPadrao(sessao)));
+        campoDiasValidade.setText(String.valueOf(relatorioService.validadeAlertaDias(sessao)));
+        filtroVencidos.setSelected(true);
 
         escolhaRelatorio.getSelectionModel().select(0);
     }
@@ -206,6 +213,20 @@ public class RelatoriosController {
                 .ifPresent(r -> {
                     escolhaRelatorio.setValue(r);
                     escolhaSituacao.setValue(SituacaoTitulo.VENCIDOS);
+                    gerar();
+                });
+    }
+
+    /**
+     * Alerta do painel (F17.3): R29 já filtrado e gerado, com os lotes que vencem em até {@code dias} dias e, se
+     * {@code vencidos}, os já vencidos.
+     */
+    public void mostrarValidade(int dias, boolean vencidos) {
+        escolhaRelatorio.getItems().stream().filter(r -> r instanceof RelValidade).findFirst()
+                .ifPresent(r -> {
+                    escolhaRelatorio.setValue(r);
+                    campoDiasValidade.setText(String.valueOf(dias));
+                    filtroVencidos.setSelected(vencidos);
                     gerar();
                 });
     }
@@ -232,6 +253,7 @@ public class RelatoriosController {
                 Map.entry(grupoMes, TipoFiltro.MES),
                 Map.entry(filtroAbaixoMinimo, TipoFiltro.SO_ABAIXO_MINIMO),
                 Map.entry(filtroInativos, TipoFiltro.INCLUIR_INATIVOS),
+                Map.entry(grupoValidade, TipoFiltro.VALIDADE),
                 Map.entry(filtroDetalhar, TipoFiltro.DETALHAR_VENDAS));
         grupos.forEach((no, filtro) -> {
             boolean visivel = usados.contains(filtro);
@@ -318,6 +340,9 @@ public class RelatoriosController {
                 usados.contains(TipoFiltro.CATEGORIA_DESPESA) ? nuloSeTodos(escolhaCategoriaDespesa.getValue()) : null,
                 usados.contains(TipoFiltro.AGRUPAMENTO) ? escolhaAgrupamento.getValue() : null,
                 usados.contains(TipoFiltro.MES) ? escolhaMes.getValue() : null));
+        if (usados.contains(TipoFiltro.VALIDADE)) {
+            f = f.comValidade(new FiltroValidade(diasValidade(), filtroVencidos.isSelected()));
+        }
         f = f.comEstoque(filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected());
         return f.comDetalhe(filtroDetalhar.isSelected());
     }
@@ -329,6 +354,18 @@ public class RelatoriosController {
         }
         if (!Textos.soDigitos(texto) || texto.length() > 6) {
             throw new NegocioException("Informe quantos produtos mostrar no ranking (ou deixe vazio para todos).");
+        }
+        return Integer.parseInt(texto);
+    }
+
+    /** R29: vazio = o padrão da configuração ({@code validade.alerta_dias}). */
+    private Integer diasValidade() {
+        String texto = Textos.normalizarEspacos(campoDiasValidade.getText());
+        if (texto.isEmpty()) {
+            return null;
+        }
+        if (!Textos.soDigitos(texto) || texto.length() > 4) {
+            throw new NegocioException("Informe em quantos dias os lotes vencem (número inteiro).");
         }
         return Integer.parseInt(texto);
     }

@@ -22,8 +22,11 @@ import br.com.varesync.model.FormaReembolso;
 import br.com.varesync.model.GrupoDespesa;
 import br.com.varesync.model.ItemContagem;
 import br.com.varesync.model.ItemDevolucao;
+import br.com.varesync.model.Lote;
+import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.MotivoPerda;
 import br.com.varesync.model.ParcelaEntrada;
+import br.com.varesync.model.ParteLote;
 import br.com.varesync.model.PlanoCrediario;
 import br.com.varesync.model.PlanoRecebimento;
 import br.com.varesync.model.Permissao;
@@ -163,6 +166,21 @@ public class GeradorDemo {
     static final int PRAZO_PEDIDO_DIAS = 3;
     /** Fatores das caixas dos produtos vendidos em unidade inteira (o fracionado vem a granel, fator 1). */
     private static final int[] FATORES = {6, 12, 24};
+
+    /**
+     * Validade e lotes (F17.3): perecíveis embalados de "Frios e laticínios" e "Padaria" com o controle ligado desde o
+     * cadastro e os dias de validade de cada lote, contados da entrada. Pelo menos 6 dias: a entrega é semanal e o lote
+     * da semana não pode vencer antes da próxima.
+     */
+    static final Map<String, Integer> VALIDADE_DIAS = Map.of(
+            "Iogurte natural 170 g", 12, "Manteiga com sal 200 g", 40, "Requeijão cremoso 200 g", 20,
+            "Margarina 500 g", 60, "Queijo parmesão ralado 50 g", 90, "Pão de forma tradicional 500 g", 6,
+            "Bolo de fubá unidade", 8, "Bisnaguinha 300 g", 9, "Panetone 400 g", 60);
+    /** Sobra das compras dos perecíveis (15%): é o que vence e vira perda por vencimento. */
+    static final BigDecimal SOBRA_PERECIVEL = new BigDecimal("1.15");
+    /** Os lotes que venceram nestes últimos dias (até ontem) ficam com saldo: aparecem no R29 e no painel. */
+    static final int DIAS_VENCIDOS_SEM_PERDA = 8;
+    private static final DateTimeFormatter CODIGO_LOTE = DateTimeFormatter.ofPattern("'L'yyMMdd");
 
     private record ContasDemo(long cofre, long banco) {
     }
@@ -377,7 +395,7 @@ public class GeradorDemo {
         for (int i = 0; i < catalogo.size(); i++) {
             ItemCatalogo item = catalogo.get(i);
             posicionar(vespera, LocalTime.of(8, 30).plusSeconds(20L * i), zona);
-            produtoIds.add(produtos.criar(supervisor, dados(item, categoriaIds, inicial.get(i))));
+            produtoIds.add(produtos.criar(supervisor, dados(item, categoriaIds, inicial.get(i), vespera)));
             progresso.informar(++feito[0], totalPassos, "Cadastrando produtos (" + (i + 1) + " de "
                     + catalogo.size() + ")");
         }
@@ -446,11 +464,13 @@ public class GeradorDemo {
         int canceladas = 0;
         int itensCancelados = 0;
         long inventarioId = 0;
+        int perdasPorVencimento = 0;
         int entradas = 0;
         for (DiaPlano dia : dias) {
             for (CompraPlano compra : comprasPorDia.getOrDefault(dia.numero(), List.of())) {
                 comprar(gerente, compra, fornecedoresDemo.get(compra.fornecedor()),
-                        fornecedorIds.get(compra.fornecedor()), produtoIds, dia.data(), zona, pedidoDaCompra.get(compra));
+                        fornecedorIds.get(compra.fornecedor()), produtoIds, catalogo, dia.data(), zona,
+                        pedidoDaCompra.get(compra));
                 entradas++;
                 progresso.informar(++feito[0], totalPassos, "Dia " + dia.numero() + " de " + DIAS + " ("
                         + Formatos.data(dia.data()) + "): entrada de mercadoria de "
@@ -473,8 +493,14 @@ public class GeradorDemo {
                 posicionar(dia.data(), LocalTime.of(7, 0), zona);
                 inventarioId = inventario(gerente, categoriaIds, execucao, dia.data(), zona);
             }
+            // F17.3: perda por vencimento da sobra dos lotes vencidos (menos a dos últimos dias, que fica no alerta).
+            perdasPorVencimento += baixarVencidos(gerente, catalogo, produtoIds, dia.data(),
+                    hoje.minusDays(DIAS_VENCIDOS_SEM_PERDA), zona);
             for (int p = 0; p < dia.perdas().size(); p++) {
                 PerdaPlano perda = dia.perdas().get(p);
+                if (perda.motivo() == MotivoPerda.VENCIMENTO && perecivel(catalogo.get(perda.produto()))) {
+                    continue; // no perecível, o vencimento vem dos lotes (acima)
+                }
                 posicionar(dia.data(), LocalTime.of(7, 30).plusMinutes(p), zona);
                 estoque.ajustar(gerente, produtoIds.get(perda.produto()), TipoAjuste.PERDA, perda.quantidade(),
                         perda.motivo().rotulo(), perda.motivo() == MotivoPerda.AVARIA ? "embalagem danificada"
@@ -578,6 +604,7 @@ public class GeradorDemo {
         }
 
         relogio.ajustar(relogioReal.instant());
+        int perdasDeVencimento = perdasPorVencimento;
         int titulosVencidos = comLimite.stream().mapToInt(id -> (int) recebimentos.titulos(supervisor, id).stream()
                 .filter(t -> t.diasAtraso() > 0).count()).sum();
         Resultado resultado = new Resultado(criados, catalogo.size(), vendasFeitas, canceladas, itensCancelados,
@@ -598,7 +625,8 @@ public class GeradorDemo {
                             + " clientes, " + resultado.fornecedores()
                             + " fornecedores (" + resultado.vinculos() + " vínculos com produtos), "
                             + resultado.pedidos() + " pedidos de compra (" + resultado.pedidosPendentes()
-                            + " pendentes) e " + resultado.entradas() + " entradas de mercadoria de "
+                            + " pendentes), " + perdasDeVencimento + " perdas por vencimento de lotes"
+                            + " e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
         });
@@ -769,7 +797,9 @@ public class GeradorDemo {
                     if (!reposto(item, fornecedor)) {
                         continue;
                     }
-                    BigDecimal quantidade = somar(demanda, p, d, d + 7).setScale(0, RoundingMode.CEILING);
+                    BigDecimal semana7 = somar(demanda, p, d, d + 7);
+                    BigDecimal quantidade = (perecivel(item) ? semana7.multiply(SOBRA_PERECIVEL) : semana7)
+                            .setScale(0, RoundingMode.CEILING);
                     if (quantidade.signum() == 0) {
                         continue;
                     }
@@ -853,7 +883,8 @@ public class GeradorDemo {
      * dos itens, itens às 6h40 e confirmação às 6h50 (antes da abertura do caixa, do inventário e dos reajustes).
      */
     private void comprar(Sessao gerente, CompraPlano compra, FornecedorDemo fornecedor, long fornecedorId,
-                         List<Long> produtoIds, LocalDate data, ZoneId zona, Long pedidoId) {
+                         List<Long> produtoIds, List<ItemCatalogo> catalogo, LocalDate data, ZoneId zona,
+                         Long pedidoId) {
         posicionar(data, LocalTime.of(6, 40), zona);
         BigDecimal total = compra.itens().stream().map(ItemCompra::valorTotal).reduce(BigDecimal.ZERO,
                 BigDecimal::add);
@@ -863,8 +894,14 @@ public class GeradorDemo {
         for (ItemCompra item : compra.itens()) {
             posicionar(data, hora, zona);
             hora = hora.plusSeconds(5);
-            compras.adicionarItem(gerente, id, produtoIds.get(item.produto()), item.quantidade(),
+            long itemId = compras.adicionarItem(gerente, id, produtoIds.get(item.produto()), item.quantidade(),
                     item.porValorTotal() ? null : item.custo(), item.porValorTotal() ? item.valorTotal() : null);
+            ItemCatalogo doCatalogo = catalogo.get(item.produto());
+            if (perecivel(doCatalogo)) {
+                // F17.3: cada entrada semanal de um perecível vira um lote, com a validade dele.
+                compras.salvarLotesDoItem(gerente, id, itemId, List.of(new LoteEntrada(codigoLote(data),
+                        validade(doCatalogo, data), item.quantidade())));
+            }
         }
         // Duas duplicatas (F15.8): metade a 28 dias e o resto a 56 dias da emissão; viram contas a pagar.
         BigDecimal primeira = total.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
@@ -1113,11 +1150,63 @@ public class GeradorDemo {
         return ids;
     }
 
-    private static DadosProduto dados(ItemCatalogo item, Map<String, Long> categoriaIds, BigDecimal inicial) {
+    // ----- Validade e lotes (F17.3) -----
+
+    static boolean perecivel(ItemCatalogo item) {
+        return VALIDADE_DIAS.containsKey(item.nome());
+    }
+
+    /** Validade do lote que entra em {@code entrada}. */
+    private static LocalDate validade(ItemCatalogo item, LocalDate entrada) {
+        return entrada.plusDays(VALIDADE_DIAS.get(item.nome()));
+    }
+
+    /** "L261012": a data da entrada. */
+    private static String codigoLote(LocalDate entrada) {
+        return CODIGO_LOTE.format(entrada);
+    }
+
+    /**
+     * Perda por vencimento, às 7h25: baixa, lote a lote, a sobra dos lotes que venceram antes de {@code data}, menos a
+     * dos que venceram a partir de {@code semPerdaDesde} (os últimos dias), que fica com saldo para o alerta do painel e
+     * o R29.
+     *
+     * @return perdas registradas
+     */
+    private int baixarVencidos(Sessao gerente, List<ItemCatalogo> catalogo, List<Long> produtoIds, LocalDate data,
+                               LocalDate semPerdaDesde, ZoneId zona) {
+        int feitas = 0;
+        for (int p = 0; p < catalogo.size(); p++) {
+            if (!perecivel(catalogo.get(p))) {
+                continue;
+            }
+            for (Lote lote : estoque.lotes(gerente, produtoIds.get(p))) {
+                if (lote.semLote() || lote.saldo().signum() <= 0 || !lote.validade().isBefore(data)
+                        || !lote.validade().isBefore(semPerdaDesde)) {
+                    continue;
+                }
+                posicionar(data, LocalTime.of(7, 25).plusSeconds(10L * feitas), zona);
+                estoque.ajustar(gerente, produtoIds.get(p), TipoAjuste.PERDA, lote.saldo(),
+                        MotivoPerda.VENCIMENTO.rotulo(), "sobra do lote " + lote.descricao(),
+                        ParteLote.existente(lote.id(), null));
+                feitas++;
+            }
+        }
+        return feitas;
+    }
+
+    /**
+     * Cadastro do produto do catálogo. Os perecíveis (F17.3) nascem com o controle de validade ligado e o estoque
+     * inicial num lote da véspera.
+     */
+    private static DadosProduto dados(ItemCatalogo item, Map<String, Long> categoriaIds, BigDecimal inicial,
+                                      LocalDate vespera) {
         List<CodigoBarras> codigos = item.codigoBarras() == null ? List.of()
                 : List.of(new CodigoBarras(item.codigoBarras(), true));
+        boolean perecivel = perecivel(item);
         return new DadosProduto(item.nome(), categoriaIds.get(item.categoria().toLowerCase()), item.unidade(),
-                item.preco(), item.custo(), item.minimo(), item.plu(), codigos, inicial);
+                item.preco(), item.custo(), item.minimo(), item.plu(), codigos, inicial, perecivel ? Boolean.TRUE : null,
+                perecivel ? ParteLote.novo(codigoLote(vespera), validade(item, vespera), null) : null);
     }
 
     private Map<Forma, List<FormaPagamento>> formas(Sessao sessao) {

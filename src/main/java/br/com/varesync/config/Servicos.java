@@ -96,7 +96,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         CategoriaDAO categoriaDAO = new CategoriaDAO();
         EstoqueDAO estoqueDAO = new EstoqueDAO();
         EstoqueService estoque = new EstoqueService(transacao, produtoDAO, estoqueDAO, new MovimentoEstoqueDAO(),
-                new LoteDAO(),
+                new LoteDAO(), configuracaoDAO,
                 auditoria, clock);
         CategoriaService categorias = new CategoriaService(transacao, categoriaDAO);
         ProdutoService produtos = new ProdutoService(transacao, produtoDAO, categoriaDAO, new UnidadeMedidaDAO(),
@@ -129,7 +129,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         RelatorioService relatorios = new RelatorioService(transacao, configuracaoDAO, categoriaDAO, produtoDAO,
                 usuarioDAO, fornecedorDAO, formaPagamentoDAO, new ContaPagarDAO(), clock);
         PainelService painel = new PainelService(transacao, new PainelDAO(), estoqueDAO, caixa, new AuditoriaDAO(),
-                tituloDAO, contaDAO, clock);
+                tituloDAO, contaDAO, new LoteDAO(), configuracaoDAO, clock);
         ConfiguracaoService configuracoes = new ConfiguracaoService(transacao, configuracaoDAO, formaPagamentoDAO,
                 produtoDAO, contaDAO, auditoria);
         PromocaoService promocoes = new PromocaoService(transacao, promocaoDAO, produtoDAO, auditoria, clock);

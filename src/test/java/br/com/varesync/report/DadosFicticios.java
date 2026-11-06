@@ -351,9 +351,21 @@ final class DadosFicticios {
         return resultado(new RelCoberturaRuptura(), Filtros.vazios(), sugestoes());
     }
 
+    /** R29: um lote vencido e dois vencendo, de dois produtos. */
+    static ResultadoRelatorio<RelValidade.Linha> r29() {
+        return resultado(new RelValidade(), Filtros.vazios().comValidade(new FiltroValidade(7, true)), List.of(
+                new RelValidade.Linha(21, "Iogurte natural 170 g", "Frios e laticínios", "UN", false, "L261001",
+                        LocalDate.of(2026, 10, 13), -2, d("6.000"), d("1.9000"), d("11.40")),
+                new RelValidade.Linha(21, "Iogurte natural 170 g", "Frios e laticínios", "UN", false, "L261008",
+                        LocalDate.of(2026, 10, 20), 5, d("18.000"), d("1.9000"), d("34.20")),
+                new RelValidade.Linha(30, "Pão de forma tradicional 500 g", "Padaria", "UN", false,
+                        RelValidade.SEM_CODIGO, LocalDate.of(2026, 10, 15), 0, d("4.000"), d("6.2000"),
+                        d("24.80"))));
+    }
+
     static List<ResultadoRelatorio<?>> todos() {
         return List.of(r01(false), r01(true), r02(), r03(), r04(), r05(), r06(), r07(), r08(), r09(),
                 r10(Criterio.RECEITA), r10(Criterio.VENDAS), r12(), r13(), r14(), r15(), r16(), r17(), r18(),
-                r19(), r20(), dadosCliente(), r23(), r24(), r25(), r26(), r27(), r28());
+                r19(), r20(), dadosCliente(), r23(), r24(), r25(), r26(), r27(), r28(), r29());
     }
 }
