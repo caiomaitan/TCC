@@ -54,7 +54,11 @@ public enum AcaoAuditoria {
     LOTE_TRANSFERIDO("Transferência entre lotes"),
     ETIQUETAS_IMPRESSAS("Etiquetas de gôndola impressas"),
     ETIQUETAS_EM_DIA("Etiquetas marcadas como em dia"),
-    CARGA_BALANCA_GERADA("Carga de balança gerada");
+    CARGA_BALANCA_GERADA("Carga de balança gerada"),
+    PERFIL_TRIBUTARIO_ALTERADO("Perfil tributário"),
+    PERFIL_TRIBUTARIO_APLICADO("Perfil tributário aplicado em lote"),
+    DADOS_FISCAIS_ALTERADOS("Dados fiscais do produto"),
+    TABELA_FISCAL_IMPORTADA("Tabela NCM ou CEST importada");
 
     private final String rotulo;
 

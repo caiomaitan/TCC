@@ -1,6 +1,7 @@
 package br.com.varesync.controller;
 
 import br.com.varesync.model.Categoria;
+import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.SituacaoProduto;
 import br.com.varesync.service.CategoriaService;
@@ -15,6 +16,7 @@ import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
@@ -53,6 +55,7 @@ public class ProdutosController {
     @FXML private TableColumn<ProdutoResumo, ProdutoResumo> colunaEstoque;
     @FXML private TableColumn<ProdutoResumo, String> colunaAlteracao;
     @FXML private Label resumo;
+    @FXML private Button botaoFiscal;
 
     public ProdutosController(ProdutoService produtoService, CategoriaService categoriaService, Sessao sessao,
                               Callback<Class<?>, Object> fabricaControllers) {
@@ -114,6 +117,9 @@ public class ProdutosController {
             }
         });
 
+        boolean fiscal = sessao.pode(Permissao.FISCAL);
+        botaoFiscal.setVisible(fiscal);
+        botaoFiscal.setManaged(fiscal);
         filtroSituacao.getItems().setAll(SituacaoProduto.values());
         filtroSituacao.setValue(SituacaoProduto.ATIVOS);
         carregarCategorias();
@@ -194,6 +200,14 @@ public class ProdutosController {
     private void abrirPromocoes() {
         Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/promocoes.fxml", "Promoções", fabricaControllers,
                 (PromocoesController c) -> { });
+    }
+
+    /** Cadastro fiscal (F19.2 e F19.3), só para quem tem FISCAL; ao fechar, refaz a busca. */
+    @FXML
+    public void abrirFiscal() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/fiscal.fxml", "Cadastro fiscal", fabricaControllers,
+                (FiscalController c) -> { });
+        pesquisar();
     }
 
     /** Etiquetas de gôndola (F18.1); começa nas pendentes. Também aberta pelo alerta do Painel (F18.3). */

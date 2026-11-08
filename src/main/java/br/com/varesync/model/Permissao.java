@@ -2,7 +2,7 @@ package br.com.varesync.model;
 
 /**
  * Rotinas e ações liberáveis por usuário. Os nomes são os códigos da tabela {@code permissao} (V2; CLIENTES na V6;
- * DEVOLUCAO na V8; RECEBIMENTO e LIMITE_CREDITO na V10; FINANCEIRO na V12).
+ * DEVOLUCAO na V8; RECEBIMENTO e LIMITE_CREDITO na V10; FINANCEIRO na V12; FISCAL na V18).
  * Supervisor tem todas.
  */
 public enum Permissao {
@@ -20,7 +20,8 @@ public enum Permissao {
     DEVOLUCAO("Devoluções e trocas"),
     RECEBIMENTO("Receber títulos do crediário"),
     LIMITE_CREDITO("Gerenciar crédito do crediário"),
-    FINANCEIRO("Financeiro");
+    FINANCEIRO("Financeiro"),
+    FISCAL("Cadastro fiscal");
 
     private final String rotulo;
 

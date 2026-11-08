@@ -108,6 +108,7 @@ Todas entram na classe `Configuracoes` e são editadas na tela de Configuraçõe
   - plugins de build JaCoCo, SpotBugs, Checkstyle e git-commit-id;
   - só para testes: TestFX com Monocle headless (`org.testfx:openjfx-monocle` 21.0.2, feito para o JavaFX 21).
 - **F18:** ZXing (`com.google.zxing:core`), para desenhar códigos de barras e, nos testes, lê-los de volta.
+- **F19:** Jackson (`com.fasterxml.jackson.core:jackson-databind`), só para ler o JSON oficial da tabela NCM.
 - **Qualquer outra:** registrar a decisão no PROGRESSO antes, como manda a regra do projeto.
 
 ### 0.7 Requisitos novos (para a rastreabilidade)
@@ -1064,22 +1065,27 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 ### F19.1 Empresa
 
-- Regime tributário (SIMPLES ou NORMAL), UF e IE, em Configurações › Loja.
+- Regime tributário (SIMPLES ou NORMAL), UF e IE, em Configurações › Loja. A UF é uma das 27 siglas; a IE tem só dígitos ou é "ISENTO" (sem o cálculo do dígito de cada UF).
 
 ### F19.2 Perfis tributários (permissão FISCAL)
 
 - **Tabela `perfil_tributario`**, com estes campos:
   - nome e `cfop` (4 dígitos);
-  - `cst_icms` ou `csosn`, conforme o regime, e `aliquota_icms`;
+  - `cst_icms` ou `csosn`, conforme o regime, `aliquota_icms` e `reducao_base_icms` (percentual de redução da base, só nos CST 20 e 70);
   - `cst_pis`, `aliquota_pis`, `cst_cofins` e `aliquota_cofins`;
-  - `codigo_beneficio` (opcional).
+  - `codigo_beneficio` (opcional; 8 caracteres começando pela UF, como SP010360, ou "SEM CBENEF", nas UFs que usam esse texto);
+  - reforma tributária, opcionais: `cst_ibs_cbs` (3 dígitos) e `cclass_trib` (6 dígitos, que começam pelo CST). Na NF-e e na NFC-e eles são exigidos desde 2026; aqui só se cadastra e se confere o formato.
+- **Na tela do perfil:** só o formato de cada campo é validado; as combinações erradas aparecem no R30.
 - **Novas colunas em `produto`:** `ncm` (8 dígitos), `cest` (7 dígitos), `origem` (0 a 8) e `perfil_tributario_id`.
 - **Aplicação em lote:** o perfil pode ser aplicado a vários produtos de uma vez, por categoria, por seleção ou por NCM.
 
 ### F19.3 Tabelas de apoio
 
-- **Importação:** tabela NCM a partir de um CSV oficial (`código;descrição`) e, opcionalmente, tabela CEST (`cest;ncm;descrição`). Sem tabela importada, o sistema valida só o formato.
-- **XML de NF-e:** o NCM e o CEST do fornecedor preenchem os campos vazios do produto, com confirmação na tela.
+- **Importação da tabela NCM:**
+  - de um CSV (`código;descrição`) ou do JSON oficial da tabela NCM (Siscomex), que traz os códigos com pontos (0000.00.00) e os níveis intermediários: só entram os códigos de 8 dígitos, sem os pontos;
+  - opcionalmente, a tabela CEST (`cest;ncm;descrição`);
+  - sem tabela importada, o sistema valida só o formato.
+- **XML de NF-e:** o NCM, o CEST e a origem do fornecedor preenchem os campos vazios do produto, com confirmação na tela.
 
 ### F19.4 R30 Inconsistências fiscais
 
@@ -1091,19 +1097,23 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 | 2 | NCM com formato inválido ou inexistente na tabela importada |
 | 3 | CEST com formato inválido; CEST que não corresponde ao NCM (se a tabela CEST foi importada) |
 | 4 | CSOSN em regime NORMAL ou CST de ICMS em regime SIMPLES |
-| 5 | CFOP 5405 com situação que não indica ST (diferente de CST 60 e de CSOSN 500); CFOP 5102 com CST 60 ou CSOSN 500 |
+| 5 | CFOP que não é de saída interna (não começa com 5, e a NFC-e só aceita operação interna); CFOP 5405 com situação que não indica ST (diferente de CST 60 e de CSOSN 500); CFOP 5101 ou 5102 com CST 60 ou CSOSN 500 |
 | 6 | Situação sem destaque de ICMS (CST 40, 41 ou 60; CSOSN 102, 103, 300, 400 ou 500) com alíquota de ICMS maior que zero; CST tributado (00 ou 20) com alíquota zero |
-| 7 | Produto com ST (CST 60 ou CSOSN 500) sem CEST |
-| 8 | Origem ausente |
-| 9 | PIS ou COFINS com CST 04 (monofásico), 06 (alíquota zero), 07 (isenta), 08 (sem incidência) ou 09 (suspensão) e alíquota maior que zero |
-| 10 | Produtos com o mesmo NCM em perfis diferentes (aviso, não erro) |
+| 7 | Redução de base: CST 20 ou 70 sem percentual de redução; percentual de redução em outro CST |
+| 8 | Código de benefício: CST 00 com código (a SEFAZ recusa a combinação); formato inválido ou UF diferente da UF da loja; CST 20, 40 ou 41 sem código (aviso: várias UFs exigem) |
+| 9 | Produto com ST (CST 60 ou CSOSN 500) sem CEST |
+| 10 | Origem ausente |
+| 11 | PIS ou COFINS com CST 04 (monofásico), 06 (alíquota zero), 07 (isenta), 08 (sem incidência) ou 09 (suspensão) e alíquota maior que zero; CST 01 ou 02 com alíquota zero; no regime SIMPLES, alíquota maior que zero |
+| 12 | IBS e CBS: perfil sem CST ou sem cClassTrib, ou cClassTrib que não começa pelo CST (aviso) |
+| 13 | Produtos com o mesmo NCM em perfis diferentes (aviso, não erro) |
 
 - Cada regra é uma classe, com teste próprio.
 - **A lista é revisada pelo usuário antes da implementação:** o agente mostra a tabela no plano e espera a confirmação.
 
-### F19.5 Painel
+### F19.5 Painel e gerador
 
-- Alerta "N produtos com inconsistência fiscal", para quem tem FISCAL.
+- Alerta "N produtos com inconsistência fiscal", para quem tem FISCAL; o clique abre o R30.
+- **Gerador:** perfis tributários comuns (por exemplo, tributado, ST e isento) e NCM nos produtos do catálogo, com algumas inconsistências de propósito, para o R30 e o painel terem o que mostrar.
 
 ### Fora desta fase
 
@@ -1113,8 +1123,9 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 - Cada regra tem um caso que dispara e um que não dispara.
 - Aplicar um perfil a uma categoria inteira funciona.
-- O XML preenche NCM e CEST vazios.
-- A tabela NCM é importada, e a existência do código passa a ser validada.
+- O XML preenche NCM, CEST e origem vazios.
+- A tabela NCM é importada (do CSV e do JSON oficial), e a existência do código passa a ser validada.
+- Nos dados de demonstração, o R30 e o painel mostram as inconsistências postas de propósito, e não o catálogo inteiro.
 
 ---
 

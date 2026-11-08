@@ -89,6 +89,7 @@ final class AcessoTeste {
     final PedidoCompraService pedidos;
     final EtiquetaService etiquetas;
     final CargaBalancaService cargaBalanca;
+    final FiscalService fiscal;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -155,6 +156,8 @@ final class AcessoTeste {
         pedidos = new PedidoCompraService(transacao, new PedidoCompraDAO(), new FornecedorDAO(), produtoDAO,
                 new ProdutoFornecedorDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         etiquetas = new EtiquetaService(transacao, new EtiquetaDAO(), new ConfiguracaoDAO(), auditoria, relogio);
+        fiscal = new FiscalService(transacao, new br.com.varesync.dao.PerfilTributarioDAO(),
+                new br.com.varesync.dao.FiscalDAO(), nfe, new ConfiguracaoDAO(), auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }
@@ -175,6 +178,8 @@ final class AcessoTeste {
         try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
             // TRUNCATE não aciona triggers de linha: razão e saldo das contas saem juntos e o saldo zero volta abaixo.
             st.executeUpdate("TRUNCATE usuario, fornecedor, conta_saldo CASCADE");
+            // F19.3: as tabelas de apoio não dependem de usuário.
+            st.executeUpdate("TRUNCATE ncm, cest");
             st.executeUpdate("UPDATE forma_pagamento SET taxa_pct = 0, dias_recebimento = 0, conta_destino_id = "
                     + "CASE WHEN tipo IN ('DINHEIRO', 'CREDITO_CLIENTE', 'CREDIARIO') THEN NULL ELSE "
                     + "(SELECT id FROM conta_financeira WHERE nome = 'Banco') END");

@@ -1,6 +1,8 @@
 package br.com.varesync.config;
 
 import br.com.varesync.controller.CaixaController;
+import br.com.varesync.controller.FiscalController;
+import br.com.varesync.controller.PerfisTributariosController;
 import br.com.varesync.controller.CategoriasController;
 import br.com.varesync.controller.ClientesController;
 import br.com.varesync.controller.DevolucoesController;
@@ -147,7 +149,7 @@ public final class AppContext implements AutoCloseable {
             return new FornecedoresController(s.fornecedores(), sessao);
         }
         if (tipo == ComprasController.class) {
-            return new ComprasController(s.compras(), s.nfe(), s.sugestao(), s.pedidos(), sessao,
+            return new ComprasController(s.compras(), s.nfe(), s.sugestao(), s.pedidos(), s.fiscal(), sessao,
                     t -> criarController(t, navegacao, sessao));
         }
         if (tipo == PedidosController.class) {
@@ -177,6 +179,12 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == CargaBalancaController.class) {
             return new CargaBalancaController(s.cargaBalanca(), sessao);
+        }
+        if (tipo == FiscalController.class) {
+            return new FiscalController(s.fiscal(), s.categorias(), sessao);
+        }
+        if (tipo == PerfisTributariosController.class) {
+            return new PerfisTributariosController(s.fiscal(), sessao);
         }
         if (tipo == EtiquetasController.class) {
             return new EtiquetasController(s.etiquetas(), s.produtos(), s.categorias(), etiquetasPdf,

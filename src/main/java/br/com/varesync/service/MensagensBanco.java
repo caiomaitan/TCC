@@ -117,7 +117,15 @@ public final class MensagensBanco {
             Map.entry("ck_fp_conta_destino", "Dinheiro, crédito do cliente e crediário não têm conta de destino"),
             Map.entry("ck_tp_pago", "O pago não pode passar do valor da conta"),
             Map.entry("uq_emil_lote", "Este lote (código e validade) já está na divisão do item"),
-            Map.entry("ck_lt_quantidade", "A quantidade da transferência deve ser maior que zero"));
+            Map.entry("ck_lt_quantidade", "A quantidade da transferência deve ser maior que zero"),
+            // Fiscal (F19)
+            Map.entry("ux_perfil_tributario_nome", "Já existe um perfil tributário com este nome"),
+            Map.entry("ck_pt_nome", "Informe o nome do perfil tributário"),
+            Map.entry("ck_pt_icms", "Informe o CST ou o CSOSN do ICMS (só um dos dois)"),
+            Map.entry("ck_pt_aliquotas", "As alíquotas devem estar entre 0 e 100%"),
+            Map.entry("ck_pt_reducao", "A redução da base do ICMS deve ser maior que 0 e menor que 100%"),
+            Map.entry("ck_produto_origem", "A origem da mercadoria vai de 0 a 8"),
+            Map.entry("fk_produto_perfil_tributario", "Este perfil tributário está em uso e não pode ser excluído"));
 
     private MensagensBanco() {
     }

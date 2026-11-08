@@ -8,9 +8,11 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoResumo;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.model.ResultadoEntrada;
+import br.com.varesync.model.SugestaoFiscal;
 import br.com.varesync.report.Opcao;
 import br.com.varesync.report.SugestaoCompra;
 import br.com.varesync.service.EntradaService;
+import br.com.varesync.service.FiscalService;
 import br.com.varesync.service.ImportacaoNfeService;
 import br.com.varesync.service.LeitorNfe;
 import br.com.varesync.service.NegocioException;
@@ -19,6 +21,7 @@ import br.com.varesync.service.Sessao;
 import br.com.varesync.service.SugestaoCompraService;
 import br.com.varesync.ui.BuscaProdutoDialogo;
 import br.com.varesync.ui.CampoNumero;
+import br.com.varesync.ui.DialogoFiscalNota;
 import br.com.varesync.ui.DialogoNfe;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogosCompras;
@@ -36,7 +39,9 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -85,6 +90,7 @@ public class ComprasController {
     private final Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
     private final ImportacaoNfeService importacaoNfe;
+    private final FiscalService fiscalService;
     private final SugestaoCompraService sugestaoService;
     private final PedidoCompraService pedidoService;
     /** Produtos marcados na sugestão para o "Gerar pedido" (F16.3). */
@@ -174,10 +180,12 @@ public class ComprasController {
     @FXML private Label mensagem;
 
     public ComprasController(EntradaService entradaService, ImportacaoNfeService importacaoNfe,
-                             SugestaoCompraService sugestaoService, PedidoCompraService pedidoService, Sessao sessao,
+                             SugestaoCompraService sugestaoService, PedidoCompraService pedidoService,
+                             FiscalService fiscalService, Sessao sessao,
                              Callback<Class<?>, Object> fabricaControllers) {
         this.entradaService = entradaService;
         this.importacaoNfe = importacaoNfe;
+        this.fiscalService = fiscalService;
         this.sugestaoService = sugestaoService;
         this.pedidoService = pedidoService;
         this.sessao = sessao;
@@ -529,17 +537,51 @@ public class ComprasController {
             Mensagem.erro(mensagem, e.getMessage());
             return;
         }
+        Map<Integer, Long> escolhidosNaConferencia = new LinkedHashMap<>();
         DialogoNfe.conferir(previa, new DialogoNfe.Acoes(
                 termo -> entradaService.pesquisarProdutos(sessao, termo),
                 id -> entradaService.produtoPorCodigo(sessao, String.valueOf(id)),
                 sessao.pode(Permissao.PRODUTOS) ? this::cadastrarProduto : null,
-                (escolhidos, fatores) -> importacaoNfe.gerarEntrada(sessao, xml, escolhidos, fatores)))
+                (escolhidos, fatores) -> {
+                    long id = importacaoNfe.gerarEntrada(sessao, xml, escolhidos, fatores);
+                    escolhidosNaConferencia.putAll(escolhidos);
+                    return id;
+                }))
                 .ifPresent(id -> {
                     tabelaEntradas.getItems().setAll(entradaService.listar(sessao, filtroConfirmadas.isSelected()));
                     selecionar(id);
+                    String fiscal = preencherDadosFiscais(xml, escolhidosNaConferencia, previa.nota().numero());
                     Mensagem.sucesso(mensagem, "Entrada nº " + id + " gerada pelo XML da NF-e. Confira os itens e "
-                            + "confirme a entrada.");
+                            + "confirme a entrada." + fiscal);
                 });
+    }
+
+    /**
+     * F19.3: depois de gerar a entrada, quem tem FISCAL confirma o NCM, o CEST e a origem da nota nos produtos com
+     * esses campos vazios. Falha aqui não desfaz a entrada (já gravada): só vira mensagem.
+     *
+     * @return complemento da mensagem de sucesso ("" se nada foi preenchido)
+     */
+    private String preencherDadosFiscais(byte[] xml, Map<Integer, Long> escolhidos, String numeroNota) {
+        if (!sessao.pode(Permissao.FISCAL)) {
+            return "";
+        }
+        try {
+            List<SugestaoFiscal> sugestoes = fiscalService.sugestoesDaNota(sessao, xml, escolhidos);
+            if (sugestoes.isEmpty()) {
+                return "";
+            }
+            List<SugestaoFiscal> confirmadas = DialogoFiscalNota.confirmar(tabelaEntradas.getScene().getWindow(),
+                    sugestoes).orElse(List.of());
+            if (confirmadas.isEmpty()) {
+                return " Os dados fiscais da nota não foram usados.";
+            }
+            int alterados = fiscalService.preencherDaNota(sessao, confirmadas, numeroNota);
+            return alterados == 0 ? "" : " Dados fiscais preenchidos em " + (alterados == 1 ? "1 produto"
+                    : alterados + " produtos") + ".";
+        } catch (NegocioException e) {
+            return " Os dados fiscais não foram preenchidos: " + e.getMessage();
+        }
     }
 
     /** Cadastro de produto preenchido com o item da nota; devolve o código do produto se ele foi salvo. */

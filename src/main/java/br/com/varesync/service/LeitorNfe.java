@@ -47,10 +47,19 @@ public final class LeitorNfe {
      * @param comercial         o item como o fornecedor vende, para o vínculo pelo código do fornecedor (F16.1)
      */
     public record Item(int numero, String codigoBarras, String descricao, String unidade, BigDecimal quantidade,
-                       BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial, List<Rastro> rastros) {
+                       BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial, List<Rastro> rastros,
+                       Fiscal fiscal) {
 
         public Item {
             rastros = rastros == null ? List.of() : List.copyOf(rastros);
+            fiscal = fiscal == null ? Fiscal.VAZIO : fiscal;
+        }
+
+        /** Item sem os dados fiscais. */
+        public Item(int numero, String codigoBarras, String descricao, String unidade, BigDecimal quantidade,
+                    BigDecimal valorTotal, boolean unidadeTributavel, Comercial comercial, List<Rastro> rastros) {
+            this(numero, codigoBarras, descricao, unidade, quantidade, valorTotal, unidadeTributavel, comercial,
+                    rastros, Fiscal.VAZIO);
         }
 
         /** Item sem o grupo {@code rastro}. */
@@ -59,6 +68,16 @@ public final class LeitorNfe {
             this(numero, codigoBarras, descricao, unidade, quantidade, valorTotal, unidadeTributavel, comercial,
                     List.of());
         }
+    }
+
+    /**
+     * Dados fiscais do item (F19.3): {@code prod/NCM}, {@code prod/CEST} e {@code orig} do grupo do ICMS. Cada um fica
+     * nulo quando falta ou não tem o formato (NCM de 8 dígitos, CEST de 7, origem de 0 a 8): nesse caso a nota não
+     * preenche o campo do produto.
+     */
+    public record Fiscal(String ncm, String cest, Integer origem) {
+
+        public static final Fiscal VAZIO = new Fiscal(null, null, null);
     }
 
     /**
@@ -113,7 +132,8 @@ public final class LeitorNfe {
         for (int i = 0; i < dets.getLength(); i++) {
             Element det = (Element) dets.item(i);
             Element prod = obrigatorio(det, "prod");
-            itens.add(item(det.getAttribute("nItem").isBlank() ? i + 1 : inteiro(det.getAttribute("nItem")), prod));
+            itens.add(item(det.getAttribute("nItem").isBlank() ? i + 1 : inteiro(det.getAttribute("nItem")), prod,
+                    fiscal(det, prod)));
         }
         if (itens.isEmpty()) {
             throw new NegocioException("O XML da NF-e não tem itens.");
@@ -146,7 +166,32 @@ public final class LeitorNfe {
         return List.copyOf(duplicatas);
     }
 
-    private static Item item(int numero, Element prod) {
+    /** NCM e CEST de {@code prod}; origem do primeiro grupo dentro de {@code imposto/ICMS} (ICMS00, ICMSSN102…). */
+    static Fiscal fiscal(Element det, Element prod) {
+        String ncm = texto(prod, "NCM");
+        String cest = texto(prod, "CEST");
+        Integer origem = null;
+        Element imposto = primeiro(det, "imposto");
+        Element icms = imposto == null ? null : primeiro(imposto, "ICMS");
+        if (icms != null) {
+            for (Node n = icms.getFirstChild(); n != null; n = n.getNextSibling()) {
+                if (n instanceof Element grupo) {
+                    String orig = texto(grupo, "orig");
+                    if (orig.length() == 1 && orig.charAt(0) >= '0' && orig.charAt(0) <= '8') {
+                        origem = orig.charAt(0) - '0';
+                    }
+                    break;
+                }
+            }
+        }
+        return new Fiscal(digitos(ncm, 8), digitos(cest, 7), origem);
+    }
+
+    private static String digitos(String texto, int tamanho) {
+        return texto.length() == tamanho && texto.chars().allMatch(c -> c >= '0' && c <= '9') ? texto : null;
+    }
+
+    private static Item item(int numero, Element prod, Fiscal fiscal) {
         String eanComercial = ean(texto(prod, "cEAN"));
         String eanTributavel = ean(texto(prod, "cEANTrib"));
         String unidadeComercial = texto(prod, "uCom");
@@ -159,10 +204,10 @@ public final class LeitorNfe {
         List<Rastro> rastros = rastros(prod);
         if (tributavel) {
             return new Item(numero, eanTributavel, texto(prod, "xProd"), unidadeTributavel, numero(prod, "qTrib"),
-                    valor, true, comercial, rastros);
+                    valor, true, comercial, rastros, fiscal);
         }
         return new Item(numero, eanComercial != null ? eanComercial : eanTributavel, texto(prod, "xProd"),
-                unidadeComercial, comercial.quantidade(), valor, false, comercial, rastros);
+                unidadeComercial, comercial.quantidade(), valor, false, comercial, rastros, fiscal);
     }
 
     /** Grupos {@code rastro} filhos diretos de {@code prod} (NF-e 4.00), na ordem da nota. */

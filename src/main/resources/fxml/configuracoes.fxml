@@ -53,7 +53,16 @@
                     <Label text="Mensagem do comprovante" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
                     <TextField fx:id="campoRodape" promptText="Ex.: Obrigado pela preferência!" GridPane.rowIndex="4"
                                GridPane.columnIndex="1"/>
+                    <Label text="Regime tributário" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+                    <ComboBox fx:id="campoRegime" prefWidth="220" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                    <Label text="UF" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+                    <ComboBox fx:id="campoUf" prefWidth="90" visibleRowCount="10" GridPane.rowIndex="6"
+                              GridPane.columnIndex="1"/>
+                    <Label text="Inscrição estadual" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoIe" promptText="Só os dígitos, ou ISENTO" maxWidth="220" GridPane.rowIndex="7"
+                               GridPane.columnIndex="1"/>
                 </GridPane>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O regime, a UF e a IE preparam o cadastro fiscal (Produtos › Fiscal…): no Simples Nacional a situação do ICMS é o CSOSN; no regime normal, o CST. O sistema não emite documento fiscal."/>
             </VBox>
         </Tab>
         <Tab fx:id="abaVenda" text="Venda">

@@ -16,11 +16,14 @@ import br.com.varesync.dao.EstoqueDAO;
 import br.com.varesync.dao.CargaBalancaDAO;
 import br.com.varesync.dao.EtiquetaDAO;
 import br.com.varesync.dao.FormaPagamentoDAO;
+import br.com.varesync.dao.FiscalDAO;
 import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.InventarioDAO;
 import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.PedidoCompraDAO;
+import br.com.varesync.dao.PerfilTributarioDAO;
+import br.com.varesync.dao.PerfilTributarioDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PromocaoDAO;
@@ -45,6 +48,7 @@ import br.com.varesync.service.EntradaService;
 import br.com.varesync.service.EstoqueService;
 import br.com.varesync.service.CargaBalancaService;
 import br.com.varesync.service.EtiquetaService;
+import br.com.varesync.service.FiscalService;
 import br.com.varesync.service.FluxoCaixaService;
 import br.com.varesync.service.FornecedorService;
 import br.com.varesync.service.GeradorDemo;
@@ -85,7 +89,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        ContaFinanceiraService contas, RecebivelService recebiveis, ContaPagarService contasPagar,
                        FluxoCaixaService fluxoCaixa, ProdutoFornecedorService vinculos,
                        SugestaoCompraService sugestao, PedidoCompraService pedidos,
-                       EtiquetaService etiquetas, CargaBalancaService cargaBalanca) {
+                       EtiquetaService etiquetas, CargaBalancaService cargaBalanca,
+                       FiscalService fiscal) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -142,11 +147,12 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         PromocaoService promocoes = new PromocaoService(transacao, promocaoDAO, produtoDAO, auditoria, clock);
         ImportacaoProdutosService importacao = new ImportacaoProdutosService(transacao, produtos, produtoDAO,
                 categoriaDAO, new UnidadeMedidaDAO());
+        ImportacaoNfeService nfe = new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO,
+                vinculoDAO, compras, vinculos, clock);
         return new Servicos(clock, transacao, acesso, usuarios, categorias, produtos, estoque, caixa, vendas,
                 inventarios, fornecedores, compras, relatorios, painel, configuracoes, promocoes, importacao,
                 new ConsultaAuditoriaService(transacao, new AuditoriaDAO(), clock),
-                new ImportacaoNfeService(transacao, fornecedorDAO, new EntradaDAO(), produtoDAO, vinculoDAO, compras,
-                        vinculos, clock),
+                nfe,
                 new UnidadeService(transacao, new UnidadeMedidaDAO()),
                 new ClienteService(transacao, new ClienteDAO(), creditoDAO, tituloDAO, configuracaoDAO, auditoria,
                         clock),
@@ -158,7 +164,9 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new SugestaoCompraService(transacao, configuracaoDAO, fornecedorDAO, categoriaDAO, clock),
                 new PedidoCompraService(transacao, new PedidoCompraDAO(), fornecedorDAO, produtoDAO, vinculoDAO,
                         configuracaoDAO, auditoria, clock),
-                new EtiquetaService(transacao, new EtiquetaDAO(), configuracaoDAO, auditoria, clock), cargaBalanca);
+                new EtiquetaService(transacao, new EtiquetaDAO(), configuracaoDAO, auditoria, clock), cargaBalanca,
+                new FiscalService(transacao, new PerfilTributarioDAO(), new FiscalDAO(), nfe, configuracaoDAO, auditoria,
+                        clock));
     }
 
     /**

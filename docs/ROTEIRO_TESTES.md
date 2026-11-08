@@ -759,3 +759,24 @@ R$ 29,90, em promoção a R$ 27,90), banana prata (KG sem PLU) e café (UN), tod
 | CT-F18-20 | Supervisor | 1. Configurações › Balança 2. Pasta "itens" › Salvar alterações 3. Pasta vazia › Salvar | 1. A pasta configurada 2. "Informe o caminho completo…" 3. Gravado e auditado ("pasta da carga de balança de … para (vazio)") | OK pela tela (captura `07`) |
 | CT-F18-21 | CT-F18-20 | 1. Produtos › Carga de balança… › Gerar carga | 1. "não configurada (Configurações › Balança)"; "Configure a pasta da carga em Configurações › Balança…"; nada registrado | OK pela tela (captura `08`) |
 | CT-F18-22 | Balança Toledo com o MGV6 da loja | 1. Gerar carga na pasta do MGV 2. Importar os itens no MGV 3. Pesar um produto | 2. O MGV importa sem erro 3. A etiqueta sai com o PLU, o preço por kg, a descrição e a validade da carga | Não executado (sem balança nem MGV nesta máquina): é o risco registrado no PROGRESSO |
+
+## Fase 19 — Cadastro fiscal e consistência, parte A (F19.1 a F19.3)
+
+Pela tela em 2026-11-08, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test`, os arquivos numa pasta temporária, sem abrir as janelas "Abrir"); os números são as capturas. Dados:
+cerveja, refrigerante (EAN 7896004000015) e água em Bebidas; café (EAN 7891000315507) e arroz (EAN 7891234567895) em
+Mercearia, sem dados fiscais; usuário "cadastro" com Produtos e Compras, sem Cadastro fiscal; a NF-e de teste
+`src/test/resources/nfe/nfe-fiscal.xml`.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F19-01 | Supervisor | 1. Configurações › Loja 2. IE "12A45" › Salvar alterações 3. UF SP, IE "123.456.789.110" › Salvar | 1. Regime "Simples Nacional", UF e IE vazias 2. "A inscrição estadual tem só dígitos (até 14) ou é "ISENTO"." 3. Gravadas sem pontos e auditadas | OK pela tela (captura `01`) |
+| CT-F19-02 | CT-F19-01 | 1. Produtos › Fiscal… | 1. "Empresa: Simples Nacional · UF SP · IE 123456789110…"; 5 produtos em amarelo ("5 sem NCM ou sem perfil") | OK pela tela (captura `02`) |
+| CT-F19-03 | CT-F19-02 | 1. Perfis tributários: nome "Simples tributado", CFOP 51, CSOSN 102, PIS e COFINS 49 › Salvar 2. CFOP 5102 › Salvar 3. Novo perfil "Simples ST", 5405, CSOSN 500, PIS/COFINS 04, cBenef "sem cbenef", CST IBS/CBS 000, cClassTrib 000001 › Salvar | 1. O tipo começa em CSOSN; "O CFOP tem 4 dígitos (ex.: 5102)." 2. "Perfil criado." 3. Dois perfis; cBenef "SEM CBENEF" | OK pela tela (captura `03`) |
+| CT-F19-04 | CT-F19-02 | 1. Tabelas NCM e CEST › Importar tabela NCM: CSV `código;descrição` com um capítulo e 2 códigos 2. Importar o JSON oficial (Siscomex) 3. Importar a tabela CEST (3 linhas) | 1. "2 códigos (1 nível intermediário pulado)" 2. "4 códigos (3 níveis intermediários pulados)"; a tabela foi trocada 3. "Tabela CEST: 3 códigos." | OK pela tela (captura `04`) |
+| CT-F19-05 | CT-F19-04 | 1. Produtos: café, NCM 1234.56.78 › Salvar dados fiscais 2. NCM 0901.21.00, origem 0, perfil "Simples tributado" › Salvar | 1. "O NCM 1234.56.78 não existe na tabela NCM importada…" 2. "Não descafeinado" ao lado do NCM; gravado e auditado | OK pela tela (captura `05`) |
+| CT-F19-06 | CT-F19-05 | 1. Aplicar perfil em lote: "Simples ST", "A toda a categoria" Bebidas › Aplicar perfil… › Sim | 1. "Perfil "Simples ST" aplicado a 3 produtos."; o café continua com "Simples tributado" | OK pela tela (captura `06`) |
+| CT-F19-07 | CT-F19-06 | 1. Compras › Importar XML da NF-e… (`nfe-fiscal.xml`) › Gerar entrada | 1. Diálogo "Dados fiscais da NF-e" com 2 produtos: café (CEST 17.096.00) e refrigerante (NCM 2202.10.00, CEST 03.007.00, origem 2); o arroz (campos fora do formato) não aparece | OK pela tela (captura `07`) |
+| CT-F19-08 | CT-F19-07 | 1. Preencher os marcados | 1. "Entrada nº 1 gerada… Dados fiscais preenchidos em 2 produtos."; o NCM e a origem do café não mudam | OK pela tela (captura `08`) |
+| CT-F19-09 | CT-F19-08 | 1. Produtos › Fiscal… 2. "Só sem NCM ou sem perfil" | 1. Refrigerante com NCM 2202.10.00, CEST 03.007.00 e "Simples ST" 2. "3 produtos, 3 sem NCM ou sem perfil" | OK pela tela (captura `09`) |
+| CT-F19-10 | Usuário "cadastro" (sem Cadastro fiscal) | 1. Log off › entrar 2. Produtos | 2. Sem o botão Fiscal… | OK pela tela (captura `10`) |

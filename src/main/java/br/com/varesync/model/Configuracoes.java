@@ -10,7 +10,7 @@ import java.util.Optional;
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
  * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
  * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14; e da V12: {@code financeiro.integrar_caixa}, F15.1;
- * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1; e da V17: {@code balanca.pasta_carga}, F18.2); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
+ * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1; e da V17: {@code balanca.pasta_carga}, F18.2; e da V18: {@code empresa.regime_tributario}, {@code empresa.uf} e {@code empresa.ie}, F19.1); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
  * ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
@@ -26,6 +26,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String EMPRESA_DOCUMENTO = "empresa.documento";
     public static final String EMPRESA_ENDERECO = "empresa.endereco";
     public static final String EMPRESA_TELEFONE = "empresa.telefone";
+    public static final String EMPRESA_REGIME = "empresa.regime_tributario";
+    public static final String EMPRESA_UF = "empresa.uf";
+    public static final String EMPRESA_IE = "empresa.ie";
     public static final String VENDA_ESTOQUE_NEGATIVO = "venda.permitir_estoque_negativo";
     public static final String VENDA_DESCONTO_MAXIMO = "venda.desconto_maximo_operador_pct";
     public static final String VENDA_CANCELAR_ITEM = "venda.cancelar_item_exige_supervisor";
@@ -75,8 +78,23 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final int VALIDADE_ALERTA_MAXIMO = 365;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
 
-    /** Dados da loja (comprovante, relatórios, título). Documento e telefone gravados sem máscara. */
-    public record Loja(String nome, String documento, String endereco, String telefone) {
+    /**
+     * Dados da loja (comprovante, relatórios, título). Documento e telefone gravados sem máscara. F19.1: regime
+     * tributário, UF (sigla ou vazia) e IE (só dígitos, "ISENTO" ou vazia).
+     */
+    public record Loja(String nome, String documento, String endereco, String telefone, RegimeTributario regime,
+                       String uf, String ie) {
+
+        public Loja {
+            regime = regime == null ? RegimeTributario.SIMPLES : regime;
+            uf = uf == null ? "" : uf.strip();
+            ie = ie == null ? "" : ie.strip();
+        }
+
+        /** Sem os dados fiscais (Simples Nacional, sem UF nem IE). */
+        public Loja(String nome, String documento, String endereco, String telefone) {
+            this(nome, documento, endereco, telefone, RegimeTributario.SIMPLES, "", "");
+        }
     }
 
     /**
@@ -271,7 +289,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static Configuracoes de(Map<String, String> valores) {
         Configuracoes p = PADRAO;
         Loja loja = new Loja(texto(valores, EMPRESA_NOME, p.loja.nome()), texto(valores, EMPRESA_DOCUMENTO, ""),
-                texto(valores, EMPRESA_ENDERECO, ""), texto(valores, EMPRESA_TELEFONE, ""));
+                texto(valores, EMPRESA_ENDERECO, ""), texto(valores, EMPRESA_TELEFONE, ""),
+                regime(valores.get(EMPRESA_REGIME)).orElse(p.loja.regime()), texto(valores, EMPRESA_UF, ""),
+                texto(valores, EMPRESA_IE, ""));
         ParametrosVenda venda = new ParametrosVenda(
                 logico(valores, VENDA_ESTOQUE_NEGATIVO, p.venda.permitirEstoqueNegativo()),
                 percentual(valores, VENDA_DESCONTO_MAXIMO, true).orElse(p.venda.descontoMaximoPct()),
@@ -322,6 +342,9 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(EMPRESA_DOCUMENTO, loja.documento());
         m.put(EMPRESA_ENDERECO, loja.endereco());
         m.put(EMPRESA_TELEFONE, loja.telefone());
+        m.put(EMPRESA_REGIME, loja.regime().name());
+        m.put(EMPRESA_UF, loja.uf());
+        m.put(EMPRESA_IE, loja.ie());
         m.put(VENDA_ESTOQUE_NEGATIVO, String.valueOf(venda.permitirEstoqueNegativo()));
         m.put(VENDA_DESCONTO_MAXIMO, numero(venda.descontoMaximoPct()));
         m.put(VENDA_CANCELAR_ITEM, String.valueOf(venda.cancelarItemExigeSupervisor()));
@@ -419,6 +442,18 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
+    }
+
+    private static Optional<RegimeTributario> regime(String valor) {
+        if (valor == null) {
+            return Optional.empty();
+        }
+        for (RegimeTributario r : RegimeTributario.values()) {
+            if (r.name().equalsIgnoreCase(valor.strip())) {
+                return Optional.of(r);
+            }
+        }
+        return Optional.empty();
     }
 
     private static Optional<TipoValorBalanca> tipoValor(String valor) {

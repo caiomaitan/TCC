@@ -52,7 +52,30 @@ class ConfiguracoesTest {
         m.put("etiqueta.modelo_termica", "");
         m.put("etiqueta.impressora_termica", "");
         m.put("balanca.pasta_carga", ""); // V17 (F18.2)
+        m.put("empresa.regime_tributario", "SIMPLES"); // V18 (F19.1)
+        m.put("empresa.uf", "");
+        m.put("empresa.ie", "");
         return m;
+    }
+
+    /** V18 (F19.1): regime, UF e IE; regime desconhecido volta ao SIMPLES. */
+    @Test
+    void dadosFiscaisDaEmpresaDaV18() {
+        assertThat(Configuracoes.PADRAO.loja().regime()).isEqualTo(RegimeTributario.SIMPLES);
+        Map<String, String> m = v2();
+        m.put("empresa.regime_tributario", "normal");
+        m.put("empresa.uf", " SP ");
+        m.put("empresa.ie", "123456789110");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.loja().regime()).isEqualTo(RegimeTributario.NORMAL);
+        assertThat(c.loja().uf()).isEqualTo("SP");
+        assertThat(c.loja().ie()).isEqualTo("123456789110");
+        assertThat(c.paraMapa()).containsEntry("empresa.regime_tributario", "NORMAL")
+                .containsEntry("empresa.uf", "SP").containsEntry("empresa.ie", "123456789110");
+        m.put("empresa.regime_tributario", "LUCRO_REAL");
+        assertThat(Configuracoes.de(m).loja().regime()).isEqualTo(RegimeTributario.SIMPLES);
+        assertThat(new Configuracoes.Loja("Loja", "", "", "")).as("construtor antigo")
+                .isEqualTo(new Configuracoes.Loja("Loja", "", "", "", RegimeTributario.SIMPLES, "", ""));
     }
 
     /** V17 (F18.2): pasta da carga de balança vazia; lida sem os espaços das pontas e gravada como está. */

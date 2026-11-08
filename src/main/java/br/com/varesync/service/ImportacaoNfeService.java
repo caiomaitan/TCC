@@ -267,6 +267,28 @@ public class ImportacaoNfeService {
         }
     }
 
+    /**
+     * Produto de cada item da nota (nº do item → produto), como na geração da entrada: o escolhido à mão na
+     * conferência ou o vínculo pelo código de barras ou pelo código do fornecedor. Item sem produto fica de fora.
+     * Usado pelo preenchimento dos dados fiscais (F19.3).
+     */
+    Map<Integer, Long> produtosDaNota(Connection con, LeitorNfe.Nota nota, Map<Integer, Long> escolhidos)
+            throws SQLException {
+        Long fornecedorId = fornecedor(con, documento(nota.emitente())).map(Fornecedor::id).orElse(null);
+        Map<Integer, Long> produtos = new LinkedHashMap<>();
+        for (LeitorNfe.Item item : nota.itens()) {
+            Long produtoId = escolhidos == null ? null : escolhidos.get(item.numero());
+            if (produtoId == null) {
+                ItemPrevia vinculo = vincular(con, fornecedorId, item);
+                produtoId = vinculo.produto() == null ? null : vinculo.produto().id();
+            }
+            if (produtoId != null) {
+                produtos.put(item.numero(), produtoId);
+            }
+        }
+        return produtos;
+    }
+
     /** Pelo código de barras; sem ele, pelo par (fornecedor, {@code cProd}). */
     private ItemPrevia vincular(Connection con, Long fornecedorId, LeitorNfe.Item item) throws SQLException {
         if (item.codigoBarras() != null) {

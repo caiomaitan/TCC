@@ -7,19 +7,19 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V17 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V18 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV17() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(17);
+    void bancoVazioRecebeV1aV18() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(18);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
                      WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
-                                                   '14', '15', '16', '17')
-                    """)).isEqualTo(17);
+                                                   '14', '15', '16', '17', '18')
+                    """)).isEqualTo(18);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -27,8 +27,8 @@ class MigracaoIT extends IntegracaoBase {
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
                     + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13; pedido_compra e "
                     + "pedido_compra_item da V14; lote, lote_saldo, lote_movimento, lote_transferencia e "
-                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17)")
-                    .isEqualTo(53);
+                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17; perfil_tributario, ncm e cest da V18)")
+                    .isEqualTo(56);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'
@@ -40,8 +40,8 @@ class MigracaoIT extends IntegracaoBase {
                     """)).as("views (vw_resultado_item da V9, vw_abatimento_inconsistente da V11, vw_conta_inconsistente da V12, "
                     + "vw_lote_inconsistente da V15)").isEqualTo(9);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM permissao"))
-                    .as("permissões do V2 + CLIENTES da V6 + DEVOLUCAO da V8 + RECEBIMENTO e LIMITE_CREDITO da V10 + FINANCEIRO da V12")
-                    .isEqualTo(15);
+                    .as("permissões do V2 + CLIENTES da V6 + DEVOLUCAO da V8 + RECEBIMENTO e LIMITE_CREDITO da V10 + FINANCEIRO da V12 + FISCAL da V18")
+                    .isEqualTo(16);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM forma_pagamento WHERE tipo = 'CREDIARIO'"))
                     .as("forma \"Crediário\" da V10").isEqualTo(1);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave LIKE 'crediario.%'"))
@@ -66,6 +66,11 @@ class MigracaoIT extends IntegracaoBase {
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = "
                     + "'produto' AND column_name = 'validade_balanca_dias'")).as("validade na balança da V17")
                     .isEqualTo(1);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave IN ('empresa.regime_tributario', "
+                    + "'empresa.uf', 'empresa.ie')")).as("dados fiscais da empresa da V18").isEqualTo(3);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = "
+                    + "'produto' AND column_name IN ('ncm', 'cest', 'origem', 'perfil_tributario_id')"))
+                    .as("dados fiscais do produto da V18").isEqualTo(4);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM conta_financeira")).as("Cofre e Banco da V12")
                     .isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM categoria_despesa")).as("categorias da V12")

@@ -36,11 +36,25 @@ class LeitorNfeTest {
         assertThat(cafe).isEqualTo(new LeitorNfe.Item(1, "7891000315507", "CAFE TORRADO MOIDO 500G", "UN",
                 new java.math.BigDecimal("10.0000"), new java.math.BigDecimal("125.00"), false,
                 new LeitorNfe.Comercial("CAFE500", "UN", new java.math.BigDecimal("10.0000"),
-                        new java.math.BigDecimal("12.5000000000"))));
+                        new java.math.BigDecimal("12.5000000000")), java.util.List.of(),
+                new LeitorNfe.Fiscal("09012100", null, null))); // F19.3: o NCM do item (a nota não traz o imposto)
         LeitorNfe.Item queijo = nota.itens().get(1);
         assertThat(queijo.codigoBarras()).isNull(); // SEM GTIN
         assertThat(queijo.quantidade()).isEqualByComparingTo("3.5");
         assertThat(queijo.unidade()).isEqualTo("KG");
+    }
+
+    /** F19.3: NCM e CEST de prod e a origem do grupo do ICMS; fora do formato, o campo fica nulo. */
+    @Test
+    void dadosFiscaisDoItem() {
+        var itens = LeitorNfe.ler(recurso("nfe-fiscal.xml")).itens();
+        assertThat(itens.get(0).fiscal()).isEqualTo(new LeitorNfe.Fiscal("09012100", null, 0));
+        assertThat(itens.get(1).fiscal()).isEqualTo(new LeitorNfe.Fiscal("22021000", "0300700", 2)); // ICMSSN500
+        assertThat(itens.get(2).fiscal()).as("NCM 1006, CEST 12 e origem 9 não têm o formato")
+                .isEqualTo(LeitorNfe.Fiscal.VAZIO);
+        assertThat(itens.get(3).fiscal()).isEqualTo(new LeitorNfe.Fiscal("09012100", "1709600", 0));
+        assertThat(LeitorNfe.ler(recurso("nfe-antiga-sem-proc.xml")).itens().get(0).fiscal())
+                .isEqualTo(LeitorNfe.Fiscal.VAZIO);
     }
 
     /** F15.3: as duplicatas de cobr/dup viram parcelas; a sem vencimento fica de fora. */

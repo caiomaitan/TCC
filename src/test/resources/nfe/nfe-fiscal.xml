@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia para os testes do cadastro fiscal (F19.3; dados inventados, CNPJ do vetor A.3). Item 1: café com NCM e
+     origem 0 (ICMS00), sem CEST. Item 2: refrigerante com NCM, CEST e origem 2 (ICMSSN500). Item 3: arroz com NCM, CEST
+     e origem fora do formato (nada é aproveitado). Item 4: o café de novo, agora com CEST (o primeiro item que traz
+     cada campo vale). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261111222333000181550010000055551000055555" versao="4.00">
+      <ide>
+        <nNF>5555</nNF>
+        <dhEmi>2026-10-05T10:00:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>11222333000181</CNPJ>
+        <xNome>Distribuidora Ribeirão Alimentos Ltda</xNome>
+        <enderEmit><xMun>Ribeirão Preto</xMun><UF>SP</UF></enderEmit>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>CAFE500</cProd>
+          <cEAN>7891000315507</cEAN>
+          <xProd>CAFE TORRADO MOIDO 500G</xProd>
+          <NCM>09012100</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>10.0000</qCom>
+          <vUnCom>12.5000000000</vUnCom>
+          <vProd>125.00</vProd>
+          <cEANTrib>7891000315507</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>10.0000</qTrib>
+        </prod>
+        <imposto>
+          <ICMS><ICMS00><orig>0</orig><CST>00</CST></ICMS00></ICMS>
+        </imposto>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>REFRI350</cProd>
+          <cEAN>7896004000015</cEAN>
+          <xProd>REFRIGERANTE LATA 350ML</xProd>
+          <NCM>22021000</NCM>
+          <CEST>0300700</CEST>
+          <CFOP>5405</CFOP>
+          <uCom>UN</uCom>
+          <qCom>24.0000</qCom>
+          <vUnCom>2.5000000000</vUnCom>
+          <vProd>60.00</vProd>
+          <cEANTrib>7896004000015</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>24.0000</qTrib>
+        </prod>
+        <imposto>
+          <ICMS><ICMSSN500><orig>2</orig><CSOSN>500</CSOSN></ICMSSN500></ICMS>
+        </imposto>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>ARROZ5</cProd>
+          <cEAN>7891234567895</cEAN>
+          <xProd>ARROZ TIPO 1 5KG</xProd>
+          <NCM>1006</NCM>
+          <CEST>12</CEST>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>5.0000</qCom>
+          <vUnCom>20.0000000000</vUnCom>
+          <vProd>100.00</vProd>
+          <cEANTrib>7891234567895</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>5.0000</qTrib>
+        </prod>
+        <imposto>
+          <ICMS><ICMS60><orig>9</orig><CST>60</CST></ICMS60></ICMS>
+        </imposto>
+      </det>
+      <det nItem="4">
+        <prod>
+          <cProd>CAFE500</cProd>
+          <cEAN>7891000315507</cEAN>
+          <xProd>CAFE TORRADO MOIDO 500G BONIFICACAO</xProd>
+          <NCM>09012100</NCM>
+          <CEST>1709600</CEST>
+          <CFOP>5910</CFOP>
+          <uCom>UN</uCom>
+          <qCom>2.0000</qCom>
+          <vUnCom>12.0000000000</vUnCom>
+          <vProd>24.00</vProd>
+          <cEANTrib>7891000315507</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>2.0000</qTrib>
+        </prod>
+        <imposto>
+          <ICMS><ICMS00><orig>0</orig><CST>00</CST></ICMS00></ICMS>
+        </imposto>
+      </det>
+      <total>
+        <ICMSTot>
+          <vProd>309.00</vProd>
+          <vNF>309.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>

@@ -91,7 +91,8 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    caracteres e é diferente do login (a regra pode ficar mais forte depois: veja **Política de senha** abaixo).
 3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
    rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
-4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante), parâmetros de venda (estoque
+4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante; em Loja ficam também o regime
+   tributário, a UF e a inscrição estadual, usados no cadastro fiscal), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,
    balança, segurança (bloqueio por inatividade e política de senha), sugestão de compra, alerta de validade dos lotes,
    backup e formas de pagamento.
@@ -424,6 +425,16 @@ os produtos com estoque aparecem pendentes. Para a térmica, em Configurações 
 dela no Windows), carregue o exemplo ZPL (Zebra) ou DPL (Datamax e Allegro), ajuste as posições ao tamanho da etiqueta
 da loja e confira com **Imprimir teste** antes de usar: os exemplos são um ponto de partida e não foram testados em
 todas as impressoras.
+
+**Cadastro fiscal** (Produtos › Fiscal…, com a permissão Cadastro fiscal, Fase 19): prepara uma emissão fiscal futura
+(o sistema **não emite** NFC-e nem NF-e). Em **Perfis tributários**, cadastre a tributação (CFOP, CST do ICMS no regime
+normal ou CSOSN no Simples, alíquota e redução de base, PIS, COFINS, código de benefício e, opcionais, o CST do IBS e
+da CBS e o cClassTrib); só o formato de cada campo é conferido. Na aba **Produtos**, informe NCM, CEST, origem e perfil
+de cada produto, ou aplique um perfil de uma vez aos selecionados, a uma categoria inteira ou a um NCM. Na aba
+**Tabelas NCM e CEST**, importe a tabela NCM (um CSV `código;descrição` ou o JSON oficial da tabela NCM, baixado do
+portal do Siscomex) e, se quiser, a tabela CEST (CSV `cest;ncm;descrição`): com elas, o código digitado tem de existir
+na tabela. Ao gerar uma entrada pelo XML da NF-e, quem tem a permissão confirma o NCM, o CEST e a origem do fornecedor
+nos produtos em que esses campos estão vazios.
 
 ## 9. Empacotamento (jpackage)
 

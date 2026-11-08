@@ -258,6 +258,33 @@ class ConfiguracaoServiceIT extends IntegracaoBase {
     }
 
     /** F13.2: prazo de devolução de 0 a 365 dias, auditado. */
+    /** F19.1: regime tributário, UF (uma das 27 siglas) e IE (só dígitos ou ISENTO), validados e auditados. */
+    @Test
+    void dadosFiscaisDaEmpresaValidadosEAuditados() throws Exception {
+        Configuracoes c = configuracoes.carregar(admin);
+        assertThat(c.loja().regime()).isEqualTo(br.com.varesync.model.RegimeTributario.SIMPLES);
+        assertThat(c.loja().uf()).isEmpty();
+        Configuracoes.Loja l = c.loja();
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comLoja(new Configuracoes.Loja(l.nome(), "", "", "",
+                br.com.varesync.model.RegimeTributario.NORMAL, "XX", "")))).hasMessageContaining("UF da loja inválida");
+        assertThatThrownBy(() -> configuracoes.salvar(admin, c.comLoja(new Configuracoes.Loja(l.nome(), "", "", "",
+                br.com.varesync.model.RegimeTributario.NORMAL, "SP", "12-AB")))).hasMessageContaining("só dígitos");
+
+        List<String> mudancas = configuracoes.salvar(admin, c.comLoja(new Configuracoes.Loja(l.nome(), "", "", "",
+                br.com.varesync.model.RegimeTributario.NORMAL, "sp", "123.456.789.110")));
+        assertThat(mudancas).containsExactly("regime tributário de Simples Nacional para Regime normal",
+                "UF da loja de (vazio) para \"SP\"", "inscrição estadual de (vazio) para \"123456789110\"");
+        Configuracoes gravadas = configuracoes.carregar(admin);
+        assertThat(gravadas.loja().regime()).isEqualTo(br.com.varesync.model.RegimeTributario.NORMAL);
+        assertThat(gravadas.loja().uf()).isEqualTo("SP");
+        assertThat(gravadas.loja().ie()).isEqualTo("123456789110");
+        assertThat(t.auditoria(AcaoAuditoria.CONFIGURACAO_ALTERADA)).singleElement().asString()
+                .contains("regime tributário", "UF da loja", "inscrição estadual");
+        configuracoes.salvar(admin, gravadas.comLoja(new Configuracoes.Loja(l.nome(), "", "", "",
+                br.com.varesync.model.RegimeTributario.NORMAL, "SP", "isento")));
+        assertThat(configuracoes.carregar(admin).loja().ie()).isEqualTo("ISENTO");
+    }
+
     @Test
     void prazoDeDevolucaoValidadoEAuditado() throws Exception {
         Configuracoes c = configuracoes.carregar(admin);

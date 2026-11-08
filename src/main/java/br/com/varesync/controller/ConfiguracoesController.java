@@ -10,6 +10,7 @@ import br.com.varesync.model.InconsistenciaCredito;
 import br.com.varesync.model.InconsistenciaEstoque;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.PoliticaSenha;
+import br.com.varesync.model.RegimeTributario;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
@@ -77,6 +78,10 @@ import javafx.util.StringConverter;
  */
 public class ConfiguracoesController {
 
+    /** F19.1: as 27 siglas, com o vazio (não informada) primeiro. */
+    private static final List<String> UFS = List.of("", "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA",
+            "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO");
+
     private final ConfiguracaoService configuracaoService;
     private final BackupService backupService;
     private final ConsultaAuditoriaService auditoriaService;
@@ -134,6 +139,9 @@ public class ConfiguracoesController {
     @FXML private TextField campoDocumento;
     @FXML private TextField campoEndereco;
     @FXML private TextField campoTelefone;
+    @FXML private ComboBox<RegimeTributario> campoRegime;
+    @FXML private ComboBox<String> campoUf;
+    @FXML private TextField campoIe;
     @FXML private TextField campoRodape;
     @FXML private CheckBox campoEstoqueNegativo;
     @FXML private TextField campoDescontoMaximo;
@@ -249,6 +257,8 @@ public class ConfiguracoesController {
         coluna(colunaMovimentos, i -> quantidade(i.saldoPelosMovimentos()));
         coluna(colunaDiferenca, i -> quantidade(i.diferenca()));
 
+        campoRegime.getItems().setAll(RegimeTributario.values());
+        campoUf.getItems().setAll(UFS);
         campoDigitos.getItems().setAll(4, 5, 6);
         campoTipoValor.getItems().setAll(TipoValorBalanca.values());
         campoBalancaAtiva.selectedProperty().addListener((o, a, n) -> atualizarBalanca());
@@ -361,6 +371,9 @@ public class ConfiguracoesController {
         campoDocumento.setText(c.loja().documento().isEmpty() ? "" : CpfCnpj.formatar(c.loja().documento()));
         campoEndereco.setText(c.loja().endereco());
         campoTelefone.setText(c.loja().telefone().isEmpty() ? "" : Formatos.telefone(c.loja().telefone()));
+        campoRegime.setValue(c.loja().regime());
+        campoUf.setValue(c.loja().uf());
+        campoIe.setText(c.loja().ie());
         campoRodape.setText(c.rodapeComprovante());
         campoEstoqueNegativo.setSelected(c.venda().permitirEstoqueNegativo());
         campoDescontoMaximo.setText(Formatos.numero(c.venda().descontoMaximoPct(), Dinheiro.ESCALA_PERCENTUAL));
@@ -406,7 +419,8 @@ public class ConfiguracoesController {
             throw new NegocioException("O prefixo da etiqueta de balança é um dígito, de 0 a 9 (normalmente 2).");
         }
         return new Configuracoes(new Configuracoes.Loja(campoNomeLoja.getText(), campoDocumento.getText(),
-                campoEndereco.getText(), campoTelefone.getText()),
+                campoEndereco.getText(), campoTelefone.getText(), campoRegime.getValue(),
+                campoUf.getValue(), campoIe.getText()),
                 new ParametrosVenda(campoEstoqueNegativo.isSelected(),
                         numero(campoDescontoMaximo, "Desconto máximo do operador"), campoCancelarItem.isSelected()),
                 numero(campoMargemMinima, "Margem mínima"), inteiro(campoDiasSemGiro, "Dias sem giro"),

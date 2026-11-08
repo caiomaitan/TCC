@@ -1,0 +1,464 @@
+package br.com.varesync.controller;
+
+import br.com.varesync.model.AlvoPerfil;
+import br.com.varesync.model.Categoria;
+import br.com.varesync.model.DadosFiscais;
+import br.com.varesync.model.OrigemMercadoria;
+import br.com.varesync.model.PerfilTributario;
+import br.com.varesync.model.ProdutoFiscal;
+import br.com.varesync.service.CategoriaService;
+import br.com.varesync.service.FiscalService;
+import br.com.varesync.service.NegocioException;
+import br.com.varesync.service.Sessao;
+import br.com.varesync.service.ValidacaoFiscal;
+import br.com.varesync.ui.Dialogos;
+import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.Tarefas;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.concurrent.Task;
+import javafx.fxml.FXML;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.SelectionMode;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.layout.GridPane;
+import javafx.stage.FileChooser;
+
+/**
+ * Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo botão "Fiscal…" de Produtos. Aba Produtos: NCM,
+ * CEST, origem e perfil do produto selecionado e a aplicação de um perfil em lote (à seleção, a uma categoria inteira
+ * ou a um NCM); aba Perfis tributários ({@link PerfisTributariosController}); aba Tabelas NCM e CEST, com a
+ * importação em {@link Task}.
+ */
+public class FiscalController {
+
+    /** "Todas" e "Todos" dos filtros. */
+    private static final Categoria TODAS = new Categoria(0, "Todas", true);
+    private static final PerfilTributario TODOS = new PerfilTributario(0, "Todos", "", "", null, null, null, "", null,
+            "", null, null, null, null, true, 0);
+
+    private final FiscalService service;
+    private final CategoriaService categoriaService;
+    private final Sessao sessao;
+    private ProdutoFiscal selecionado;
+
+    @FXML private Label situacaoEmpresa;
+    @FXML private TabPane abas;
+    @FXML private Tab abaProdutos;
+    @FXML private Tab abaPerfis;
+    @FXML private Tab abaTabelas;
+    @FXML private Node perfis;
+    @FXML private PerfisTributariosController perfisController;
+    @FXML private TextField campoBusca;
+    @FXML private ComboBox<Categoria> filtroCategoria;
+    @FXML private ComboBox<PerfilTributario> filtroPerfil;
+    @FXML private CheckBox campoSoPendentes;
+    @FXML private CheckBox campoInativos;
+    @FXML private TableView<ProdutoFiscal> tabela;
+    @FXML private TableColumn<ProdutoFiscal, Long> colunaCodigo;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaNome;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaCategoria;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaNcm;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaCest;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaOrigem;
+    @FXML private TableColumn<ProdutoFiscal, String> colunaPerfil;
+    @FXML private Label resumo;
+    @FXML private Label tituloProduto;
+    @FXML private GridPane gradeProduto;
+    @FXML private TextField campoNcm;
+    @FXML private Label descricaoNcm;
+    @FXML private TextField campoCest;
+    @FXML private ComboBox<Integer> campoOrigem;
+    @FXML private ComboBox<PerfilTributario> campoPerfil;
+    @FXML private Button botaoSalvar;
+    @FXML private ComboBox<PerfilTributario> campoPerfilLote;
+    @FXML private ToggleGroup grupoAlvo;
+    @FXML private RadioButton alvoSelecao;
+    @FXML private RadioButton alvoCategoria;
+    @FXML private RadioButton alvoNcm;
+    @FXML private ComboBox<Categoria> campoCategoriaLote;
+    @FXML private TextField campoNcmLote;
+    @FXML private Button botaoAplicar;
+    @FXML private Label situacaoNcm;
+    @FXML private Label situacaoCest;
+    @FXML private Button botaoImportarNcm;
+    @FXML private Button botaoImportarCest;
+    @FXML private ProgressIndicator progresso;
+    @FXML private Label mensagemTabelas;
+    @FXML private Label mensagem;
+
+    public FiscalController(FiscalService service, CategoriaService categoriaService, Sessao sessao) {
+        this.service = service;
+        this.categoriaService = categoriaService;
+        this.sessao = sessao;
+    }
+
+    /** "Empresa: Simples Nacional · UF SP · IE 123456789", com o caminho para completar o que falta. */
+    static String empresa(br.com.varesync.model.Configuracoes.Loja loja) {
+        String uf = loja.uf().isEmpty() ? "UF não informada" : "UF " + loja.uf();
+        String ie = loja.ie().isEmpty() ? "IE não informada" : "IE " + loja.ie();
+        return "Empresa: " + loja.regime().rotulo() + " · " + uf + " · " + ie
+                + (loja.uf().isEmpty() || loja.ie().isEmpty() ? " (complete em Configurações › Loja)" : "")
+                + ". O sistema não emite documento fiscal: estes dados preparam uma emissão futura.";
+    }
+
+    @FXML
+    private void initialize() {
+        situacaoEmpresa.setText(empresa(service.empresa(sessao)));
+        progresso.managedProperty().bind(progresso.visibleProperty());
+        colunaCodigo.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().id()));
+        texto(colunaNome, ProdutoFiscal::nome);
+        texto(colunaCategoria, p -> p.categoriaNome() == null ? "" : p.categoriaNome());
+        texto(colunaNcm, p -> p.ncm() == null ? "—" : ValidacaoFiscal.formatarNcm(p.ncm()));
+        texto(colunaCest, p -> p.cest() == null ? "" : ValidacaoFiscal.formatarCest(p.cest()));
+        texto(colunaOrigem, p -> OrigemMercadoria.rotulo(p.origem()));
+        texto(colunaPerfil, p -> p.perfilNome() == null ? "—" : p.perfilNome());
+        tabela.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        tabela.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(ProdutoFiscal p, boolean vazio) {
+                super.updateItem(p, vazio);
+                getStyleClass().removeAll("inativo", "linha-aviso");
+                if (!vazio && p != null) {
+                    if (!p.ativo()) {
+                        getStyleClass().add("inativo");
+                    } else if (p.ncm() == null || p.perfilId() == null) {
+                        getStyleClass().add("linha-aviso");
+                    }
+                }
+            }
+        });
+        tabela.getSelectionModel().selectedItemProperty().addListener((o, a, p) -> mostrar(p));
+        tabela.getSelectionModel().getSelectedItems().addListener(
+                (javafx.collections.ListChangeListener<ProdutoFiscal>) m -> atualizarSelecao());
+
+        campoOrigem.getItems().add(null);
+        campoOrigem.getItems().addAll(OrigemMercadoria.codigos());
+        campoOrigem.setCellFactory(l -> celulaOrigem(false));
+        campoOrigem.setButtonCell(celulaOrigem(true));
+        campoPerfil.setCellFactory(l -> celulaPerfil("(sem perfil)", false));
+        campoPerfil.setButtonCell(celulaPerfil("(sem perfil)", true));
+        campoPerfilLote.setCellFactory(l -> celulaPerfil("Escolha o perfil", false));
+        campoPerfilLote.setButtonCell(celulaPerfil("Escolha o perfil", true));
+        campoNcm.textProperty().addListener((o, a, n) -> descricaoNcm.setText(descricao(n)));
+        campoCategoriaLote.valueProperty().addListener((o, a, c) -> {
+            if (c != null) {
+                alvoCategoria.setSelected(true);
+            }
+        });
+        campoNcmLote.textProperty().addListener((o, a, n) -> {
+            if (n != null && !n.isBlank()) {
+                alvoNcm.setSelected(true);
+            }
+        });
+
+        filtroCategoria.setOnAction(e -> pesquisar());
+        filtroPerfil.setOnAction(e -> pesquisar());
+        campoSoPendentes.setOnAction(e -> pesquisar());
+        campoInativos.setOnAction(e -> pesquisar());
+        abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
+            if (aba == abaProdutos) {
+                carregarPerfis();
+                pesquisar();
+            } else if (aba == abaTabelas) {
+                carregarTabelas();
+            }
+        });
+
+        List<Categoria> categorias = categoriaService.listar(sessao, true);
+        filtroCategoria.getItems().setAll(TODAS);
+        filtroCategoria.getItems().addAll(categorias);
+        filtroCategoria.setValue(TODAS);
+        campoCategoriaLote.getItems().setAll(categorias);
+        carregarPerfis();
+        pesquisar();
+        mostrar(null);
+        Platform.runLater(campoBusca::requestFocus);
+    }
+
+    private static void texto(TableColumn<ProdutoFiscal, String> coluna, Function<ProdutoFiscal, String> valor) {
+        coluna.setCellValueFactory(c -> new ReadOnlyStringWrapper(valor.apply(c.getValue())));
+    }
+
+    /** @param botao célula do botão do combo: sem valor escolhido, mostra o texto do vazio (a lista não tem linha vazia) */
+    private static ListCell<Integer> celulaOrigem(boolean botao) {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(Integer origem, boolean vazio) {
+                super.updateItem(origem, vazio);
+                setText(vazio && !botao ? null : origem == null ? "(não informada)" : OrigemMercadoria.rotulo(origem));
+            }
+        };
+    }
+
+    private static ListCell<PerfilTributario> celulaPerfil(String vazioTexto, boolean botao) {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(PerfilTributario p, boolean vazio) {
+                super.updateItem(p, vazio);
+                setText(vazio && !botao ? null : p == null ? vazioTexto : p.toString());
+            }
+        };
+    }
+
+    /** Recarrega os perfis dos filtros e das escolhas, mantendo o que estava escolhido. */
+    private void carregarPerfis() {
+        List<PerfilTributario> todos = service.perfis(sessao, false);
+        Long filtro = filtroPerfil.getValue() == null || filtroPerfil.getValue() == TODOS ? null
+                : filtroPerfil.getValue().id();
+        filtroPerfil.getItems().setAll(TODOS);
+        filtroPerfil.getItems().addAll(todos);
+        filtroPerfil.setValue(todos.stream().filter(p -> Objects.equals(p.id(), filtro)).findFirst().orElse(TODOS));
+        Long lote = campoPerfilLote.getValue() == null ? null : campoPerfilLote.getValue().id();
+        List<PerfilTributario> ativos = todos.stream().filter(PerfilTributario::ativo).toList();
+        campoPerfilLote.getItems().setAll(ativos);
+        campoPerfilLote.setValue(ativos.stream().filter(p -> Objects.equals(p.id(), lote)).findFirst().orElse(null));
+        mostrar(selecionado);
+    }
+
+    @FXML
+    private void pesquisar() {
+        Categoria categoria = filtroCategoria.getValue();
+        PerfilTributario perfil = filtroPerfil.getValue();
+        Long manter = selecionado == null ? null : selecionado.id();
+        try {
+            tabela.getItems().setAll(service.produtos(sessao, campoBusca.getText(),
+                    categoria == null || categoria == TODAS ? null : categoria.id(),
+                    perfil == null || perfil == TODOS ? null : perfil.id(), campoSoPendentes.isSelected(),
+                    campoInativos.isSelected()));
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+            return;
+        }
+        long pendentes = tabela.getItems().stream().filter(p -> p.ativo() && (p.ncm() == null || p.perfilId() == null))
+                .count();
+        int total = tabela.getItems().size();
+        resumo.setText((total == 1 ? "1 produto" : total + " produtos") + (pendentes == 0 ? ""
+                : ", " + pendentes + " sem NCM ou sem perfil (em amarelo)"));
+        if (manter != null) {
+            tabela.getItems().stream().filter(p -> p.id() == manter).findFirst()
+                    .ifPresent(p -> tabela.getSelectionModel().select(p));
+        }
+        if (tabela.getSelectionModel().getSelectedItem() == null) {
+            mostrar(null);
+        }
+        atualizarSelecao();
+    }
+
+    private void atualizarSelecao() {
+        int n = tabela.getSelectionModel().getSelectedItems().size();
+        alvoSelecao.setText(n == 0 ? "Aos produtos selecionados na lista (nenhum)"
+                : n == 1 ? "Ao produto selecionado na lista" : "Aos " + n + " produtos selecionados na lista");
+    }
+
+    private void mostrar(ProdutoFiscal p) {
+        selecionado = p;
+        gradeProduto.setDisable(p == null);
+        botaoSalvar.setDisable(p == null);
+        List<PerfilTributario> escolhas = new ArrayList<>();
+        escolhas.add(null);
+        for (PerfilTributario perfil : filtroPerfil.getItems()) {
+            if (perfil != TODOS && (perfil.ativo() || (p != null && Objects.equals(perfil.id(), p.perfilId())))) {
+                escolhas.add(perfil);
+            }
+        }
+        campoPerfil.getItems().setAll(escolhas);
+        if (p == null) {
+            tituloProduto.setText("Produto selecionado: nenhum");
+            campoNcm.setText("");
+            campoCest.setText("");
+            campoOrigem.setValue(null);
+            campoPerfil.setValue(null);
+            return;
+        }
+        tituloProduto.setText("Produto selecionado: " + p.nome() + " (código " + p.id() + ")");
+        campoNcm.setText(p.ncm() == null ? "" : ValidacaoFiscal.formatarNcm(p.ncm()));
+        campoCest.setText(p.cest() == null ? "" : ValidacaoFiscal.formatarCest(p.cest()));
+        campoOrigem.setValue(p.origem());
+        campoPerfil.setValue(escolhas.stream().filter(e -> e != null && Objects.equals(e.id(), p.perfilId()))
+                .findFirst().orElse(null));
+    }
+
+    private String descricao(String ncm) {
+        try {
+            String d = service.descricaoNcm(sessao, ncm);
+            return d.length() > 80 ? d.substring(0, 79) + "…" : d;
+        } catch (NegocioException e) {
+            return "";
+        }
+    }
+
+    @FXML
+    private void salvar() {
+        if (selecionado == null) {
+            return;
+        }
+        PerfilTributario perfil = campoPerfil.getValue();
+        try {
+            service.salvarDadosFiscais(sessao, selecionado.id(), new DadosFiscais(campoNcm.getText(),
+                    campoCest.getText(), campoOrigem.getValue(), perfil == null ? null : perfil.id()));
+            String nome = selecionado.nome();
+            pesquisar();
+            Mensagem.sucesso(mensagem, "Dados fiscais de \"" + nome + "\" salvos.");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
+    @FXML
+    private void aplicar() {
+        Mensagem.limpar(mensagem);
+        PerfilTributario perfil = campoPerfilLote.getValue();
+        if (perfil == null) {
+            Mensagem.erro(mensagem, "Escolha o perfil a aplicar.");
+            return;
+        }
+        AlvoPerfil alvo;
+        String descricao;
+        if (alvoCategoria.isSelected()) {
+            Categoria c = campoCategoriaLote.getValue();
+            if (c == null) {
+                Mensagem.erro(mensagem, "Escolha a categoria.");
+                return;
+            }
+            alvo = AlvoPerfil.categoria(c.id());
+            descricao = "da categoria \"" + c.nome() + "\" (ativos e inativos)";
+        } else if (alvoNcm.isSelected()) {
+            alvo = AlvoPerfil.ncm(campoNcmLote.getText());
+            descricao = "com o NCM começando por " + (campoNcmLote.getText() == null ? "" : campoNcmLote.getText().strip());
+        } else {
+            alvo = AlvoPerfil.selecao(tabela.getSelectionModel().getSelectedItems().stream().map(ProdutoFiscal::id)
+                    .toList());
+            descricao = "selecionados na lista";
+        }
+        try {
+            FiscalService.Previa previa = service.previa(sessao, perfil.id(), alvo);
+            if (previa.produtos() == 0) {
+                Mensagem.erro(mensagem, "Nenhum produto " + descricao + ".");
+                return;
+            }
+            if (previa.mudam() == 0) {
+                Mensagem.informar(mensagem, "Os " + previa.produtos() + " produtos " + descricao + " já têm o perfil \""
+                        + perfil.nome() + "\".");
+                return;
+            }
+            if (!Dialogos.confirmar(tabela.getScene().getWindow(), "Aplicar o perfil \"" + perfil.nome() + "\" a "
+                    + (previa.mudam() == 1 ? "1 produto" : previa.mudam() + " produtos") + " " + descricao + "?"
+                    + (previa.jaComOPerfil() == 0 ? "" : " (" + previa.jaComOPerfil() + " já têm este perfil.)")
+                    + " O perfil anterior desses produtos é substituído.")) {
+                return;
+            }
+            int alterados = service.aplicarPerfil(sessao, perfil.id(), alvo);
+            pesquisar();
+            Mensagem.sucesso(mensagem, "Perfil \"" + perfil.nome() + "\" aplicado a " + (alterados == 1 ? "1 produto"
+                    : alterados + " produtos") + ".");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagem, e.getMessage());
+        }
+    }
+
+    // ----- Tabelas NCM e CEST -----
+
+    private void carregarTabelas() {
+        FiscalService.Tabelas t = service.tabelas(sessao);
+        situacaoNcm.setText(t.ncm() == 0 ? "Tabela NCM: não importada (só o formato é conferido)."
+                : "Tabela NCM: " + t.ncm() + " códigos de 8 dígitos.");
+        situacaoCest.setText(t.cest() == 0 ? "Tabela CEST: não importada (só o formato é conferido)."
+                : "Tabela CEST: " + t.cest() + " códigos.");
+    }
+
+    @FXML
+    private void importarNcm() {
+        File arquivo = escolher("Tabela NCM", "CSV ou JSON da tabela NCM", "*.csv", "*.json", "*.txt");
+        if (arquivo != null) {
+            importarNcm(arquivo.toPath());
+        }
+    }
+
+    @FXML
+    private void importarCest() {
+        File arquivo = escolher("Tabela CEST", "CSV da tabela CEST", "*.csv", "*.txt");
+        if (arquivo != null) {
+            importarCest(arquivo.toPath());
+        }
+    }
+
+    private File escolher(String titulo, String descricao, String... extensoes) {
+        FileChooser escolha = new FileChooser();
+        escolha.setTitle(titulo);
+        escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter(descricao, extensoes));
+        return escolha.showOpenDialog(abas.getScene().getWindow());
+    }
+
+    /** Importa a tabela NCM do arquivo, em {@link Task} (o botão "Importar…" chama depois da escolha). */
+    void importarNcm(Path arquivo) {
+        importar(arquivo, conteudo -> service.importarNcm(sessao, conteudo, arquivo.getFileName().toString()));
+    }
+
+    /** Importa a tabela CEST do arquivo, em {@link Task}. */
+    void importarCest(Path arquivo) {
+        importar(arquivo, conteudo -> service.importarCest(sessao, conteudo, arquivo.getFileName().toString()));
+    }
+
+    private void importar(Path arquivo, Function<byte[], FiscalService.Importacao> importacao) {
+        Mensagem.limpar(mensagemTabelas);
+        Task<FiscalService.Importacao> tarefa = new Task<>() {
+            @Override
+            protected FiscalService.Importacao call() throws IOException {
+                return importacao.apply(Files.readAllBytes(arquivo));
+            }
+        };
+        botaoImportarNcm.setDisable(true);
+        botaoImportarCest.setDisable(true);
+        progresso.setVisible(true);
+        tarefa.setOnSucceeded(e -> {
+            terminarImportacao();
+            FiscalService.Importacao r = tarefa.getValue();
+            Mensagem.sucesso(mensagemTabelas, "Tabela " + r.tabela() + " importada de " + arquivo.getFileName() + ": "
+                    + r.linhas() + " códigos" + (r.pulados() == 0 ? "" : r.pulados() == 1
+                    ? " (1 nível intermediário pulado)" : " (" + r.pulados() + " níveis intermediários pulados)") + ".");
+        });
+        tarefa.setOnFailed(e -> {
+            terminarImportacao();
+            Throwable erro = tarefa.getException();
+            if (erro instanceof NegocioException) {
+                Mensagem.erro(mensagemTabelas, erro.getMessage());
+            } else if (erro instanceof IOException) {
+                Mensagem.erro(mensagemTabelas, "Não foi possível ler o arquivo " + arquivo.getFileName() + ".");
+            } else {
+                Mensagem.erro(mensagemTabelas, "Erro inesperado. Os detalhes foram registrados no log.");
+                org.slf4j.LoggerFactory.getLogger(FiscalController.class).error("Falha na importação", erro);
+            }
+        });
+        Tarefas.executar("importacao-fiscal", tarefa);
+    }
+
+    private void terminarImportacao() {
+        botaoImportarNcm.setDisable(false);
+        botaoImportarCest.setDisable(false);
+        progresso.setVisible(false);
+        carregarTabelas();
+    }
+}

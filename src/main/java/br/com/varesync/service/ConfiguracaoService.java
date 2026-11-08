@@ -268,8 +268,10 @@ public class ConfiguracaoService {
             throw new NegocioException("O alerta de validade deve estar entre 0 (só no dia do vencimento) e "
                     + Configuracoes.VALIDADE_ALERTA_MAXIMO + " dias.");
         }
+        String uf = ValidacaoFiscal.uf(loja.uf());
+        String ie = ValidacaoFiscal.ie(loja.ie());
         return new Configuracoes(new Configuracoes.Loja(nome, documento == null ? "" : documento, endereco,
-                telefone == null ? "" : telefone),
+                telefone == null ? "" : telefone, loja.regime(), uf, ie),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
                 crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()));
@@ -442,6 +444,9 @@ public class ConfiguracaoService {
         comparar(m, "CNPJ/CPF da loja", documento(a.loja().documento()), documento(n.loja().documento()));
         comparar(m, "endereço", texto(a.loja().endereco()), texto(n.loja().endereco()));
         comparar(m, "telefone", telefone(a.loja().telefone()), telefone(n.loja().telefone()));
+        comparar(m, "regime tributário", a.loja().regime().rotulo(), n.loja().regime().rotulo());
+        comparar(m, "UF da loja", texto(a.loja().uf()), texto(n.loja().uf()));
+        comparar(m, "inscrição estadual", texto(a.loja().ie()), texto(n.loja().ie()));
         comparar(m, "mensagem do comprovante", texto(a.rodapeComprovante()), texto(n.rodapeComprovante()));
         comparar(m, "venda sem estoque", estoqueNegativo(a.venda().permitirEstoqueNegativo()),
                 estoqueNegativo(n.venda().permitirEstoqueNegativo()));
