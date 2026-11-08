@@ -27,7 +27,8 @@ public class ProdutoDAO {
 
     /** Valores gravados no INSERT/UPDATE, já validados pelo service. */
     public record Gravacao(String nome, Long categoriaId, String unidade, BigDecimal precoVenda, BigDecimal custo,
-                           BigDecimal estoqueMinimo, Integer plu, ConteudoLiquido conteudo) {
+                           BigDecimal estoqueMinimo, Integer plu, ConteudoLiquido conteudo,
+                           Integer validadeBalancaDias) {
     }
 
     /** Produto que já usa um código de barras. */
@@ -50,7 +51,7 @@ public class ProdutoDAO {
             SELECT p.id, p.nome, p.categoria_id, c.nome AS categoria_nome, p.unidade, u.fracionada,
                    p.preco_venda, p.custo, p.estoque_minimo, p.plu, p.ativo, pe.quantidade AS estoque,
                    p.atualizado_em, us.nome AS atualizado_por_nome, p.controla_validade,
-                   p.conteudo_quantidade, p.conteudo_unidade
+                   p.conteudo_quantidade, p.conteudo_unidade, p.validade_balanca_dias
               FROM produto p
               JOIN unidade_medida u   ON u.sigla = p.unidade
               JOIN produto_estoque pe ON pe.produto_id = p.id
@@ -61,9 +62,9 @@ public class ProdutoDAO {
     public long inserir(Connection con, Gravacao g, long usuarioId, OffsetDateTime agora) throws SQLException {
         String sql = """
                 INSERT INTO produto (nome, categoria_id, unidade, preco_venda, custo, estoque_minimo, plu,
-                                     conteudo_quantidade, conteudo_unidade,
+                                     conteudo_quantidade, conteudo_unidade, validade_balanca_dias,
                                      criado_em, criado_por, atualizado_em, atualizado_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -85,8 +86,8 @@ public class ProdutoDAO {
         String sql = """
                 UPDATE produto
                    SET nome = ?, categoria_id = ?, unidade = ?, preco_venda = ?, custo = ?, estoque_minimo = ?,
-                       plu = ?, conteudo_quantidade = ?, conteudo_unidade = ?, atualizado_por = ?,
-                       atualizado_em = ?
+                       plu = ?, conteudo_quantidade = ?, conteudo_unidade = ?, validade_balanca_dias = ?,
+                       atualizado_por = ?, atualizado_em = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -524,7 +525,12 @@ public class ProdutoDAO {
         ConteudoLiquido conteudo = g.conteudo() == null ? ConteudoLiquido.SEM : g.conteudo();
         ps.setBigDecimal(8, conteudo.quantidade());
         ps.setString(9, conteudo.vazio() ? null : conteudo.unidade().sigla());
-        return 10;
+        if (g.validadeBalancaDias() == null) {
+            ps.setNull(10, Types.SMALLINT);
+        } else {
+            ps.setInt(10, g.validadeBalancaDias());
+        }
+        return 11;
     }
 
     /** F18.1: conteúdo líquido gravado, ou {@link ConteudoLiquido#SEM}. */
@@ -559,6 +565,12 @@ public class ProdutoDAO {
                 rs.getString("atualizado_por_nome"),
                 codigos,
                 rs.getBoolean("controla_validade"),
-                lerConteudo(rs));
+                lerConteudo(rs),
+                lerInteiro(rs, "validade_balanca_dias"));
+    }
+
+    private static Integer lerInteiro(ResultSet rs, String coluna) throws SQLException {
+        int valor = rs.getInt(coluna);
+        return rs.wasNull() ? null : valor;
     }
 }

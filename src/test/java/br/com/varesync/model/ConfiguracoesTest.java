@@ -51,7 +51,22 @@ class ConfiguracoesTest {
         m.put("etiqueta.linhas", "8");
         m.put("etiqueta.modelo_termica", "");
         m.put("etiqueta.impressora_termica", "");
+        m.put("balanca.pasta_carga", ""); // V17 (F18.2)
         return m;
+    }
+
+    /** V17 (F18.2): pasta da carga de balança vazia; lida sem os espaços das pontas e gravada como está. */
+    @Test
+    void pastaDaCargaDeBalancaDaV17() {
+        assertThat(Configuracoes.PADRAO.balanca().pastaCarga()).isEmpty();
+        assertThat(new Configuracoes.Balanca(false, 2, 5, TipoValorBalanca.PRECO).pastaCarga()).isEmpty();
+        Map<String, String> m = v2();
+        m.put("balanca.pasta_carga", "  C:\\MGV6\\Itens ");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.balanca().pastaCarga()).isEqualTo("C:\\MGV6\\Itens");
+        assertThat(c.paraMapa()).containsEntry("balanca.pasta_carga", "C:\\MGV6\\Itens");
+        m.remove("balanca.pasta_carga");
+        assertThat(Configuracoes.de(m).balanca().pastaCarga()).isEmpty();
     }
 
     /** V7 (F12.5): fidelidade desligada, 1% e sem compra mínima; percentual acima de 100 ou negativo volta ao padrão. */

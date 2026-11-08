@@ -79,8 +79,13 @@
                     <Label fx:id="rotuloEstoqueAtual" text="Estoque atual" GridPane.rowIndex="11" GridPane.columnIndex="0"/>
                     <Label fx:id="estoqueAtual" GridPane.rowIndex="11" GridPane.columnIndex="1"/>
                     <Label text="PLU (balança)" GridPane.rowIndex="12" GridPane.columnIndex="0"/>
-                    <TextField fx:id="campoPlu" promptText="só com balança ativa e unidade fracionada"
-                               GridPane.rowIndex="12" GridPane.columnIndex="1"/>
+                    <HBox spacing="8" alignment="CENTER_LEFT" GridPane.rowIndex="12" GridPane.columnIndex="1">
+                        <TextField fx:id="campoPlu" promptText="balança ativa e unidade fracionada" HBox.hgrow="ALWAYS"/>
+                        <Label text="Validade" minWidth="-Infinity"/>
+                        <TextField fx:id="campoValidadeBalanca" promptText="—" prefWidth="56" minWidth="56"
+                                   styleClass="campo-numero"/>
+                        <Label text="dias" minWidth="-Infinity"/>
+                    </HBox>
                     <Label text="Última alteração" GridPane.rowIndex="13" GridPane.columnIndex="0"/>
                     <Label fx:id="ultimaAlteracao" styleClass="subtitulo" GridPane.rowIndex="13" GridPane.columnIndex="1"/>
                 </GridPane>

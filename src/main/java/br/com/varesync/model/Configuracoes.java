@@ -10,7 +10,7 @@ import java.util.Optional;
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
  * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
  * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14; e da V12: {@code financeiro.integrar_caixa}, F15.1;
- * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
+ * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1; e da V17: {@code balanca.pasta_carga}, F18.2); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
  * ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
@@ -35,6 +35,7 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String BALANCA_PREFIXO = "balanca.prefixo";
     public static final String BALANCA_DIGITOS = "balanca.digitos_codigo";
     public static final String BALANCA_TIPO_VALOR = "balanca.tipo_valor";
+    public static final String BALANCA_PASTA_CARGA = "balanca.pasta_carga";
     public static final String BACKUP_PASTA = "backup.pasta";
     public static final String BACKUP_PG_DUMP = "backup.pg_dump";
     public static final String BACKUP_MANTER = "backup.manter_ultimos";
@@ -80,9 +81,20 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     /**
      * Etiqueta de balança (6.9): EAN-13 que começa com {@code prefixo}, seguido de {@code digitosCodigo} dígitos de
-     * PLU e do valor ({@code tipoValor}) até o 12º dígito.
+     * PLU e do valor ({@code tipoValor}) até o 12º dígito. {@code pastaCarga} (F18.2): pasta onde o ITENSMGV.TXT é
+     * gravado; vazia = não configurada.
      */
-    public record Balanca(boolean ativo, int prefixo, int digitosCodigo, TipoValorBalanca tipoValor) {
+    public record Balanca(boolean ativo, int prefixo, int digitosCodigo, TipoValorBalanca tipoValor,
+                          String pastaCarga) {
+
+        public Balanca {
+            pastaCarga = pastaCarga == null ? "" : pastaCarga.strip();
+        }
+
+        /** Sem pasta de carga. */
+        public Balanca(boolean ativo, int prefixo, int digitosCodigo, TipoValorBalanca tipoValor) {
+            this(ativo, prefixo, digitosCodigo, tipoValor, "");
+        }
 
         /** Maior PLU que cabe na etiqueta: 9999, 99999 ou 999999. */
         public int pluMaximo() {
@@ -149,7 +161,7 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         }
     }
 
-    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13, V15 e V16). */
+    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13, V15, V16 e V17). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
@@ -271,7 +283,8 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                         .orElse(p.balanca.prefixo()),
                 inteiro(valores, BALANCA_DIGITOS, DIGITOS_PLU_MINIMO, DIGITOS_PLU_MAXIMO)
                         .orElse(p.balanca.digitosCodigo()),
-                tipoValor(valores.get(BALANCA_TIPO_VALOR)).orElse(p.balanca.tipoValor()));
+                tipoValor(valores.get(BALANCA_TIPO_VALOR)).orElse(p.balanca.tipoValor()),
+                texto(valores, BALANCA_PASTA_CARGA, ""));
         Backup backup = new Backup(texto(valores, BACKUP_PASTA, ""), texto(valores, BACKUP_PG_DUMP, ""),
                 inteiro(valores, BACKUP_MANTER, 1, 999).orElse(p.backup.manterUltimos()));
         Seguranca seguranca = new Seguranca(
@@ -318,6 +331,7 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(BALANCA_PREFIXO, String.valueOf(balanca.prefixo()));
         m.put(BALANCA_DIGITOS, String.valueOf(balanca.digitosCodigo()));
         m.put(BALANCA_TIPO_VALOR, balanca.tipoValor().name());
+        m.put(BALANCA_PASTA_CARGA, balanca.pastaCarga());
         m.put(BACKUP_PASTA, backup.pasta());
         m.put(BACKUP_PG_DUMP, backup.pgDump());
         m.put(BACKUP_MANTER, String.valueOf(backup.manterUltimos()));

@@ -19,11 +19,14 @@ import java.util.Optional;
  * @param contasNegativas    contas financeiras com saldo negativo (FINANCEIRO); vazia sem a permissão
  * @param rupturas           produtos ativos com saldo ≤ 0 que venderam nos últimos 30 dias (COMPRAS, F16.4)
  * @param lotes              lotes vencendo e vencidos e "SEM LOTE" negativo (ESTOQUE, F17.3)
+ * @param etiquetasPendentes produtos com etiqueta de gôndola pendente (PRODUTOS, F18.3)
+ * @param cargaPendente      pesáveis pendentes na carga de balança (PRODUTOS, F18.3)
  */
 public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, Optional<CaixaSessao> caixaAberto,
                             Integer inventariosAbertos, BackupAtrasado backupAtrasado,
                             TitulosVencidos titulosVencidos, ContasAPagar pagarVencidas, ContasAPagar pagarHoje,
-                            List<ContaFinanceira> contasNegativas, Integer rupturas, Lotes lotes) {
+                            List<ContaFinanceira> contasNegativas, Integer rupturas, Lotes lotes,
+                            Integer etiquetasPendentes, Integer cargaPendente) {
 
     /**
      * Lotes com saldo positivo de produtos ativos com o controle ligado (F17.3).
@@ -64,7 +67,8 @@ public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, 
                 || (pagarVencidas != null && pagarVencidas.quantidade() > 0)
                 || (pagarHoje != null && pagarHoje.quantidade() > 0) || !contasNegativas.isEmpty()
                 || positivo(rupturas)
-                || (lotes != null && (lotes.vencendo() > 0 || lotes.vencidos() > 0 || lotes.semLoteNegativo() > 0));
+                || (lotes != null && (lotes.vencendo() > 0 || lotes.vencidos() > 0 || lotes.semLoteNegativo() > 0))
+                || positivo(etiquetasPendentes) || positivo(cargaPendente);
     }
 
     private static boolean positivo(Integer valor) {

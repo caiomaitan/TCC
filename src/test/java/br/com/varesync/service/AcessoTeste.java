@@ -88,6 +88,7 @@ final class AcessoTeste {
     final SugestaoCompraService sugestao;
     final PedidoCompraService pedidos;
     final EtiquetaService etiquetas;
+    final CargaBalancaService cargaBalanca;
     private final DataSource dataSource;
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
@@ -128,8 +129,11 @@ final class AcessoTeste {
                 relogio);
         relatorios = new RelatorioService(transacao, new ConfiguracaoDAO(), categoriaDAO, produtoDAO, usuarioDAO,
                 new FornecedorDAO(), new FormaPagamentoDAO(), new ContaPagarDAO(), relogio);
+        cargaBalanca = new CargaBalancaService(transacao, new br.com.varesync.dao.CargaBalancaDAO(),
+                new ConfiguracaoDAO(), auditoria, relogio);
         painel = new PainelService(transacao, new PainelDAO(), new EstoqueDAO(), caixa, new AuditoriaDAO(),
-                new TituloReceberDAO(), new ContaFinanceiraDAO(), new LoteDAO(), new ConfiguracaoDAO(), relogio);
+                new TituloReceberDAO(), new ContaFinanceiraDAO(), new LoteDAO(), new ConfiguracaoDAO(), new EtiquetaDAO(),
+                cargaBalanca, relogio);
         configuracoes = new ConfiguracaoService(transacao, new ConfiguracaoDAO(), new FormaPagamentoDAO(), produtoDAO,
                 new ContaFinanceiraDAO(), auditoria);
         promocoes = new PromocaoService(transacao, new PromocaoDAO(), produtoDAO, auditoria, relogio);

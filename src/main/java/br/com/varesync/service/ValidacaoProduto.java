@@ -123,6 +123,21 @@ final class ValidacaoProduto {
     }
 
     /**
+     * Dias de validade na balança (F18.2): nulo (não muda), 0 (sem validade) ou de 1 a {@value LayoutMgv#VALIDADE_MAXIMA}
+     * (991 a 999 têm significado especial no MGV).
+     */
+    static Integer validadeBalanca(Integer dias) {
+        if (dias == null || dias == 0) {
+            return dias;
+        }
+        if (dias < 0 || dias > LayoutMgv.VALIDADE_MAXIMA) {
+            throw new NegocioException("Os dias de validade na balança devem estar entre 1 e "
+                    + LayoutMgv.VALIDADE_MAXIMA + " (vazio = a balança não imprime validade).");
+        }
+        return dias;
+    }
+
+    /**
      * PLU: só com balança ativa e unidade fracionada (6.3), de 1 a 999999.
      *
      * @param jaGravado o produto já tinha este PLU: continua valendo mesmo com a balança desligada

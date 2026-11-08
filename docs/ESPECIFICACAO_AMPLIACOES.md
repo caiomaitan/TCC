@@ -1022,24 +1022,25 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 
 ### F18.2 Carga de balança
 
-- **Arquivo de itens da balança Toledo (MGV, `ITENSMGV.TXT`)**, com os produtos pesáveis que têm PLU:
-  - PLU, descrição e tipo de venda: por peso (o VareSync só aceita PLU em unidade fracionada);
-  - preço por kg vigente na data, inclusive promoção;
-  - validade em dias (opcional).
-
-  O arquivo é gravado em `balanca.pasta_carga`.
+- **Arquivo de itens da balança Toledo (MGV, `ITENSMGV.TXT`)**, com os produtos ativos vendidos em KG que têm PLU:
+  - começo da linha (formato MGV6, a conferir): departamento (2 dígitos, "01"), tipo de venda (1 dígito, "0" = por peso), código do item = PLU (6), preço por kg em centavos (6), dias de validade (3) e a descrição em duas linhas de 25 caracteres, sem acentos;
+  - o preço é o preço por kg vigente na data, inclusive promoção;
+  - os dias de validade vêm de um campo opcional novo no cadastro do produto pesável; vazio sai 000 (a balança não imprime validade);
+  - o resto da linha (campos extras, zerados) segue o manual da balança; o ACBrCargaBal, do Projeto ACBr, serve de referência;
+  - fim de linha CRLF. O arquivo é gravado em `balanca.pasta_carga`, configurada na aba Balança.
 - **Layout:**
   - fica isolado numa classe, com o formato documentado e teste por linha de amostra;
-  - o formato exato (MGV5, MGV6 ou MGV7) precisa ser conferido com o manual da balança da loja antes do uso real (registrar como risco). O componente ACBrCargaBal, do Projeto ACBr, serve de referência.
+  - o formato exato (MGV5, MGV6 ou MGV7) precisa ser conferido com o manual da balança da loja antes do uso real (registrar como risco).
 - **Carga pendente:**
-  - as tabelas `carga_balanca` e `carga_balanca_item` (`produto_id`, `preco`) registram cada carga;
-  - a carga fica pendente quando um pesável tem preço vigente diferente da última carga.
+  - as tabelas `carga_balanca` e `carga_balanca_item` (`produto_id`, `preco`, `descricao`) registram cada carga;
+  - a carga fica pendente quando um pesável nunca foi carregado ou tem preço vigente ou descrição diferente da última carga.
 
   Isso resolve o risco registrado na Fase 8: etiqueta com valor total impressa por balança com preço desatualizado.
+- **Correção da V16:** o CHECK do conteúdo líquido (`ck_produto_conteudo`) aceita quantidade sem unidade, e unidade sem quantidade, porque a comparação com nulo dá nulo e o CHECK deixa passar. A migration desta parte limpa as linhas pela metade, se houver, e troca o CHECK por `(conteudo_quantidade IS NULL) = (conteudo_unidade IS NULL) AND (conteudo_quantidade IS NULL OR (conteudo_quantidade > 0 AND conteudo_unidade IN ('g', 'kg', 'ml', 'L')))`.
 
 ### F18.3 Painel e gerador
 
-- Alertas "N produtos com etiqueta pendente" e "carga de balança pendente", para quem tem PRODUTOS.
+- Alertas "N produtos com etiqueta pendente" e "carga de balança pendente", para quem tem PRODUTOS; o clique abre as Etiquetas (pendentes) ou a Carga de balança.
 - **Gerador:** etiquetas impressas e uma carga de balança no começo do período, para o painel mostrar só o que mudou depois.
 
 ### Aceite F18
@@ -1050,7 +1051,10 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 - **Preço por kg:** produto de 500 g a R$ 8,99 mostra R$ 17,98 o kg.
 - **Código de barras:** o código do PDF é lido no teste e confere com o EAN.
 - **Térmica:** o texto ZPL ou DPL gerado para um produto confere com o esperado.
-- **Carga de balança:** contém só pesáveis com PLU, usa o preço promocional do dia e fica pendente depois de uma alteração de preço.
+- **Carga de balança:** contém só pesáveis com PLU, usa o preço promocional do dia e fica pendente depois de uma alteração de preço ou de nome.
+- **Linha de amostra:** o teste confere uma linha inteira, campo a campo, com o layout mostrado ao usuário.
+- **Conteúdo pela metade:** o banco recusa quantidade sem unidade e unidade sem quantidade.
+- **Painel:** os dois alertas aparecem para quem tem PRODUTOS e somem depois de imprimir as etiquetas e gerar a carga.
 
 ---
 
@@ -1175,6 +1179,7 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - foco inicial e ordem do Tab revisados;
   - contraste mínimo AA no tema escuro;
   - os cortes em 1280×720 que ficaram nas pendências das fases anteriores (por exemplo, os títulos do R27) são corrigidos;
+  - Configurações: as abas já não cabem e a barra rola; as seções passam para uma lista lateral, ou outra organização que caiba em 1280×720;
   - no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar.
 
 ### Aceite F21

@@ -104,6 +104,7 @@ public class ConfiguracoesController {
     @FXML private Tab abaBackup;
     @FXML private Tab abaAuditoria;
     @FXML private TextField campoPastaBackup;
+    @FXML private TextField campoPastaCarga;
     @FXML private TextField campoPgDump;
     @FXML private TextField campoManterBackups;
     @FXML private Label situacaoPgDump;
@@ -371,6 +372,7 @@ public class ConfiguracoesController {
         campoPrefixo.setText(String.valueOf(c.balanca().prefixo()));
         campoDigitos.setValue(c.balanca().digitosCodigo());
         campoTipoValor.setValue(c.balanca().tipoValor());
+        campoPastaCarga.setText(c.balanca().pastaCarga());
         campoPastaBackup.setText(c.backup().pasta());
         campoPgDump.setText(c.backup().pgDump());
         campoManterBackups.setText(String.valueOf(c.backup().manterUltimos()));
@@ -409,7 +411,8 @@ public class ConfiguracoesController {
                         numero(campoDescontoMaximo, "Desconto máximo do operador"), campoCancelarItem.isSelected()),
                 numero(campoMargemMinima, "Margem mínima"), inteiro(campoDiasSemGiro, "Dias sem giro"),
                 new Configuracoes.Balanca(campoBalancaAtiva.isSelected(), Integer.parseInt(prefixo),
-                        campoDigitos.getValue() == null ? 0 : campoDigitos.getValue(), campoTipoValor.getValue()),
+                        campoDigitos.getValue() == null ? 0 : campoDigitos.getValue(), campoTipoValor.getValue(),
+                        campoPastaCarga.getText()),
                 new Configuracoes.Backup(campoPastaBackup.getText(), campoPgDump.getText(),
                         inteiro(campoManterBackups, "Manter os últimos backups")), campoRodape.getText(),
                 new Configuracoes.Seguranca(inteiro(campoInatividade, "Bloquear a tela depois de"),
@@ -542,6 +545,22 @@ public class ConfiguracoesController {
         File pasta = escolha.showDialog(abas.getScene().getWindow());
         if (pasta != null) {
             campoPastaBackup.setText(pasta.getAbsolutePath());
+            Mensagem.informar(mensagemParametros, "Clique em \"Salvar alterações\" para usar a nova pasta.");
+        }
+    }
+
+    /** F18.2: pasta de onde o MGV importa o ITENSMGV.TXT. */
+    @FXML
+    private void escolherPastaCarga() {
+        DirectoryChooser escolha = new DirectoryChooser();
+        escolha.setTitle("Pasta da carga de balança");
+        File atual = Textos.vazio(campoPastaCarga.getText()) ? null : new File(campoPastaCarga.getText().strip());
+        if (atual != null && atual.isDirectory()) {
+            escolha.setInitialDirectory(atual);
+        }
+        File pasta = escolha.showDialog(abas.getScene().getWindow());
+        if (pasta != null) {
+            campoPastaCarga.setText(pasta.getAbsolutePath());
             Mensagem.informar(mensagemParametros, "Clique em \"Salvar alterações\" para usar a nova pasta.");
         }
     }

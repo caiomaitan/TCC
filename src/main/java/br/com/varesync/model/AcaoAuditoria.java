@@ -53,7 +53,8 @@ public enum AcaoAuditoria {
     CONTROLE_VALIDADE_ALTERADO("Controle de validade ligado ou desligado"),
     LOTE_TRANSFERIDO("Transferência entre lotes"),
     ETIQUETAS_IMPRESSAS("Etiquetas de gôndola impressas"),
-    ETIQUETAS_EM_DIA("Etiquetas marcadas como em dia");
+    ETIQUETAS_EM_DIA("Etiquetas marcadas como em dia"),
+    CARGA_BALANCA_GERADA("Carga de balança gerada");
 
     private final String rotulo;
 

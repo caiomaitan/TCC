@@ -23,6 +23,7 @@ import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
 import br.com.varesync.controller.PromocoesController;
 import br.com.varesync.controller.EtiquetasController;
+import br.com.varesync.controller.CargaBalancaController;
 import br.com.varesync.report.EtiquetasPdf;
 import br.com.varesync.report.ImpressaoTermica;
 import br.com.varesync.controller.RelatoriosController;
@@ -173,6 +174,9 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == FinanceiroController.class) {
             return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), s.fluxoCaixa(), sessao);
+        }
+        if (tipo == CargaBalancaController.class) {
+            return new CargaBalancaController(s.cargaBalanca(), sessao);
         }
         if (tipo == EtiquetasController.class) {
             return new EtiquetasController(s.etiquetas(), s.produtos(), s.categorias(), etiquetasPdf,

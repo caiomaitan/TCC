@@ -325,6 +325,18 @@ public class PrincipalController {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.ESTOQUE);
                 loader.<EstoqueController>getController().mostrarSemLoteNegativo();
             }
+
+            @Override
+            public void abrirEtiquetasPendentes() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.PRODUTOS);
+                loader.<ProdutosController>getController().abrirEtiquetas();
+            }
+
+            @Override
+            public void abrirCargaBalanca() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.PRODUTOS);
+                loader.<ProdutosController>getController().abrirCargaBalanca();
+            }
         };
     }
 

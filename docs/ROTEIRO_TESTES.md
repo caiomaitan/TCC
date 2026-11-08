@@ -739,3 +739,23 @@ biscoito 500 g (UPC-A) e queijo pesável (PLU 123), todos com estoque.
 | CT-F18-10 | Supervisor | 1. Configurações › Etiquetas 2. Exemplo DPL › Sim 3. Imprimir teste 4. 2 × 5 › Salvar alterações 5. 7 por linha › Salvar | 1. 3 × 8, impressora e modelo gravados; o combo lista as impressoras instaladas 2. Modelo começa com "<STX>L" 3. Erro "não foi encontrada" 4. Gravado e auditado 5. "entre 1 e 6" | OK pela tela (captura `08`) |
 | CT-F18-11 | Produto em promoção etiquetado | 1. Esperar o dia seguinte ao fim da promoção 2. Etiquetas… | 2. O produto volta a ficar pendente, com o preço normal e sem DE/POR | Coberto por `EtiquetaServiceIT.promocaoSaiComoDePorEVoltaAFicarPendenteNoFim`; falta pela tela |
 | CT-F18-12 | Entrada de mercadoria nº N e uma categoria com produtos | 1. Critério "Produtos de uma entrada", nº N › Carregar 2. "Categoria" › Carregar 3. "Preço alterado desde" uma data › Carregar | 1. Os produtos da entrada 2. Os ativos da categoria 3. Os que mudaram de preço desde a data | Coberto por `EtiquetaServiceIT.criteriosDeSelecao`; falta pela tela |
+
+## Fase 18 — Etiquetas de gôndola e carga de balança, parte B (F18.2 e F18.3)
+
+Pela tela em 2026-11-07, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test`, o `ITENSMGV.TXT` gravado numa pasta temporária); os números são as capturas. Dados: balança ativa;
+queijo "Queijo Muçarela Fatiado Especial Kg" (KG, PLU 123, R$ 39,90, validade 5 dias), presunto cozido (KG, PLU 124,
+R$ 29,90, em promoção a R$ 27,90), banana prata (KG sem PLU) e café (UN), todos com estoque e nunca etiquetados.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F18-13 | Dados acima, nada carregado | 1. Painel | 1. "4 produtos com etiqueta pendente (sem etiqueta ou com preço novo)…" e "Carga de balança pendente (2 produtos novos ou alterados)…" | OK pela tela (captura `01`) |
+| CT-F18-14 | CT-F18-13 | 1. Clicar no alerta da carga | 1. Abre Produtos e a Carga de balança: só PLU 123 e 124; presunto "R$ 27,90 (promoção)"; queijo "QUEIJO MUCARELA FATIADO ESPECIAL KG", "5 dias", "Nunca carregado", em amarelo; a linha do queijo é a amostra do layout (150 caracteres); "2 produtos na balança, 2 pendentes" | OK pela tela (captura `02`) |
+| CT-F18-15 | CT-F18-14 | 1. Gerar carga › Sim 2. Abrir o `ITENSMGV.TXT` | 1. "Carga gerada: 2 produtos em …ITENSMGV.TXT…"; "nenhum pendente"; "Última carga: …" 2. Duas linhas de 150 caracteres com CRLF (304 bytes), a do presunto com 002790 | OK pela tela (captura `03`): 304 bytes, igual ao esperado |
+| CT-F18-16 | CT-F18-15 | 1. Alterar o preço do queijo para R$ 41,90 2. Atualizar › "Mostrar só os pendentes" 3. Gerar carga › Sim | 2. Só o queijo, "Preço alterado"; a linha começa com 010000123004190005 3. Lista de pendentes vazia; o arquivo tem o preço novo | OK pela tela (captura `04`) |
+| CT-F18-17 | CT-F18-16 | 1. Painel › clicar em "produtos com etiqueta pendente" 2. Marcar como em dia › Sim 3. Painel | 1. Etiquetas aberta nas pendentes (4) 3. Os dois alertas sumiram | OK pela tela (captura `05`) |
+| CT-F18-18 | Produto queijo | 1. Abrir o produto 2. Validade 991 › Salvar 3. Validade 7 › Salvar 4. Apagar o PLU | 1. "Validade na balança" = 5, habilitada 2. "entre 1 e 990" 3. Gravado e auditado; a carga fica pendente ("Validade alterada") 4. A validade fica desabilitada | OK pela tela (captura `06`) |
+| CT-F18-19 | Produto banana (KG sem PLU) | 1. Abrir o produto | 1. "Validade na balança" vazia e desabilitada | OK pela tela |
+| CT-F18-20 | Supervisor | 1. Configurações › Balança 2. Pasta "itens" › Salvar alterações 3. Pasta vazia › Salvar | 1. A pasta configurada 2. "Informe o caminho completo…" 3. Gravado e auditado ("pasta da carga de balança de … para (vazio)") | OK pela tela (captura `07`) |
+| CT-F18-21 | CT-F18-20 | 1. Produtos › Carga de balança… › Gerar carga | 1. "não configurada (Configurações › Balança)"; "Configure a pasta da carga em Configurações › Balança…"; nada registrado | OK pela tela (captura `08`) |
+| CT-F18-22 | Balança Toledo com o MGV6 da loja | 1. Gerar carga na pasta do MGV 2. Importar os itens no MGV 3. Pesar um produto | 2. O MGV importa sem erro 3. A etiqueta sai com o PLU, o preço por kg, a descrição e a validade da carga | Não executado (sem balança nem MGV nesta máquina): é o risco registrado no PROGRESSO |

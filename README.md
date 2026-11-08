@@ -388,6 +388,35 @@ reajuste ou promoção de produto pesável tem de ser feito também na balança.
 quantidade diferente da pesada. No modo `PESO` (a etiqueta traz os gramas), o sistema calcula o total com o próprio
 preço e esse cuidado não é necessário.
 
+**Carga de balança** (Produtos › Carga de balança…, Fase 18): grava o arquivo de itens da balança Toledo
+(`ITENSMGV.TXT`, formato do MGV6) na pasta de Configurações › Balança, para o MGV importar e mandar à balança. A carga
+leva todos os produtos **ativos, vendidos em KG, com PLU e preço maior que zero**, com o preço por kg vigente no dia
+(inclusive promoção), a descrição e os dias de validade (campo "Validade na balança" no cadastro do produto, de 1 a
+990; vazio = a balança não imprime validade). A tela marca em amarelo o que está **pendente**: nunca carregado, ou com
+PLU, preço, descrição ou validade diferente da última carga. O Painel avisa "Carga de balança pendente" e "produtos com
+etiqueta pendente" para quem tem a permissão Produtos. Gere a carga depois de cada reajuste ou promoção de pesável e
+no começo e no fim de cada promoção.
+
+Uma linha por produto, 150 caracteres e fim de linha CRLF (só a parte fixa do layout de itens da ajuda do MGV6; os
+campos da versão 4 depois da posição 150 não são gravados):
+
+| Pos. | Tam. | Campo | Valor gravado |
+|---|---|---|---|
+| 1–2 | 2 | departamento | `01` |
+| 3 | 1 | tipo de produto | `0` (venda por peso) |
+| 4–9 | 6 | código do item | PLU |
+| 10–15 | 6 | preço por kg | em centavos (R$ 39,90 → `003990`); acima de R$ 9.999,99 a carga é recusada |
+| 16–18 | 3 | dias de validade | `000` quando vazio |
+| 19–43 | 25 | descrição, linha 1 | nome em maiúsculas e sem acentos, quebrado no último espaço |
+| 44–68 | 25 | descrição, linha 2 | o resto do nome, cortado em 25 |
+| 69–84 | 16 | informação extra, imagem e informação nutricional | zeros |
+| 85 | 1 | imprime data de validade | `1` com dias de validade; `0` sem |
+| 86 | 1 | imprime data de embalagem | igual à anterior |
+| 87–150 | 64 | fornecedor, lote, EAN especial, versão do preço, som, tara, fracionador, campos extras 1 e 2, conservação, EAN do fornecedor | zeros |
+
+> **Confira o formato com o manual da balança da loja antes do uso real** (MGV5, MGV6 e MGV7 têm diferenças). A tela
+> mostra a linha de cada produto, para comparar com um arquivo exportado pelo próprio MGV.
+
 **Etiquetas de gôndola** (Produtos › Etiquetas…): lista os produtos com a etiqueta pendente (preço ou promoção diferente
 da última etiqueta impressa) e imprime em PDF A4 (`etiqueta.colunas` × `etiqueta.linhas` por folha, padrão 3 × 8) ou na
 impressora térmica. Ao começar a usar, se as gôndolas já estão etiquetadas, use **Marcar como em dia**: sem isso, todos

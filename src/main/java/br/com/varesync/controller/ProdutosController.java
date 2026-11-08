@@ -196,11 +196,18 @@ public class ProdutosController {
                 (PromocoesController c) -> { });
     }
 
-    /** Etiquetas de gôndola (F18.1). */
+    /** Etiquetas de gôndola (F18.1); começa nas pendentes. Também aberta pelo alerta do Painel (F18.3). */
     @FXML
-    private void abrirEtiquetas() {
+    public void abrirEtiquetas() {
         Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/etiquetas.fxml", "Etiquetas de gôndola",
                 fabricaControllers, (EtiquetasController c) -> { });
+    }
+
+    /** Carga de balança (F18.2). Também aberta pelo alerta do Painel (F18.3). */
+    @FXML
+    public void abrirCargaBalanca() {
+        Janelas.abrirModal(tabela.getScene().getWindow(), "/fxml/carga-balanca.fxml", "Carga de balança",
+                fabricaControllers, (CargaBalancaController c) -> { });
     }
 
     /** Importação por planilha (6.11); ao fechar, refaz a busca e a lista de categorias (pode ter criado novas). */

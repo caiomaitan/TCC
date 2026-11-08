@@ -19,6 +19,7 @@
         <Label text="Produtos" styleClass="titulo"/>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Etiquetas…" onAction="#abrirEtiquetas"/>
+        <Button text="Carga de balança…" onAction="#abrirCargaBalanca"/>
         <Button text="Promoções…" onAction="#abrirPromocoes"/>
         <Button text="Importar planilha…" onAction="#abrirImportacao"/>
         <Button text="Categorias…" onAction="#abrirCategorias"/>

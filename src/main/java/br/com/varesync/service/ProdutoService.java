@@ -174,7 +174,8 @@ public class ProdutoService {
         conferirCodigosLivres(con, v.codigos, null);
 
         ConteudoLiquido conteudo = v.conteudo == null ? ConteudoLiquido.SEM : v.conteudo;
-        long id = produtoDAO.inserir(con, gravacao(v, minimo, conteudo), sessao.usuarioId(),
+        Integer validade = validadeBalanca(v.plu, v.validadeBalanca, null);
+        long id = produtoDAO.inserir(con, gravacao(v, minimo, conteudo, validade), sessao.usuarioId(),
                 OffsetDateTime.now(clock));
         produtoDAO.definirCodigos(con, id, v.codigos);
         if (controla) {
@@ -204,6 +205,9 @@ public class ProdutoService {
         if (!conteudo.vazio()) {
             descricao.append(", conteúdo líquido ").append(conteudo.descricao());
         }
+        if (validade != null) {
+            descricao.append(", validade na balança ").append(dias(validade));
+        }
         auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
                 descricao.toString());
         return id;
@@ -231,7 +235,8 @@ public class ProdutoService {
             conferirCodigosLivres(con, v.codigos, id);
 
             ConteudoLiquido conteudo = v.conteudo == null ? atual.conteudo() : v.conteudo;
-            produtoDAO.alterar(con, id, gravacao(v, minimo, conteudo), sessao.usuarioId(),
+            Integer validade = validadeBalanca(v.plu, v.validadeBalanca, atual.validadeBalancaDias());
+            produtoDAO.alterar(con, id, gravacao(v, minimo, conteudo, validade), sessao.usuarioId(),
                     OffsetDateTime.now(clock));
             produtoDAO.definirCodigos(con, id, v.codigos);
 
@@ -239,6 +244,10 @@ public class ProdutoService {
             if (!atual.conteudo().igual(conteudo)) {
                 mudancas.add("conteúdo líquido alterado de " + semConteudo(atual.conteudo()) + " para "
                         + semConteudo(conteudo));
+            }
+            if (!Objects.equals(atual.validadeBalancaDias(), validade)) {
+                mudancas.add("validade na balança alterada de " + dias(atual.validadeBalancaDias()) + " para "
+                        + dias(validade));
             }
             if (!mudancas.isEmpty()) {
                 auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_ALTERADO, AuditoriaService.ENTIDADE_PRODUTO,
@@ -317,7 +326,7 @@ public class ProdutoService {
     /** Campos já normalizados e validados (o que não depende do banco). */
     private record Validado(String nome, Long categoriaId, String unidade, BigDecimal preco, BigDecimal custo,
                             BigDecimal estoqueMinimo, Integer plu, List<CodigoBarras> codigos,
-                            ConteudoLiquido conteudo) {
+                            ConteudoLiquido conteudo, Integer validadeBalanca) {
     }
 
     private static Validado validarCampos(DadosProduto dados) {
@@ -330,12 +339,36 @@ public class ProdutoService {
         BigDecimal minimo = dados.estoqueMinimo() == null ? BigDecimal.ZERO : dados.estoqueMinimo();
         List<CodigoBarras> codigos = ValidacaoProduto.codigos(dados.codigosBarras());
         return new Validado(nome, dados.categoriaId(), dados.unidade().strip(), preco, custo, minimo, dados.plu(),
-                codigos, ValidacaoProduto.conteudo(dados.conteudo()));
+                codigos, ValidacaoProduto.conteudo(dados.conteudo()),
+                ValidacaoProduto.validadeBalanca(dados.validadeBalancaDias()));
     }
 
-    private static ProdutoDAO.Gravacao gravacao(Validado v, BigDecimal minimo, ConteudoLiquido conteudo) {
+    private static ProdutoDAO.Gravacao gravacao(Validado v, BigDecimal minimo, ConteudoLiquido conteudo,
+                                                Integer validade) {
         return new ProdutoDAO.Gravacao(v.nome, v.categoriaId, v.unidade, v.preco, v.custo, minimo, v.plu,
-                conteudo);
+                conteudo, validade);
+    }
+
+    /**
+     * Dias de validade na balança que ficam gravados (F18.2): {@code informado} nulo mantém {@code atual}; 0 tira.
+     * Só vale no pesável com PLU: informar sem PLU é recusado, e tirar o PLU tira a validade guardada.
+     */
+    private static Integer validadeBalanca(Integer plu, Integer informado, Integer atual) {
+        if (informado == null) {
+            return plu == null ? null : atual;
+        }
+        if (informado == 0) {
+            return null;
+        }
+        if (plu == null) {
+            throw new NegocioException("Os dias de validade na balança só valem para o produto pesável, com PLU. "
+                    + "Informe o PLU ou deixe a validade vazia.");
+        }
+        return informado;
+    }
+
+    private static String dias(Integer dias) {
+        return dias == null ? "(sem)" : dias == 1 ? "1 dia" : dias + " dias";
     }
 
     private Produto travar(Connection con, long id) throws SQLException {

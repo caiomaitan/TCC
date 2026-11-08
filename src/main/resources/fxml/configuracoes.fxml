@@ -107,6 +107,13 @@
                     <ComboBox fx:id="campoTipoValor" prefWidth="220" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
                 </GridPane>
                 <Label fx:id="exemploEtiqueta" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
+                <Label text="Carga de balança" styleClass="titulo-secao"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Pasta do arquivo de itens (MGV)" minWidth="230"/>
+                    <TextField fx:id="campoPastaCarga" prefWidth="380" promptText="vazia = carga não configurada"/>
+                    <Button text="Procurar…" onAction="#escolherPastaCarga"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Produtos › Carga de balança grava nesta pasta o arquivo ITENSMGV.TXT (formato do MGV6 da Toledo), com os produtos ativos vendidos em KG que têm PLU, o preço por kg do dia (com promoção), a descrição e os dias de validade. Use a pasta de onde o MGV importa os itens. O formato precisa ser conferido com o manual da balança da loja antes do uso."/>
             </VBox>
         </Tab>
         <Tab fx:id="abaSeguranca" text="Segurança">

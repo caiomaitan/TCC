@@ -40,6 +40,8 @@ public class ConfiguracaoService {
     static final int TAMANHO_FORMA = 40;
     static final int TAMANHO_IMPRESSORA = 200;
     static final int TAMANHO_MODELO = 10_000;
+    /** Cabe em {@code carga_balanca.arquivo} (500) com o nome do arquivo. */
+    static final int TAMANHO_PASTA_CARGA = 480;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
     private static final BigDecimal TAXA_MAXIMA = BigDecimal.valueOf(20);
     private static final int DIAS_RECEBIMENTO_MAXIMO = 60;
@@ -243,6 +245,8 @@ public class ConfiguracaoService {
         if (balanca.tipoValor() == null) {
             throw new NegocioException("Escolha o que a etiqueta de balança traz: preço total ou peso.");
         }
+        balanca = new Configuracoes.Balanca(balanca.ativo(), balanca.prefixo(), balanca.digitosCodigo(),
+                balanca.tipoValor(), pastaCarga(balanca.pastaCarga()));
         Configuracoes.Backup backup = backup(c.backup());
         if (c.inatividadeMinutos() < 0 || c.inatividadeMinutos() > Configuracoes.INATIVIDADE_MAXIMA) {
             throw new NegocioException("O bloqueio por inatividade deve estar entre 0 (desligado) e "
@@ -339,6 +343,28 @@ public class ConfiguracaoService {
      * Backup (6.12): pasta vazia = padrão (~/.varesync/backups), senão um caminho completo que não seja um arquivo;
      * pg_dump vazio = detectar, senão o arquivo (ou a pasta bin) que existe; manter de 1 a 999.
      */
+    /** Pasta da carga de balança (F18.2): vazia ou um caminho completo que não seja um arquivo; até 500 caracteres. */
+    static String pastaCarga(String valor) {
+        String pasta = valor == null ? "" : valor.strip();
+        if (pasta.isEmpty()) {
+            return pasta;
+        }
+        limite(pasta, TAMANHO_PASTA_CARGA, "A pasta da carga de balança");
+        Path caminho;
+        try {
+            caminho = Path.of(pasta);
+        } catch (InvalidPathException e) {
+            throw new NegocioException("A pasta da carga de balança não é um caminho válido: " + pasta + ".");
+        }
+        if (!caminho.isAbsolute()) {
+            throw new NegocioException("Informe o caminho completo da pasta da carga de balança (ex.: C:\\MGV6\\Itens).");
+        }
+        if (Files.isRegularFile(caminho)) {
+            throw new NegocioException("O caminho da carga de balança é um arquivo, não uma pasta: " + pasta + ".");
+        }
+        return pasta;
+    }
+
     static Configuracoes.Backup backup(Configuracoes.Backup b) {
         String pasta = b.pasta() == null ? "" : b.pasta().strip();
         if (!pasta.isEmpty()) {
@@ -432,6 +458,7 @@ public class ConfiguracaoService {
                 String.valueOf(n.balanca().digitosCodigo()));
         comparar(m, "valor da etiqueta", a.balanca().tipoValor().rotulo().toLowerCase(),
                 n.balanca().tipoValor().rotulo().toLowerCase());
+        comparar(m, "pasta da carga de balança", texto(a.balanca().pastaCarga()), texto(n.balanca().pastaCarga()));
         comparar(m, "pasta de backup", caminho(a.backup().pasta()), caminho(n.backup().pasta()));
         comparar(m, "pg_dump", caminho(a.backup().pgDump()), caminho(n.backup().pgDump()));
         comparar(m, "backups mantidos", String.valueOf(a.backup().manterUltimos()),

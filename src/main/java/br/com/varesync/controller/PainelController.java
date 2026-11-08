@@ -308,6 +308,16 @@ public class PainelController {
                     + " preço de venda abaixo do custo (cada venda dá prejuízo) — ver em Produtos",
                     () -> navegacao.abrirProdutosAbaixoDoCusto());
         }
+        if (a.etiquetasPendentes() != null && a.etiquetasPendentes() > 0) {
+            alerta(plural(a.etiquetasPendentes(), "produto com etiqueta pendente", "produtos com etiqueta pendente")
+                    + " (sem etiqueta ou com preço novo) — imprimir nas Etiquetas",
+                    () -> navegacao.abrirEtiquetasPendentes());
+        }
+        if (a.cargaPendente() != null && a.cargaPendente() > 0) {
+            alerta("Carga de balança pendente (" + plural(a.cargaPendente(), "produto novo ou alterado",
+                    "produtos novos ou alterados") + ") — gerar na Carga de balança",
+                    () -> navegacao.abrirCargaBalanca());
+        }
         if (a.caixaAberto().isPresent()) {
             CaixaSessao caixa = a.caixaAberto().get();
             alerta("O caixa nº " + caixa.id() + " deste terminal está aberto desde "

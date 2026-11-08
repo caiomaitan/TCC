@@ -105,6 +105,7 @@ public class ProdutoController {
     @FXML private Label estoqueAtual;
     @FXML private Label rotuloEstoqueAtual;
     @FXML private TextField campoPlu;
+    @FXML private TextField campoValidadeBalanca;
     @FXML private Label ultimaAlteracao;
     @FXML private TextField campoNovoCodigo;
     @FXML private ListView<CodigoBarras> listaCodigos;
@@ -227,6 +228,7 @@ public class ProdutoController {
             campoValidadeInicial.setValue(null);
             estoqueAtual.setText(Formatos.SEM_VALOR);
             campoPlu.setText("");
+            campoValidadeBalanca.setText("");
             ultimaAlteracao.setText(Formatos.SEM_VALOR);
             listaCodigos.getItems().clear();
             tabelaHistorico.getItems().clear();
@@ -259,6 +261,8 @@ public class ProdutoController {
                 estoqueAtual.getStyleClass().add("negativo");
             }
             campoPlu.setText(produto.plu() == null ? "" : String.valueOf(produto.plu()));
+            campoValidadeBalanca.setText(produto.validadeBalancaDias() == null ? ""
+                    : String.valueOf(produto.validadeBalancaDias()));
             ultimaAlteracao.setText(Formatos.dataHora(produto.atualizadoEm()) + " por " + produto.atualizadoPorNome());
             listaCodigos.getItems().setAll(produto.codigosBarras());
             tabelaHistorico.getItems().setAll(produtoService.historico(sessao, produto.id()));
@@ -453,11 +457,15 @@ public class ProdutoController {
         botaoPrincipal.setDisable(selecionado == null || selecionado.principal());
     }
 
-    /** PLU só com balança ativa e unidade fracionada; um PLU já gravado pode ser apagado. */
+    /**
+     * PLU só com balança ativa e unidade fracionada; um PLU já gravado pode ser apagado. A validade na balança (F18.2)
+     * acompanha o PLU: sem PLU, fica desabilitada (a validade guardada sai ao gravar).
+     */
     private void atualizarPlu() {
         UnidadeMedida unidade = campoUnidade.getValue();
         boolean liberado = balancaAtiva && unidade != null && unidade.fracionada();
         campoPlu.setDisable(!liberado && Textos.vazio(campoPlu.getText()));
+        campoValidadeBalanca.setDisable(campoPlu.isDisabled() || Textos.vazio(campoPlu.getText()));
     }
 
     // ----- Simulador (6.3, A.6) -----
@@ -546,7 +554,8 @@ public class ProdutoController {
                 produto == null ? ler(campoEstoqueInicial, "Estoque inicial") : null,
                 campoControlaValidade.isSelected(),
                 produto == null && campoControlaValidade.isSelected() ? loteInicial() : null,
-                lerConteudo());
+                lerConteudo(),
+                lerValidadeBalanca());
     }
 
     /**
@@ -687,6 +696,18 @@ public class ProdutoController {
         }
         BigDecimal valor = new ConteudoLiquido(quantidade.get(), unidade).precoPorMedida(preco.get());
         precoPorMedida.setText("= " + Formatos.moeda(valor) + " o " + unidade.medida() + " na etiqueta");
+    }
+
+    /** F18.2: dias de validade na balança; vazio = sem (0), e sem PLU não vai nada (o service tira a guardada). */
+    private Integer lerValidadeBalanca() {
+        String texto = Textos.normalizarEspacos(campoValidadeBalanca.getText());
+        if (texto.isEmpty() || campoValidadeBalanca.isDisabled()) {
+            return 0;
+        }
+        if (!Textos.soDigitos(texto) || texto.length() > 3) {
+            throw new NegocioException("Os dias de validade na balança devem ser um número de 1 a 990.");
+        }
+        return Integer.valueOf(texto);
     }
 
     private Integer lerPlu() {

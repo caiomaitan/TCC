@@ -3,19 +3,23 @@ package br.com.varesync.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.varesync.IntegracaoBase;
+import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DadosProduto;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.IndicadoresDia;
+import br.com.varesync.model.OrigemEtiqueta;
 import br.com.varesync.model.Painel;
 import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.model.TipoFormaPagamento;
+import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.report.Coluna;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.RelCoberturaRuptura;
 import br.com.varesync.report.RelVendasPeriodo;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Duration;
@@ -24,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Painel (7.5) sobre vendas conhecidas.
@@ -189,6 +194,34 @@ class PainelServiceIT extends IntegracaoBase {
         t.usuarios.criar(admin, "comprador", "Comprador", false, EnumSet.of(Permissao.COMPRAS), "inicial1",
                 "inicial1");
         assertThat(t.painel.carregar(t.acesso.entrar("comprador", "inicial1")).alertas().rupturas()).isZero();
+    }
+
+    /**
+     * F18.3: etiquetas pendentes e carga de balança pendente, só para quem tem PRODUTOS; somem depois de imprimir as
+     * etiquetas e gerar a carga.
+     */
+    @Test
+    void alertasDeEtiquetasEDaCargaDeBalanca(@TempDir Path pasta) {
+        assertThat(t.painel.carregar(admin).alertas().etiquetasPendentes()).as("nunca impressas, com estoque")
+                .isEqualTo(3);
+        assertThat(t.painel.carregar(admin).alertas().cargaPendente()).as("sem pesáveis").isZero();
+        Configuracoes c = t.configuracoes.carregar(admin);
+        t.configuracoes.salvar(admin, c.comBalanca(new Configuracoes.Balanca(true, 2, 5, TipoValorBalanca.PRECO,
+                pasta.toString())));
+        t.produtos.criar(admin, new DadosProduto("Queijo muçarela", null, "KG", new BigDecimal("39.90"),
+                new BigDecimal("28.00"), null, 123, List.of(), new BigDecimal("5"), null, null, null, 5));
+
+        Painel painel = t.painel.carregar(admin);
+        assertThat(painel.alertas().etiquetasPendentes()).isEqualTo(4);
+        assertThat(painel.alertas().cargaPendente()).isEqualTo(1);
+        assertThat(t.painel.carregar(maria).alertas().etiquetasPendentes()).as("sem PRODUTOS").isNull();
+        assertThat(t.painel.carregar(maria).alertas().cargaPendente()).as("sem PRODUTOS").isNull();
+
+        t.etiquetas.registrarImpressao(admin, t.etiquetas.pendentes(admin), OrigemEtiqueta.PDF);
+        t.cargaBalanca.gerar(admin);
+        painel = t.painel.carregar(admin);
+        assertThat(painel.alertas().etiquetasPendentes()).isZero();
+        assertThat(painel.alertas().cargaPendente()).isZero();
     }
 
     @Test

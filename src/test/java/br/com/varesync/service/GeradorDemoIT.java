@@ -619,6 +619,27 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(painel.alertas().abaixoDoMinimo()).isPositive();
         assertThat(painel.alertas().precoAbaixoDoCusto()).isPositive();
         assertThat(painel.alertas().caixaAberto()).isEmpty();
+        // F18.3: etiquetas e carga de balança registradas na véspera; pendente só o que mudou depois.
+        assertThat(painel.alertas().etiquetasPendentes()).isNotNull()
+                .isLessThan(resultado.produtos());
+        assertThat(painel.alertas().cargaPendente()).isNotNull()
+                .isLessThanOrEqualTo(resultado.pesaveisNaBalanca());
+    }
+
+    /** F18.3: as etiquetas de todos os produtos e uma carga de balança sem arquivo, na véspera do primeiro dia. */
+    @Test
+    void etiquetasECargaDeBalancaNoComecoDoPeriodo() throws Exception {
+        assertThat(resultado.etiquetas()).isEqualTo(resultado.produtos());
+        assertThat(resultado.pesaveisNaBalanca()).isPositive();
+        assertThat(contar("SELECT count(*) FROM etiqueta_impressao WHERE origem = 'PDF'"))
+                .isEqualTo(resultado.produtos());
+        assertThat(contar("SELECT count(*) FROM etiqueta_impressao WHERE criado_em::date = DATE '"
+                + resultado.inicio().minusDays(1) + "'")).isEqualTo(resultado.produtos());
+        assertThat(contar("SELECT count(*) FROM carga_balanca WHERE arquivo IS NULL AND criado_em::date = DATE '"
+                + resultado.inicio().minusDays(1) + "'")).isEqualTo(1);
+        assertThat(contar("SELECT count(*) FROM carga_balanca_item")).isEqualTo(resultado.pesaveisNaBalanca());
+        assertThat(contar("SELECT count(*) FROM produto WHERE ativo AND unidade = 'KG' AND plu IS NOT NULL"))
+                .isEqualTo(resultado.pesaveisNaBalanca());
     }
 
     @Test

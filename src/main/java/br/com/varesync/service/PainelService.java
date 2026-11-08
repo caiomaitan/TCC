@@ -3,6 +3,7 @@ package br.com.varesync.service;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.ContaFinanceiraDAO;
 import br.com.varesync.dao.EstoqueDAO;
+import br.com.varesync.dao.EtiquetaDAO;
 import br.com.varesync.dao.LoteDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.TituloReceberDAO;
@@ -48,6 +49,7 @@ import java.util.Optional;
  * <li>Com COMPRAS (F16.4): produtos em ruptura (saldo ≤ 0 e venda nos últimos 30 dias).</li>
  * <li>Com ESTOQUE (F17.3): lotes vencendo em até {@code validade.alerta_dias} dias, lotes vencidos com saldo e
  * produtos com o "SEM LOTE" negativo, só de produtos ativos com o controle ligado.</li>
+ * <li>Com PRODUTOS (F18.3): produtos com etiqueta de gôndola pendente e pesáveis pendentes na carga de balança.</li>
  * </ul>
  */
 public class PainelService {
@@ -64,12 +66,17 @@ public class PainelService {
     private final ContaFinanceiraDAO contaDAO;
     private final LoteDAO loteDAO;
     private final ConfiguracaoDAO configuracaoDAO;
+    private final EtiquetaDAO etiquetaDAO;
+    private final CargaBalancaService cargaBalanca;
     private final Clock clock;
 
     public PainelService(Transacao transacao, PainelDAO painelDAO, EstoqueDAO estoqueDAO, CaixaService caixaService,
                          AuditoriaDAO auditoriaDAO, TituloReceberDAO tituloDAO, ContaFinanceiraDAO contaDAO,
-                         LoteDAO loteDAO, ConfiguracaoDAO configuracaoDAO, Clock clock) {
+                         LoteDAO loteDAO, ConfiguracaoDAO configuracaoDAO, EtiquetaDAO etiquetaDAO,
+                         CargaBalancaService cargaBalanca, Clock clock) {
         this.loteDAO = loteDAO;
+        this.etiquetaDAO = etiquetaDAO;
+        this.cargaBalanca = cargaBalanca;
         this.configuracaoDAO = configuracaoDAO;
         this.tituloDAO = tituloDAO;
         this.contaDAO = contaDAO;
@@ -124,7 +131,10 @@ public class PainelService {
         AlertasPainel.ContasAPagar pagarHoje = financeiro ? painelDAO.contasAPagar(con, hoje, hoje) : null;
         List<ContaFinanceira> negativas = contas.stream().filter(c -> c.saldo().signum() < 0).toList();
         Integer abaixo = sessao.pode(Permissao.ESTOQUE) ? estoqueDAO.contarAbaixoDoMinimo(con) : null;
-        Integer custo = sessao.pode(Permissao.PRODUTOS) ? painelDAO.contarPrecoAbaixoDoCusto(con) : null;
+        boolean produtos = sessao.pode(Permissao.PRODUTOS);
+        Integer custo = produtos ? painelDAO.contarPrecoAbaixoDoCusto(con) : null;
+        Integer etiquetas = produtos ? etiquetaDAO.contarPendentes(con, hoje) : null;
+        Integer carga = produtos ? cargaBalanca.contarPendentes(con) : null;
         Optional<CaixaSessao> caixa = sessao.pode(Permissao.PDV) ? caixaService.caixaAberto(con, sessao)
                 : Optional.empty();
         Integer inventarios = sessao.pode(Permissao.INVENTARIO) ? painelDAO.contarInventariosAbertos(con) : null;
@@ -135,7 +145,7 @@ public class PainelService {
         AlertasPainel.Lotes lotes = sessao.pode(Permissao.ESTOQUE)
                 ? loteDAO.contarAlertas(con, hoje, configuracaoDAO.carregar(con).validadeAlertaDias()) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
-                vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes);
+                vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes, etiquetas, carga);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */

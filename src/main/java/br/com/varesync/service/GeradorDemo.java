@@ -1,5 +1,7 @@
 package br.com.varesync.service;
 
+import br.com.varesync.model.Etiqueta;
+import br.com.varesync.model.OrigemEtiqueta;
 import br.com.varesync.dao.CaixaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
@@ -114,7 +116,7 @@ public class GeradorDemo {
                             int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
                             int devolucoes, int clientesComLimite, int vendasCrediario, int recebimentos,
                             int titulosVencidos, int contasPagas, int recebiveisConciliados, int vinculos,
-                            int pedidos, int pedidosPendentes) {
+                            int pedidos, int pedidosPendentes, int etiquetas, int pesaveisNaBalanca) {
     }
 
     /** Crediário (F14.4): 30 clientes com limite; deles, parte das vendas identificadas vai a prazo. */
@@ -252,6 +254,8 @@ public class GeradorDemo {
     private final ContaPagarService contasPagar;
     private final ProdutoFornecedorService vinculos;
     private final PedidoCompraService pedidos;
+    private final EtiquetaService etiquetas;
+    private final CargaBalancaService cargaBalanca;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -265,8 +269,11 @@ public class GeradorDemo {
                        ClienteService clientes, DevolucaoService devolucoes, RecebimentoService recebimentos,
                        ConfiguracaoService configuracoes, ContaFinanceiraService contas, RecebivelService recebiveis,
                        ContaPagarService contasPagar, ProdutoFornecedorService vinculos, PedidoCompraService pedidos,
+                       EtiquetaService etiquetas, CargaBalancaService cargaBalanca,
                        DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
                        AuditoriaService auditoria) {
+        this.etiquetas = etiquetas;
+        this.cargaBalanca = cargaBalanca;
         this.recebimentos = recebimentos;
         this.configuracoes = configuracoes;
         this.contas = contas;
@@ -403,6 +410,14 @@ public class GeradorDemo {
         posicionar(vespera, LocalTime.of(9, 30), zona);
         int vinculosFeitos = vincular(supervisor, catalogo, fornecedoresDemo, fornecedorIds, produtoIds,
                 new Random(SEMENTE + 8));
+        // Etiquetas e balança (F18.3): as etiquetas de todos os produtos impressas e uma carga de balança na véspera,
+        // para o painel mostrar só o que mudou depois (reajustes de preço e promoções do período).
+        posicionar(vespera, LocalTime.of(9, 45), zona);
+        List<Etiqueta> impressas = etiquetas.produtos(supervisor, produtoIds);
+        if (!impressas.isEmpty()) {
+            etiquetas.registrarImpressao(supervisor, impressas, OrigemEtiqueta.PDF);
+        }
+        int pesaveisNaBalanca = cargaBalanca.registrarSemArquivo(supervisor);
         // Clientes e fidelidade (F12.8): 150 clientes na véspera e cashback de 1% ligado.
         ligarFidelidade(supervisor);
         List<Long> clienteIds = new ArrayList<>();
@@ -611,7 +626,7 @@ public class GeradorDemo {
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
                 vendasComCliente, usosDeCredito, devolucoesFeitas, comLimite.size(), vendasCrediario,
                 recebimentosFeitos, titulosVencidos, pagamentos, conciliados, vinculosFeitos, pedidosFeitos,
-                pedidosPendentes);
+                pedidosPendentes, impressas.size(), pesaveisNaBalanca);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()

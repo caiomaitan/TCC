@@ -36,4 +36,10 @@ public interface NavegacaoPainel {
 
     /** Estoque já filtrado em "Só com SEM LOTE negativo" (F17.3). */
     void abrirSemLoteNegativo();
+
+    /** Produtos, com as Etiquetas de gôndola abertas nas pendentes (F18.3). */
+    void abrirEtiquetasPendentes();
+
+    /** Produtos, com a Carga de balança aberta (F18.3). */
+    void abrirCargaBalanca();
 }
