@@ -7,6 +7,8 @@ import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.DemoDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.DadosFiscais;
+import br.com.varesync.model.DadosPerfil;
 import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.Categoria;
@@ -116,7 +118,8 @@ public class GeradorDemo {
                             int fornecedores, int entradas, int clientes, int vendasComCliente, int usosDeCredito,
                             int devolucoes, int clientesComLimite, int vendasCrediario, int recebimentos,
                             int titulosVencidos, int contasPagas, int recebiveisConciliados, int vinculos,
-                            int pedidos, int pedidosPendentes, int etiquetas, int pesaveisNaBalanca) {
+                            int pedidos, int pedidosPendentes, int etiquetas, int pesaveisNaBalanca,
+                            int perfisTributarios) {
     }
 
     /** Crediário (F14.4): 30 clientes com limite; deles, parte das vendas identificadas vai a prazo. */
@@ -256,6 +259,7 @@ public class GeradorDemo {
     private final PedidoCompraService pedidos;
     private final EtiquetaService etiquetas;
     private final CargaBalancaService cargaBalanca;
+    private final FiscalService fiscal;
     private final DemoDAO demoDAO;
     private final CaixaDAO caixaDAO;
     private final ConfiguracaoDAO configuracaoDAO;
@@ -269,11 +273,12 @@ public class GeradorDemo {
                        ClienteService clientes, DevolucaoService devolucoes, RecebimentoService recebimentos,
                        ConfiguracaoService configuracoes, ContaFinanceiraService contas, RecebivelService recebiveis,
                        ContaPagarService contasPagar, ProdutoFornecedorService vinculos, PedidoCompraService pedidos,
-                       EtiquetaService etiquetas, CargaBalancaService cargaBalanca,
+                       EtiquetaService etiquetas, CargaBalancaService cargaBalanca, FiscalService fiscal,
                        DemoDAO demoDAO, CaixaDAO caixaDAO, ConfiguracaoDAO configuracaoDAO,
                        AuditoriaService auditoria) {
         this.etiquetas = etiquetas;
         this.cargaBalanca = cargaBalanca;
+        this.fiscal = fiscal;
         this.recebimentos = recebimentos;
         this.configuracoes = configuracoes;
         this.contas = contas;
@@ -418,6 +423,9 @@ public class GeradorDemo {
             etiquetas.registrarImpressao(supervisor, impressas, OrigemEtiqueta.PDF);
         }
         int pesaveisNaBalanca = cargaBalanca.registrarSemArquivo(supervisor);
+        // Cadastro fiscal (F19.5): perfis, NCM e origem no catálogo, com algumas inconsistências de propósito.
+        posicionar(vespera, LocalTime.of(9, 50), zona);
+        int perfisTributarios = cadastrarFiscal(supervisor, catalogo, produtoIds, vespera, zona);
         // Clientes e fidelidade (F12.8): 150 clientes na véspera e cashback de 1% ligado.
         ligarFidelidade(supervisor);
         List<Long> clienteIds = new ArrayList<>();
@@ -626,7 +634,7 @@ public class GeradorDemo {
                 inicio, hoje.minusDays(1), inventarioId, fornecedorIds.size(), entradas, clienteIds.size(),
                 vendasComCliente, usosDeCredito, devolucoesFeitas, comLimite.size(), vendasCrediario,
                 recebimentosFeitos, titulosVencidos, pagamentos, conciliados, vinculosFeitos, pedidosFeitos,
-                pedidosPendentes, impressas.size(), pesaveisNaBalanca);
+                pedidosPendentes, impressas.size(), pesaveisNaBalanca, perfisTributarios);
         transacao.executar(con -> {
             auditoria.registrar(con, supervisor, AcaoAuditoria.DADOS_DEMO_GERADOS, null, null,
                     "Dados de demonstração gerados (semente " + SEMENTE + "): " + resultado.produtos()
@@ -641,6 +649,7 @@ public class GeradorDemo {
                             + " fornecedores (" + resultado.vinculos() + " vínculos com produtos), "
                             + resultado.pedidos() + " pedidos de compra (" + resultado.pedidosPendentes()
                             + " pendentes), " + perdasDeVencimento + " perdas por vencimento de lotes"
+                            + ", " + resultado.perfisTributarios() + " perfis tributários"
                             + " e " + resultado.entradas() + " entradas de mercadoria de "
                             + Formatos.data(inicio) + " a " + Formatos.data(resultado.fim()));
             return null;
@@ -1250,6 +1259,39 @@ public class GeradorDemo {
     }
 
     /** Fidelidade (F12.8): ligada com 1% de cashback e sem compra mínima. */
+    /**
+     * F19.5: UF da loja SP (se vazia), os perfis de {@link FiscalDemo} e o NCM, o CEST, a origem e o perfil de cada
+     * produto do catálogo, um por vez, com 2 segundos entre eles.
+     *
+     * @return quantos perfis foram criados
+     */
+    private int cadastrarFiscal(Sessao supervisor, List<ItemCatalogo> catalogo, List<Long> produtoIds,
+                                LocalDate vespera, ZoneId zona) {
+        transacao.executar(con -> {
+            if (configuracaoDAO.carregar(con).loja().uf().isEmpty()) {
+                configuracaoDAO.gravar(con, Configuracoes.EMPRESA_UF, "SP");
+                auditoria.registrar(con, supervisor, AcaoAuditoria.CONFIGURACAO_ALTERADA, "configuracao", null,
+                        "UF da loja SP, pelo gerador de dados de demonstração");
+            }
+            return null;
+        });
+        Map<String, Long> perfis = new LinkedHashMap<>();
+        for (DadosPerfil p : FiscalDemo.perfis()) {
+            perfis.put(p.nome(), fiscal.salvarPerfil(supervisor, null, p));
+        }
+        Map<String, FiscalDemo.Dados> dados = FiscalDemo.produtos();
+        for (int i = 0; i < catalogo.size(); i++) {
+            FiscalDemo.Dados d = dados.get(catalogo.get(i).nome());
+            if (d == null) {
+                continue;
+            }
+            posicionar(vespera, LocalTime.of(9, 50).plusSeconds(2L * i), zona);
+            fiscal.salvarDadosFiscais(supervisor, produtoIds.get(i), new DadosFiscais(d.ncm(), d.cest(), d.origem(),
+                    d.perfil() == null ? null : perfis.get(d.perfil())));
+        }
+        return perfis.size();
+    }
+
     private void ligarFidelidade(Sessao supervisor) {
         transacao.executar(con -> {
             if (!configuracaoDAO.carregar(con).fidelidade().ativo()) {

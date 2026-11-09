@@ -192,6 +192,9 @@ public class PrincipalController {
             if (loader.getController() instanceof CaixaController caixa) {
                 caixa.aoMudar(this::atualizarCaixa);
             }
+            if (loader.getController() instanceof FiscalController fiscal) {
+                fiscal.naJanelaPrincipal();
+            }
             tela = loader.getRoot();
         }
         conteudo.getChildren().setAll(tela);
@@ -336,6 +339,16 @@ public class PrincipalController {
             public void abrirCargaBalanca() {
                 FXMLLoader loader = abrirFiltrado(ItemMenu.PRODUTOS);
                 loader.<ProdutosController>getController().abrirCargaBalanca();
+            }
+
+            @Override
+            public void abrirInconsistenciasFiscais() {
+                if (sessao.pode(Permissao.RELATORIOS)) {
+                    FXMLLoader loader = abrirFiltrado(ItemMenu.RELATORIOS);
+                    loader.<RelatoriosController>getController().mostrarInconsistenciasFiscais();
+                } else {
+                    PrincipalController.this.abrir(ItemMenu.FISCAL);
+                }
             }
         };
     }

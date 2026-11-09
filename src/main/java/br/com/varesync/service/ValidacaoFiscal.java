@@ -110,6 +110,12 @@ public final class ValidacaoFiscal {
         return texto;
     }
 
+    /** O código de benefício (já normalizado) tem 8 caracteres e começa por uma UF? ("SEM CBENEF" não). */
+    public static boolean formatoBeneficio(String codigo) {
+        return codigo != null && BENEFICIO.matcher(codigo).matches()
+                && ValidacaoFornecedor.UFS.contains(codigo.substring(0, 2));
+    }
+
     /** Alíquota em %: nula = 0; de 0 a 100, com até 2 casas. */
     public static BigDecimal aliquota(BigDecimal valor, String rotulo) {
         BigDecimal v = valor == null ? BigDecimal.ZERO : valor;

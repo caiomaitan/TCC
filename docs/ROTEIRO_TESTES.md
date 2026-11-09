@@ -780,3 +780,22 @@ Mercearia, sem dados fiscais; usuário "cadastro" com Produtos e Compras, sem Ca
 | CT-F19-08 | CT-F19-07 | 1. Preencher os marcados | 1. "Entrada nº 1 gerada… Dados fiscais preenchidos em 2 produtos."; o NCM e a origem do café não mudam | OK pela tela (captura `08`) |
 | CT-F19-09 | CT-F19-08 | 1. Produtos › Fiscal… 2. "Só sem NCM ou sem perfil" | 1. Refrigerante com NCM 2202.10.00, CEST 03.007.00 e "Simples ST" 2. "3 produtos, 3 sem NCM ou sem perfil" | OK pela tela (captura `09`) |
 | CT-F19-10 | Usuário "cadastro" (sem Cadastro fiscal) | 1. Log off › entrar 2. Produtos | 2. Sem o botão Fiscal… | OK pela tela (captura `10`) |
+
+### Fase 19 — Cadastro fiscal e consistência, parte B (RF30, RF29)
+
+Pela tela em 2026-11-09, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test` com os dados de demonstração gerados pelo service); os números são as capturas. Usuário "fiscal" só com
+o Cadastro fiscal (FISCAL). A NF-e é a de teste (`src/test/resources/nfe/nfe-fiscal.xml`) com a origem do item 2 trocada
+para 1.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F19-11 | Dados de demonstração; supervisor | 1. Painel | 1. "6 produtos com inconsistência fiscal — conferir o cadastro fiscal" (as duas cervejas só têm aviso); o menu tem o item Fiscal | OK pela tela (captura `01`) |
+| CT-F19-12 | CT-F19-11 | 1. Clicar no alerta | 1. Relatórios com o R30 já gerado: 10 linhas em 8 produtos (guarda-chuva, pilha, vinho, energético, carvão, azeite e as duas cervejas); totais "8 produtos" e "10 inconsistências (8 erros, 2 avisos)"; Abrir produto… desabilitado sem seleção | OK pela tela (captura `02`; PDF e CSV conferidos) |
+| CT-F19-13 | CT-F19-12 | 1. Regra "13 — Mesmo NCM em perfis diferentes" › Gerar 2. Regra "Todas" › Gerar | 1. As duas cervejas, como aviso 2. As 10 linhas de novo | OK pela tela (captura `03`) |
+| CT-F19-14 | CT-F19-13 | 1. Selecionar a linha do energético › Abrir produto… 2. CEST 03.005.00 › Salvar dados fiscais 3. Fechar a janela | 1. Cadastro fiscal (janela) na aba Produtos com "Produto selecionado: Energético lata 250 ml" 2. Gravado 3. O R30 é gerado de novo, com 9 linhas, sem o energético | OK pela tela (capturas `04` e `05`) |
+| CT-F19-15 | CT-F19-14 | 1. Duplo clique na linha da pilha 2. Fechar | 1. Cadastro fiscal com a pilha (sem perfil) selecionada | OK pela tela (duplo clique por evento na linha) |
+| CT-F19-16 | CT-F19-15 | 1. Painel | 1. "5 produtos com inconsistência fiscal" | OK pela tela |
+| CT-F19-17 | Usuário "fiscal" (só FISCAL) | 1. Entrar 2. Clicar no alerta | 1. Menu só com Painel e Fiscal; o alerta "5 produtos com inconsistência fiscal" 2. Sem Relatórios: o Cadastro fiscal na área de conteúdo, sem "Esc fecha a janela" | OK pela tela (capturas `06` e `07`) |
+| CT-F19-18 | CT-F19-17 | 1. Painel 2. Menu Fiscal | 2. O Cadastro fiscal | OK pela tela (captura `08`) |
+| CT-F19-19 | Supervisor; produto com o EAN 7896004000015 sem dados fiscais | 1. Compras › Importar XML da NF-e… (origem 1 no item 2) › Gerar entrada 2. Preencher os marcados | 1. "Dados fiscais da NF-e" com o refrigerante na origem "2 — Estrangeira — adquirida no mercado interno" e a explicação da troca 2. Origem gravada 2 | OK pela tela (captura `09`) |

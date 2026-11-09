@@ -43,6 +43,7 @@ import br.com.varesync.report.RelVendasPeriodo;
 import br.com.varesync.report.FiltroCrediario;
 import br.com.varesync.report.RelRecebimentos;
 import br.com.varesync.report.RelTitulosReceber;
+import br.com.varesync.report.RelInconsistenciasFiscais;
 import br.com.varesync.report.RelValidade;
 import br.com.varesync.report.ResultadoRelatorio;
 import br.com.varesync.report.SituacaoTitulo;
@@ -624,6 +625,32 @@ class GeradorDemoIT extends IntegracaoBase {
                 .isLessThan(resultado.produtos());
         assertThat(painel.alertas().cargaPendente()).isNotNull()
                 .isLessThanOrEqualTo(resultado.pesaveisNaBalanca());
+    }
+
+    /**
+     * F19.5 e o aceite da F19: perfis e NCM no catálogo; o R30 lista só os 8 produtos com inconsistência de propósito e
+     * o painel conta os 6 com erro (as duas cervejas só têm aviso).
+     */
+    @Test
+    void cadastroFiscalComAsInconsistenciasDePropositoNoR30ENoPainel() throws Exception {
+        assertThat(resultado.perfisTributarios()).isEqualTo(FiscalDemo.perfis().size()).isEqualTo(5);
+        assertThat(contar("SELECT count(*) FROM perfil_tributario")).isEqualTo(5);
+        assertThat(contar("SELECT count(*) FROM produto WHERE ativo AND ncm IS NOT NULL"))
+                .isEqualTo(resultado.produtos() - 1);
+        assertThat(t.configuracoes.carregar(admin).loja().uf()).isEqualTo("SP");
+
+        Servicos hoje = Servicos.montar(BancoTeste.dataSource(), HOJE, AcessoTeste.TERMINAL,
+                new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        ResultadoRelatorio<RelInconsistenciasFiscais.Linha> r30 = hoje.relatorios().gerar(admin,
+                new RelInconsistenciasFiscais(), Filtros.vazios());
+        assertThat(r30.linhas().stream().map(RelInconsistenciasFiscais.Linha::produto).distinct().toList())
+                .containsExactlyInAnyOrderElementsOf(FiscalDemo.COM_INCONSISTENCIA);
+        assertThat(r30.linhas()).extracting(RelInconsistenciasFiscais.Linha::regra)
+                .containsExactlyInAnyOrder(1, 1, 4, 5, 9, 10, 11, 11, 13, 13);
+        assertThat(r30.linhas()).filteredOn(l -> !l.erro()).extracting(RelInconsistenciasFiscais.Linha::produto)
+                .containsExactlyInAnyOrderElementsOf(FiscalDemo.SO_AVISO);
+        assertThat(hoje.painel().carregar(admin).alertas().inconsistenciasFiscais())
+                .isEqualTo(FiscalDemo.COM_INCONSISTENCIA.size() - FiscalDemo.SO_AVISO.size()).isEqualTo(6);
     }
 
     /** F18.3: as etiquetas de todos os produtos e uma carga de balança sem arquivo, na véspera do primeiro dia. */

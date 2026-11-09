@@ -318,6 +318,11 @@ public class PainelController {
                     "produtos novos ou alterados") + ") — gerar na Carga de balança",
                     () -> navegacao.abrirCargaBalanca());
         }
+        if (a.inconsistenciasFiscais() != null && a.inconsistenciasFiscais() > 0) {
+            alerta(plural(a.inconsistenciasFiscais(), "produto com inconsistência fiscal",
+                    "produtos com inconsistência fiscal") + " — conferir o cadastro fiscal",
+                    () -> navegacao.abrirInconsistenciasFiscais());
+        }
         if (a.caixaAberto().isPresent()) {
             CaixaSessao caixa = a.caixaAberto().get();
             alerta("O caixa nº " + caixa.id() + " deste terminal está aberto desde "

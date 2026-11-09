@@ -296,7 +296,9 @@ aberto) e registra duas duplicatas por entrada de mercadoria. Em compras, vincul
 fornecedor (caixas de 6, 12 ou 24, prazo de 3 dias) e lança um pedido de compra enviado 3 dias antes de cada entrada,
 que a entrada recebe; o pedido da próxima entrega de cada fornecedor fica pendente. Os perecíveis embalados de Frios e
 laticínios e Padaria controlam validade: cada entrada semanal vira um lote, a sobra vencida vira perda por vencimento
-e, no fim, há lotes vencendo nos próximos dias e lotes vencidos da última semana com saldo (no painel e no R29). Ele **recusa** um banco que já tenha vendas ou
+e, no fim, há lotes vencendo nos próximos dias e lotes vencidos da última semana com saldo (no painel e no R29). No
+cadastro fiscal, põe a UF SP, cinco perfis tributários do Simples e o NCM e a origem de cada produto, com oito produtos
+com inconsistências de propósito (o R30 lista os oito; o painel conta os seis com erro). Ele **recusa** um banco que já tenha vendas ou
 movimentos nas contas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
@@ -426,7 +428,7 @@ dela no Windows), carregue o exemplo ZPL (Zebra) ou DPL (Datamax e Allegro), aju
 da loja e confira com **Imprimir teste** antes de usar: os exemplos são um ponto de partida e não foram testados em
 todas as impressoras.
 
-**Cadastro fiscal** (Produtos › Fiscal…, com a permissão Cadastro fiscal, Fase 19): prepara uma emissão fiscal futura
+**Cadastro fiscal** (menu **Fiscal** ou Produtos › Fiscal…, com a permissão Cadastro fiscal, Fase 19): prepara uma emissão fiscal futura
 (o sistema **não emite** NFC-e nem NF-e). Em **Perfis tributários**, cadastre a tributação (CFOP, CST do ICMS no regime
 normal ou CSOSN no Simples, alíquota e redução de base, PIS, COFINS, código de benefício e, opcionais, o CST do IBS e
 da CBS e o cClassTrib); só o formato de cada campo é conferido. Na aba **Produtos**, informe NCM, CEST, origem e perfil
@@ -434,7 +436,15 @@ de cada produto, ou aplique um perfil de uma vez aos selecionados, a uma categor
 **Tabelas NCM e CEST**, importe a tabela NCM (um CSV `código;descrição` ou o JSON oficial da tabela NCM, baixado do
 portal do Siscomex) e, se quiser, a tabela CEST (CSV `cest;ncm;descrição`): com elas, o código digitado tem de existir
 na tabela. Ao gerar uma entrada pelo XML da NF-e, quem tem a permissão confirma o NCM, o CEST e a origem do fornecedor
-nos produtos em que esses campos estão vazios.
+nos produtos em que esses campos estão vazios (a origem 1 do fornecedor, importação direta, entra como 2, e a 6 como
+7: a loja compra a mercadoria estrangeira no mercado interno).
+
+O relatório **R30 Inconsistências fiscais** (Relatórios, com as permissões Relatórios e Cadastro fiscal) confere os
+produtos ativos em 13 regras: sem NCM ou sem perfil, NCM e CEST fora do formato ou fora das tabelas importadas, CSOSN
+no regime normal ou CST no Simples, CFOP, alíquota e redução de base do ICMS, código de benefício, ST sem CEST, origem
+ausente, PIS e COFINS, IBS e CBS (só no regime normal) e o mesmo NCM em perfis diferentes. Cada linha diz se é erro ou
+aviso; o filtro escolhe uma regra, e **Abrir produto…** (ou o duplo clique) abre o produto no Cadastro fiscal. O painel
+mostra "N produtos com inconsistência fiscal" a quem tem a permissão, contando só os erros.
 
 ## 9. Empacotamento (jpackage)
 

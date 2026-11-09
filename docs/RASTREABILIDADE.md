@@ -454,3 +454,16 @@ Casos do roteiro manual: CT-F18-13 a CT-F18-22 (pela tela em 2026-11-07, captura
 | RF29 / F19.3 NF-e | `LeitorNfe.Fiscal` (`NCM`, `CEST` e `orig`), `ImportacaoNfeService.produtosDaNota`, `FiscalService.sugestoesDaNota`/`preencherDaNota`, `SugestaoFiscal`; diálogo **Dados fiscais da NF-e** (`DialogoFiscalNota`) depois de gerar a entrada (`ComprasController`) | `LeitorNfeTest.dadosFiscaisDoItem`, `notaDeDistribuicaoComEmitenteNotaEItens`; `FiscalServiceIT.xmlPreencheNcmCestEOrigemVazios`, `xmlComTabelaImportadaSoUsaNcmQueExisteEEscolhaAMao` |
 
 Casos do roteiro manual: CT-F19-01 a CT-F19-10 (pela tela em 2026-11-08, capturas `01` a `10`).
+
+## Fase 19 — Cadastro fiscal e consistência, parte B (RF30, RF29)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RF30 / F19.4 Regras | Pacote `service.fiscal`: `RegraFiscal`, `RegrasFiscais`, `ItemFiscal`, `ContextoFiscal`, `Inconsistencia`, `Gravidade` e uma classe por regra (`Regra01SemNcmOuPerfil` a `Regra13NcmEmPerfis`); `ValidacaoFiscal.formatoBeneficio` | Um teste por regra (`Regra01SemNcmOuPerfilTest` a `Regra13NcmEmPerfisTest`, cada um com casos que disparam e que não disparam), `RegrasFiscaisTest` |
+| RF30 / F19.4 R30 | `RelInconsistenciasFiscais` (RELATORIOS e FISCAL; consulta dos produtos ativos com o perfil e a existência nas tabelas NCM e CEST conferida no banco; regra 13 no Java), `TipoFiltro.REGRA_FISCAL`, `Filtros.regraFiscal`, `ParametrosRelatorio.loja`, `RelatorioService` (regra de 1 a 13); tela Relatórios com o filtro "Regra" e **Abrir produto…** / duplo clique (`RelatoriosController.abrirProduto`, `FiscalController.mostrarProduto`) | `InconsistenciasFiscaisIT` (lista, filtro, regime normal, tabelas NCM e CEST, formato gravado fora do sistema, permissões); `RelatoriosParte2Test.r30ColunasTotaisEFiltro`, `catalogoTemOsRelatoriosNaOrdemDosCodigos`; `FxmlTest` |
+| RF30 / F19.5 Painel | `AlertasPainel.inconsistenciasFiscais` (só produtos com erro), `PainelService` (FISCAL), `PainelController`, `NavegacaoPainel.abrirInconsistenciasFiscais` (R30 já gerado; sem RELATORIOS, o Cadastro fiscal) | `InconsistenciasFiscaisIT.painelContaSoOsProdutosComErro`, `exigeRelatoriosEFiscal` |
+| RF29 / F19.5 Menu | `ItemMenu.FISCAL` ("Fiscal", permissão FISCAL), `PrincipalController` (Cadastro fiscal na área de conteúdo, `FiscalController.naJanelaPrincipal`) | `ItemMenuTest.soComFiscalOMenuTemOCadastroFiscal` |
+| RF29 / F19.3 Origem pela NF-e | `OrigemMercadoria.daNotaDoFornecedor` (1 → 2, 6 → 7) em `FiscalService.sugestoesDaNota`; texto do `DialogoFiscalNota` | `FiscalServiceIT.origemDeImportacaoDiretaDoFornecedorEntraComoMercadoInterno` |
+| RF29, RF30 / F19.5 Gerador | `FiscalDemo` (UF SP, cinco perfis, NCM e origem no catálogo, inconsistências de propósito), `GeradorDemo.cadastrarFiscal`, `Resultado.perfisTributarios` | `FiscalDemoTest`, `GeradorDemoIT.cadastroFiscalComAsInconsistenciasDePropositoNoR30ENoPainel`, `GeradorDemoReproducaoIT` |
+
+Casos do roteiro manual: CT-F19-11 a CT-F19-19 (pela tela em 2026-11-09, capturas `01` a `09`).

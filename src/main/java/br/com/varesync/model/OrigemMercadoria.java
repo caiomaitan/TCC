@@ -24,6 +24,22 @@ public final class OrigemMercadoria {
         return List.of(0, 1, 2, 3, 4, 5, 6, 7, 8);
     }
 
+    /**
+     * Origem do produto a partir da origem na NF-e do fornecedor (F19.3, ajuste da parte B): a loja não é a
+     * importadora, então a importação direta do fornecedor (1 e 6) vira estrangeira comprada no mercado interno (2 e
+     * 7). As outras são copiadas; nula fica nula.
+     */
+    public static Integer daNotaDoFornecedor(Integer origem) {
+        if (origem == null) {
+            return null;
+        }
+        return switch (origem) {
+            case 1 -> 2;
+            case 6 -> 7;
+            default -> origem;
+        };
+    }
+
     /** "0 — Nacional"; nula = "—". */
     public static String rotulo(Integer origem) {
         if (origem == null || origem < 0 || origem >= ROTULOS.size()) {

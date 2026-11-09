@@ -165,8 +165,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new PedidoCompraService(transacao, new PedidoCompraDAO(), fornecedorDAO, produtoDAO, vinculoDAO,
                         configuracaoDAO, auditoria, clock),
                 new EtiquetaService(transacao, new EtiquetaDAO(), configuracaoDAO, auditoria, clock), cargaBalanca,
-                new FiscalService(transacao, new PerfilTributarioDAO(), new FiscalDAO(), nfe, configuracaoDAO, auditoria,
-                        clock));
+                new FiscalService(transacao, new PerfilTributarioDAO(), new FiscalDAO(), categoriaDAO, nfe, configuracaoDAO,
+                        auditoria, clock));
     }
 
     /**
@@ -180,7 +180,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         return new GeradorDemo(relogio, relogioReal, s.transacao(), s.acesso(), s.usuarios(), s.categorias(),
                 s.produtos(), s.estoque(), s.caixa(), s.vendas(), s.inventarios(), s.fornecedores(), s.compras(),
                 s.clientes(), s.devolucoes(), s.recebimentos(), s.configuracoes(), s.contas(), s.recebiveis(),
-                s.contasPagar(), s.vinculos(), s.pedidos(), s.etiquetas(), s.cargaBalanca(), new DemoDAO(), new CaixaDAO(),
+                s.contasPagar(), s.vinculos(), s.pedidos(), s.etiquetas(), s.cargaBalanca(), s.fiscal(), new DemoDAO(),
+                new CaixaDAO(),
                 new ConfiguracaoDAO(), new AuditoriaService(new AuditoriaDAO(), relogio, terminalId));
     }
 }

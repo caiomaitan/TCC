@@ -181,7 +181,7 @@ public final class AppContext implements AutoCloseable {
             return new CargaBalancaController(s.cargaBalanca(), sessao);
         }
         if (tipo == FiscalController.class) {
-            return new FiscalController(s.fiscal(), s.categorias(), sessao);
+            return new FiscalController(s.fiscal(), sessao);
         }
         if (tipo == PerfisTributariosController.class) {
             return new PerfisTributariosController(s.fiscal(), sessao);
@@ -200,7 +200,8 @@ public final class AppContext implements AutoCloseable {
             return new PainelController(s.painel(), sessao);
         }
         if (tipo == RelatoriosController.class) {
-            return new RelatoriosController(s.relatorios(), relatorioPdf, sessao);
+            return new RelatoriosController(s.relatorios(), relatorioPdf, sessao,
+                    t -> criarController(t, navegacao, sessao));
         }
         throw new IllegalArgumentException("Controller não registrado no AppContext: " + tipo.getName());
     }

@@ -25,6 +25,17 @@ class ItemMenuTest {
         assertThat(ItemMenu.FINANCEIRO.janelaPropria()).isFalse();
     }
 
+    /** F19.5: quem tem só FISCAL (sem PRODUTOS) chega ao Cadastro fiscal pelo menu. */
+    @Test
+    void soComFiscalOMenuTemOCadastroFiscal() {
+        Sessao fiscal = sessao(false, EnumSet.of(Permissao.FISCAL));
+        assertThat(ItemMenu.visiveis(fiscal)).containsExactly(ItemMenu.PAINEL, ItemMenu.FISCAL);
+        assertThat(ItemMenu.FISCAL.rotulo()).isEqualTo("Fiscal");
+        assertThat(ItemMenu.FISCAL.fxml()).isEqualTo("/fxml/fiscal.fxml");
+        assertThat(ItemMenu.FISCAL.janelaPropria()).isFalse();
+        assertThat(ItemMenu.visiveis(sessao(false, EnumSet.of(Permissao.PRODUTOS)))).doesNotContain(ItemMenu.FISCAL);
+    }
+
     @Test
     void supervisorVeTodoOMenu() {
         assertThat(ItemMenu.visiveis(sessao(true, Set.of()))).containsExactly(ItemMenu.values());

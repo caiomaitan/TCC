@@ -2,6 +2,7 @@ package br.com.varesync.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import br.com.varesync.IntegracaoBase;
 import br.com.varesync.model.AcaoAuditoria;
@@ -11,6 +12,7 @@ import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DadosFiscais;
 import br.com.varesync.model.DadosPerfil;
 import br.com.varesync.model.DadosProduto;
+import br.com.varesync.model.OrigemMercadoria;
 import br.com.varesync.model.PerfilTributario;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoFiscal;
@@ -335,6 +337,28 @@ class FiscalServiceIT extends IntegracaoBase {
                 .contains("pela NF-e nº 5555", "CEST: (vazio) → 03.007.00", "origem: (vazio) → 2 — Estrangeira")
                 .doesNotContain("NCM:");
         assertThat(fiscal.sugestoesDaNota(admin, xml, Map.of())).as("nada mais vazio").isEmpty();
+    }
+
+    /** Aceite (ajuste da parte B): a origem 1 do fornecedor entra como 2, e a 6 como 7; as outras são copiadas. */
+    @Test
+    void origemDeImportacaoDiretaDoFornecedorEntraComoMercadoInterno() throws Exception {
+        String original = new String(LeitorNfeTest.recurso("nfe-fiscal.xml"), StandardCharsets.UTF_8);
+        byte[] xml = original.replace("<ICMSSN500><orig>2</orig>", "<ICMSSN500><orig>1</orig>")
+                .replaceFirst("<ICMS00><orig>0</orig>", "<ICMS00><orig>6</orig>").getBytes(StandardCharsets.UTF_8);
+        assertThat(LeitorNfe.ler(xml).itens()).extracting(i -> i.fiscal().origem()).as("o leitor guarda o da nota")
+                .containsExactly(6, 1, null, 0);
+        List<SugestaoFiscal> sugestoes = fiscal.sugestoesDaNota(admin, xml, Map.of());
+        assertThat(sugestoes).extracting(SugestaoFiscal::produtoId, SugestaoFiscal::origem)
+                .containsExactly(tuple(cafe, 7), tuple(refrigerante, 2));
+        fiscal.preencherDaNota(admin, sugestoes, "5556");
+        assertThat(dados(refrigerante).origem()).isEqualTo(2);
+        assertThat(dados(cafe).origem()).isEqualTo(7);
+        assertThat(OrigemMercadoria.daNotaDoFornecedor(1)).isEqualTo(2);
+        assertThat(OrigemMercadoria.daNotaDoFornecedor(6)).isEqualTo(7);
+        for (int o : new int[] {0, 2, 3, 4, 5, 7, 8}) {
+            assertThat(OrigemMercadoria.daNotaDoFornecedor(o)).isEqualTo(o);
+        }
+        assertThat(OrigemMercadoria.daNotaDoFornecedor(null)).isNull();
     }
 
     @Test

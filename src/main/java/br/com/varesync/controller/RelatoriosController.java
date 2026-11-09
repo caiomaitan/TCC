@@ -11,6 +11,7 @@ import br.com.varesync.report.FiltroFinanceiro;
 import br.com.varesync.report.FiltroValidade;
 import br.com.varesync.report.Filtros;
 import br.com.varesync.report.Opcao;
+import br.com.varesync.report.RelInconsistenciasFiscais;
 import br.com.varesync.report.RelTitulosReceber;
 import br.com.varesync.report.RelValidade;
 import br.com.varesync.report.Relatorio;
@@ -22,9 +23,11 @@ import br.com.varesync.report.TipoFiltro;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.service.fiscal.RegrasFiscais;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Exportacao;
+import br.com.varesync.ui.Janelas;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -54,10 +57,12 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.util.Callback;
 import javafx.util.StringConverter;
 
 /**
@@ -78,6 +83,7 @@ public class RelatoriosController {
     private final RelatorioService relatorioService;
     private final RelatorioPdf relatorioPdf;
     private final Sessao sessao;
+    private final Callback<Class<?>, Object> fabricaControllers;
     private final List<TipoMovimento> tipos = new ArrayList<>();
     private ResultadoRelatorio<?> resultado;
 
@@ -124,6 +130,9 @@ public class RelatoriosController {
     @FXML private HBox grupoValidade;
     @FXML private TextField campoDiasValidade;
     @FXML private CheckBox filtroVencidos;
+    @FXML private HBox grupoRegraFiscal;
+    @FXML private ComboBox<Opcao> escolhaRegraFiscal;
+    @FXML private Button botaoAbrirProduto;
     @FXML private Button botaoGerar;
     @FXML private ProgressIndicator progresso;
     @FXML private Label mensagem;
@@ -133,10 +142,13 @@ public class RelatoriosController {
     @FXML private Label semDados;
     @FXML private HBox linhaTotais;
 
-    public RelatoriosController(RelatorioService relatorioService, RelatorioPdf relatorioPdf, Sessao sessao) {
+    /** @param fabricaControllers para o Cadastro fiscal aberto pelo "Abrir produto" do R30 (F19.4) */
+    public RelatoriosController(RelatorioService relatorioService, RelatorioPdf relatorioPdf, Sessao sessao,
+                                Callback<Class<?>, Object> fabricaControllers) {
         this.relatorioService = relatorioService;
         this.relatorioPdf = relatorioPdf;
         this.sessao = sessao;
+        this.fabricaControllers = fabricaControllers;
     }
 
     @FXML
@@ -203,8 +215,51 @@ public class RelatoriosController {
         campoDias.setText(String.valueOf(relatorioService.diasSemGiroPadrao(sessao)));
         campoDiasValidade.setText(String.valueOf(relatorioService.validadeAlertaDias(sessao)));
         filtroVencidos.setSelected(true);
+        escolhaRegraFiscal.getItems().add(TODAS);
+        RegrasFiscais.todas().forEach(r -> escolhaRegraFiscal.getItems().add(new Opcao(r.numero(), r.rotulo())));
+        escolhaRegraFiscal.setValue(TODAS);
+
+        // R30 (F19.4): "Abrir produto" com a linha selecionada, também por duplo clique.
+        botaoAbrirProduto.managedProperty().bind(botaoAbrirProduto.visibleProperty());
+        botaoAbrirProduto.setVisible(false);
+        tabela.getSelectionModel().selectedItemProperty().addListener((o, a, linha) ->
+                botaoAbrirProduto.setDisable(!(linha instanceof RelInconsistenciasFiscais.Linha)));
+        tabela.setRowFactory(t -> {
+            TableRow<Object> linha = new TableRow<>();
+            linha.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !linha.isEmpty()
+                        && linha.getItem() instanceof RelInconsistenciasFiscais.Linha) {
+                    abrirProduto();
+                }
+            });
+            return linha;
+        });
 
         escolhaRelatorio.getSelectionModel().select(0);
+    }
+
+    /** Alerta do painel (F19.5): R30 com todas as regras, já gerado. */
+    public void mostrarInconsistenciasFiscais() {
+        escolhaRelatorio.getItems().stream().filter(r -> r instanceof RelInconsistenciasFiscais).findFirst()
+                .ifPresent(r -> {
+                    escolhaRelatorio.setValue(r);
+                    escolhaRegraFiscal.setValue(TODAS);
+                    gerar();
+                });
+    }
+
+    /**
+     * "Abrir produto" do R30 (F19.4): o Cadastro fiscal em janela modal, na aba Produtos com o produto da linha. Ao
+     * fechar, o R30 é gerado de novo (o que foi corrigido sai da lista).
+     */
+    @FXML
+    void abrirProduto() {
+        if (!(tabela.getSelectionModel().getSelectedItem() instanceof RelInconsistenciasFiscais.Linha linha)) {
+            return;
+        }
+        Janelas.abrirModal(raiz.getScene().getWindow(), "/fxml/fiscal.fxml", "Cadastro fiscal", fabricaControllers,
+                (FiscalController c) -> c.mostrarProduto(linha.produtoId()));
+        gerar();
     }
 
     /** Alerta do painel (F14.4): R21 já filtrado nos títulos vencidos e gerado. */
@@ -254,6 +309,7 @@ public class RelatoriosController {
                 Map.entry(filtroAbaixoMinimo, TipoFiltro.SO_ABAIXO_MINIMO),
                 Map.entry(filtroInativos, TipoFiltro.INCLUIR_INATIVOS),
                 Map.entry(grupoValidade, TipoFiltro.VALIDADE),
+                Map.entry(grupoRegraFiscal, TipoFiltro.REGRA_FISCAL),
                 Map.entry(filtroDetalhar, TipoFiltro.DETALHAR_VENDAS));
         grupos.forEach((no, filtro) -> {
             boolean visivel = usados.contains(filtro);
@@ -263,6 +319,7 @@ public class RelatoriosController {
         if (relatorio != null) {
             opcoesDoRelatorio(relatorio);
         }
+        botaoAbrirProduto.setVisible(relatorio instanceof RelInconsistenciasFiscais);
         descricao.setText(relatorio == null ? "" : relatorio.descricao());
         limparResultado();
         Mensagem.limpar(mensagem);
@@ -296,6 +353,7 @@ public class RelatoriosController {
         semDados.setText("Escolha os filtros e clique em Gerar.");
         botaoCsv.setDisable(true);
         botaoPdf.setDisable(true);
+        botaoAbrirProduto.setDisable(true);
     }
 
     /** Filtros da tela; o produto digitado é procurado pelo código (rápido, na própria thread da tela). */
@@ -342,6 +400,10 @@ public class RelatoriosController {
                 usados.contains(TipoFiltro.MES) ? escolhaMes.getValue() : null));
         if (usados.contains(TipoFiltro.VALIDADE)) {
             f = f.comValidade(new FiltroValidade(diasValidade(), filtroVencidos.isSelected()));
+        }
+        if (usados.contains(TipoFiltro.REGRA_FISCAL)) {
+            Opcao regra = nuloSeTodos(escolhaRegraFiscal.getValue());
+            f = f.comRegraFiscal(regra == null ? null : (int) regra.id());
         }
         f = f.comEstoque(filtroAbaixoMinimo.isSelected(), filtroInativos.isSelected());
         return f.comDetalhe(filtroDetalhar.isSelected());

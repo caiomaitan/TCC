@@ -1074,7 +1074,7 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - `cst_icms` ou `csosn`, conforme o regime, `aliquota_icms` e `reducao_base_icms` (percentual de redução da base, só nos CST 20 e 70);
   - `cst_pis`, `aliquota_pis`, `cst_cofins` e `aliquota_cofins`;
   - `codigo_beneficio` (opcional; 8 caracteres começando pela UF, como SP010360, ou "SEM CBENEF", nas UFs que usam esse texto);
-  - reforma tributária, opcionais: `cst_ibs_cbs` (3 dígitos) e `cclass_trib` (6 dígitos, que começam pelo CST). Na NF-e e na NFC-e eles são exigidos desde 2026; aqui só se cadastra e se confere o formato.
+  - reforma tributária, opcionais: `cst_ibs_cbs` (3 dígitos) e `cclass_trib` (6 dígitos, que começam pelo CST). Na NF-e e na NFC-e do regime normal eles são exigidos desde 2026; no Simples, quem não optou pelo regime regular do IBS e da CBS não informa esses campos (usa um grupo próprio do Simples, pela NT 2026.005). Aqui só se cadastra e se confere o formato.
 - **Na tela do perfil:** só o formato de cada campo é validado; as combinações erradas aparecem no R30.
 - **Novas colunas em `produto`:** `ncm` (8 dígitos), `cest` (7 dígitos), `origem` (0 a 8) e `perfil_tributario_id`.
 - **Aplicação em lote:** o perfil pode ser aplicado a vários produtos de uma vez, por categoria, por seleção ou por NCM.
@@ -1086,10 +1086,11 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - opcionalmente, a tabela CEST (`cest;ncm;descrição`);
   - sem tabela importada, o sistema valida só o formato.
 - **XML de NF-e:** o NCM, o CEST e a origem do fornecedor preenchem os campos vazios do produto, com confirmação na tela.
+  - **Origem (ajuste feito na parte B):** a origem 1 do fornecedor vira 2, e a 6 vira 7, porque a loja não é a importadora (1 e 6 são importação direta; 2 e 7, estrangeira comprada no mercado interno). As outras são copiadas.
 
 ### F19.4 R30 Inconsistências fiscais
 
-- Filtro por regra e ação "abrir produto". Regras iniciais:
+- Filtro por regra e ação "abrir produto", que abre o produto na aba Produtos do Cadastro fiscal. As partes de "formato inválido" acusam o que foi gravado fora do sistema, que confere o formato ao gravar. Regras iniciais:
 
 | # | Regra |
 |---|---|
@@ -1103,8 +1104,8 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 | 8 | Código de benefício: CST 00 com código (a SEFAZ recusa a combinação); formato inválido ou UF diferente da UF da loja; CST 20, 40 ou 41 sem código (aviso: várias UFs exigem) |
 | 9 | Produto com ST (CST 60 ou CSOSN 500) sem CEST |
 | 10 | Origem ausente |
-| 11 | PIS ou COFINS com CST 04 (monofásico), 06 (alíquota zero), 07 (isenta), 08 (sem incidência) ou 09 (suspensão) e alíquota maior que zero; CST 01 ou 02 com alíquota zero; no regime SIMPLES, alíquota maior que zero |
-| 12 | IBS e CBS: perfil sem CST ou sem cClassTrib, ou cClassTrib que não começa pelo CST (aviso) |
+| 11 | PIS ou COFINS com CST 04 (monofásico), 06 (alíquota zero), 07 (isenta), 08 (sem incidência) ou 09 (suspensão) e alíquota maior que zero; CST 01 ou 02 com alíquota zero; no regime SIMPLES, alíquota maior que zero; CST do PIS diferente do CST da COFINS (aviso) |
+| 12 | IBS e CBS, só no regime NORMAL: perfil sem CST ou sem cClassTrib, ou cClassTrib que não começa pelo CST (aviso) |
 | 13 | Produtos com o mesmo NCM em perfis diferentes (aviso, não erro) |
 
 - Cada regra é uma classe, com teste próprio.
@@ -1112,7 +1113,8 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 ### F19.5 Painel e gerador
 
-- Alerta "N produtos com inconsistência fiscal", para quem tem FISCAL; o clique abre o R30.
+- Alerta "N produtos com inconsistência fiscal", para quem tem FISCAL, contando só os produtos com erro (os avisos ficam só no R30); o clique abre o R30 (sem a permissão RELATORIOS, abre o Cadastro fiscal).
+- **Menu:** item próprio "Fiscal" para quem tem FISCAL, que abre o Cadastro fiscal. Hoje só se chega a ele pelo botão em Produtos, que exige PRODUTOS.
 - **Gerador:** perfis tributários comuns (por exemplo, tributado, ST e isento) e NCM nos produtos do catálogo, com algumas inconsistências de propósito, para o R30 e o painel terem o que mostrar.
 
 ### Fora desta fase
@@ -1123,9 +1125,10 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 - Cada regra tem um caso que dispara e um que não dispara.
 - Aplicar um perfil a uma categoria inteira funciona.
-- O XML preenche NCM, CEST e origem vazios.
+- O XML preenche NCM, CEST e origem vazios; a origem 1 do fornecedor entra como 2.
 - A tabela NCM é importada (do CSV e do JSON oficial), e a existência do código passa a ser validada.
 - Nos dados de demonstração, o R30 e o painel mostram as inconsistências postas de propósito, e não o catálogo inteiro.
+- Um usuário só com FISCAL chega ao Cadastro fiscal pelo menu.
 
 ---
 

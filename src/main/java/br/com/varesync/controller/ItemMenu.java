@@ -16,6 +16,8 @@ public enum ItemMenu {
     CLIENTES("Clientes", Permissao.CLIENTES, false, "/fxml/clientes.fxml", false),
     DEVOLUCOES("Devoluções", Permissao.DEVOLUCAO, false, "/fxml/devolucoes.fxml", false),
     PRODUTOS("Produtos", Permissao.PRODUTOS, false, "/fxml/produtos.fxml", false),
+    /** F19.5: o Cadastro fiscal, também pelo botão Fiscal… de Produtos (que pede PRODUTOS). */
+    FISCAL("Fiscal", Permissao.FISCAL, false, "/fxml/fiscal.fxml", false),
     ESTOQUE("Estoque", Permissao.ESTOQUE, false, "/fxml/estoque.fxml", false),
     INVENTARIO("Inventário", Permissao.INVENTARIO, false, "/fxml/inventario.fxml", false),
     COMPRAS("Compras", Permissao.COMPRAS, false, "/fxml/compras.fxml", false),

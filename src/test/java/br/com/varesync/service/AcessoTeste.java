@@ -157,7 +157,7 @@ final class AcessoTeste {
                 new ProdutoFornecedorDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         etiquetas = new EtiquetaService(transacao, new EtiquetaDAO(), new ConfiguracaoDAO(), auditoria, relogio);
         fiscal = new FiscalService(transacao, new br.com.varesync.dao.PerfilTributarioDAO(),
-                new br.com.varesync.dao.FiscalDAO(), nfe, new ConfiguracaoDAO(), auditoria, relogio);
+                new br.com.varesync.dao.FiscalDAO(), categoriaDAO, nfe, new ConfiguracaoDAO(), auditoria, relogio);
         this.transacao = transacao;
         this.auditoriaService = auditoria;
     }

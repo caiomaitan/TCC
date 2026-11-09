@@ -42,4 +42,7 @@ public interface NavegacaoPainel {
 
     /** Produtos, com a Carga de balança aberta (F18.3). */
     void abrirCargaBalanca();
+
+    /** F19.5: R30 já gerado; sem a permissão RELATORIOS, o Cadastro fiscal. */
+    void abrirInconsistenciasFiscais();
 }

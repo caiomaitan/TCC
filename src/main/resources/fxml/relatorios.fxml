@@ -75,6 +75,10 @@
             <Label text="dias"/>
             <CheckBox fx:id="filtroVencidos" text="Incluir os vencidos"/>
         </HBox>
+        <HBox fx:id="grupoRegraFiscal" alignment="CENTER_LEFT" spacing="6">
+            <Label text="Regra:"/>
+            <ComboBox fx:id="escolhaRegraFiscal" prefWidth="300"/>
+        </HBox>
         <HBox fx:id="grupoSituacao" alignment="CENTER_LEFT" spacing="6">
             <Label text="Situação:"/>
             <ComboBox fx:id="escolhaSituacao" prefWidth="140"/>
@@ -115,6 +119,8 @@
         <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
         <Label fx:id="mensagem" wrapText="true"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="botaoAbrirProduto" text="Abrir produto…" onAction="#abrirProduto" disable="true"
+                minWidth="-Infinity"/>
         <Button fx:id="botaoCsv" text="Exportar CSV…" onAction="#exportarCsv" disable="true" minWidth="-Infinity"/>
         <Button fx:id="botaoPdf" text="Exportar PDF…" onAction="#exportarPdf" disable="true" minWidth="-Infinity"/>
     </HBox>

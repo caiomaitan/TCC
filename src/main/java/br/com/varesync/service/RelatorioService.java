@@ -139,7 +139,7 @@ public class RelatorioService {
             Configuracoes config = configuracaoDAO.carregar(con);
             ParametrosRelatorio parametros = new ParametrosRelatorio(clock.getZone(),
                     config.margemMinimaPct(),
-                    agora.atZoneSameInstant(clock.getZone()).toLocalDate(), config.compras());
+                    agora.atZoneSameInstant(clock.getZone()).toLocalDate(), config.compras(), config.loja());
             Filtros usados = relatorio.filtros().contains(TipoFiltro.DIAS) && filtros.dias() == null
                     ? filtros.comDias(config.diasSemGiro()) : filtros;
             if (relatorio.filtros().contains(TipoFiltro.MES) && usados.financeiro().mes() == null) {
@@ -186,6 +186,11 @@ public class RelatorioService {
                 && (filtros.validade().dias() < 0 || filtros.validade().dias() > Configuracoes.VALIDADE_ALERTA_MAXIMO)) {
             throw new NegocioException("Os dias para vencer devem estar entre 0 e "
                     + Configuracoes.VALIDADE_ALERTA_MAXIMO + ".");
+        }
+        if (relatorio.filtros().contains(TipoFiltro.REGRA_FISCAL) && filtros.regraFiscal() != null
+                && br.com.varesync.service.fiscal.RegrasFiscais.regra(filtros.regraFiscal()).isEmpty()) {
+            throw new NegocioException("Regra fiscal " + filtros.regraFiscal() + " não existe (são de 1 a "
+                    + br.com.varesync.service.fiscal.RegrasFiscais.todas().size() + ").");
         }
         if (relatorio.filtros().contains(TipoFiltro.CRITERIO) && filtros.criterio() != null
                 && !relatorio.criterios().contains(filtros.criterio())) {

@@ -1,10 +1,12 @@
 package br.com.varesync.service;
 
+import br.com.varesync.dao.CategoriaDAO;
 import br.com.varesync.dao.ConfiguracaoDAO;
 import br.com.varesync.dao.FiscalDAO;
 import br.com.varesync.dao.PerfilTributarioDAO;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.AlvoPerfil;
+import br.com.varesync.model.Categoria;
 import br.com.varesync.model.CodigoCest;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.DadosFiscais;
@@ -41,6 +43,7 @@ public class FiscalService {
     private final Transacao transacao;
     private final PerfilTributarioDAO perfilDAO;
     private final FiscalDAO fiscalDAO;
+    private final CategoriaDAO categoriaDAO;
     private final ImportacaoNfeService nfe;
     private final ConfiguracaoDAO configuracaoDAO;
     private final AuditoriaService auditoria;
@@ -63,11 +66,12 @@ public class FiscalService {
     }
 
     public FiscalService(Transacao transacao, PerfilTributarioDAO perfilDAO, FiscalDAO fiscalDAO,
-                         ImportacaoNfeService nfe, ConfiguracaoDAO configuracaoDAO, AuditoriaService auditoria,
-                         Clock clock) {
+                         CategoriaDAO categoriaDAO, ImportacaoNfeService nfe, ConfiguracaoDAO configuracaoDAO,
+                         AuditoriaService auditoria, Clock clock) {
         this.transacao = transacao;
         this.perfilDAO = perfilDAO;
         this.fiscalDAO = fiscalDAO;
+        this.categoriaDAO = categoriaDAO;
         this.nfe = nfe;
         this.configuracaoDAO = configuracaoDAO;
         this.auditoria = auditoria;
@@ -78,6 +82,15 @@ public class FiscalService {
     public Configuracoes.Loja empresa(Sessao sessao) {
         sessao.exigir(Permissao.FISCAL);
         return transacao.executar(con -> configuracaoDAO.carregar(con).loja());
+    }
+
+    /**
+     * Categorias (ativas e inativas) para o filtro e a aplicação em lote, pela permissão FISCAL: quem tem só FISCAL
+     * abre o Cadastro fiscal pelo menu (F19.5) sem a permissão PRODUTOS, que o {@code CategoriaService} pede.
+     */
+    public List<Categoria> categorias(Sessao sessao) {
+        sessao.exigir(Permissao.FISCAL);
+        return transacao.executar(con -> categoriaDAO.listar(con, true));
     }
 
     // ----- Perfis tributários -----
@@ -409,7 +422,8 @@ public class FiscalService {
      * O que a NF-e preenche nos produtos dela (F19.3): para cada produto vinculado (pelo código de barras, pelo código
      * do fornecedor ou escolhido à mão na conferência), o NCM, o CEST e a origem da nota nos campos que estão vazios no
      * produto. Um campo só entra com formato válido e, com a tabela importada, existindo nela; o mesmo produto em vários
-     * itens fica com o primeiro item que traz cada campo.
+     * itens fica com o primeiro item que traz cada campo. A origem 1 do fornecedor entra como 2, e a 6 como 7
+     * ({@link OrigemMercadoria#daNotaDoFornecedor}).
      *
      * @param escolhidos número do item → produto escolhido à mão na conferência
      */
@@ -451,7 +465,7 @@ public class FiscalService {
                         usou = true;
                     }
                     if (p.origem() == null && origem == null && f.origem() != null) {
-                        origem = f.origem();
+                        origem = OrigemMercadoria.daNotaDoFornecedor(f.origem()); // 1 → 2 e 6 → 7
                         usou = true;
                     }
                     if (usou) {

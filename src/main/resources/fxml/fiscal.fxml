@@ -19,8 +19,9 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<!-- Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo botão "Fiscal…" de Produtos: dados fiscais de cada
-     produto e aplicação do perfil em lote, perfis tributários e as tabelas NCM e CEST. -->
+<!-- Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo item Fiscal do menu (F19.5), pelo botão "Fiscal…" de
+     Produtos e pelo "Abrir produto" do R30: dados fiscais de cada produto e aplicação do perfil em lote, perfis
+     tributários e as tabelas NCM e CEST. -->
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.FiscalController"
       spacing="10" styleClass="tela-cadastro" prefWidth="1180" prefHeight="700">
@@ -34,15 +35,16 @@
             <VBox spacing="10">
                 <padding><Insets top="10" right="0" bottom="0" left="0"/></padding>
                 <HBox alignment="CENTER_LEFT" spacing="10">
+                    <!-- No menu (área de conteúdo, F19.5) a barra é mais estreita: só a busca encolhe. -->
                     <TextField fx:id="campoBusca" promptText="Nome, código ou código de barras" HBox.hgrow="ALWAYS"
-                               onAction="#pesquisar"/>
-                    <Label text="Categoria"/>
-                    <ComboBox fx:id="filtroCategoria" prefWidth="170"/>
-                    <Label text="Perfil"/>
-                    <ComboBox fx:id="filtroPerfil" prefWidth="170"/>
-                    <CheckBox fx:id="campoSoPendentes" text="Só sem NCM ou sem perfil"/>
-                    <CheckBox fx:id="campoInativos" text="Mostrar inativos"/>
-                    <Button text="Buscar" onAction="#pesquisar"/>
+                               minWidth="110" onAction="#pesquisar"/>
+                    <Label text="Categoria" minWidth="-Infinity"/>
+                    <ComboBox fx:id="filtroCategoria" prefWidth="150" minWidth="-Infinity"/>
+                    <Label text="Perfil" minWidth="-Infinity"/>
+                    <ComboBox fx:id="filtroPerfil" prefWidth="150" minWidth="-Infinity"/>
+                    <CheckBox fx:id="campoSoPendentes" text="Só sem NCM ou sem perfil" minWidth="-Infinity"/>
+                    <CheckBox fx:id="campoInativos" text="Mostrar inativos" minWidth="-Infinity"/>
+                    <Button text="Buscar" onAction="#pesquisar" minWidth="-Infinity"/>
                 </HBox>
                 <TableView fx:id="tabela" VBox.vgrow="ALWAYS">
                     <placeholder><Label text="Nenhum produto encontrado."/></placeholder>
@@ -138,6 +140,6 @@
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Label text="Esc fecha a janela." styleClass="subtitulo"/>
+        <Label fx:id="rotuloEsc" text="Esc fecha a janela." styleClass="subtitulo"/>
     </HBox>
 </VBox>

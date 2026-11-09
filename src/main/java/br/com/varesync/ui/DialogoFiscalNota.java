@@ -43,8 +43,8 @@ public final class DialogoFiscalNota {
 
         Label explicacao = new Label("A nota traz NCM, CEST ou origem para " + (sugestoes.size() == 1 ? "1 produto"
                 : sugestoes.size() + " produtos") + " com esses campos vazios no cadastro. Só os campos vazios são "
-                + "preenchidos; o que já está no cadastro não muda. Confira: a origem é a do fornecedor (quem compra "
-                + "de um importador costuma usar a origem 2).");
+                + "preenchidos; o que já está no cadastro não muda. A origem 1 do fornecedor (importação direta) "
+                + "entra como 2, e a 6 como 7: a loja compra a mercadoria estrangeira no mercado interno.");
         explicacao.setWrapText(true);
         explicacao.setMaxWidth(720);
         explicacao.setMinHeight(Region.USE_PREF_SIZE);

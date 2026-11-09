@@ -20,6 +20,8 @@ import br.com.varesync.model.Periodo;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.report.Dre;
+import br.com.varesync.report.RelInconsistenciasFiscais;
+import br.com.varesync.service.fiscal.ContextoFiscal;
 import br.com.varesync.report.SugestaoCompra;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -50,6 +52,7 @@ import java.util.Optional;
  * <li>Com ESTOQUE (F17.3): lotes vencendo em até {@code validade.alerta_dias} dias, lotes vencidos com saldo e
  * produtos com o "SEM LOTE" negativo, só de produtos ativos com o controle ligado.</li>
  * <li>Com PRODUTOS (F18.3): produtos com etiqueta de gôndola pendente e pesáveis pendentes na carga de balança.</li>
+ * <li>Com FISCAL (F19.5): produtos ativos com erro no R30 (os avisos não contam).</li>
  * </ul>
  */
 public class PainelService {
@@ -144,8 +147,10 @@ public class PainelService {
                 ? tituloDAO.vencidos(con, LocalDate.now(clock)) : null;
         AlertasPainel.Lotes lotes = sessao.pode(Permissao.ESTOQUE)
                 ? loteDAO.contarAlertas(con, hoje, configuracaoDAO.carregar(con).validadeAlertaDias()) : null;
+        Integer fiscal = sessao.pode(Permissao.FISCAL) ? RelInconsistenciasFiscais.produtosComErro(con,
+                ContextoFiscal.da(configuracaoDAO.carregar(con).loja())) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
-                vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes, etiquetas, carga);
+                vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes, etiquetas, carga, fiscal);
     }
 
     /** Último backup há mais de {@link BackupService#DIAS_ALERTA} dias (pelo último {@code BACKUP_REALIZADO}), ou nenhum. */

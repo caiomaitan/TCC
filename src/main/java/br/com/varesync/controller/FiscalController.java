@@ -6,7 +6,6 @@ import br.com.varesync.model.DadosFiscais;
 import br.com.varesync.model.OrigemMercadoria;
 import br.com.varesync.model.PerfilTributario;
 import br.com.varesync.model.ProdutoFiscal;
-import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.FiscalService;
 import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.Sessao;
@@ -47,7 +46,8 @@ import javafx.scene.layout.GridPane;
 import javafx.stage.FileChooser;
 
 /**
- * Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo botão "Fiscal…" de Produtos. Aba Produtos: NCM,
+ * Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo item Fiscal do menu, pelo botão "Fiscal…" de Produtos
+ * e pelo "Abrir produto" do R30 (F19.4 e F19.5). Aba Produtos: NCM,
  * CEST, origem e perfil do produto selecionado e a aplicação de um perfil em lote (à seleção, a uma categoria inteira
  * ou a um NCM); aba Perfis tributários ({@link PerfisTributariosController}); aba Tabelas NCM e CEST, com a
  * importação em {@link Task}.
@@ -60,7 +60,6 @@ public class FiscalController {
             "", null, null, null, null, true, 0);
 
     private final FiscalService service;
-    private final CategoriaService categoriaService;
     private final Sessao sessao;
     private ProdutoFiscal selecionado;
 
@@ -108,10 +107,10 @@ public class FiscalController {
     @FXML private ProgressIndicator progresso;
     @FXML private Label mensagemTabelas;
     @FXML private Label mensagem;
+    @FXML private Label rotuloEsc;
 
-    public FiscalController(FiscalService service, CategoriaService categoriaService, Sessao sessao) {
+    public FiscalController(FiscalService service, Sessao sessao) {
         this.service = service;
-        this.categoriaService = categoriaService;
         this.sessao = sessao;
     }
 
@@ -187,7 +186,7 @@ public class FiscalController {
             }
         });
 
-        List<Categoria> categorias = categoriaService.listar(sessao, true);
+        List<Categoria> categorias = service.categorias(sessao); // pela FISCAL: quem só tem FISCAL abre pelo menu
         filtroCategoria.getItems().setAll(TODAS);
         filtroCategoria.getItems().addAll(categorias);
         filtroCategoria.setValue(TODAS);
@@ -196,6 +195,31 @@ public class FiscalController {
         pesquisar();
         mostrar(null);
         Platform.runLater(campoBusca::requestFocus);
+    }
+
+    /** Aberto pelo menu (F19.5), na área de conteúdo da janela principal: sem o aviso "Esc fecha a janela". */
+    public void naJanelaPrincipal() {
+        rotuloEsc.setVisible(false);
+        rotuloEsc.setManaged(false);
+    }
+
+    /**
+     * "Abrir produto" do R30 (F19.4): a aba Produtos, sem filtros, com o produto buscado pelo código e selecionado.
+     */
+    public void mostrarProduto(long produtoId) {
+        abas.getSelectionModel().select(abaProdutos);
+        campoSoPendentes.setSelected(false);
+        campoInativos.setSelected(true);
+        filtroCategoria.setValue(TODAS);
+        filtroPerfil.setValue(TODOS);
+        campoBusca.setText(String.valueOf(produtoId));
+        pesquisar();
+        tabela.getItems().stream().filter(p -> p.id() == produtoId).findFirst().ifPresent(p -> {
+            tabela.getSelectionModel().clearSelection();
+            tabela.getSelectionModel().select(p);
+            tabela.scrollTo(p);
+        });
+        Platform.runLater(campoNcm::requestFocus);
     }
 
     private static void texto(TableColumn<ProdutoFiscal, String> coluna, Function<ProdutoFiscal, String> valor) {

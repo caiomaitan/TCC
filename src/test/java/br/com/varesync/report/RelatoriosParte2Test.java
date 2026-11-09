@@ -212,7 +212,30 @@ class RelatoriosParte2Test {
         // R11 e R13 ficam nas telas Caixa e Inventário.
         assertThat(Relatorios.todos()).extracting(Relatorio::codigo).containsExactly("R01", "R02", "R03", "R04",
                 "R05", "R06", "R07", "R08", "R09", "R10", "R12", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21",
-                "R22", "R23", "R24", "R25", "R26", "R27", "R28", "R29");
+                "R22", "R23", "R24", "R25", "R26", "R27", "R28", "R29", "R30");
+    }
+
+    /** R30 (F19.4): colunas, totais (produtos e erros × avisos) e o filtro por regra no cabeçalho. */
+    @Test
+    void r30ColunasTotaisEFiltro() {
+        RelInconsistenciasFiscais r30 = new RelInconsistenciasFiscais();
+        List<RelInconsistenciasFiscais.Linha> linhas = List.of(
+                new RelInconsistenciasFiscais.Linha(3, "Azeite", "Mercearia", "15092000", "Normal", 4, "4 — x",
+                        br.com.varesync.service.fiscal.Gravidade.ERRO, "CST 00 no Simples."),
+                new RelInconsistenciasFiscais.Linha(3, "Azeite", "Mercearia", "15092000", "Normal", 11, "11 — x",
+                        br.com.varesync.service.fiscal.Gravidade.ERRO, "PIS."),
+                new RelInconsistenciasFiscais.Linha(7, "Cerveja", null, null, null, 13, "13 — x",
+                        br.com.varesync.service.fiscal.Gravidade.AVISO, "NCM."));
+        List<Coluna<RelInconsistenciasFiscais.Linha>> colunas = r30.colunas(Filtros.vazios());
+        assertThat(colunas).extracting(Coluna::titulo).containsExactly("Código", "Produto", "Categoria", "NCM",
+                "Perfil", "Regra", "Gravidade", "Inconsistência");
+        assertThat(colunas.get(3).formatar(linhas.get(0))).isEqualTo("1509.20.00");
+        assertThat(colunas.get(3).formatar(linhas.get(2))).isEqualTo("—");
+        assertThat(colunas.get(1).formatarTotal(linhas)).isEqualTo("2 produtos");
+        assertThat(colunas.get(7).formatarTotal(linhas)).isEqualTo("3 inconsistências (2 erros, 1 aviso)");
+        assertThat(r30.permissoesExtras()).containsExactly(br.com.varesync.model.Permissao.FISCAL);
+        assertThat(r30.descreverFiltros(Filtros.vazios().comRegraFiscal(9))).isEqualTo("Regra: 9 — ST sem CEST");
+        assertThat(r30.descreverFiltros(Filtros.vazios())).isEqualTo("Regra: todas");
     }
 
     @Test

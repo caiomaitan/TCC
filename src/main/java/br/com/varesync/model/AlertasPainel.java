@@ -21,12 +21,14 @@ import java.util.Optional;
  * @param lotes              lotes vencendo e vencidos e "SEM LOTE" negativo (ESTOQUE, F17.3)
  * @param etiquetasPendentes produtos com etiqueta de gôndola pendente (PRODUTOS, F18.3)
  * @param cargaPendente      pesáveis pendentes na carga de balança (PRODUTOS, F18.3)
+ * @param inconsistenciasFiscais produtos ativos com erro no R30 (FISCAL, F19.5); os avisos não contam
  */
 public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, Optional<CaixaSessao> caixaAberto,
                             Integer inventariosAbertos, BackupAtrasado backupAtrasado,
                             TitulosVencidos titulosVencidos, ContasAPagar pagarVencidas, ContasAPagar pagarHoje,
                             List<ContaFinanceira> contasNegativas, Integer rupturas, Lotes lotes,
-                            Integer etiquetasPendentes, Integer cargaPendente) {
+                            Integer etiquetasPendentes, Integer cargaPendente,
+                            Integer inconsistenciasFiscais) {
 
     /**
      * Lotes com saldo positivo de produtos ativos com o controle ligado (F17.3).
@@ -68,7 +70,7 @@ public record AlertasPainel(Integer abaixoDoMinimo, Integer precoAbaixoDoCusto, 
                 || (pagarHoje != null && pagarHoje.quantidade() > 0) || !contasNegativas.isEmpty()
                 || positivo(rupturas)
                 || (lotes != null && (lotes.vencendo() > 0 || lotes.vencidos() > 0 || lotes.semLoteNegativo() > 0))
-                || positivo(etiquetasPendentes) || positivo(cargaPendente);
+                || positivo(etiquetasPendentes) || positivo(cargaPendente) || positivo(inconsistenciasFiscais);
     }
 
     private static boolean positivo(Integer valor) {

@@ -22,5 +22,7 @@ public enum TipoFiltro {
     AGRUPAMENTO,
     MES,
     /** R29: vencem em até N dias e "incluir vencidos" (F17.3). */
-    VALIDADE
+    VALIDADE,
+    /** R30: uma das regras fiscais (F19.4), ou todas. */
+    REGRA_FISCAL
 }
