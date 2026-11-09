@@ -123,7 +123,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         CreditoService credito = new CreditoService(transacao, creditoDAO, new ClienteDAO(), auditoria, clock);
         TituloReceberDAO tituloDAO = new TituloReceberDAO();
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
-                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO), auditoria, new ClienteDAO(),
+                configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO, produtoDAO), auditoria, new ClienteDAO(),
                 creditoDAO, credito, tituloDAO, recebiveis, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);

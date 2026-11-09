@@ -14,6 +14,8 @@ import br.com.varesync.model.ClienteCrediario;
 import br.com.varesync.model.ClienteVenda;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.Embalagem;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.model.FormaPagamento;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.ParametrosVenda;
@@ -132,8 +134,15 @@ public class VendaService {
 
     // ----- Leitura de produto -----
 
-    /** Produto lido no PDV e, se veio de etiqueta de balança (6.9), a etiqueta (nula nos demais casos). */
-    public record LeituraProduto(ProdutoVenda produto, EtiquetaBalanca etiqueta) {
+    /**
+     * Produto lido no PDV e, se veio de etiqueta de balança (6.9), a etiqueta; se veio de um código de embalagem
+     * (caixa, fardo, F20.2), a embalagem. As duas são nulas nos demais casos.
+     */
+    public record LeituraProduto(ProdutoVenda produto, EtiquetaBalanca etiqueta, Embalagem embalagem) {
+
+        public LeituraProduto(ProdutoVenda produto, EtiquetaBalanca etiqueta) {
+            this(produto, etiqueta, null);
+        }
     }
 
     /** Consulta de preço (F7): o produto e o preço que vale hoje (promoção ou preço de venda). */
@@ -190,7 +199,38 @@ public class VendaService {
             throw new NegocioException("A quantidade deve ser maior que zero.");
         }
         BigDecimal qtd = ValidacaoProduto.quantidade(quantidade, "A quantidade", produto.fracionada());
-        return incluir(sessao, carrinho, produto, qtd, null);
+        return incluir(sessao, carrinho, produto, qtd, null, null);
+    }
+
+    /**
+     * Inclui o item lido por um código de embalagem (caixa, fardo, F20.2): quantidade = quantidade da embalagem ×
+     * multiplicador ({@code 2*código} = 2 embalagens), com o multiplicador inteiro. Com preço de embalagem, o valor do
+     * item é o menor entre o preço da embalagem × nº de embalagens e a quantidade × o preço unitário vigente (com a
+     * promoção), e o item fica fora das faixas por quantidade; sem ele, é um item comum, que participa das faixas. O
+     * estoque baixa a quantidade em unidades. Mesma regra de estoque de {@link #adicionarItem}.
+     *
+     * @param multiplicador nº de embalagens; nulo = 1
+     */
+    public Inclusao adicionarEmbalagem(Sessao sessao, Carrinho carrinho, LeituraProduto leitura,
+                                       BigDecimal multiplicador) {
+        sessao.exigir(Permissao.PDV);
+        Embalagem embalagem = leitura.embalagem();
+        if (embalagem == null) {
+            throw new IllegalArgumentException("Leitura sem embalagem");
+        }
+        BigDecimal embalagens = multiplicador == null ? BigDecimal.ONE : multiplicador;
+        if (embalagens.signum() <= 0) {
+            throw new NegocioException("A quantidade deve ser maior que zero.");
+        }
+        if (embalagens.stripTrailingZeros().scale() > 0) {
+            throw new NegocioException("O código lido é de uma embalagem com "
+                    + quantidade(embalagem.quantidade(), leitura.produto()) + ": informe um número inteiro de "
+                    + "embalagens antes do * (ex.: 2*código = 2 embalagens).");
+        }
+        BigDecimal qtd = ValidacaoProduto.quantidade(embalagem.quantidade().multiply(embalagens), "A quantidade",
+                leitura.produto().fracionada());
+        return incluir(sessao, carrinho, leitura.produto(), qtd, null, embalagem.temPreco()
+                ? embalagem.preco().multiply(embalagens) : null);
     }
 
     /**
@@ -206,14 +246,17 @@ public class VendaService {
             throw new NegocioException("O produto \"" + leitura.produto().nome() + "\" não é vendido por peso ("
                     + leitura.produto().unidade() + "): confira o PLU no cadastro.");
         }
-        return incluir(sessao, carrinho, leitura.produto(), null, leitura.etiqueta());
+        return incluir(sessao, carrinho, leitura.produto(), null, leitura.etiqueta(), null);
     }
 
-    /** @param quantidade nula quando vem da etiqueta (calculada aqui com o preço vigente) */
+    /**
+     * @param quantidade       nula quando vem da etiqueta (calculada aqui com o preço vigente)
+     * @param precoEmbalagens  preço da embalagem × nº de embalagens (F20.2); nulo sem embalagem com preço próprio
+     */
     private Inclusao incluir(Sessao sessao, Carrinho carrinho, ProdutoVenda produto, BigDecimal quantidade,
-                             EtiquetaBalanca etiqueta) {
+                             EtiquetaBalanca etiqueta, BigDecimal precoEmbalagens) {
         record Leitura(ProdutoVenda produto, PrecoService.Preco preco, BigDecimal quantidade, BigDecimal valorFixo,
-                       String aviso) {
+                       List<FaixaPreco> faixas, String aviso) {
         }
         Leitura leitura = transacao.executar(con -> {
             ProdutoVenda atual = produtoDAO.buscarParaVenda(con, produto.id())
@@ -228,6 +271,18 @@ public class VendaService {
                 qtd = item.quantidade();
                 valorFixo = etiqueta.tipo() == TipoValorBalanca.PRECO ? item.valorBruto() : null;
             }
+            if (precoEmbalagens != null) {
+                // A caixa nunca sai mais cara que as unidades soltas (F20.2); empatando, vale o preço da embalagem.
+                BigDecimal unidades = Dinheiro.multiplicar(qtd, preco.valor());
+                BigDecimal embalagens = Dinheiro.dinheiro(precoEmbalagens);
+                if (unidades.compareTo(embalagens) < 0) {
+                    valorFixo = unidades;
+                } else {
+                    valorFixo = embalagens;
+                    preco = new PrecoService.Preco(valorFixo.divide(qtd, Dinheiro.ESCALA_DINHEIRO,
+                            Dinheiro.ARREDONDAMENTO), null);
+                }
+            }
             ParametrosVenda parametros = parametros(con);
             BigDecimal noCarrinho = carrinho.quantidadeDoProduto(atual.id());
             String aviso = null;
@@ -240,11 +295,19 @@ public class VendaService {
                 aviso = "Atenção: o estoque de \"" + atual.nome() + "\" ficará negativo (saldo "
                         + quantidade(atual.saldo(), atual) + ").";
             }
-            return new Leitura(atual, preco, qtd, valorFixo, aviso);
+            return new Leitura(atual, preco, qtd, valorFixo, precoService.faixas(con, atual.id()), aviso);
         });
+        // Entram nas faixas por quantidade os itens comuns: nem balança nem embalagem com preço próprio (F20.2).
+        boolean participaFaixa = etiqueta == null && precoEmbalagens == null;
         ItemCarrinho item = carrinho.adicionar(leitura.produto(), leitura.quantidade(), leitura.preco().valor(),
-                leitura.preco().promocaoId(), leitura.valorFixo());
-        return new Inclusao(item, leitura.aviso());
+                leitura.preco().promocaoId(), leitura.valorFixo(), participaFaixa);
+        carrinho.definirFaixas(leitura.produto().id(), leitura.faixas());
+        List<String> avisos = new ArrayList<>();
+        if (leitura.aviso() != null) {
+            avisos.add(leitura.aviso());
+        }
+        avisos.addAll(carrinho.aplicarFaixas(leitura.produto().id()));
+        return new Inclusao(item, avisos.isEmpty() ? null : String.join(" ", avisos));
     }
 
     /**
@@ -322,8 +385,13 @@ public class VendaService {
         });
         boolean descontoRetirado = carrinho.cancelar(sequencia, new ItemCarrinho.Cancelamento(agora,
                 sessao.usuarioId(), liberou.map(Liberacao::usuarioId).orElse(null)));
-        return descontoRetirado ? "O desconto da venda foi retirado porque ficou maior que o novo total. "
-                + "Se for o caso, aplique de novo (F5)." : null;
+        // F20.2: com menos unidades, os itens do produto podem voltar ao preço de uma faixa menor (ou ao vigente).
+        List<String> avisos = new ArrayList<>();
+        if (descontoRetirado) {
+            avisos.add(Carrinho.DESCONTO_VENDA_RETIRADO);
+        }
+        avisos.addAll(carrinho.aplicarFaixas(item.produto().id()));
+        return avisos.isEmpty() ? null : String.join(" ", avisos);
     }
 
     /** Abandona a venda em andamento (Esc): auditoria {@code VENDA_ABANDONADA} com os itens e o total; nada vai para {@code venda}. */
@@ -542,7 +610,8 @@ public class VendaService {
                         item.produto().id(), item.quantidade(), item.precoUnitario(), item.valorBruto(),
                         item.desconto(), rateado, liquido, custo, Dinheiro.multiplicar(item.quantidade(), custo),
                         item.promocaoId(), item.cancelado(), c == null ? null : c.em(),
-                        c == null ? null : c.porUsuarioId(), c == null ? null : c.liberadoPorUsuarioId()));
+                        c == null ? null : c.porUsuarioId(), c == null ? null : c.liberadoPorUsuarioId(),
+                        item.faixa() == null ? null : item.faixa().id()));
                 if (!item.cancelado()) {
                     movimentar.add(new Vendido(item, itemId));
                 }
@@ -760,7 +829,9 @@ public class VendaService {
         return transacao.executar(con -> {
             Optional<ProdutoVenda> porCodigoBarras = produtoDAO.buscarParaVendaPorCodigo(con, codigo);
             if (porCodigoBarras.isPresent()) {
-                return Optional.of(new LeituraProduto(porCodigoBarras.get(), null));
+                Embalagem embalagem = produtoDAO.embalagemDoCodigo(con, codigo)
+                        .filter(Embalagem::ehEmbalagem).orElse(null);
+                return Optional.of(new LeituraProduto(porCodigoBarras.get(), null, embalagem));
             }
             Optional<ProdutoVenda> porCodigo = produtoDAO.buscarParaVenda(con, ProdutoDAO.idOuNenhum(codigo));
             if (porCodigo.isPresent()) {

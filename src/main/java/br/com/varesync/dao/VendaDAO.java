@@ -27,13 +27,14 @@ public class VendaDAO {
 
     /**
      * Valores de uma linha de {@code venda_item}. Item cancelado leva quando e quem cancelou e, se houve, quem liberou
-     * (F10.3); nos demais, os três ficam nulos.
+     * (F10.3); nos demais, os três ficam nulos. {@code precoQuantidadeId} é a faixa de preço por quantidade que deu o
+     * preço (F20.2), ou nulo.
      */
     public record Item(int sequencia, long produtoId, BigDecimal quantidade, BigDecimal precoUnitario,
                        BigDecimal valorBruto, BigDecimal desconto, BigDecimal descontoRateado,
                        BigDecimal valorLiquido, BigDecimal custoUnitario, BigDecimal custoTotal, Long promocaoId,
                        boolean cancelado, OffsetDateTime canceladoEm, Long canceladoPor,
-                       Long cancelamentoLiberadoPor) {
+                       Long cancelamentoLiberadoPor, Long precoQuantidadeId) {
     }
 
     /** Venda travada para o cancelamento. */
@@ -91,8 +92,8 @@ public class VendaDAO {
                 INSERT INTO venda_item (venda_id, sequencia, produto_id, quantidade, preco_unitario, valor_bruto,
                                         desconto, desconto_rateado, valor_liquido, custo_unitario, custo_total,
                                         promocao_id, cancelado, cancelado_em, cancelado_por,
-                                        cancelamento_liberado_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        cancelamento_liberado_por, preco_quantidade_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -112,6 +113,7 @@ public class VendaDAO {
             ps.setObject(14, i.canceladoEm());
             Jdbc.definirLong(ps, 15, i.canceladoPor());
             Jdbc.definirLong(ps, 16, i.cancelamentoLiberadoPor());
+            Jdbc.definirLong(ps, 17, i.precoQuantidadeId());
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -272,10 +274,11 @@ public class VendaDAO {
                        coalesce((SELECT b.codigo FROM produto_codigo_barras b
                                   WHERE b.produto_id = p.id AND b.principal), p.id::text) AS codigo,
                        p.nome, vi.quantidade, p.unidade, u.fracionada, vi.preco_unitario, vi.valor_bruto,
-                       vi.desconto, vi.cancelado
+                       vi.desconto, vi.cancelado, ppq.quantidade_minima AS atacado_a_partir_de
                   FROM venda_item vi
                   JOIN produto p        ON p.id = vi.produto_id
                   JOIN unidade_medida u ON u.sigla = p.unidade
+                  LEFT JOIN produto_preco_quantidade ppq ON ppq.id = vi.preco_quantidade_id
                  WHERE vi.venda_id = ?
                  ORDER BY vi.sequencia
                 """;
@@ -288,7 +291,7 @@ public class VendaDAO {
                             rs.getString("nome"), rs.getBigDecimal("quantidade"), rs.getString("unidade"),
                             rs.getBoolean("fracionada"), rs.getBigDecimal("preco_unitario"),
                             rs.getBigDecimal("valor_bruto"), rs.getBigDecimal("desconto"),
-                            rs.getBoolean("cancelado")));
+                            rs.getBoolean("cancelado"), rs.getBigDecimal("atacado_a_partir_de")));
                 }
             }
         }

@@ -5,6 +5,7 @@ import br.com.varesync.dao.FornecedorDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.model.DadosEntrada;
+import br.com.varesync.model.Embalagem;
 import br.com.varesync.model.Fornecedor;
 import br.com.varesync.model.LoteEntrada;
 import br.com.varesync.model.ParcelaEntrada;
@@ -54,12 +55,18 @@ public class ImportacaoNfeService {
     /**
      * Item da nota e o produto vinculado (nulo sem vínculo).
      *
-     * @param fator não nulo quando o vínculo é pelo código do fornecedor: a quantidade é {@code qCom} × fator
+     * @param fator     não nulo quando a quantidade é {@code qCom} × fator: no vínculo pelo código do fornecedor (o
+     *                  fator do vínculo) e no código de barras de uma embalagem (a quantidade da embalagem, F20.2)
+     * @param embalagem o vínculo é pelo código de barras de uma embalagem com mais de 1 unidade
      */
-    public record ItemPrevia(LeitorNfe.Item item, ProdutoVenda produto, BigDecimal fator) {
+    public record ItemPrevia(LeitorNfe.Item item, ProdutoVenda produto, BigDecimal fator, boolean embalagem) {
+
+        public ItemPrevia(LeitorNfe.Item item, ProdutoVenda produto, BigDecimal fator) {
+            this(item, produto, fator, false);
+        }
 
         public boolean peloFornecedor() {
-            return fator != null;
+            return fator != null && !embalagem;
         }
     }
 
@@ -289,12 +296,21 @@ public class ImportacaoNfeService {
         return produtos;
     }
 
-    /** Pelo código de barras; sem ele, pelo par (fornecedor, {@code cProd}). */
+    /**
+     * Pelo código de barras; sem ele, pelo par (fornecedor, {@code cProd}). O código de barras de uma embalagem
+     * (quantidade &gt; 1, F20.2) com o item na unidade comercial dá a quantidade {@code qCom} × quantidade da embalagem e
+     * o custo {@code vUnCom} ÷ quantidade da embalagem, como o fator do vínculo; na unidade tributável ({@code qTrib}),
+     * a nota já vem em unidades e nada é convertido.
+     */
     private ItemPrevia vincular(Connection con, Long fornecedorId, LeitorNfe.Item item) throws SQLException {
         if (item.codigoBarras() != null) {
             Optional<ProdutoVenda> produto = produtoDAO.buscarParaVendaPorCodigo(con, item.codigoBarras());
             if (produto.isPresent()) {
-                return new ItemPrevia(item, produto.get(), null);
+                BigDecimal embalagem = item.unidadeTributavel() ? null
+                        : produtoDAO.embalagemDoCodigo(con, item.codigoBarras()).map(Embalagem::quantidade)
+                        .filter(q -> q.compareTo(BigDecimal.ONE) > 0).orElse(null);
+                return embalagem == null ? new ItemPrevia(item, produto.get(), null)
+                        : new ItemPrevia(item, produto.get(), embalagem, true);
             }
         }
         String cProd = item.comercial().codigoProduto();

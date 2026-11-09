@@ -1,6 +1,7 @@
 package br.com.varesync.service;
 
 import br.com.varesync.model.ClienteVenda;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.model.ProdutoVenda;
 import br.com.varesync.util.Dinheiro;
 import br.com.varesync.util.Formatos;
@@ -8,6 +9,7 @@ import br.com.varesync.util.Rateio;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +28,12 @@ public final class Carrinho {
     /** {@code NUMERIC(12,2)} do valor da venda e do item. */
     static final BigDecimal LIMITE_VALOR = new BigDecimal("10000000000");
 
+    /** Aviso do desconto da venda retirado porque ficou maior que o novo total (cancelamento de item ou faixa). */
+    static final String DESCONTO_VENDA_RETIRADO = "O desconto da venda foi retirado porque ficou maior que o novo "
+            + "total. Se for o caso, aplique de novo (F5).";
+
     private final List<ItemCarrinho> itens = new ArrayList<>();
+    private final Map<Long, List<FaixaPreco>> faixas = new HashMap<>();
     private BigDecimal descontoVenda = Dinheiro.ZERO;
     private Liberacao liberacaoDesconto;
     private BigDecimal fracaoLiberada;
@@ -136,14 +143,76 @@ public final class Carrinho {
     /** @param valorFixo valor bruto da etiqueta de balança com preço (6.9); nulo = quantidade × preço */
     ItemCarrinho adicionar(ProdutoVenda produto, BigDecimal quantidade, BigDecimal preco, Long promocaoId,
                            BigDecimal valorFixo) {
+        return adicionar(produto, quantidade, preco, promocaoId, valorFixo, valorFixo == null);
+    }
+
+    /**
+     * Inclui o item, sem mexer nas faixas: quem chama aplica {@link #aplicarFaixas} em seguida.
+     *
+     * @param valorFixo      valor bruto da etiqueta de balança com preço (6.9) ou da embalagem com preço próprio
+     *                       (F20.2); nulo = quantidade × preço
+     * @param participaFaixa entra na contagem e no preço das faixas por quantidade (F20.2)
+     */
+    ItemCarrinho adicionar(ProdutoVenda produto, BigDecimal quantidade, BigDecimal preco, Long promocaoId,
+                           BigDecimal valorFixo, boolean participaFaixa) {
         int sequencia = itens.isEmpty() ? 1 : itens.get(itens.size() - 1).sequencia() + 1;
-        ItemCarrinho item = new ItemCarrinho(sequencia, produto, quantidade, preco, promocaoId, valorFixo);
+        ItemCarrinho item = new ItemCarrinho(sequencia, produto, quantidade, preco, promocaoId, valorFixo,
+                participaFaixa);
         if (item.valorBruto().compareTo(LIMITE_VALOR) >= 0
                 || valorBruto().add(item.valorBruto()).compareTo(LIMITE_VALOR) >= 0) {
             throw new NegocioException("O valor da venda passaria do limite permitido. Confira a quantidade.");
         }
         itens.add(item);
         return item;
+    }
+
+    /** Guarda as faixas de preço por quantidade do produto (F20.2), lidas na inclusão do item. */
+    void definirFaixas(long produtoId, List<FaixaPreco> faixasDoProduto) {
+        faixas.put(produtoId, List.copyOf(faixasDoProduto));
+    }
+
+    /**
+     * Preço por quantidade (F20.2): soma a quantidade dos itens não cancelados do produto que participam das faixas e
+     * põe todos eles no preço da maior faixa alcançada, se for menor que o preço vigente do item (normal ou
+     * promoção); abaixo da menor faixa, voltam ao preço vigente. Item que muda de preço mantém o desconto se ele
+     * couber no novo valor; senão, o desconto é retirado. O desconto da venda maior que o novo total também é
+     * retirado.
+     *
+     * @return avisos para a tela (descontos retirados); vazio se nada foi retirado
+     */
+    List<String> aplicarFaixas(long produtoId) {
+        List<FaixaPreco> doProduto = faixas.getOrDefault(produtoId, List.of());
+        List<ItemCarrinho> participantes = ativos()
+                .filter(i -> i.produto().id() == produtoId && i.participaFaixa()).toList();
+        BigDecimal quantidade = participantes.stream().map(ItemCarrinho::quantidade)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        FaixaPreco alcancada = null;
+        for (FaixaPreco f : doProduto) {
+            if (quantidade.compareTo(f.quantidadeMinima()) >= 0
+                    && (alcancada == null || f.quantidadeMinima().compareTo(alcancada.quantidadeMinima()) > 0)) {
+                alcancada = f;
+            }
+        }
+        List<String> avisos = new ArrayList<>();
+        for (ItemCarrinho item : participantes) {
+            FaixaPreco nova = alcancada != null && alcancada.preco().compareTo(item.precoVigente()) < 0
+                    ? alcancada : null;
+            if (java.util.Objects.equals(nova, item.faixa())) {
+                continue;
+            }
+            item.definirFaixa(nova);
+            if (item.desconto().compareTo(item.valorBruto()) > 0) {
+                avisos.add("O desconto do item " + item.sequencia() + " (" + Formatos.moeda(item.desconto())
+                        + ") foi retirado porque ficou maior que o novo valor do item ("
+                        + Formatos.moeda(item.valorBruto()) + "). Se for o caso, aplique de novo (F4).");
+                item.definirDesconto(Dinheiro.ZERO);
+            }
+        }
+        if (descontoVenda.compareTo(baseDescontoVenda()) > 0) {
+            descontoVenda = Dinheiro.ZERO;
+            avisos.add(DESCONTO_VENDA_RETIRADO);
+        }
+        return avisos;
     }
 
     /** Desconto do item em reais (0 remove): até o valor do item, sem deixar o desconto da venda maior que a base. */
@@ -207,6 +276,7 @@ public final class Carrinho {
 
     void limpar() {
         itens.clear();
+        faixas.clear();
         descontoVenda = Dinheiro.ZERO;
         liberacaoDesconto = null;
         fracaoLiberada = null;

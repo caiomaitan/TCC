@@ -251,6 +251,11 @@ public class PdvController {
                 return;
             }
             VendaService.LeituraProduto leitura = vendaService.lerProduto(sessao, lida.codigo());
+            if (leitura.embalagem() != null) {
+                // Caixa ou fardo (F20.2): a quantidade informada é o nº de embalagens.
+                mostrarInclusao(vendaService.adicionarEmbalagem(sessao, carrinho, leitura, quantidade));
+                return;
+            }
             if (leitura.etiqueta() == null) {
                 incluir(leitura.produto(), quantidade);
                 return;
@@ -332,8 +337,11 @@ public class PdvController {
         });
     }
 
-    /** Marca o item vendido pelo preço de uma promoção (6.8). */
+    /** Marca o item vendido pelo preço de uma promoção (6.8) ou de uma faixa de atacado (F20.2). */
     private static String promocao(ItemCarrinho item) {
+        if (item.faixa() != null) {
+            return "  (atacado)"; // curto como "(promoção)": texto longo alargava o painel do último item
+        }
         return item.promocaoId() == null ? "" : "  (promoção)";
     }
 

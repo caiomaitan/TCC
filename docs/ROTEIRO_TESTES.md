@@ -799,3 +799,30 @@ para 1.
 | CT-F19-17 | Usuário "fiscal" (só FISCAL) | 1. Entrar 2. Clicar no alerta | 1. Menu só com Painel e Fiscal; o alerta "5 produtos com inconsistência fiscal" 2. Sem Relatórios: o Cadastro fiscal na área de conteúdo, sem "Esc fecha a janela" | OK pela tela (capturas `06` e `07`) |
 | CT-F19-18 | CT-F19-17 | 1. Painel 2. Menu Fiscal | 2. O Cadastro fiscal | OK pela tela (captura `08`) |
 | CT-F19-19 | Supervisor; produto com o EAN 7896004000015 sem dados fiscais | 1. Compras › Importar XML da NF-e… (origem 1 no item 2) › Gerar entrada 2. Preencher os marcados | 1. "Dados fiscais da NF-e" com o refrigerante na origem "2 — Estrangeira — adquirida no mercado interno" e a explicação da troca 2. Origem gravada 2 | OK pela tela (captura `09`) |
+
+### Fase 20 — Embalagens de venda e preço de atacado, parte A (RF31, RF17)
+
+Pela tela em 2026-11-09, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test`); os números são as capturas. Supervisor; caixa aberto. Refrigerante cola 2 L a R$ 5,49 (custo
+R$ 3,20, estoque 100) com o código da unidade 7891000315507 e o da caixa 17891000315504. Até a parte B (cadastro), a
+embalagem e a faixa são gravadas direto no banco:
+
+```sql
+UPDATE produto_codigo_barras SET quantidade = 12, preco_embalagem = 59.90 WHERE codigo = '17891000315504';
+INSERT INTO produto_preco_quantidade (produto_id, quantidade_minima, preco)
+SELECT produto_id, 6, 4.99 FROM produto_codigo_barras WHERE codigo = '7891000315507';
+```
+
+A NF-e é a de teste `src/test/resources/nfe/nfe-embalagem.xml` (5 CX pelo EAN da caixa, a R$ 39,00).
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F20-01 | Embalagem e faixa acima | 1. PDV: ler 17891000315504 2. Ler 2*17891000315504 3. Ler 1,5*17891000315504 4. F10, dinheiro, finalizar | 1. Item de 12 UN a R$ 4,99 = R$ 59,90 2. Item de 24 UN = R$ 119,80; total R$ 179,70 3. "…informe um número inteiro de embalagens antes do *…"; nada entra 4. Estoque 64 (100 − 12 − 24) | OK pela tela (captura `01`; recusa do 1,5 na mensagem do PDV; estoque 64 no banco) |
+| CT-F20-02 | CT-F20-01 | 1. Ler 7891000315507 cinco vezes 2. Ler a 6ª | 1. Total R$ 27,45 2. Os seis a R$ 4,99, "(atacado)"; total R$ 29,94 | OK pela tela (capturas `02` e `03`) |
+| CT-F20-03 | CT-F20-02 | 1. Selecionar o item 6 › F6 › Sim | 1. Os cinco voltam a R$ 5,49 sem "(atacado…)"; total R$ 27,45 | OK pela tela (captura `04`) |
+| CT-F20-04 | CT-F20-03 | 1. Ler mais uma 2. F10, dinheiro, finalizar › Ver comprovante | 1. Total R$ 29,94 2. "Preço de atacado (a partir de 6 un)" abaixo dos seis itens; o cancelado com "ITEM CANCELADO" | OK pela tela (captura `05`; no banco, 6 itens com a faixa) |
+| CT-F20-05 | Promoção de R$ 4,79 vigente (Produtos › Promoções) | 1. Ler a caixa 2. Ler a unidade seis vezes 3. Finalizar | 1. 12 UN por R$ 57,48 (12 × R$ 4,79), "(promoção)" 2. As seis a R$ 4,79 (R$ 28,74); total R$ 86,22 | OK pela tela (captura `06`) |
+| CT-F20-06 | Venda do CT-F20-04 | 1. Devoluções › nº da venda › Devolver itens… 2. Quantidade 1 no primeiro item, motivo › Registrar › Sim | 2. "TOTAL DEVOLVIDO R$ 4,99" | OK pela tela (capturas `07` e `08`) |
+| CT-F20-07 | Supervisor | 1. Compras › Importar XML da NF-e… (`nfe-embalagem.xml`) | 1. Item "5 CX × 12 = 60", produto Refrigerante cola 2 L, vínculo "Cód. embalagem" | OK pela tela (captura `09`) |
+| CT-F20-08 | CT-F20-07 | 1. Gerar entrada | 1. Entrada aberta com 60 UN a R$ 3,2500 (R$ 39,00 ÷ 12), R$ 195,00 | OK pela tela (captura `10`) |
+| CT-F20-09 | Produto com a caixa de 12 | 1. Produtos › abrir o refrigerante › mudar o preço › Salvar | 1. A caixa continua com 12 un e R$ 59,90 (conferir no banco ou lendo a caixa no PDV) | Automático (`EmbalagemAtacadoIT.salvarOProdutoNoCadastroMantemAsEmbalagens`) |

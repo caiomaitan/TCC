@@ -118,7 +118,7 @@ final class AcessoTeste {
                 new ContaFinanceiraDAO(), contas, auditoria, relogio);
         credito = new CreditoService(transacao, new CreditoClienteDAO(), new ClienteDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
-                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO()), auditoria,
+                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO(), produtoDAO), auditoria,
                 new ClienteDAO(), new CreditoClienteDAO(), credito, new TituloReceberDAO(), recebiveis, relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);

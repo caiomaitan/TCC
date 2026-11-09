@@ -39,9 +39,27 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
     public record Credito(BigDecimal cashback, BigDecimal saldo) {
     }
 
+    /**
+     * @param atacadoAPartirDe quantidade mínima da faixa de preço por quantidade que deu o preço (F20.2); nula sem
+     *                         faixa
+     */
     public record Item(int sequencia, String codigo, String descricao, BigDecimal quantidade, String unidade,
                        boolean fracionada, BigDecimal precoUnitario, BigDecimal valorBruto, BigDecimal desconto,
-                       boolean cancelado) {
+                       boolean cancelado, BigDecimal atacadoAPartirDe) {
+
+        /** Item sem faixa de atacado. */
+        public Item(int sequencia, String codigo, String descricao, BigDecimal quantidade, String unidade,
+                    boolean fracionada, BigDecimal precoUnitario, BigDecimal valorBruto, BigDecimal desconto,
+                    boolean cancelado) {
+            this(sequencia, codigo, descricao, quantidade, unidade, fracionada, precoUnitario, valorBruto, desconto,
+                    cancelado, null);
+        }
+
+        /** "Preço de atacado (a partir de 6 un)" (F20.2); vazio sem faixa. */
+        public String textoAtacado() {
+            return atacadoAPartirDe == null ? "" : "Preço de atacado (a partir de "
+                    + Formatos.quantidade(atacadoAPartirDe, fracionada) + " " + unidade.toLowerCase() + ")";
+        }
     }
 
     public record Pagamento(String forma, BigDecimal valor) {
@@ -118,6 +136,9 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
                 continue;
             }
             linhas.add(LinhaComprovante.normal(quantidade, Formatos.moeda(item.valorBruto())));
+            if (item.atacadoAPartirDe() != null) {
+                linhas.add(LinhaComprovante.texto("    " + item.textoAtacado()));
+            }
             if (item.desconto().signum() > 0) {
                 linhas.add(LinhaComprovante.normal("    Desconto no item", "-" + Formatos.moeda(item.desconto())));
             }

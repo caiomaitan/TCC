@@ -42,6 +42,23 @@ public class ComprovanteTest {
                 cliente, credito);
     }
 
+    /** F20.2: o item no preço de uma faixa mostra "Preço de atacado (a partir de N un)"; os outros, não. */
+    @Test
+    void itemNoPrecoDeAtacadoMostraAFaixa() {
+        Comprovante.Loja loja = new Comprovante.Loja("Mercado Bom Preço", "", "", "");
+        List<Comprovante.Item> itens = List.of(
+                new Comprovante.Item(1, "7891000315507", "Refrigerante cola 2 L", v("6"), "UN", false, v("4.99"),
+                        v("29.94"), v("0"), false, v("6")),
+                new Comprovante.Item(2, "2", "Queijo muçarela", v("0.345"), "KG", true, v("39.90"), v("13.77"),
+                        v("0"), false));
+        Comprovante c = new Comprovante(loja, 43, OffsetDateTime.parse("2026-11-09T10:00:00-03:00"), "Ana", "CAIXA-01",
+                StatusVenda.FINALIZADA, null, null, itens, v("43.71"), v("0"), v("0"), v("43.71"),
+                List.of(new Comprovante.Pagamento("PIX", v("43.71"))), v("0"), "", null, null);
+        String texto = c.texto();
+        assertThat(texto).contains("6 UN x R$ 4,99").contains("    Preço de atacado (a partir de 6 un)");
+        assertThat(texto.split("Preço de atacado", -1)).hasSize(2);
+    }
+
     /** F12.5: o comprovante mostra o cashback gerado e o saldo atual; sem cashback, só o saldo. */
     @Test
     void cashbackESaldoDeCreditoNoComprovante() {

@@ -100,7 +100,7 @@ public final class DialogoNfe {
         }));
         tabela.getColumns().add(coluna("Vínculo", 115, i -> vinculos.get(i.item().numero()) == null ? ""
                 : fatores.containsKey(i.item().numero()) ? "Escolhido agora"
-                : i.peloFornecedor() ? "Cód. fornecedor" : "Cód. de barras"));
+                : i.peloFornecedor() ? "Cód. fornecedor" : i.embalagem() ? "Cód. embalagem" : "Cód. de barras"));
         tabela.getItems().setAll(previa.itens());
         tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tabela.setRowFactory(t -> {

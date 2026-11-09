@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e fictícia (F20.2): 5 caixas de refrigerante pelo EAN da caixa com 12 (17891000315504), a R$ 39,00 a caixa,
+     na unidade comercial (sem EAN tributável). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261111222333000181550010000007011000007015" versao="4.00">
+      <ide>
+        <nNF>701</nNF>
+        <dhEmi>2026-10-05T09:30:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>11222333000181</CNPJ>
+        <xNome>Distribuidora de Bebidas Ribeirao Ltda</xNome>
+        <enderEmit>
+          <xMun>Ribeirao Preto</xMun>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>REFRI-CX12</cProd>
+          <cEAN>17891000315504</cEAN>
+          <xProd>REFRIGERANTE COLA 2L CX C/12</xProd>
+          <uCom>CX</uCom>
+          <qCom>5.0000</qCom>
+          <vUnCom>39.0000000000</vUnCom>
+          <vProd>195.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>5.0000</qTrib>
+          <vUnTrib>39.0000000000</vUnTrib>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>195.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>

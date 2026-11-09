@@ -2,6 +2,8 @@ package br.com.varesync.dao;
 
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.ConteudoLiquido;
+import br.com.varesync.model.Embalagem;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.model.UnidadeConteudo;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Produto;
@@ -16,7 +18,9 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -314,8 +318,26 @@ public class ProdutoDAO {
         return codigos;
     }
 
-    /** Substitui os códigos de barras do produto. */
+    /**
+     * Substitui os códigos de barras do produto. O código que continua mantém a quantidade e o preço da embalagem
+     * (F20.1), que o cadastro ainda não edita.
+     */
     public void definirCodigos(Connection con, long produtoId, List<CodigoBarras> codigos) throws SQLException {
+        Map<String, Embalagem> embalagens = new HashMap<>();
+        String atuais = """
+                SELECT codigo, quantidade, preco_embalagem
+                  FROM produto_codigo_barras
+                 WHERE produto_id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(atuais)) {
+            ps.setLong(1, produtoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    embalagens.put(rs.getString("codigo"), new Embalagem(rs.getBigDecimal("quantidade"),
+                            rs.getBigDecimal("preco_embalagem")));
+                }
+            }
+        }
         try (PreparedStatement ps = con.prepareStatement("DELETE FROM produto_codigo_barras WHERE produto_id = ?")) {
             ps.setLong(1, produtoId);
             ps.executeUpdate();
@@ -324,18 +346,58 @@ public class ProdutoDAO {
             return;
         }
         String sql = """
-                INSERT INTO produto_codigo_barras (produto_id, codigo, principal)
-                VALUES (?, ?, ?)
+                INSERT INTO produto_codigo_barras (produto_id, codigo, principal, quantidade, preco_embalagem)
+                VALUES (?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             for (CodigoBarras codigo : codigos) {
+                Embalagem embalagem = embalagens.getOrDefault(codigo.codigo(), Embalagem.UNIDADE);
                 ps.setLong(1, produtoId);
                 ps.setString(2, codigo.codigo());
                 ps.setBoolean(3, codigo.principal());
+                ps.setBigDecimal(4, embalagem.quantidade());
+                ps.setBigDecimal(5, embalagem.preco());
                 ps.addBatch();
             }
             ps.executeBatch();
         }
+    }
+
+    /** Quantidade e preço da embalagem do código de barras (F20.1); vazio se o código não existe. */
+    public Optional<Embalagem> embalagemDoCodigo(Connection con, String codigo) throws SQLException {
+        String sql = """
+                SELECT quantidade, preco_embalagem
+                  FROM produto_codigo_barras
+                 WHERE codigo = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, codigo);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(new Embalagem(rs.getBigDecimal("quantidade"),
+                        rs.getBigDecimal("preco_embalagem"))) : Optional.empty();
+            }
+        }
+    }
+
+    /** Faixas de preço por quantidade do produto (F20.1), da menor quantidade para a maior. */
+    public List<FaixaPreco> faixasDePreco(Connection con, long produtoId) throws SQLException {
+        String sql = """
+                SELECT id, quantidade_minima, preco
+                  FROM produto_preco_quantidade
+                 WHERE produto_id = ?
+                 ORDER BY quantidade_minima
+                """;
+        List<FaixaPreco> faixas = new ArrayList<>();
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, produtoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    faixas.add(new FaixaPreco(rs.getLong("id"), rs.getBigDecimal("quantidade_minima"),
+                            rs.getBigDecimal("preco")));
+                }
+            }
+        }
+        return faixas;
     }
 
     /** Produto (diferente de {@code ignorarId}) que já usa o código de barras. */

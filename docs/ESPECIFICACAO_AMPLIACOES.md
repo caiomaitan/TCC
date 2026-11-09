@@ -26,7 +26,7 @@ Cada parte cabe numa sessão do agente e termina com `mvn -q verify` verde e com
 | F17 | Validade e lotes | — | F17.1, F17.2 | F17.3 |
 | F18 | Etiquetas de gôndola e carga de balança | — | F18.1 | F18.2, F18.3 |
 | F19 | Cadastro fiscal e consistência | — | F19.1 a F19.3 | F19.4, F19.5 |
-| F20 | Embalagens e preço de atacado | — | fase inteira | — |
+| F20 | Embalagens e preço de atacado | — | F20.1, F20.2 | F20.3 |
 | F21 | Usabilidade e acessibilidade | as fases que forem feitas | fase inteira | — |
 
 Ordem sugerida:
@@ -1142,12 +1142,13 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - o código principal tem quantidade 1.
 - **Tabela `produto_preco_quantidade`:** `produto_id`, `quantidade_minima` (> 1, única por produto) e `preco` (> 0). Um produto pode ter várias faixas.
 - **`venda_item.preco_quantidade_id`** (FK, nula): a faixa usada no item.
+- **`etiqueta_impressao`:** `atacado_quantidade` e `atacado_preco` (nulos), a faixa que saiu na etiqueta (F20.3).
 
 ### F20.2 Regras
 
 - **Embalagem lida no PDV** (caixa, fardo):
-  - o item entra com quantidade = quantidade da embalagem × multiplicador (`2*código` = 2 embalagens);
-  - **com `preco_embalagem`:** valor bruto fixo = `preco_embalagem` × nº de embalagens, como na etiqueta de balança; preço unitário = round(valor ÷ quantidade, 2);
+  - o item entra com quantidade = quantidade da embalagem × multiplicador (`2*código` = 2 embalagens); o multiplicador tem de ser inteiro;
+  - **com `preco_embalagem`:** valor bruto fixo, o menor entre `preco_embalagem` × nº de embalagens e a quantidade × o preço unitário vigente (com a promoção), para a caixa nunca sair mais cara que as unidades soltas. Preço unitário = round(valor ÷ quantidade, 2), como na etiqueta de balança;
   - **sem `preco_embalagem`:** preço unitário vigente × quantidade, e o item participa das faixas;
   - o estoque baixa a quantidade em unidades.
 - **Preço por quantidade:**
@@ -1156,22 +1157,35 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - entram na contagem os itens não cancelados, exceto os de embalagem com preço próprio e os de balança.
 - **Preço que vale:** o menor entre o normal, a promoção vigente e a faixa alcançada.
 - **Item com desconto que muda de preço:** o desconto é mantido se couber no novo valor; senão, é retirado com aviso (mesma regra do cancelamento de item, Fase 4). A liberação de desconto é pedida de novo se a proporção aumentar.
-- **Avisos:** preço de embalagem ou de faixa abaixo do custo pede confirmação, como no cadastro.
+- **Cadastro:**
+  - preço de embalagem ou de faixa abaixo do custo pede confirmação, como no preço normal;
+  - o preço de cada faixa tem de ser menor que o preço normal e menor que o da faixa de quantidade menor.
 - **Comprovante:** mostra "Preço de atacado (a partir de N un)".
+- **Devolução:** usa o preço pago no item; a faixa não é recalculada para o que ficou com o cliente.
+- **NF-e:** o item achado por um código de embalagem (quantidade > 1), lançado pela quantidade comercial da nota, tem a quantidade multiplicada pela quantidade da embalagem e o custo dividido por ela, como o fator do vínculo da F16.
 
-### F20.3 Telas
+### F20.3 Telas, etiqueta e gerador
 
 - **Cadastro de produto:**
   - a lista de códigos de barras ganha "Qtd. da embalagem" e "Preço da embalagem";
   - nova aba "Preço por quantidade".
-- **F7 (consulta de preço)** mostra as faixas.
+- **F7 (consulta de preço)** mostra as faixas e as embalagens com preço.
+- **Etiqueta (F18):**
+  - a linha "A partir de N un: R$ Z", com a faixa de menor quantidade, só quando o preço dela é menor que o preço da etiqueta (normal ou promocional);
+  - no modelo da térmica, as variáveis {QTD_ATACADO} e {PRECO_ATACADO}, vazias sem faixa;
+  - a impressão grava a faixa que saiu; criar, mudar ou tirar a faixa deixa a etiqueta pendente.
+- **Gerador:** embalagens com preço (por exemplo, o fardo de refrigerante) e faixas de atacado em produtos de mercearia, com vendas que as usam.
 
 ### Aceite F20
 
-- **Embalagem com preço próprio:** caixa com 12 e preço de embalagem de R$ 59,90. Ler o código da caixa registra 12 UN por R$ 59,90 e baixa 12 do estoque; "2*código da caixa" registra 24 UN por R$ 119,80.
+- **Embalagem com preço próprio:** produto de R$ 5,49, caixa com 12 e preço de embalagem de R$ 59,90. Ler o código da caixa registra 12 UN por R$ 59,90 e baixa 12 do estoque; "2*código da caixa" registra 24 UN por R$ 119,80.
+- **Embalagem e promoção:** com a promoção de R$ 4,79 vigente, a mesma caixa sai por R$ 57,48 (12 × R$ 4,79), menor que os R$ 59,90 da embalagem.
 - **Faixa:** preço de R$ 5,49 e faixa de R$ 4,99 a partir de 6 un. Cinco unidades somam R$ 27,45; ao registrar a 6ª, todas passam a R$ 4,99 (R$ 29,94); cancelar uma volta a 5 × R$ 5,49 (R$ 27,45).
 - **Promoção:** com promoção vigente de R$ 4,79, as 6 unidades saem a R$ 4,79 (R$ 28,74).
-- **Consistência:** a venda finalizada continua com `ck_venda_total` e `ck_vi_liquido` válidos, e o R01 bate com o R05.
+- **Devolução:** devolver 1 das 6 unidades compradas a R$ 4,99 devolve R$ 4,99.
+- **NF-e:** uma nota com 5 CX pelo EAN da caixa de 12 entra como 60 UN, com o custo da caixa dividido por 12.
+- **Etiqueta:** o produto com a faixa de R$ 4,99 a partir de 6 un mostra "A partir de 6 un: R$ 4,99"; mudar a faixa deixa a etiqueta pendente.
+- **Consistência:** a venda finalizada continua com `ck_venda_total` e `ck_vi_liquido` válidos, e o R01 bate com o R05 (também nos dados do gerador).
 
 ---
 
