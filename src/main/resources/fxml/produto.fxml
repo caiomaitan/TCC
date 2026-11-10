@@ -6,6 +6,7 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
@@ -33,6 +34,8 @@
 
     <TabPane fx:id="abas" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
         <Tab text="Dados">
+            <!-- Rola quando a fonte maior não cabe na janela (F21.2). -->
+            <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="rolagem-formulario">
             <HBox spacing="20">
                 <padding><Insets top="14" right="4" bottom="4" left="4"/></padding>
 
@@ -133,6 +136,7 @@
                     <Button fx:id="botaoAplicarPreco" text="Aplicar preço sugerido" onAction="#aplicarPrecoSugerido"/>
                 </VBox>
             </HBox>
+            </ScrollPane>
         </Tab>
         <Tab fx:id="abaFaixas" text="Preço por quantidade">
             <VBox spacing="8">

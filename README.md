@@ -90,7 +90,10 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    **supervisor** (nome, login, senha e confirmação). Não existe usuário nem senha padrão. A senha tem de 6 a 50
    caracteres e é diferente do login (a regra pode ficar mais forte depois: veja **Política de senha** abaixo).
 3. **Login.** Entre com o supervisor. Ele tem acesso a tudo: cadastre os demais usuários em **Usuários**, com as
-   rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login.
+   rotinas de cada um e uma senha provisória, que a pessoa troca no primeiro login. Em **Minhas preferências** (rodapé
+   do menu, para todos) cada usuário escolhe o tema (claro ou escuro) e o tamanho da fonte (100%, 115% ou 130%); a
+   escolha fica gravada para o usuário, vale na hora e em qualquer computador, e a tela de entrada continua no padrão
+   (claro, 100%). O comprovante em tela, os PDFs e as etiquetas continuam claros.
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante; em Loja ficam também o regime
    tributário, a UF e a inscrição estadual, usados no cadastro fiscal), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,

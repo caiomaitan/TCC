@@ -142,6 +142,9 @@ public class PdvController {
 
     @FXML
     private void initialize() {
+        // Vazios, não ocupam espaço no painel (o total continua visível em 1280×720 com a fonte de 130%, F21.2).
+        proximaQuantidade.managedProperty().bind(proximaQuantidade.textProperty().isNotEmpty());
+        mensagem.managedProperty().bind(mensagem.textProperty().isNotEmpty());
         colunaSequencia.setCellValueFactory(c -> texto(String.format("%03d", c.getValue().sequencia())));
         colunaCodigo.setCellValueFactory(c -> texto(c.getValue().produto().codigo()));
         colunaDescricao.setCellValueFactory(c -> texto(c.getValue().produto().nome() + promocao(c.getValue())

@@ -15,6 +15,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -74,7 +75,7 @@
         <Tab text="Recebíveis">
             <VBox spacing="8">
                 <padding><Insets top="8"/></padding>
-                <HBox spacing="8" alignment="CENTER_LEFT">
+                <FlowPane hgap="8" vgap="8" alignment="CENTER_LEFT">
                     <Label text="Forma"/>
                     <ComboBox fx:id="filtroForma" prefWidth="170"/>
                     <Label text="Situação"/>
@@ -84,7 +85,7 @@
                     <Label text="até"/>
                     <DatePicker fx:id="recebivelAte" prefWidth="130"/>
                     <Button text="Filtrar" onAction="#carregarRecebiveis"/>
-                </HBox>
+                </FlowPane>
                 <TableView fx:id="tabelaRecebiveis" VBox.vgrow="ALWAYS">
                     <placeholder><Label text="Nenhum recebível com estes filtros."/></placeholder>
                     <columns>
@@ -111,7 +112,7 @@
         <Tab fx:id="abaContasPagar" text="Contas a pagar">
             <VBox spacing="8">
                 <padding><Insets top="8"/></padding>
-                <HBox spacing="8" alignment="CENTER_LEFT">
+                <FlowPane hgap="8" vgap="8" alignment="CENTER_LEFT">
                     <Label text="Situação"/>
                     <ComboBox fx:id="filtroStatusTitulo" prefWidth="120"/>
                     <Label text="Categoria"/>
@@ -121,7 +122,7 @@
                     <Label text="até"/>
                     <DatePicker fx:id="tituloAte" prefWidth="130"/>
                     <Button text="Filtrar" onAction="#carregarTitulos"/>
-                </HBox>
+                </FlowPane>
                 <SplitPane orientation="VERTICAL" dividerPositions="0.65" VBox.vgrow="ALWAYS">
                     <TableView fx:id="tabelaTitulos">
                         <placeholder><Label text="Nenhuma conta a pagar com estes filtros."/></placeholder>
@@ -153,10 +154,11 @@
                 <HBox spacing="8" alignment="CENTER_LEFT">
                     <Button text="Nova despesa…" onAction="#novaDespesa"/>
                     <Button text="Categorias…" onAction="#categorias"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Button fx:id="botaoCancelarTitulo" text="Cancelar conta…" onAction="#cancelarTitulo"/>
-                    <Button fx:id="botaoEstornar" text="Estornar pagamento…" onAction="#estornarPagamento"/>
-                    <Button fx:id="botaoPagar" text="Pagar…" onAction="#pagar" styleClass="botao-primario"/>
+                    <FlowPane alignment="CENTER_RIGHT" hgap="8" vgap="8" prefWrapLength="600" HBox.hgrow="ALWAYS">
+                        <Button fx:id="botaoCancelarTitulo" text="Cancelar conta…" onAction="#cancelarTitulo"/>
+                        <Button fx:id="botaoEstornar" text="Estornar pagamento…" onAction="#estornarPagamento"/>
+                        <Button fx:id="botaoPagar" text="Pagar…" onAction="#pagar" styleClass="botao-primario"/>
+                    </FlowPane>
                 </HBox>
             </VBox>
         </Tab>

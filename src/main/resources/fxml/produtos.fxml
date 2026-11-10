@@ -6,6 +6,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -15,9 +16,10 @@
       fx:controller="br.com.varesync.controller.ProdutosController"
       spacing="10" styleClass="tela-cadastro">
 
+    <!-- Os botões quebram a linha quando não cabem (fonte de 130%, F21.2). -->
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label text="Produtos" styleClass="titulo"/>
-        <Region HBox.hgrow="ALWAYS"/>
+        <FlowPane alignment="CENTER_RIGHT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
         <Button fx:id="botaoFiscal" text="Fiscal…" onAction="#abrirFiscal"/>
         <Button text="Etiquetas…" onAction="#abrirEtiquetas"/>
         <Button text="Carga de balança…" onAction="#abrirCargaBalanca"/>
@@ -26,6 +28,7 @@
         <Button text="Categorias…" onAction="#abrirCategorias"/>
         <Button text="Unidades…" onAction="#abrirUnidades"/>
         <Button text="Novo produto (Ctrl+N)" onAction="#novo" styleClass="botao-primario"/>
+        </FlowPane>
     </HBox>
 
     <HBox alignment="CENTER_LEFT" spacing="10">

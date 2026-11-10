@@ -9,8 +9,10 @@ import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
 import br.com.varesync.controller.PrincipalController;
 import br.com.varesync.model.Configuracoes;
+import br.com.varesync.model.Preferencias;
 import br.com.varesync.service.SessaoEncerradaException;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.Aparencia;
 import br.com.varesync.ui.BloqueioInatividade;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Icone;
@@ -68,6 +70,7 @@ public class App extends Application implements Navegacao {
     public void start(Stage stage) {
         TratadorExcecoes.instalar();
         Icone.instalar();
+        Aparencia.instalar();
         log.info("Iniciando o VareSync (Java {})", System.getProperty("java.version"));
         palco = stage;
         palco.setTitle(Dialogos.TITULO);
@@ -104,6 +107,7 @@ public class App extends Application implements Navegacao {
     private void mostrarLogin(String loginSugerido, String aviso) {
         encerrarPrincipal();
         sessao = null;
+        Aparencia.aplicar(Preferencias.PADRAO); // a tela de login usa o padrão (F21.1)
         LoginController controller = (LoginController) mostrar("/fxml/login.fxml", 440, 380, false);
         controller.sugerirLogin(loginSugerido);
         if (aviso != null) {
@@ -118,6 +122,7 @@ public class App extends Application implements Navegacao {
         if (novaSessao.deveTrocarSenha()) {
             mostrar("/fxml/troca-senha.fxml", 520, 440, false);
         } else {
+            Aparencia.aplicar(preferenciasDe(novaSessao));
             principal = (PrincipalController) mostrar("/fxml/principal.fxml", LARGURA_MINIMA, ALTURA_MINIMA, true);
             ligarBloqueio();
         }
@@ -140,6 +145,16 @@ public class App extends Application implements Navegacao {
     @Override
     public Sessao sessaoAtual() {
         return sessao;
+    }
+
+    /** Tema e fonte do usuário (F21.1); se não der para ler, entra com o padrão e o erro fica no log. */
+    private Preferencias preferenciasDe(Sessao novaSessao) {
+        try {
+            return contexto.preferenciaService().buscar(novaSessao);
+        } catch (RuntimeException e) {
+            log.error("Falha ao ler as preferências de {}; usando o padrão", novaSessao.usuario().login(), e);
+            return Preferencias.PADRAO;
+        }
     }
 
     // ---- Sessão revalidada (F10.1) e bloqueio por inatividade (F10.2) ----

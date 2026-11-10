@@ -8,6 +8,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -19,11 +20,12 @@
     <padding><Insets top="10" right="2" bottom="2" left="2"/></padding>
 
     <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="Fornecedor"/>
-        <ComboBox fx:id="filtroFornecedor" prefWidth="240" onAction="#pesquisar"/>
-        <Label text="Situação"/>
-        <ComboBox fx:id="filtroSituacao" prefWidth="200" onAction="#pesquisar"/>
-        <Region HBox.hgrow="ALWAYS"/>
+        <FlowPane alignment="CENTER_LEFT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
+            <Label text="Fornecedor"/>
+            <ComboBox fx:id="filtroFornecedor" prefWidth="240" onAction="#pesquisar"/>
+            <Label text="Situação"/>
+            <ComboBox fx:id="filtroSituacao" prefWidth="200" onAction="#pesquisar"/>
+        </FlowPane>
         <Button text="Novo pedido… (Ctrl+N)" onAction="#novo" styleClass="botao-primario" minWidth="-Infinity"/>
     </HBox>
 
@@ -47,16 +49,18 @@
         <VBox spacing="8">
             <HBox alignment="CENTER_LEFT" spacing="10">
                 <Label fx:id="tituloPedido" text="Selecione um pedido" styleClass="titulo-secao" minWidth="-Infinity"/>
-                <Region HBox.hgrow="ALWAYS"/>
+                <FlowPane alignment="CENTER_RIGHT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
                 <Button fx:id="botaoDados" text="Dados do pedido…" onAction="#editarDados" minWidth="-Infinity"/>
                 <Button fx:id="botaoPdf" text="PDF do pedido…" onAction="#exportarPdf" minWidth="-Infinity"/>
                 <Button fx:id="botaoCancelar" text="Cancelar pedido…" onAction="#cancelar" minWidth="-Infinity"/>
                 <Button fx:id="botaoEnviar" text="Enviar pedido…" onAction="#enviar" styleClass="botao-primario"
                         minWidth="-Infinity"/>
+                </FlowPane>
             </HBox>
 
             <Label fx:id="situacao" styleClass="subtitulo" wrapText="true" minHeight="-Infinity"/>
-            <HBox fx:id="painelItem" alignment="CENTER_LEFT" spacing="8" styleClass="painel-formulario">
+            <!-- Quebra a linha quando não cabe (fonte de 130%, F21.2). -->
+            <FlowPane fx:id="painelItem" alignment="CENTER_LEFT" hgap="8" vgap="8" styleClass="painel-formulario">
                 <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
                 <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230"
                            onAction="#escolherProduto"/>
@@ -69,7 +73,7 @@
                 <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
                 <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
                 <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>
-            </HBox>
+            </FlowPane>
 
             <TableView fx:id="tabelaItens" VBox.vgrow="ALWAYS">
                 <placeholder><Label fx:id="semItens" text="Nenhum item neste pedido."/></placeholder>

@@ -27,6 +27,8 @@
                 <VBox fx:id="menu" styleClass="menu-itens" spacing="2"/>
             </ScrollPane>
             <VBox styleClass="menu-rodape" spacing="2">
+                <Button text="Minhas preferências" onAction="#minhasPreferencias" styleClass="item-menu"
+                        maxWidth="Infinity"/>
                 <Button text="Alterar senha" onAction="#alterarSenha" styleClass="item-menu" maxWidth="Infinity"/>
                 <Button text="Log off" onAction="#logoff" styleClass="item-menu" maxWidth="Infinity"/>
                 <Button text="Sair" onAction="#sair" styleClass="item-menu" maxWidth="Infinity"/>

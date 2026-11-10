@@ -42,6 +42,7 @@ import br.com.varesync.service.AuditoriaService;
 import br.com.varesync.service.BackupService;
 import br.com.varesync.service.ExecutorProcesso;
 import br.com.varesync.service.GeradorDemo;
+import br.com.varesync.service.PreferenciaService;
 import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.Transacao;
@@ -121,7 +122,7 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == PrincipalController.class) {
             // As telas abertas pelo menu recebem a sessão do momento (trocada quando o acesso muda, F10.1).
-            return new PrincipalController(config, clock, s.acesso(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()));
+            return new PrincipalController(config, clock, s.acesso(), s.preferencias(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()));
         }
         if (tipo == UsuariosController.class) {
             return new UsuariosController(s.usuarios(), sessao, clock);
@@ -224,6 +225,10 @@ public final class AppContext implements AutoCloseable {
 
     public AcessoService acessoService() {
         return s.acesso();
+    }
+
+    public PreferenciaService preferenciaService() {
+        return s.preferencias();
     }
 
     @Override

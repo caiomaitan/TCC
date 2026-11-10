@@ -1,22 +1,108 @@
-/* VareSync — tema claro, uma cor de destaque (8.1). */
+/*
+ * VareSync — folha de estilo única, com uma cor de destaque (8.1) e dois temas (F21.2).
+ *
+ * Todas as cores ficam nas variáveis -vs-* dos dois blocos abaixo: o tema claro (.root) e o escuro
+ * (.root.tema-escuro, que troca só as variáveis e as cores-base do modena). Fora desses blocos, nenhuma cor literal:
+ * o ContrasteTest confere isso e o contraste AA dos pares de texto e fundo dos dois temas.
+ *
+ * Tamanhos em px: a fonte de 115% e 130% (F21.1) multiplica todos eles (FolhaFonte), a partir desta folha.
+ */
 
+/* ===== Tema claro (padrão; também o da tela de login) ===== */
 .root {
     -vs-destaque: #1565c0;
     -vs-destaque-escuro: #0d47a1;
+    -vs-texto-sobre-destaque: #ffffff;
+    -vs-foco: #1565c0;
     -vs-fundo: #f5f7fa;
     -vs-superficie: #ffffff;
     -vs-borda: #d5dbe3;
     -vs-texto: #1f2933;
     -vs-texto-suave: #5f6b7a;
+    -vs-texto-dica: #6b7480;
     -vs-erro: #c62828;
     -vs-sucesso: #2e7d32;
+    -vs-alerta: #9a5b00;
+    -vs-linha-alerta: #fff4d6;
+    -vs-linha-erro: #fde2e1;
+    -vs-entrada-erro: #ffebee;
+    -vs-sombra: rgba(0, 0, 0, 0.35);
+
+    /* menu lateral e cabeçalho/painel do PDV: escuros nos dois temas */
+    -vs-menu-fundo: #1f2a37;
+    -vs-menu-hover: #2c3a4b;
+    -vs-menu-borda: #34445a;
+    -vs-menu-texto: #d8dee8;
+    -vs-menu-texto-forte: #ffffff;
+    -vs-menu-loja: #aab4c3;
+    -vs-pdv-escuro: #1f2a37;
+    -vs-pdv-texto: #ffffff;
+    -vs-pdv-texto-suave: #aab4c3;
+    -vs-pdv-destaque: #ffd54f;
+    -vs-pdv-cliente: #90caf9;
+    -vs-pdv-cliente-negativo: #ef9a9a;
+    -vs-pdv-erro: #ff8a80;
+    -vs-pdv-sucesso: #a5d6a7;
+
+    /* o que vai para o papel (comprovante em tela) continua claro nos dois temas (F21.1) */
+    -vs-papel: #ffffff;
+    -vs-papel-texto: #1f2933;
 
     -fx-font-family: "System";
     -fx-font-size: 13.5px;
     -fx-text-fill: -vs-texto;
     -fx-background-color: -vs-fundo;
     -fx-accent: -vs-destaque;
-    -fx-focus-color: -vs-destaque;
+    -fx-focus-color: -vs-foco;
+}
+
+/* ===== Tema escuro (F21.2): só as variáveis e as cores-base do modena mudam ===== */
+.root.tema-escuro {
+    -vs-destaque: #1565c0;
+    -vs-destaque-escuro: #0d47a1;
+    -vs-texto-sobre-destaque: #ffffff;
+    -vs-foco: #64b5f6;
+    -vs-fundo: #161b22;
+    -vs-superficie: #1f262f;
+    -vs-borda: #3b4654;
+    -vs-texto: #e6eaf0;
+    -vs-texto-suave: #a3afbd;
+    -vs-texto-dica: #8d98a7;
+    -vs-erro: #ff8a80;
+    -vs-sucesso: #7bc67e;
+    -vs-alerta: #ffb74d;
+    -vs-linha-alerta: #4d3d12;
+    -vs-linha-erro: #5c2b2b;
+    -vs-entrada-erro: #5c2b2b;
+    -vs-sombra: rgba(0, 0, 0, 0.6);
+
+    -vs-menu-fundo: #0e1318;
+    -vs-menu-hover: #222c38;
+    -vs-menu-borda: #2a3542;
+    -vs-menu-texto: #d8dee8;
+    -vs-menu-texto-forte: #ffffff;
+    -vs-menu-loja: #aab4c3;
+    -vs-pdv-escuro: #0e1318;
+    -vs-pdv-texto: #ffffff;
+    -vs-pdv-texto-suave: #aab4c3;
+    -vs-pdv-destaque: #ffd54f;
+    -vs-pdv-cliente: #90caf9;
+    -vs-pdv-cliente-negativo: #ef9a9a;
+    -vs-pdv-erro: #ff8a80;
+    -vs-pdv-sucesso: #a5d6a7;
+
+    -vs-papel: #ffffff;
+    -vs-papel-texto: #1f2933;
+
+    /* cores-base do modena: os textos dos controles saem claros pela própria escada (ladder) do modena */
+    -fx-base: #2f3742;
+    -fx-background: -vs-fundo;
+    -fx-control-inner-background: -vs-superficie;
+    -fx-control-inner-background-alt: #252d37;
+    -fx-selection-bar-non-focused: #3a4552;
+    -fx-faint-focus-color: #64b5f633;
+    -fx-box-border: -vs-borda;
+    -fx-text-box-border: -vs-borda;
 }
 
 .titulo {
@@ -26,6 +112,11 @@
 
 .subtitulo {
     -fx-text-fill: -vs-texto-suave;
+}
+
+/* Texto de dica dos campos vazios legível nos dois temas (o do modena some no escuro) */
+.text-input {
+    -fx-prompt-text-fill: -vs-texto-dica;
 }
 
 .mensagem-erro {
@@ -38,12 +129,18 @@
 
 .botao-primario {
     -fx-background-color: -vs-destaque;
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-texto-sobre-destaque;
     -fx-font-weight: bold;
 }
 
 .botao-primario:hover {
     -fx-background-color: -vs-destaque-escuro;
+}
+
+/* Foco visível também no botão de destaque (contorno de foco de 3:1 nos dois temas) */
+.botao-primario:focused {
+    -fx-background-color: -vs-foco, -vs-destaque;
+    -fx-background-insets: -1.4, 1;
 }
 
 /* Tela de conexão */
@@ -53,12 +150,12 @@
 
 /* Janela principal */
 .menu-lateral {
-    -fx-background-color: #1f2a37;
+    -fx-background-color: -vs-menu-fundo;
     -fx-padding: 16 0 16 0;
 }
 
 .menu-lateral .marca {
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-menu-texto-forte;
     -fx-font-size: 22px;
     -fx-font-weight: bold;
     -fx-padding: 0 20 16 20;
@@ -85,9 +182,9 @@
     -fx-background-color: -vs-superficie;
 }
 
-/* Menu lateral: itens por permissão e rodapé (Alterar senha, Log off, Sair) */
+/* Menu lateral: itens por permissão e rodapé (Minhas preferências, Alterar senha, Log off, Sair) */
 .menu-lateral .loja {
-    -fx-text-fill: #aab4c3;
+    -fx-text-fill: -vs-menu-loja;
     -fx-padding: 0 20 16 20;
     -fx-font-size: 12.5px;
 }
@@ -95,7 +192,7 @@
 .menu-lateral .item-menu {
     -fx-background-color: transparent;
     -fx-background-radius: 0;
-    -fx-text-fill: #d8dee8;
+    -fx-text-fill: -vs-menu-texto;
     -fx-alignment: center-left;
     -fx-padding: 8 20 8 20;
     -fx-cursor: hand;
@@ -103,12 +200,12 @@
 
 .menu-lateral .item-menu:hover,
 .menu-lateral .item-menu:focused {
-    -fx-background-color: #2c3a4b;
+    -fx-background-color: -vs-menu-hover;
 }
 
 .menu-lateral .item-menu.selecionado {
     -fx-background-color: -vs-destaque;
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-texto-sobre-destaque;
     -fx-font-weight: bold;
 }
 
@@ -124,11 +221,11 @@
 }
 
 .menu-lateral .menu-rolagem .scroll-bar:vertical .thumb {
-    -fx-background-color: #34445a;
+    -fx-background-color: -vs-menu-borda;
 }
 
 .menu-rodape {
-    -fx-border-color: #34445a transparent transparent transparent;
+    -fx-border-color: -vs-menu-borda transparent transparent transparent;
     -fx-border-width: 1 0 0 0;
     -fx-padding: 8 0 0 0;
 }
@@ -167,7 +264,7 @@
 /* Na linha selecionada (fundo azul), o texto esmaecido some: volta ao branco */
 .table-row-cell.inativo:selected .table-cell,
 .table-row-cell.item-cancelado:selected .table-cell {
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-texto-sobre-destaque;
 }
 
 /* Inventário: item ainda não contado esmaecido (6.7) */
@@ -177,7 +274,7 @@
 }
 
 .table-row-cell.nao-contado:selected .table-cell {
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-texto-sobre-destaque;
 }
 
 /* Kardex: linha "Saldo anterior" do início do período (F10.4) */
@@ -207,18 +304,18 @@
 /* PDV: cliente identificado (F11) */
 .pdv-painel .pdv-cliente {
     -fx-font-size: 16px;
-    -fx-text-fill: #90caf9;
+    -fx-text-fill: -vs-pdv-cliente;
 }
 
 /* Saldo de crédito negativo (depois de um estorno, F12.3) */
 .pdv-painel .pdv-cliente.negativo {
-    -fx-text-fill: #ef9a9a;
+    -fx-text-fill: -vs-pdv-cliente-negativo;
 }
 
 /* Estoque: saldo abaixo do mínimo em destaque (âmbar), negativo em vermelho (6.4) */
 /* -fx-background (e não -fx-background-color) para o texto continuar legível na linha selecionada */
 .table-row-cell.abaixo-minimo {
-    -fx-background: #fff4d6;
+    -fx-background: -vs-linha-alerta;
 }
 
 .table-row-cell.abaixo-minimo:selected {
@@ -230,7 +327,7 @@
 }
 
 .label.abaixo-minimo {
-    -fx-text-fill: #b26a00;
+    -fx-text-fill: -vs-alerta;
 }
 
 .valor-destaque {
@@ -244,7 +341,7 @@
 
 /* Painel: alerta clicável */
 .alerta-painel {
-    -fx-text-fill: #b26a00;
+    -fx-text-fill: -vs-alerta;
     -fx-font-weight: bold;
     -fx-border-color: transparent;
 }
@@ -261,7 +358,7 @@
     -fx-border-radius: 6;
     -fx-background-radius: 6;
     -fx-padding: 10 12 10 12;
-    -fx-min-width: 150;
+    -fx-min-width: 150px;
 }
 
 .cartao-rotulo {
@@ -292,8 +389,23 @@
 }
 
 .atalho-painel {
-    -fx-min-width: 120;
-    -fx-pref-height: 34;
+    -fx-min-width: 120px;
+    -fx-pref-height: 34px;
+}
+
+/* Gráfico do painel: textos dos eixos e da legenda com a cor do tema */
+.chart-title,
+.axis-label,
+.chart-legend-item {
+    -fx-text-fill: -vs-texto;
+}
+
+.axis {
+    -fx-tick-label-fill: -vs-texto-suave;
+}
+
+.chart-legend {
+    -fx-background-color: transparent;
 }
 
 /* PDV (6.6, 8.1): fonte grande, alto contraste, total ≥ 40 px */
@@ -303,15 +415,15 @@
 }
 
 .pdv-cabecalho {
-    -fx-background-color: #1f2a37;
+    -fx-background-color: -vs-pdv-escuro;
 }
 
 .pdv-cabecalho .label {
-    -fx-text-fill: #d8dee8;
+    -fx-text-fill: -vs-menu-texto;
 }
 
 .pdv-cabecalho .pdv-marca {
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-pdv-texto;
     -fx-font-size: 22px;
     -fx-font-weight: bold;
 }
@@ -338,12 +450,12 @@
 }
 
 .pdv-painel {
-    -fx-background-color: #1f2a37;
+    -fx-background-color: -vs-pdv-escuro;
     -fx-background-radius: 4;
 }
 
 .pdv-painel .label {
-    -fx-text-fill: white;
+    -fx-text-fill: -vs-pdv-texto;
 }
 
 .pdv-rotulo {
@@ -352,7 +464,7 @@
 }
 
 .pdv-painel .pdv-rotulo {
-    -fx-text-fill: #aab4c3;
+    -fx-text-fill: -vs-pdv-texto-suave;
 }
 
 .pdv-ultimo {
@@ -371,12 +483,12 @@
 .pdv-painel .pdv-total {
     -fx-font-size: 52px;
     -fx-font-weight: bold;
-    -fx-text-fill: #ffd54f;
+    -fx-text-fill: -vs-pdv-destaque;
 }
 
 .pdv-painel .pdv-proxima {
     -fx-font-size: 16px;
-    -fx-text-fill: #ffd54f;
+    -fx-text-fill: -vs-pdv-destaque;
 }
 
 .pdv-painel .pdv-mensagem {
@@ -384,11 +496,11 @@
 }
 
 .pdv-painel .pdv-mensagem.mensagem-erro {
-    -fx-text-fill: #ff8a80;
+    -fx-text-fill: -vs-pdv-erro;
 }
 
 .pdv-painel .pdv-mensagem.mensagem-sucesso {
-    -fx-text-fill: #a5d6a7;
+    -fx-text-fill: -vs-pdv-sucesso;
 }
 
 .pdv-entrada {
@@ -398,7 +510,7 @@
 
 /* Leitura recusada: borda e fundo vermelhos por um instante */
 .pdv-entrada.entrada-erro {
-    -fx-background-color: #ffebee;
+    -fx-background-color: -vs-entrada-erro;
     -fx-border-color: -vs-erro;
     -fx-border-width: 2;
 }
@@ -434,10 +546,18 @@
     -fx-font-size: 18px;
 }
 
-/* Comprovante em tela: fonte monoespaçada (texto de largura fixa) */
+/* Comprovante em tela: fonte monoespaçada (texto de largura fixa) e sempre claro, como no papel (F21.1) */
 .comprovante {
     -fx-font-family: "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
     -fx-font-size: 13px;
+    -fx-control-inner-background: -vs-papel;
+    -fx-text-fill: -vs-papel-texto;
+    -fx-highlight-text-fill: -vs-texto-sobre-destaque;
+}
+
+/* Linha do arquivo da carga de balança: monoespaçada para as colunas baterem */
+.texto-monoespacado {
+    -fx-font-family: "Consolas", "DejaVu Sans Mono", "Courier New", monospace;
 }
 
 /* Relatórios (7.4): datas centralizadas e a linha de totais alinhada às colunas da tabela */
@@ -457,11 +577,11 @@
 
 /* Importação de planilha (6.11): linha com erro em vermelho claro, com aviso em âmbar */
 .table-row-cell.linha-erro {
-    -fx-background: #fde2e1;
+    -fx-background: -vs-linha-erro;
 }
 
 .table-row-cell.linha-aviso {
-    -fx-background: #fff4d6;
+    -fx-background: -vs-linha-alerta;
 }
 
 .table-row-cell.linha-erro:selected,
@@ -483,7 +603,7 @@
     -fx-background-color: -vs-superficie;
     -fx-background-radius: 8;
     -fx-padding: 28 32 24 32;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 18, 0, 0, 4);
+    -fx-effect: dropshadow(gaussian, -vs-sombra, 18, 0, 0, 4);
 }
 
 /* Devoluções (F13): cabeçalho da grade de itens */

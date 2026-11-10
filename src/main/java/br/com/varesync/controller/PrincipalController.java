@@ -7,7 +7,10 @@ import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.BackupService;
 import br.com.varesync.service.CaixaService;
+import br.com.varesync.service.PreferenciaService;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.Aparencia;
+import br.com.varesync.ui.DialogoPreferencias;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.DialogoSenha;
 import br.com.varesync.ui.Tarefas;
@@ -61,6 +64,7 @@ public class PrincipalController {
     private final AppConfig config;
     private final Clock clock;
     private final AcessoService acessoService;
+    private final PreferenciaService preferenciaService;
     private final CaixaService caixaService;
     private final BackupService backupService;
     private final FechamentoCaixaPdf fechamentoPdf;
@@ -85,12 +89,13 @@ public class PrincipalController {
     @FXML private Label statusConexao;
 
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
-                               CaixaService caixaService, BackupService backupService, FechamentoCaixaPdf fechamentoPdf,
+                               PreferenciaService preferenciaService, CaixaService caixaService, BackupService backupService, FechamentoCaixaPdf fechamentoPdf,
                                Navegacao navegacao, Sessao sessao,
                                Callback<Class<?>, Object> fabricaControllers) {
         this.config = config;
         this.clock = clock;
         this.acessoService = acessoService;
+        this.preferenciaService = preferenciaService;
         this.caixaService = caixaService;
         this.backupService = backupService;
         this.fechamentoPdf = fechamentoPdf;
@@ -198,6 +203,7 @@ public class PrincipalController {
             tela = loader.getRoot();
         }
         conteudo.getChildren().setAll(tela);
+        Aparencia.ajustar(tela); // larguras fixas e rótulos na fonte do usuário (F21.2)
     }
 
     /**
@@ -362,7 +368,15 @@ public class PrincipalController {
         }
         FXMLLoader loader = carregar(item.fxml());
         conteudo.getChildren().setAll(loader.<Parent>getRoot());
+        Aparencia.ajustar(loader.<Parent>getRoot());
         return loader;
+    }
+
+    /** "Minhas preferências" (F21.1): grava o tema e a fonte do usuário e já aplica em todas as janelas abertas. */
+    @FXML
+    private void minhasPreferencias() {
+        DialogoPreferencias.mostrar(Aparencia.atual(), escolhidas -> preferenciaService.salvar(sessao, escolhidas))
+                .ifPresent(Aparencia::aplicar);
     }
 
     @FXML

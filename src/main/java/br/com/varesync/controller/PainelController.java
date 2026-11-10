@@ -12,6 +12,8 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.service.PainelService;
 import br.com.varesync.service.Sessao;
+import br.com.varesync.ui.Aparencia;
+import br.com.varesync.ui.LinhaDeCartoes;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
@@ -38,8 +40,6 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
@@ -70,7 +70,7 @@ public class PainelController {
     @FXML private Button botaoAtualizar;
     @FXML private Label mensagem;
     @FXML private VBox secaoIndicadores;
-    @FXML private HBox cartoes;
+    @FXML private FlowPane cartoes;
     @FXML private LineChart<String, Number> grafico;
     @FXML private TableView<ProdutoPainel> tabelaTop;
     @FXML private TableColumn<ProdutoPainel, String> colunaTopPosicao;
@@ -78,7 +78,7 @@ public class PainelController {
     @FXML private TableColumn<ProdutoPainel, String> colunaTopLucro;
     @FXML private TableColumn<ProdutoPainel, String> colunaTopMargem;
     @FXML private VBox secaoFinanceiro;
-    @FXML private HBox cartoesFinanceiro;
+    @FXML private FlowPane cartoesFinanceiro;
     @FXML private VBox alertas;
     @FXML private FlowPane atalhos;
 
@@ -90,6 +90,8 @@ public class PainelController {
     @FXML
     private void initialize() {
         saudacao.setText("Olá, " + sessao.usuario().nome() + "!");
+        LinhaDeCartoes.distribuir(cartoes);
+        LinhaDeCartoes.distribuir(cartoesFinanceiro);
         subtitulo.setText("Carregando o painel…");
         colunaTopPosicao.setCellValueFactory(c ->
                 new ReadOnlyStringWrapper(String.valueOf(tabelaTop.getItems().indexOf(c.getValue()) + 1)));
@@ -209,8 +211,7 @@ public class PainelController {
         base.getStyleClass().add("cartao-base");
         base.setWrapText(true);
         VBox cartao = new VBox(2, titulo, valor, base);
-        cartao.getStyleClass().add("cartao-painel");
-        HBox.setHgrow(cartao, Priority.ALWAYS);
+        cartao.getStyleClass().addAll("cartao-painel", Aparencia.LARGURA_FIXA);
         cartao.setMaxWidth(Double.MAX_VALUE);
         return cartao;
     }
@@ -256,8 +257,7 @@ public class PainelController {
         Label base = new Label("em " + comparado + ": " + valorAntes);
         base.getStyleClass().add("cartao-base");
         VBox cartao = new VBox(2, titulo, numero, delta, base);
-        cartao.getStyleClass().add("cartao-painel");
-        HBox.setHgrow(cartao, Priority.ALWAYS);
+        cartao.getStyleClass().addAll("cartao-painel", Aparencia.LARGURA_FIXA);
         cartao.setMaxWidth(Double.MAX_VALUE);
         return cartao;
     }

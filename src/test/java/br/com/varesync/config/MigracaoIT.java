@@ -7,19 +7,19 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V20 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V21 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV20() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(20);
+    void bancoVazioRecebeV1aV21() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(21);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
                      WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
-                                                   '14', '15', '16', '17', '18', '19', '20')
-                    """)).isEqualTo(20);
+                                                   '14', '15', '16', '17', '18', '19', '20', '21')
+                    """)).isEqualTo(21);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -27,8 +27,8 @@ class MigracaoIT extends IntegracaoBase {
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
                     + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13; pedido_compra e "
                     + "pedido_compra_item da V14; lote, lote_saldo, lote_movimento, lote_transferencia e "
-                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17; perfil_tributario, ncm e cest da V18; produto_preco_quantidade da V19)")
-                    .isEqualTo(57);
+                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17; perfil_tributario, ncm e cest da V18; produto_preco_quantidade da V19; usuario_preferencia da V21)")
+                    .isEqualTo(58);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'

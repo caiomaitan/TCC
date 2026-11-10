@@ -24,6 +24,7 @@ import br.com.varesync.service.NegocioException;
 import br.com.varesync.service.RelatorioService;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.fiscal.RegrasFiscais;
+import br.com.varesync.ui.Aparencia;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Exportacao;
@@ -60,7 +61,10 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.geometry.Orientation;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.layout.HBox;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.layout.VBox;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
@@ -141,6 +145,8 @@ public class RelatoriosController {
     @FXML private TableView<Object> tabela;
     @FXML private Label semDados;
     @FXML private HBox linhaTotais;
+    /** Rolagem horizontal da tabela, para a linha de totais acompanhar. */
+    private javafx.beans.value.ObservableDoubleValue deslocamentoTotais;
 
     /** @param fabricaControllers para o Cadastro fiscal aberto pelo "Abrir produto" do R30 (F19.4) */
     public RelatoriosController(RelatorioService relatorioService, RelatorioPdf relatorioPdf, Sessao sessao,
@@ -153,6 +159,13 @@ public class RelatoriosController {
 
     @FXML
     private void initialize() {
+        // A linha de totais acompanha as colunas; quando a tabela rola de lado (títulos inteiros, F21.2), ela é
+        // recortada na largura da tela em vez de alargar a janela.
+        linhaTotais.setMinWidth(0);
+        Rectangle recorte = new Rectangle();
+        recorte.widthProperty().bind(linhaTotais.widthProperty());
+        recorte.heightProperty().bind(linhaTotais.heightProperty());
+        linhaTotais.setClip(recorte);
         escolhaRelatorio.setConverter(new StringConverter<>() {
             @Override
             public String toString(Relatorio<?> relatorio) {
@@ -505,8 +518,10 @@ public class RelatoriosController {
         for (int i = 0; i < r.colunas().size(); i++) {
             Coluna<Object> coluna = r.colunas().get(i);
             TableColumn<Object, Object> tc = new TableColumn<>(coluna.titulo());
-            tc.setPrefWidth(coluna.largura() * PIXELS_POR_LARGURA);
-            tc.setMinWidth(coluna.largura() * PIXELS_POR_LARGURA * 0.6);
+            // O título nunca é cortado (F21.2): a coluna não encolhe abaixo dele; se não couber, a tabela rola.
+            double minima = Math.max(coluna.largura() * PIXELS_POR_LARGURA * 0.6,
+                    Aparencia.larguraDoTitulo(coluna.titulo()));
+            Aparencia.definirLargura(tc, Math.max(coluna.largura() * PIXELS_POR_LARGURA, minima), minima);
             tc.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(coluna.valorDe(c.getValue())));
             tc.setComparator(coluna.comparador());
             tc.setCellFactory(t -> celula(coluna));
@@ -537,8 +552,29 @@ public class RelatoriosController {
         }
         tabela.getColumns().setAll(colunas);
         tabela.getItems().setAll(r.linhas());
+        if (deslocamentoTotais == null) {
+            tabela.applyCss(); // cria a rolagem da tabela
+            seguirRolagemDaTabela();
+        }
+        if (deslocamentoTotais != null) {
+            deslocarTotais(deslocamentoTotais.get());
+        }
         botaoCsv.setDisable(false);
         botaoPdf.setDisable(false);
+    }
+
+    /** A linha de totais rola de lado junto com a tabela (as colunas não cabem com a fonte maior, F21.2). */
+    private void seguirRolagemDaTabela() {
+        for (Node no : tabela.lookupAll(".scroll-bar")) {
+            if (no instanceof ScrollBar barra && barra.getOrientation() == Orientation.HORIZONTAL) {
+                barra.valueProperty().addListener((obs, antes, valor) -> deslocarTotais(valor.doubleValue()));
+                deslocamentoTotais = barra.valueProperty();
+            }
+        }
+    }
+
+    private void deslocarTotais(double valor) {
+        linhaTotais.getChildren().forEach(total -> total.setTranslateX(-valor));
     }
 
     private static TableCell<Object, Object> celula(Coluna<Object> coluna) {

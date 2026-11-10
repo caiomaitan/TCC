@@ -31,7 +31,7 @@
     </top>
 
     <center>
-        <HBox spacing="12">
+        <HBox spacing="12" minHeight="0">
             <padding><Insets top="12" right="12" bottom="0" left="12"/></padding>
             <TableView fx:id="tabelaItens" HBox.hgrow="ALWAYS" styleClass="pdv-itens" focusTraversable="false">
                 <placeholder><Label text="Leia o código de barras ou digite o código do produto."/></placeholder>
@@ -47,11 +47,11 @@
                 <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
             </TableView>
 
-            <VBox spacing="12" minWidth="380" maxWidth="420" styleClass="pdv-painel">
+            <VBox spacing="8" minWidth="380" maxWidth="420" minHeight="0" styleClass="pdv-painel,largura-fixa">
                 <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
-                <Label fx:id="cliente" styleClass="pdv-cliente" wrapText="true"/>
+                <Label fx:id="cliente" styleClass="pdv-cliente" wrapText="true" minHeight="-Infinity"/>
                 <Label text="Último item" styleClass="pdv-rotulo"/>
-                <Label fx:id="ultimoDescricao" styleClass="pdv-ultimo" wrapText="true"/>
+                <Label fx:id="ultimoDescricao" styleClass="pdv-ultimo" wrapText="true" minHeight="-Infinity"/>
                 <Label fx:id="ultimoDetalhe" styleClass="pdv-ultimo-detalhe"/>
                 <Separator/>
                 <GridPane hgap="12" vgap="6">
@@ -66,8 +66,8 @@
                 <Label text="TOTAL" styleClass="pdv-rotulo"/>
                 <Label fx:id="total" styleClass="pdv-total"/>
                 <Region VBox.vgrow="ALWAYS"/>
-                <Label fx:id="proximaQuantidade" styleClass="pdv-proxima" wrapText="true"/>
-                <Label fx:id="mensagem" wrapText="true" styleClass="pdv-mensagem"/>
+                <Label fx:id="proximaQuantidade" styleClass="pdv-proxima" wrapText="true" minHeight="-Infinity"/>
+                <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity" styleClass="pdv-mensagem"/>
             </VBox>
         </HBox>
     </center>

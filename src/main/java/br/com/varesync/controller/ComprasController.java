@@ -67,6 +67,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -156,7 +157,7 @@ public class ComprasController {
     @FXML private Button botaoParcelas;
     @FXML private Button botaoExcluir;
     @FXML private Button botaoConfirmar;
-    @FXML private HBox painelItem;
+    @FXML private FlowPane painelItem;
     @FXML private TextField campoProduto;
     @FXML private Label produtoEscolhido;
     @FXML private TextField campoQuantidade;

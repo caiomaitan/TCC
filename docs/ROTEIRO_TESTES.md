@@ -852,3 +852,21 @@ no Queijo muçarela (KG, R$ 39,90, PLU 123), as duas **acima** do preço normal;
 | CT-F20-20 | Entrada aberta | 1. Compras › a entrada › ler 17891000315504 2. Quantidade 5, custo 39,00 3. Incluir | 1. "…embalagem com 12 UN: quantidade em embalagens e custo por embalagem" 2. "5 embalagens × 12 = 60 UN a R$ 3,2500 (R$ 195,00)" 3. Item de 60 UN a R$ 3,2500, R$ 195,00 | OK pela tela (capturas `15` e `16`) |
 | CT-F20-21 | Inventário "Bebidas" | 1. Inventário › Contagem › ler 17891000315504 | 1. Posiciona no refrigerante e avisa "…embalagem com 12 UN: a contagem é em unidades (UN)… (a embalagem tem 12)." | OK pela tela (captura `17`) |
 | CT-F20-22 | Dados de demonstração no `varesync_amostra` | 1. Relatórios › R01 e R05 dos 60 dias 2. PDV › F7 › ler o fardo do refrigerante cola (7896543900012) | 1. Receita e lucro iguais 2. "Embalagem com 6 un…: R$ 49,90" | Automático (`GeradorDemoIT.embalagensEAtacadoDaFase20`, `r01Er05BatemEVendaCanceladaFicaDeFora`) |
+
+### Fase 21, parte A — preferências por usuário, tema escuro, fonte de 115% e 130% e cortes (F21.1, F21.2)
+
+Pela tela em 2026-11-10, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test` com os dados de demonstração); os nomes são as capturas. Supervisor sem preferências gravadas; uma
+operadora "caixa" só com PDV; caixa aberto. Para os dados de demonstração da versão nova, use o banco
+`varesync_amostra` (COMO_CONTINUAR.md), nunca o `varesync_demo`. Na janela do sistema em 1280×720 (o tamanho mínimo).
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F21-01 | Sistema aberto | 1. Olhar a tela de login 2. Entrar como supervisor | 1. Claro, fonte normal 2. Janela principal clara de 100% (nunca gravou preferências) | OK pela tela (capturas `00` e `01`) |
+| CT-F21-02 | CT-F21-01 | 1. Menu › Minhas preferências 2. Tema Escuro, Tamanho da fonte Maior (130%) › Salvar | 1. Diálogo com Tema e Tamanho da fonte, para qualquer usuário 2. A janela fica escura e a fonte maior na hora, sem sair; no banco, `usuario_preferencia` com ESCURO e 130 | OK pela tela (captura `02`; no banco, a linha gravada) |
+| CT-F21-03 | CT-F21-02 | 1. Percorrer Painel, PDV (ler dois produtos › F10), Produtos e o cadastro de um produto, Estoque, Compras (Entradas e Pedidos), Clientes, Caixa, Financeiro (Contas e Contas a pagar), Relatórios (gerar R01 e R27) e Configurações | 1. Nenhum rótulo, botão, título de coluna ou caixa de escolha com "…"; nada passa da borda direita; barras de botões quebram a linha; no PDV, o total e a barra de leitura visíveis; no R27, "Custo previsto" e "Valor pendente" inteiros | OK pela tela (capturas `escuro130_03` a `escuro130_17`; o roteiro procura "…" e controles fora da borda) |
+| CT-F21-04 | CT-F21-03, R27 gerado | 1. Rolar a tabela do R27 para a direita | 1. A tabela rola de lado e a linha de totais acompanha ("R$ 6.437,76" sob "Valor pendente") | OK pela tela (captura `escuro130_14b`) |
+| CT-F21-05 | CT-F21-02 | 1. Log off 2. Olhar o login 3. Entrar como "caixa" 4. Log off e entrar como supervisor | 2. Login claro de 100% 3. A operadora entra clara de 100% 4. O supervisor volta ao escuro de 130% | OK pela tela (captura `40`) |
+| CT-F21-06 | CT-F21-05 | 1. Minhas preferências › Claro, Maior (130%) 2. Percorrer as telas de CT-F21-03 3. Minhas preferências › Escuro, Grande (115%) › Painel 4. Claro, Normal (100%) › percorrer de novo | 2. Claro de 130% sem cortes 3. Escuro de 115% 4. Igual a antes da fase | OK pela tela (capturas `claro130_*`, `escuro115_painel` e `claro100_*`) |
+| CT-F21-07 | Escuro, 130% | 1. PDV › vender › Ver comprovante | 1. O comprovante em tela continua claro (fundo branco, texto escuro); o PDF e a impressão não mudam | Pendente (pessoa) |
+| CT-F21-08 | Escuro, 130% | 1. Abrir uma caixa de escolha (Categoria em Produtos) e uma data 2. Passar o Tab pelo diálogo de preferências e confirmar com Enter | 1. Lista e calendário escuros e legíveis 2. Ordem lógica; Enter salva, Esc cancela | Pendente (pessoa: popups e teclado de verdade) |

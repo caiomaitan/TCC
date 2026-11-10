@@ -497,3 +497,15 @@ Casos do roteiro manual: CT-F20-01 a CT-F20-09 (pela tela em 2026-11-09). A part
 | RF31 / F20.3 Gerador | `AtacadoDemo` (fardo de 6 do refrigerante cola a R$ 49,90; faixas no óleo, no macarrão e no molho), `GeradorDemo.dados` e `acrescentarFardos` (semente própria SEMENTE + 9), venda do fardo pelo código dele | `GeradorDemoIT.embalagensEAtacadoDaFase20`, `r01Er05BatemEVendaCanceladaFicaDeFora`, `GeradorDemoReproducaoIT` |
 
 Casos do roteiro manual: CT-F20-10 a CT-F20-21 (pela tela em 2026-11-09, capturas `01` a `17`) e CT-F20-22 (automático).
+
+## Fase 21 — Usabilidade e acessibilidade, parte A (RNF12)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RNF12 / F21.1 Banco | Migration `V21__preferencias_do_usuario.sql`: `usuario_preferencia` (`ck_up_tema`, `ck_up_fonte`, FK com `ON DELETE CASCADE`, trigger de `atualizado_em`) | `MigracaoIT` (21 migrations, 58 tabelas), `PreferenciaServiceIT.enumsIguaisAosChecksDoBanco`, `bancoRecusaTemaOuFonteForaDaLista` |
+| RNF12 / F21.1 Preferências por usuário | `Tema`, `TamanhoFonte`, `Preferencias` (padrão claro, 100%), `PreferenciaDAO` (upsert com o `Clock`), `PreferenciaService` (`buscar`, `salvar` com a sessão conferida), `Servicos`, `AppContext`; **Minhas preferências** no rodapé do menu (`principal.fxml`, `PrincipalController.minhasPreferencias`, `DialogoPreferencias`); `App` (padrão no login, as do usuário ao entrar) | `PreferenciaServiceIT` (padrão, gravado por usuário e lido num novo login, horário do `Clock`, inativado não grava), `FxmlTest` |
+| RNF12 / F21.2 Tema escuro e contraste AA | `app.css` (cores em variáveis `-vs-*`; `.root.tema-escuro` troca as variáveis e as cores-base do modena; comprovante sempre claro), `ui.Aparencia` (classe `tema-escuro` na raiz de toda janela), `util.Contraste` | `ContrasteTest` (4,5:1 no texto, 3:1 no texto grande e no contorno de foco, nos dois temas; nenhuma cor literal fora das variáveis; variáveis definidas nos dois temas) |
+| RNF12 / F21.2 Fonte de 115% e 130% | `ui.FolhaFonte` (folha gerada com os tamanhos em px multiplicados; 40 px ou mais não cresce), `ui.Aparencia` (folha da fonte em toda janela; larguras fixas multiplicadas e mínimas nas caixas de escolha; rótulos e botões sem "…"; título de coluna inteiro; tabela que rola de lado quando as colunas não cabem) | `FolhaFonteTest` (130% e 115%, seletores iguais, tudo em px, total do PDV fora) |
+| RNF12 / F21.2 Cortes nas telas principais | `produtos.fxml`, `compras.fxml`, `pedidos.fxml`, `financeiro.fxml` (barras que quebram a linha), `painel.fxml` + `ui.LinhaDeCartoes` (cartões que descem), `pdv.fxml` + `PdvController` (painel com largura fixa e total à vista), `produto.fxml` (aba Dados com rolagem), `relatorios.fxml` + `RelatoriosController` (descrição que quebra, título inteiro, totais que rolam com a tabela; R27) | Pela tela (roteiro descartável: "…" e controles fora da borda em 17 telas, nos temas escuro e claro de 130% e no claro de 100%) |
+
+Casos do roteiro manual: CT-F21-01 a CT-F21-06 (pela tela em 2026-11-10) e CT-F21-07 e CT-F21-08 (pela pessoa).

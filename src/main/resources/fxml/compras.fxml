@@ -12,6 +12,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -31,10 +32,11 @@
                 <padding><Insets top="10" right="2" bottom="2" left="2"/></padding>
                 <HBox alignment="CENTER_LEFT" spacing="10">
                     <Label text="Entrada de mercadoria" styleClass="titulo-secao"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <CheckBox fx:id="filtroConfirmadas" text="Mostrar confirmadas" onAction="#pesquisar"/>
-                    <Button text="Importar XML da NF-e…" onAction="#importarNfe"/>
-                    <Button text="Nova entrada… (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
+                    <FlowPane alignment="CENTER_RIGHT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
+                        <CheckBox fx:id="filtroConfirmadas" text="Mostrar confirmadas" onAction="#pesquisar"/>
+                        <Button text="Importar XML da NF-e…" onAction="#importarNfe"/>
+                        <Button text="Nova entrada… (Ctrl+N)" onAction="#nova" styleClass="botao-primario"/>
+                    </FlowPane>
                 </HBox>
 
                 <SplitPane orientation="VERTICAL" dividerPositions="0.3" VBox.vgrow="ALWAYS">
@@ -58,7 +60,7 @@
                         <HBox alignment="CENTER_LEFT" spacing="10">
                             <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao"/>
                             <Label fx:id="situacao" styleClass="subtitulo"/>
-                            <Region HBox.hgrow="ALWAYS"/>
+                            <FlowPane alignment="CENTER_RIGHT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
                             <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota" minWidth="-Infinity"/>
                             <Button fx:id="botaoPedido" text="Pedido…" onAction="#escolherPedido" minWidth="-Infinity"/>
                             <Button fx:id="botaoConferir" text="Conferir com o pedido…" onAction="#conferirPedido" minWidth="-Infinity"/>
@@ -66,13 +68,15 @@
                             <Button fx:id="botaoExcluir" text="Excluir entrada…" onAction="#excluir" minWidth="-Infinity"/>
                             <Button fx:id="botaoConfirmar" text="Confirmar entrada…" onAction="#confirmar" minWidth="-Infinity"
                                     styleClass="botao-primario"/>
+                            </FlowPane>
                         </HBox>
 
-                        <HBox fx:id="painelItem" alignment="CENTER_LEFT" spacing="8" styleClass="painel-formulario">
+                        <!-- Quebra a linha quando não cabe (fonte de 130%, F21.2). -->
+                        <FlowPane fx:id="painelItem" alignment="CENTER_LEFT" hgap="8" vgap="8" styleClass="painel-formulario">
                             <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
                             <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230" minWidth="-Infinity"
                                        onAction="#escolherProduto"/>
-                            <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem"
+                            <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem" wrapText="true" minHeight="-Infinity"
                                    HBox.hgrow="ALWAYS" maxWidth="Infinity" minWidth="0"/>
                             <Label text="Qtd. *" minWidth="-Infinity"/>
                             <TextField fx:id="campoQuantidade" prefWidth="80" minWidth="-Infinity" styleClass="campo-numero" onAction="#focarValor"/>
@@ -81,7 +85,7 @@
                             <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
                             <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
                             <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>
-                        </HBox>
+                        </FlowPane>
 
                         <TableView fx:id="tabelaItens" VBox.vgrow="ALWAYS">
                             <placeholder><Label fx:id="semItens" text="Nenhum item nesta entrada."/></placeholder>

@@ -48,7 +48,7 @@
 
     <Label text="Linha do produto selecionado no arquivo (150 caracteres, formato MGV6 descrito no README, seção Balança):"
            styleClass="subtitulo"/>
-    <Label fx:id="linhaArquivo" style="-fx-font-family: 'Consolas', 'monospace';"/>
+    <Label fx:id="linhaArquivo" styleClass="texto-monoespacado"/>
 
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label fx:id="resumo" styleClass="subtitulo"/>

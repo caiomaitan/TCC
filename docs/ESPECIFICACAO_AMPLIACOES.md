@@ -27,7 +27,7 @@ Cada parte cabe numa sessão do agente e termina com `mvn -q verify` verde e com
 | F18 | Etiquetas de gôndola e carga de balança | — | F18.1 | F18.2, F18.3 |
 | F19 | Cadastro fiscal e consistência | — | F19.1 a F19.3 | F19.4, F19.5 |
 | F20 | Embalagens e preço de atacado | — | F20.1, F20.2 | F20.3 |
-| F21 | Usabilidade e acessibilidade | as fases que forem feitas | fase inteira | — |
+| F21 | Usabilidade e acessibilidade | as fases que forem feitas | F21.1, F21.2 | F21.3 (parte B); F21.4, F21.5 (parte C) |
 
 Ordem sugerida:
 1. F10 e F11 primeiro: reforçam o que já existe e fecham riscos registrados no PROGRESSO.
@@ -79,6 +79,7 @@ As permissões existentes cobrem o resto: pedidos e sugestão de compra (COMPRAS
 | F17 | `validade.alerta_dias` = 7 |
 | F18 | `etiqueta.colunas` = 3 · `etiqueta.linhas` = 8 · `etiqueta.modelo_termica` = (vazio) · `etiqueta.impressora_termica` = (vazio) · `balanca.pasta_carga` = (vazio) |
 | F19 | `empresa.regime_tributario` = SIMPLES (SIMPLES ou NORMAL) · `empresa.uf` = (vazio) · `empresa.ie` = (vazio) |
+| F21 | `assistente.formas_revisadas` = false · `assistente.usuarios_dispensado` = false · `assistente.balanca_dispensada` = false |
 
 Todas entram na classe `Configuracoes` e são editadas na tela de Configurações, na aba da área (existente ou nova), com validação e auditoria `CONFIGURACAO_ALTERADA`.
 
@@ -1199,31 +1200,59 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 ## F21 — Usabilidade e acessibilidade (RNF12)
 
+A fase tem três partes: A (preferências, tema escuro, fonte e cortes), B (ajuda e busca global) e C (assistente e padronização). Cada parte confere pela tela, com o tema escuro e a fonte de 130%, as telas que mexer.
+
+### F21.1 Preferências por usuário (parte A)
+
+- Tabela `usuario_preferencia` (`usuario_id`, `tema` CLARO ou ESCURO, `fonte` 100, 115 ou 130, `atualizado_em`), aplicada no login e na hora em que muda.
+- "Minhas preferências" no menu do usuário, para todos, sem permissão.
+- A tela de login usa o padrão (claro, 100%). PDF, comprovante e etiqueta continuam claros, porque vão para o papel.
+
+### F21.2 Tema escuro, fonte e cortes (parte A)
+
+- **Tema escuro:** as cores do CSS passam a variáveis, e o tema escuro troca só as variáveis.
+- **Contraste AA:** um teste calcula o contraste das cores dos dois temas: 4,5:1 no texto normal e 3:1 no texto grande e no contorno de foco.
+- **Fonte de 115% e 130%:** muda o tamanho da fonte da raiz; larguras fixas viram mínimas, para nada cortar.
+- **Cortes:** em 1280×720, com o tema escuro e a fonte de 130%, as telas principais não cortam textos: login, menu, Painel, PDV, Produtos e o cadastro do produto, Estoque, Compras (entradas e pedidos), Clientes, Caixa, Financeiro, Relatórios e Configurações. Entram também os cortes que ficaram nas pendências das fases anteriores (por exemplo, os títulos do R27).
+
+### F21.3 Ajuda e busca global (parte B)
+
 - **Ajuda contextual (F1):** abre a ajuda da tela atual num painel lateral, com a lista de atalhos.
-  - Os textos ficam em `resources/ajuda/*.md`.
+  - Os textos ficam em `resources/ajuda/<tela>.md`, num Markdown simples (títulos, parágrafos, listas, negrito e teclas entre crases), desenhado com TextFlow, sem biblioteca nova nem WebView.
+  - Toda tela do menu tem o seu texto, e um teste confere isso.
   - No PDV, o F1 atual passa a usar o mesmo painel.
-- **Busca global (Ctrl+K):** encontra produtos (por nome, código ou código de barras), clientes, venda por número, fornecedores e telas do menu, respeitando as permissões. Enter abre o resultado.
-- **Preferências por usuário** (tabela `usuario_preferencia`), aplicadas no login:
-  - tema claro ou escuro;
-  - tamanho de fonte: 100%, 115% ou 130%.
-- **Assistente "Primeiros passos"** para o supervisor:
-  - checklist com progresso: dados da loja, formas de pagamento, produtos ou importação, usuários, balança e backup;
-  - some quando estiver completo e pode ser reaberto pela Ajuda.
-- **Padronização das telas:**
-  - confirmação em toda ação destrutiva;
-  - sucesso em notificação discreta;
-  - foco inicial e ordem do Tab revisados;
-  - contraste mínimo AA no tema escuro;
-  - os cortes em 1280×720 que ficaram nas pendências das fases anteriores (por exemplo, os títulos do R27) são corrigidos;
-  - Configurações: as abas já não cabem e a barra rola; as seções passam para uma lista lateral, ou outra organização que caiba em 1280×720;
-  - no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar.
+- **Busca global (Ctrl+K):**
+  - encontra produtos (por nome, código interno, código de barras, inclusive o da embalagem, e PLU), clientes (por nome e CPF), venda por número, fornecedores e telas do menu;
+  - cada resultado só aparece se o usuário pode abrir a tela que ele abre;
+  - procura a partir de 2 caracteres, fora da FX Application Thread, com até 8 resultados por grupo;
+  - Enter abre o resultado, e Esc fecha.
+
+### F21.4 Assistente "Primeiros passos" (parte C)
+
+- Para o supervisor, com o progresso de cada passo:
+  - dados da loja: nome, CNPJ, endereço e UF preenchidos;
+  - formas de pagamento: revisadas (o passo abre a tela e tem o botão "Revisei");
+  - produtos: ao menos um produto ativo, cadastrado ou importado;
+  - usuários: ao menos um usuário além do supervisor, ou "Só eu uso o sistema";
+  - balança: configurada, ou "Não uso balança";
+  - backup: ao menos um backup feito.
+- O que não dá para conferir sozinho fica nas configurações `assistente.*` (seção 0.4).
+- Some quando todos os passos estão concluídos ou dispensados, e pode ser reaberto pela Ajuda.
+
+### F21.5 Padronização das telas (parte C)
+
+- confirmação em toda ação destrutiva (excluir, cancelar, estornar, inativar), com a lista das ações conferida no PROGRESSO;
+- sucesso em notificação discreta, que some sozinha e não tira o foco, no lugar das janelas de "OK";
+- foco inicial e ordem do Tab revisados;
+- Configurações: as abas já não cabem e a barra rola; as seções passam para uma lista lateral, ou outra organização que caiba em 1280×720;
+- no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar;
+- os modelos de exemplo da térmica ganham a linha de atacado ({QTD_ATACADO} e {PRECO_ATACADO}).
 
 ### Aceite F21
 
-- F1 mostra a ajuda da tela atual.
-- Ctrl+K encontra produto, cliente, venda e tela.
-- Tema escuro e fonte de 130% ficam salvos por usuário e não cortam textos nas telas principais (conferido por capturas).
-- O assistente marca os passos concluídos.
+- **Parte A:** o tema escuro e a fonte de 130% ficam salvos por usuário e não cortam textos nas telas principais (conferido por capturas); o teste de contraste passa nos dois temas.
+- **Parte B:** F1 mostra a ajuda da tela atual, também no PDV; Ctrl+K encontra produto (inclusive pelo código da caixa), cliente, venda e tela, e não mostra o que o usuário não pode abrir.
+- **Parte C:** o assistente marca os passos concluídos e some quando todos estão concluídos ou dispensados; as ações destrutivas pedem confirmação; Configurações cabe em 1280×720 sem a barra de abas rolando.
 
 ---
 
