@@ -15,9 +15,11 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Etiquetas de gôndola (F18.1): os produtos de cada critério de seleção, com o preço vigente na data (a mesma regra
- * do {@code PromocaoDAO.vigente}: promoção ativa cujo período contém a data, a de menor preço) e a última impressão
- * ({@code etiqueta_impressao}); e o registro de cada impressão. Só produtos ativos.
+ * Etiquetas de gôndola (F18.1): os produtos de cada critério de seleção, com o preço vigente na data (a regra do
+ * PDV, {@link PromocaoDAO#VIGENTE_DO_PRODUTO}: promoção ativa cujo período contém a data e menor que o preço normal, a
+ * de menor preço), a faixa de atacado que sai na etiqueta (F20.3: a de menor quantidade, só se o preço dela é menor
+ * que o da etiqueta) e a última impressão ({@code etiqueta_impressao}); e o registro de cada impressão. Só produtos
+ * ativos.
  */
 public class EtiquetaDAO {
 
@@ -27,15 +29,21 @@ public class EtiquetaDAO {
                    pe.quantidade AS saldo,
                    (SELECT b.codigo FROM produto_codigo_barras b WHERE b.produto_id = p.id AND b.principal) AS barras,
                    pr.id AS promocao_id, pr.preco_promocional, pr.data_fim,
-                   ue.preco AS ultimo_preco, ue.promocao_id AS ultima_promocao_id, ue.criado_em AS ultima_em
+                   CASE WHEN fx.preco < coalesce(pr.preco_promocional, p.preco_venda) THEN fx.quantidade_minima END
+                       AS atacado_quantidade,
+                   CASE WHEN fx.preco < coalesce(pr.preco_promocional, p.preco_venda) THEN fx.preco END
+                       AS atacado_preco,
+                   ue.preco AS ultimo_preco, ue.promocao_id AS ultima_promocao_id, ue.criado_em AS ultima_em,
+                   ue.atacado_quantidade AS ultimo_atacado_quantidade, ue.atacado_preco AS ultimo_atacado_preco
               FROM produto p
               JOIN produto_estoque pe ON pe.produto_id = p.id
-              LEFT JOIN LATERAL (SELECT id, preco_promocional, data_fim
-                                   FROM promocao
-                                  WHERE produto_id = p.id AND ativa AND data_inicio <= ? AND data_fim >= ?
-                                  ORDER BY preco_promocional, id DESC
-                                  LIMIT 1) pr ON TRUE
-              LEFT JOIN LATERAL (SELECT preco, promocao_id, criado_em
+            """ + PromocaoDAO.VIGENTE_DO_PRODUTO + """
+              LEFT JOIN LATERAL (SELECT quantidade_minima, preco
+                                   FROM produto_preco_quantidade
+                                  WHERE produto_id = p.id
+                                  ORDER BY quantidade_minima
+                                  LIMIT 1) fx ON TRUE
+              LEFT JOIN LATERAL (SELECT preco, promocao_id, criado_em, atacado_quantidade, atacado_preco
                                    FROM etiqueta_impressao
                                   WHERE produto_id = p.id
                                   ORDER BY criado_em DESC, id DESC
@@ -43,12 +51,19 @@ public class EtiquetaDAO {
              WHERE p.ativo
             """;
 
-    /** Pendente: com estoque, e nunca impressa ou com preço ou promoção diferente da última etiqueta. */
+    /**
+     * Pendente: com estoque, e nunca impressa ou com preço, promoção ou faixa de atacado (F20.3: criada, mudada ou
+     * tirada) diferente da última etiqueta.
+     */
     private static final String PENDENTE = """
             pe.quantidade > 0
             AND (ue.criado_em IS NULL
                  OR ue.preco <> coalesce(pr.preco_promocional, p.preco_venda)
-                 OR ue.promocao_id IS DISTINCT FROM pr.id)
+                 OR ue.promocao_id IS DISTINCT FROM pr.id
+                 OR ue.atacado_quantidade IS DISTINCT FROM
+                    (CASE WHEN fx.preco < coalesce(pr.preco_promocional, p.preco_venda) THEN fx.quantidade_minima END)
+                 OR ue.atacado_preco IS DISTINCT FROM
+                    (CASE WHEN fx.preco < coalesce(pr.preco_promocional, p.preco_venda) THEN fx.preco END))
             """;
 
     private static final String ORDEM = " ORDER BY p.nome, p.id";
@@ -106,19 +121,23 @@ public class EtiquetaDAO {
         }
     }
 
-    public void registrar(Connection con, long produtoId, BigDecimal preco, Long promocaoId, OrigemEtiqueta origem,
-                          long usuarioId, OffsetDateTime agora) throws SQLException {
+    /** Registra a etiqueta que saiu: o preço, a promoção e a faixa de atacado dela (F20.3). */
+    public void registrar(Connection con, Etiqueta e, OrigemEtiqueta origem, long usuarioId, OffsetDateTime agora)
+            throws SQLException {
         String sql = """
-                INSERT INTO etiqueta_impressao (produto_id, preco, promocao_id, origem, usuario_id, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO etiqueta_impressao (produto_id, preco, promocao_id, origem, usuario_id, criado_em,
+                                                atacado_quantidade, atacado_preco)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setLong(1, produtoId);
-            ps.setBigDecimal(2, preco);
-            Jdbc.definirLong(ps, 3, promocaoId);
+            ps.setLong(1, e.produtoId());
+            ps.setBigDecimal(2, e.preco());
+            Jdbc.definirLong(ps, 3, e.promocaoId());
             ps.setString(4, origem.name());
             ps.setLong(5, usuarioId);
             ps.setObject(6, agora);
+            ps.setBigDecimal(7, e.atacadoQuantidade());
+            ps.setBigDecimal(8, e.atacadoPreco());
             ps.executeUpdate();
         }
     }
@@ -156,11 +175,20 @@ public class EtiquetaDAO {
         OffsetDateTime ultima = rs.getObject("ultima_em", OffsetDateTime.class);
         BigDecimal ultimoPreco = rs.getBigDecimal("ultimo_preco");
         Long ultimaPromocao = Jdbc.lerLong(rs, "ultima_promocao_id");
+        BigDecimal atacadoQuantidade = rs.getBigDecimal("atacado_quantidade");
+        BigDecimal atacadoPreco = rs.getBigDecimal("atacado_preco");
         boolean pendente = rs.getBigDecimal("saldo").signum() > 0 && (ultima == null
-                || ultimoPreco.compareTo(preco) != 0 || !java.util.Objects.equals(ultimaPromocao, promocaoId));
+                || ultimoPreco.compareTo(preco) != 0 || !java.util.Objects.equals(ultimaPromocao, promocaoId)
+                || !mesmoValor(rs.getBigDecimal("ultimo_atacado_quantidade"), atacadoQuantidade)
+                || !mesmoValor(rs.getBigDecimal("ultimo_atacado_preco"), atacadoPreco));
         return new Etiqueta(rs.getLong("id"), rs.getString("nome"), rs.getString("unidade"), preco,
                 promocaoId == null ? null : precoVenda, promocaoId,
                 promocaoId == null ? null : rs.getObject("data_fim", LocalDate.class), desenhado, pluOuNulo,
-                ProdutoDAO.lerConteudo(rs), data, ultima, pendente, 1);
+                ProdutoDAO.lerConteudo(rs), data, ultima, pendente, 1, atacadoQuantidade, atacadoPreco);
+    }
+
+    /** Os dois nulos ou o mesmo número (6 = 6,000). */
+    private static boolean mesmoValor(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
     }
 }

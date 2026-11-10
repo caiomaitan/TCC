@@ -1175,6 +1175,11 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
   - no modelo da térmica, as variáveis {QTD_ATACADO} e {PRECO_ATACADO}, vazias sem faixa;
   - a impressão grava a faixa que saiu; criar, mudar ou tirar a faixa deixa a etiqueta pendente.
 - **Gerador:** embalagens com preço (por exemplo, o fardo de refrigerante) e faixas de atacado em produtos de mercearia, com vendas que as usam.
+- **Ajustes da parte A (feitos na parte B):**
+  - **mesma regra de preço em todo lugar:** a parte A passou a ignorar no PDV a promoção igual ou acima do preço normal, mas a etiqueta (`EtiquetaDAO`) e a carga de balança (`CargaBalancaDAO`) ainda calculam a promoção no SQL, sem esse filtro. Com uma promoção acima do preço, a balança imprimiria um valor maior que o do PDV. As duas passam a usar a mesma regra do `PrecoService`;
+  - **faixa copiada no item da venda:** o comprovante e a segunda via leem a quantidade mínima pela faixa atual (`LEFT JOIN`), então mudam se a faixa for alterada ou apagada. Migration nova: `venda_item.atacado_a_partir_de` (cópia da quantidade mínima no momento da venda, preenchida nos itens antigos pela faixa ligada), e o comprovante passa a ler dela. O cadastro altera as faixas no lugar, sem apagar e recriar (diferente dos códigos de barras);
+  - **caixa na entrada manual de mercadoria:** ler o código de uma embalagem faz a quantidade digitada ser em embalagens e o custo digitado ser por embalagem; o item entra em unidades (× quantidade da embalagem) e com o custo dividido, como na NF-e, e a tela mostra a conversão;
+  - **inventário:** ler o código de uma embalagem posiciona no produto e avisa que a contagem é em unidades (a embalagem tem N).
 
 ### Aceite F20
 
@@ -1185,6 +1190,9 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 - **Devolução:** devolver 1 das 6 unidades compradas a R$ 4,99 devolve R$ 4,99.
 - **NF-e:** uma nota com 5 CX pelo EAN da caixa de 12 entra como 60 UN, com o custo da caixa dividido por 12.
 - **Etiqueta:** o produto com a faixa de R$ 4,99 a partir de 6 un mostra "A partir de 6 un: R$ 4,99"; mudar a faixa deixa a etiqueta pendente.
+- **Mesmo preço:** com uma promoção acima do preço normal, o PDV, o F7, a etiqueta e a carga de balança usam o preço normal.
+- **Segunda via:** o comprovante de uma venda no atacado continua com "a partir de 6 un" depois de a faixa mudar para 10 ou ser apagada.
+- **Entrada manual:** ler o código da caixa de 12 e informar 5 caixas a R$ 39,00 lança 60 UN a R$ 3,2500.
 - **Consistência:** a venda finalizada continua com `ck_venda_total` e `ck_vi_liquido` válidos, e o R01 bate com o R05 (também nos dados do gerador).
 
 ---

@@ -88,6 +88,33 @@ class EtiquetasPdfTest {
         assertThat(texto).contains("DE R$ 9,99 POR", "R$ 7,99", "Oferta válida até 13/11/2026", "Código 5");
     }
 
+    /** Aceite "Etiqueta" da F20: a faixa de R$ 4,99 a partir de 6 un. */
+    @Test
+    void faixaDeAtacadoSaiComoAPartirDe6Un() throws Exception {
+        Etiqueta refri = new Etiqueta(9, "Refrigerante Cola 2 L", "UN", new BigDecimal("5.49"), null, null, null,
+                null, null, ConteudoLiquido.SEM, HOJE, null, true, 1, new BigDecimal("6.000"), new BigDecimal("4.99"));
+        assertThat(refri.textoAtacado()).isEqualTo("A partir de 6 un: R$ 4,99");
+        assertThat(textoDaPagina(new EtiquetasPdf().gerar(List.of(refri), FOLHA, 1)))
+                .contains("R$ 5,49", "A partir de 6 un: R$ 4,99");
+    }
+
+    @Test
+    void faixaComPromocaoEConteudoCabeNasDuasLinhas() {
+        Etiqueta tudo = new Etiqueta(10, "Biscoito Recheado", "UN", new BigDecimal("7.99"), new BigDecimal("8.99"),
+                3L, LocalDate.of(2026, 11, 13), null, null, new ConteudoLiquido(new BigDecimal("500"),
+                UnidadeConteudo.G), HOJE, null, true, 1, new BigDecimal("6"), new BigDecimal("6.99"));
+        Map<String, Object> c = EtiquetasPdf.campos(tudo, new java.util.HashMap<>());
+        assertThat(c.get("medida")).isEqualTo("500 g · R$ 15,98 o kg");
+        assertThat(c.get("oferta")).isEqualTo("A partir de 6 un: R$ 6,99 · Oferta válida até 13/11/2026");
+
+        Etiqueta semConteudo = new Etiqueta(10, "Biscoito Recheado", "UN", new BigDecimal("7.99"),
+                new BigDecimal("8.99"), 3L, LocalDate.of(2026, 11, 13), null, null, ConteudoLiquido.SEM, HOJE, null,
+                true, 1, new BigDecimal("6"), new BigDecimal("6.99"));
+        c = EtiquetasPdf.campos(semConteudo, new java.util.HashMap<>());
+        assertThat(c.get("medida")).isEqualTo("A partir de 6 un: R$ 6,99");
+        assertThat(c.get("oferta")).isEqualTo("Oferta válida até 13/11/2026");
+    }
+
     @Test
     void precoPorKgDoAceite() throws Exception {
         Etiqueta arroz = new Etiqueta(7, "Biscoito Recheado", "UN", new BigDecimal("8.99"), null, null, null,

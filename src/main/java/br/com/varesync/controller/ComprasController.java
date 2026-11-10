@@ -101,6 +101,8 @@ public class ComprasController {
     private EntradaResumo entrada;
     /** Produto escolhido para incluir; nulo quando se altera um item ou nada foi escolhido. */
     private ProdutoVenda produto;
+    /** O código lido do produto em {@link #produto}, com a embalagem (F20.3); nulo ao alterar um item. */
+    private EntradaService.LeituraEntrada leituraAtual;
     /** Item em alteração; nulo ao incluir. */
     private ItemEntrada itemEmEdicao;
 
@@ -248,6 +250,10 @@ public class ComprasController {
                 VALOR_DA_LINHA.equals(modo) ? "0,00" : "0,0000"));
         campoValor.setPromptText("0,0000");
         campoQuantidade.setPromptText("0");
+        // F20.3: lida a caixa, a tela mostra a conversão para unidades enquanto se digita.
+        campoQuantidade.textProperty().addListener((obs, a, b) -> mostrarConversao());
+        campoValor.textProperty().addListener((obs, a, b) -> mostrarConversao());
+        modoValor.valueProperty().addListener((obs, a, b) -> mostrarConversao());
 
         raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (abas.getSelectionModel().getSelectedItem() == abaSugestao) {
@@ -763,33 +769,64 @@ public class ComprasController {
         String texto = Textos.normalizarEspacos(campoProduto.getText());
         try {
             if (!texto.isEmpty() && Textos.soDigitos(texto)) {
-                escolher(entradaService.produtoPorCodigo(sessao, texto));
+                escolher(entradaService.lerCodigo(sessao, texto), texto);
                 return;
             }
             Optional<ProdutoResumo> escolhido = BuscaProdutoDialogo.buscar("Buscar produto", "Escolher", true, texto,
                     termo -> entradaService.pesquisarProdutos(sessao, termo));
-            escolhido.ifPresent(p -> escolher(entradaService.produtoPorCodigo(sessao, String.valueOf(p.id()))));
+            escolhido.ifPresent(p -> escolher(new EntradaService.LeituraEntrada(
+                    entradaService.produtoPorCodigo(sessao, String.valueOf(p.id())), BigDecimal.ONE), null));
         } catch (NegocioException e) {
             Mensagem.erro(mensagem, e.getMessage());
             campoProduto.selectAll();
         }
     }
 
-    private void escolher(ProdutoVenda escolhido) {
+    /** @param lido o código lido (o da caixa fica no campo); nulo = o código do produto */
+    private void escolher(EntradaService.LeituraEntrada leitura, String lido) {
+        ProdutoVenda escolhido = leitura.produto();
         itemEmEdicao = null;
         tabelaItens.getSelectionModel().clearSelection();
         produto = escolhido;
-        campoProduto.setText(escolhido.codigo());
+        leituraAtual = leitura;
+        campoProduto.setText(leitura.ehEmbalagem() && lido != null ? lido : escolhido.codigo());
         produtoEscolhido.setText(escolhido.nome() + " (" + escolhido.unidade() + ") — custo médio atual "
                 + custo(escolhido.custo()));
+        produtoEscolhido.setTooltip(null);
         botaoGravarItem.setText("Incluir");
         Mensagem.limpar(mensagem);
+        mostrarConversao();
         campoQuantidade.requestFocus();
+    }
+
+    /** F20.3: com o código de uma caixa, a conversão para unidades e o custo por unidade, enquanto se digita. */
+    private void mostrarConversao() {
+        if (produto == null || leituraAtual == null || !leituraAtual.ehEmbalagem()) {
+            return;
+        }
+        BigDecimal quantidade = lerSemErro(campoQuantidade.getText());
+        BigDecimal valor = lerSemErro(campoValor.getText());
+        // O rótulo tem uma linha (corta com "…"): o texto inteiro vai também para a mensagem da aba.
+        String texto = produto.nome() + " — " + leituraAtual.conversao(quantidade, valor,
+                VALOR_DA_LINHA.equals(modoValor.getValue())).orElse(leituraAtual.instrucao());
+        produtoEscolhido.setText(texto);
+        produtoEscolhido.setTooltip(new javafx.scene.control.Tooltip(leituraAtual.instrucao()));
+        Mensagem.informar(mensagem, texto + (texto.endsWith(leituraAtual.instrucao()) ? ""
+                : " (" + leituraAtual.instrucao() + ")"));
+    }
+
+    private static BigDecimal lerSemErro(String texto) {
+        try {
+            return CampoNumero.ler(texto, "");
+        } catch (NegocioException e) {
+            return null;
+        }
     }
 
     private void editarItem(ItemEntrada item) {
         itemEmEdicao = item;
         produto = null;
+        leituraAtual = null;
         campoProduto.setText(item.codigoBarras() == null ? String.valueOf(item.produtoId()) : item.codigoBarras());
         campoProduto.setDisable(true);
         produtoEscolhido.setText(item.produtoNome() + " (" + item.unidade() + ") — alterando o item");
@@ -828,7 +865,7 @@ public class ComprasController {
             } else if (produto != null) {
                 nome = produto.nome();
                 itemId = entradaService.adicionarItem(sessao, entrada.id(), produto.id(), quantidade, custoUnitario,
-                        valorLinha);
+                        valorLinha, leituraAtual == null ? null : leituraAtual.embalagem());
             } else {
                 throw new NegocioException("Escolha o produto: leia o código de barras ou digite o código ou o nome.");
             }
@@ -845,6 +882,7 @@ public class ComprasController {
     @FXML
     private void limparItem() {
         produto = null;
+        leituraAtual = null;
         itemEmEdicao = null;
         campoProduto.clear();
         campoProduto.setDisable(false);

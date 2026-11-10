@@ -62,6 +62,16 @@ class ModeloTermicaTest {
                 .isEqualTo("[Queijo Mussarela][39,90][][KG][][123][30][]");
     }
 
+    /** F20.3: {QTD_ATACADO} e {PRECO_ATACADO}, vazias sem faixa. */
+    @Test
+    void faixaDeAtacadoNasVariaveisDaTermica() {
+        String modelo = "^FDA partir de {QTD_ATACADO} un: {PRECO_ATACADO}^FS|{PRECO}";
+        Etiqueta comFaixa = new Etiqueta(12, "Refrigerante", "UN", new BigDecimal("5.49"), null, null, null, null,
+                null, ConteudoLiquido.SEM, HOJE, null, true, 1, new BigDecimal("6.000"), new BigDecimal("4.99"));
+        assertThat(ModeloTermica.aplicar(modelo, comFaixa)).isEqualTo("^FDA partir de 6 un: 4,99^FS|5,49");
+        assertThat(ModeloTermica.aplicar("[{QTD_ATACADO}][{PRECO_ATACADO}]", queijo())).isEqualTo("[][]");
+    }
+
     @Test
     void nomeCortadoSemEspacoNoFimETextoSemAcentos() {
         assertThat(ModeloTermica.aplicar("{NOME:7}|{NOME:0}|{NOME:999}", acucar()))

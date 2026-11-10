@@ -103,8 +103,24 @@ public class PromocaoDAO {
     }
 
     /**
+     * A promoção que vale no produto {@code p} da consulta, como {@code LEFT JOIN LATERAL ... pr} com as colunas
+     * {@code id}, {@code preco_promocional} e {@code data_fim}: a mesma regra do {@code PrecoService.precoVigente}
+     * (F20.2) — ativa, com o período contendo a data, <b>menor que o preço normal</b> e, com mais de uma, a de menor
+     * preço. Usada pelas etiquetas e pela carga de balança (ajuste da parte A na F20.3), para o PDV, o F7, a etiqueta e
+     * a balança darem o mesmo preço. Dois parâmetros: a data, duas vezes.
+     */
+    public static final String VIGENTE_DO_PRODUTO = """
+              LEFT JOIN LATERAL (SELECT id, preco_promocional, data_fim
+                                   FROM promocao
+                                  WHERE produto_id = p.id AND ativa AND data_inicio <= ? AND data_fim >= ?
+                                    AND preco_promocional < p.preco_venda
+                                  ORDER BY preco_promocional, id DESC
+                                  LIMIT 1) pr ON TRUE
+            """;
+
+    /**
      * Promoção ativa cujo período contém a data (6.8). Se houver mais de uma (só por alteração feita fora do sistema),
-     * vale o menor preço.
+     * vale o menor preço. A comparação com o preço normal fica com o {@code PrecoService}, que tem o produto.
      */
     public Optional<Vigente> vigente(Connection con, long produtoId, LocalDate data) throws SQLException {
         String sql = """

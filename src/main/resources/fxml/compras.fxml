@@ -70,14 +70,14 @@
 
                         <HBox fx:id="painelItem" alignment="CENTER_LEFT" spacing="8" styleClass="painel-formulario">
                             <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
-                            <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230"
+                            <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230" minWidth="-Infinity"
                                        onAction="#escolherProduto"/>
                             <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem"
-                                   HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                                   HBox.hgrow="ALWAYS" maxWidth="Infinity" minWidth="0"/>
                             <Label text="Qtd. *" minWidth="-Infinity"/>
-                            <TextField fx:id="campoQuantidade" prefWidth="80" styleClass="campo-numero" onAction="#focarValor"/>
-                            <ComboBox fx:id="modoValor" prefWidth="160"/>
-                            <TextField fx:id="campoValor" prefWidth="100" styleClass="campo-numero" onAction="#gravarItem"/>
+                            <TextField fx:id="campoQuantidade" prefWidth="80" minWidth="-Infinity" styleClass="campo-numero" onAction="#focarValor"/>
+                            <ComboBox fx:id="modoValor" prefWidth="160" minWidth="-Infinity"/>
+                            <TextField fx:id="campoValor" prefWidth="100" minWidth="-Infinity" styleClass="campo-numero" onAction="#gravarItem"/>
                             <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
                             <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
                             <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>

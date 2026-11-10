@@ -209,7 +209,12 @@ public class GeradorDemo {
             new UsuarioPlano("jose", "José Santos", false),
             new UsuarioPlano("carlos", "Carlos Pereira", true));
 
-    private record ItemPlano(int produto, BigDecimal quantidade, boolean cancelar) {
+    /** @param fardo F20.3: lido pelo código do fardo (a quantidade é a do fardo, em unidades) */
+    private record ItemPlano(int produto, BigDecimal quantidade, boolean cancelar, boolean fardo) {
+
+        ItemPlano(int produto, BigDecimal quantidade, boolean cancelar) {
+            this(produto, quantidade, cancelar, false);
+        }
     }
 
     private record VendaPlano(LocalTime hora, List<ItemPlano> itens, Forma forma, int descontoVendaPct,
@@ -366,7 +371,8 @@ public class GeradorDemo {
         ZoneId zona = relogioReal.getZone();
         LocalDate hoje = LocalDate.now(relogioReal);
         LocalDate inicio = hoje.minusDays(DIAS);
-        List<DiaPlano> dias = planejar(plano, catalogo, inicio);
+        // F20.3: vendas com o fardo do refrigerante, semente própria (não muda o resto do plano); entram na demanda.
+        List<DiaPlano> dias = acrescentarFardos(new Random(SEMENTE + 9), planejar(plano, catalogo, inicio), catalogo);
         BigDecimal[][] demandaDia = demandaPorDia(dias, catalogo.size());
         List<FornecedorDemo> fornecedoresDemo = CatalogoDemo.fornecedores();
         List<CompraPlano> comprasPlano = planejarCompras(new Random(SEMENTE + 3), catalogo, fornecedoresDemo,
@@ -691,6 +697,39 @@ public class GeradorDemo {
             dias.add(new DiaPlano(d + 1, data, manha, tarde, vendasDia, perdas, sangrias));
         }
         return dias;
+    }
+
+    /**
+     * F20.3: em cerca de {@value AtacadoDemo#FARDOS_POR_MIL_VENDAS} de cada mil vendas não canceladas (com menos de 15
+     * itens), um fardo do refrigerante cola lido pelo código do fardo (6 unidades, com o preço do fardo), no fim da
+     * venda.
+     */
+    private static List<DiaPlano> acrescentarFardos(Random r, List<DiaPlano> dias, List<ItemCatalogo> catalogo) {
+        int fardo = -1;
+        for (int i = 0; i < catalogo.size(); i++) {
+            if (catalogo.get(i).nome().equals(AtacadoDemo.PRODUTO_FARDO)) {
+                fardo = i;
+            }
+        }
+        if (fardo < 0) {
+            return dias;
+        }
+        List<DiaPlano> novos = new ArrayList<>();
+        for (DiaPlano dia : dias) {
+            List<VendaPlano> vendasDia = new ArrayList<>();
+            for (VendaPlano v : dia.vendas()) {
+                // 6.14: no máximo 15 itens por venda (o sorteio é feito sempre, para não depender do tamanho).
+                if (r.nextInt(1000) < AtacadoDemo.FARDOS_POR_MIL_VENDAS && !v.cancelar() && v.itens().size() < 15) {
+                    List<ItemPlano> itens = new ArrayList<>(v.itens());
+                    itens.add(new ItemPlano(fardo, AtacadoDemo.QUANTIDADE_FARDO, false, true));
+                    v = new VendaPlano(v.hora(), itens, v.forma(), v.descontoVendaPct(), v.descontoItem(), false);
+                }
+                vendasDia.add(v);
+            }
+            novos.add(new DiaPlano(dia.numero(), dia.data(), dia.operadorManha(), dia.operadorTarde(), vendasDia,
+                    dia.perdas(), dia.sangrias()));
+        }
+        return novos;
     }
 
     /** 20 a 60 vendas, mais no fim de semana. */
@@ -1225,12 +1264,13 @@ public class GeradorDemo {
      */
     private static DadosProduto dados(ItemCatalogo item, Map<String, Long> categoriaIds, BigDecimal inicial,
                                       LocalDate vespera) {
-        List<CodigoBarras> codigos = item.codigoBarras() == null ? List.of()
-                : List.of(new CodigoBarras(item.codigoBarras(), true));
+        // F20.3: o fardo do refrigerante e as faixas de atacado de mercearia entram no próprio cadastro.
+        List<CodigoBarras> codigos = AtacadoDemo.codigos(item.nome(), item.codigoBarras());
         boolean perecivel = perecivel(item);
         return new DadosProduto(item.nome(), categoriaIds.get(item.categoria().toLowerCase()), item.unidade(),
                 item.preco(), item.custo(), item.minimo(), item.plu(), codigos, inicial, perecivel ? Boolean.TRUE : null,
-                perecivel ? ParteLote.novo(codigoLote(vespera), validade(item, vespera), null) : null);
+                perecivel ? ParteLote.novo(codigoLote(vespera), validade(item, vespera), null) : null, null, null,
+                AtacadoDemo.faixas(item.nome()));
     }
 
     private Map<Forma, List<FormaPagamento>> formas(Sessao sessao) {
@@ -1356,7 +1396,11 @@ public class GeradorDemo {
             posicionar(data, hora, zona);
             hora = hora.plusSeconds(4);
             ProdutoVenda produto = paraVenda.get(produtoIds.get(item.produto()));
-            ItemCarrinho incluido = vendas.adicionarItem(operador, carrinho, produto, item.quantidade()).item();
+            // F20.3: o fardo é lido pelo código dele, como no PDV (6 unidades pelo preço do fardo).
+            ItemCarrinho incluido = item.fardo()
+                    ? vendas.adicionarEmbalagem(operador, carrinho,
+                            vendas.lerProduto(operador, AtacadoDemo.CODIGO_FARDO), null).item()
+                    : vendas.adicionarItem(operador, carrinho, produto, item.quantidade()).item();
             if (item.cancelar()) {
                 vendas.cancelarItem(operador, carrinho, incluido.sequencia(), liberaCancelamento);
                 cancelados++;

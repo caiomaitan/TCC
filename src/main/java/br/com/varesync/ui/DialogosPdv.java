@@ -83,6 +83,7 @@ public final class DialogosPdv {
         Label resultado = new Label("O produto não é incluído na venda.");
         resultado.setWrapText(true);
         resultado.setMaxWidth(420);
+        resultado.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE); // F20.3: várias linhas (faixas, embalagens)
         resultado.getStyleClass().add("consulta-preco");
         codigo.setOnAction(e -> {
             e.consume();
@@ -94,6 +95,9 @@ public final class DialogosPdv {
                 if (!resultado.getStyleClass().contains("mensagem-erro")) {
                     resultado.getStyleClass().add("mensagem-erro");
                 }
+            }
+            if (dialogo.getDialogPane().getScene() != null) {
+                dialogo.getDialogPane().getScene().getWindow().sizeToScene(); // o diálogo cresce com o texto
             }
             codigo.selectAll();
         });

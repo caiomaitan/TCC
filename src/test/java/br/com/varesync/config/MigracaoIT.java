@@ -7,19 +7,19 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V19 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V20 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV19() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(19);
+    void bancoVazioRecebeV1aV20() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(20);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
                      WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
-                                                   '14', '15', '16', '17', '18', '19')
-                    """)).isEqualTo(19);
+                                                   '14', '15', '16', '17', '18', '19', '20')
+                    """)).isEqualTo(20);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -79,6 +79,9 @@ class MigracaoIT extends IntegracaoBase {
                                                          ('etiqueta_impressao', 'atacado_quantidade'),
                                                          ('etiqueta_impressao', 'atacado_preco'))
                     """)).as("embalagens e atacado da V19").isEqualTo(5);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = "
+                    + "'venda_item' AND column_name = 'atacado_a_partir_de'")).as("faixa copiada no item da V20")
+                    .isEqualTo(1);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM conta_financeira")).as("Cofre e Banco da V12")
                     .isEqualTo(2);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM categoria_despesa")).as("categorias da V12")

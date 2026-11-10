@@ -12,6 +12,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ClienteCrediario;
 import br.com.varesync.model.ClienteVenda;
+import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.Comprovante;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.Embalagem;
@@ -145,8 +146,58 @@ public class VendaService {
         }
     }
 
-    /** Consulta de preço (F7): o produto e o preço que vale hoje (promoção ou preço de venda). */
-    public record ConsultaPreco(ProdutoVenda produto, PrecoService.Preco preco) {
+    /**
+     * Consulta de preço (F7): o produto e o preço que vale hoje (promoção ou preço de venda) e, com a F20.3, as faixas
+     * de preço por quantidade, as embalagens com preço próprio e a embalagem do código lido (nula no da unidade).
+     */
+    public record ConsultaPreco(ProdutoVenda produto, PrecoService.Preco preco, List<FaixaPreco> faixas,
+                                List<CodigoBarras> embalagens, Embalagem lida) {
+
+        public ConsultaPreco(ProdutoVenda produto, PrecoService.Preco preco) {
+            this(produto, preco, List.of(), List.of(), null);
+        }
+
+        /** O texto do F7, uma informação por linha. */
+        public String texto() {
+            ProdutoVenda p = produto;
+            String unidade = p.unidade();
+            StringBuilder s = new StringBuilder(p.nome()).append('\n');
+            s.append(preco.promocional()
+                    ? Formatos.moeda(preco.valor()) + " / " + unidade + " (promoção; preço normal "
+                    + Formatos.moeda(p.precoVenda()) + ")"
+                    : Formatos.moeda(p.precoVenda()) + " / " + unidade);
+            if (lida != null && lida.ehEmbalagem()) {
+                s.append("\nCódigo lido: embalagem com ").append(qtd(lida.quantidade())).append(' ')
+                        .append(unidade.toLowerCase());
+            }
+            for (FaixaPreco f : faixas) {
+                s.append("\nA partir de ").append(qtd(f.quantidadeMinima())).append(' ').append(unidade.toLowerCase())
+                        .append(": ").append(Formatos.moeda(f.preco())).append(" / ").append(unidade);
+                if (f.preco().compareTo(preco.valor()) >= 0) {
+                    s.append(" (não vale: a promoção é menor)");
+                }
+            }
+            for (CodigoBarras c : embalagens) {
+                BigDecimal unidades = Dinheiro.multiplicar(c.quantidade(), preco.valor());
+                s.append("\nEmbalagem com ").append(qtd(c.quantidade())).append(' ').append(unidade.toLowerCase())
+                        .append(" (").append(c.codigo()).append("): ");
+                if (unidades.compareTo(c.precoEmbalagem()) < 0) {
+                    s.append(Formatos.moeda(unidades)).append(" pelas unidades (preço da embalagem ")
+                            .append(Formatos.moeda(c.precoEmbalagem())).append(")");
+                } else {
+                    s.append(Formatos.moeda(c.precoEmbalagem()));
+                }
+            }
+            s.append("\nEstoque: ").append(Formatos.quantidade(p.saldo(), p.fracionada())).append(' ').append(unidade);
+            if (!p.ativo()) {
+                s.append("\nProduto inativo: não pode ser vendido.");
+            }
+            return s.toString();
+        }
+
+        private static String qtd(BigDecimal q) {
+            return q.stripTrailingZeros().toPlainString().replace('.', ',');
+        }
     }
 
     /**
@@ -170,10 +221,12 @@ public class VendaService {
 
     /** Consulta de preço (F7): mostra o produto, mesmo inativo, e o preço de hoje (com promoção), sem vender. */
     public ConsultaPreco consultarPreco(Sessao sessao, String codigo) {
-        ProdutoVenda produto = buscarPorCodigo(sessao, codigo).produto();
-        PrecoService.Preco preco = transacao.executar(
-                con -> precoService.precoVigente(con, produto, LocalDate.now(clock)));
-        return new ConsultaPreco(produto, preco);
+        LeituraProduto leitura = buscarPorCodigo(sessao, codigo);
+        ProdutoVenda produto = leitura.produto();
+        return transacao.executar(con -> new ConsultaPreco(produto,
+                precoService.precoVigente(con, produto, LocalDate.now(clock)), precoService.faixas(con, produto.id()),
+                produtoDAO.listarCodigos(con, produto.id()).stream().filter(c -> c.precoEmbalagem() != null).toList(),
+                leitura.embalagem()));
     }
 
     /** Busca por nome (F2): só produtos ativos; só dígitos procura código interno ou código de barras exato. */
@@ -611,7 +664,8 @@ public class VendaService {
                         item.desconto(), rateado, liquido, custo, Dinheiro.multiplicar(item.quantidade(), custo),
                         item.promocaoId(), item.cancelado(), c == null ? null : c.em(),
                         c == null ? null : c.porUsuarioId(), c == null ? null : c.liberadoPorUsuarioId(),
-                        item.faixa() == null ? null : item.faixa().id()));
+                        item.faixa() == null ? null : item.faixa().id(),
+                        item.faixa() == null ? null : item.faixa().quantidadeMinima()));
                 if (!item.cancelado()) {
                     movimentar.add(new Vendido(item, itemId));
                 }

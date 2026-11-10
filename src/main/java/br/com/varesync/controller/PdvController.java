@@ -324,17 +324,8 @@ public class PdvController {
     }
 
     private void consultarPreco() {
-        DialogosPdv.consultarPreco(codigo -> {
-            VendaService.ConsultaPreco consulta = vendaService.consultarPreco(sessao, codigo);
-            ProdutoVenda p = consulta.produto();
-            String preco = consulta.preco().promocional()
-                    ? Formatos.moeda(consulta.preco().valor()) + " / " + p.unidade() + " (promoção; preço normal "
-                    + Formatos.moeda(p.precoVenda()) + ")"
-                    : Formatos.moeda(p.precoVenda()) + " / " + p.unidade();
-            return p.nome() + "\n" + preco + "\nEstoque: "
-                    + Formatos.quantidade(p.saldo(), p.fracionada()) + " " + p.unidade()
-                    + (p.ativo() ? "" : "\nProduto inativo: não pode ser vendido.");
-        });
+        // F20.3: o texto traz também as faixas de preço por quantidade e as embalagens com preço próprio.
+        DialogosPdv.consultarPreco(codigo -> vendaService.consultarPreco(sessao, codigo).texto());
     }
 
     /** Marca o item vendido pelo preço de uma promoção (6.8) ou de uma faixa de atacado (F20.2). */

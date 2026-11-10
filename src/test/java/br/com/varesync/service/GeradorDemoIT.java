@@ -334,6 +334,35 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(t.auditoria(AcaoAuditoria.DEVOLUCAO_REGISTRADA)).hasSize((int) devolucoes);
     }
 
+    /**
+     * F20.3: o fardo de 6 do refrigerante cola com preço próprio e as faixas de mercearia, com vendas que usam os dois;
+     * nenhuma etiqueta fica pendente só por causa das faixas (impressas na véspera, depois do cadastro).
+     */
+    @Test
+    void embalagensEAtacadoDaFase20() throws Exception {
+        assertThat(contar("SELECT count(*) FROM produto_codigo_barras WHERE quantidade = 6 AND preco_embalagem = 49.90 "
+                + "AND codigo = '" + AtacadoDemo.CODIGO_FARDO + "'")).isEqualTo(1);
+        assertThat(contar("SELECT count(*) FROM produto_preco_quantidade")).isEqualTo(4);
+        assertThat(contar("SELECT count(DISTINCT produto_id) FROM produto_preco_quantidade ppq "
+                + "JOIN produto p ON p.id = ppq.produto_id JOIN categoria c ON c.id = p.categoria_id "
+                + "WHERE c.nome = 'Mercearia'")).as("faixas em mercearia").isEqualTo(3);
+        long fardos = contar("""
+                SELECT count(*) FROM venda_item vi JOIN venda v ON v.id = vi.venda_id
+                 WHERE v.status = 'FINALIZADA' AND NOT vi.cancelado AND vi.quantidade = 6 AND vi.valor_bruto = 49.90
+                   AND vi.produto_id = (SELECT produto_id FROM produto_codigo_barras WHERE codigo = ?)
+                """.replace("?", "'" + AtacadoDemo.CODIGO_FARDO + "'"));
+        assertThat(fardos).as("vendas com o fardo pelo preço dele").isGreaterThan(20);
+        long atacado = contar("SELECT count(*) FROM venda_item WHERE preco_quantidade_id IS NOT NULL "
+                + "AND atacado_a_partir_de IS NOT NULL AND NOT cancelado");
+        assertThat(atacado).as("itens vendidos no preço de atacado").isGreaterThan(20);
+        assertThat(contar("SELECT count(*) FROM venda_item WHERE preco_quantidade_id IS NOT NULL "
+                + "AND atacado_a_partir_de IS NULL")).isZero();
+        assertThat(contar("""
+                SELECT count(*) FROM venda_item vi JOIN produto_preco_quantidade ppq ON ppq.id = vi.preco_quantidade_id
+                 WHERE vi.preco_unitario <> ppq.preco OR vi.atacado_a_partir_de <> ppq.quantidade_minima
+                """)).as("o item no preço da faixa e com a quantidade dela").isZero();
+    }
+
     @Test
     void crediarioDaFase14() throws Exception {
         assertThat(contar("SELECT count(*) FROM cliente WHERE limite_credito > 0")).isEqualTo(30);

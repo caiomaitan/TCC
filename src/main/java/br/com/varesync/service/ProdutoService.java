@@ -10,6 +10,7 @@ import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.ConteudoLiquido;
 import br.com.varesync.model.DadosProduto;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.OrigemMovimento;
 import br.com.varesync.model.Permissao;
@@ -120,6 +121,7 @@ public class ProdutoService {
                 avisos.add(AVISO_ABAIXO_DO_CUSTO);
             }
         }
+        avisos.addAll(avisosAbaixoDoCusto(dados));
         String nome = Textos.normalizarEspacos(dados.nome());
         if (!nome.isEmpty()) {
             List<ProdutoDAO.Dono> mesmoNome = transacao.executar(
@@ -130,6 +132,67 @@ public class ProdutoService {
             }
         }
         return avisos;
+    }
+
+    /**
+     * F20.3: embalagem com preço próprio abaixo do custo das unidades dela e faixa de preço abaixo do custo pedem
+     * confirmação, como o preço normal.
+     */
+    static List<String> avisosAbaixoDoCusto(DadosProduto dados) {
+        List<String> avisos = new ArrayList<>();
+        BigDecimal custo = dados.custo();
+        if (custo == null || custo.signum() < 0) {
+            return avisos;
+        }
+        for (CodigoBarras c : dados.codigosBarras()) {
+            if (c.precoEmbalagem() != null && c.quantidade() != null && c.quantidade().signum() > 0) {
+                BigDecimal custoEmbalagem = Dinheiro.multiplicar(c.quantidade(), custo);
+                if (c.precoEmbalagem().compareTo(custoEmbalagem) < 0) {
+                    avisos.add("O preço da embalagem do código " + c.codigo() + " (" + Formatos.moeda(c.precoEmbalagem())
+                            + " por " + quantidade(c.quantidade()) + ") está abaixo do custo dessas unidades ("
+                            + Formatos.moeda(custoEmbalagem) + "): cada venda dará prejuízo.");
+                }
+            }
+        }
+        if (dados.faixas() != null) {
+            for (FaixaPreco f : dados.faixas()) {
+                if (f.preco() != null && f.quantidadeMinima() != null && f.preco().compareTo(custo) < 0) {
+                    avisos.add("O preço da faixa a partir de " + quantidade(f.quantidadeMinima()) + " ("
+                            + Formatos.moeda(f.preco()) + ") está abaixo do custo: cada venda nessa faixa dará "
+                            + "prejuízo.");
+                }
+            }
+        }
+        return avisos;
+    }
+
+    /** Faixas de preço por quantidade do produto (F20.3), da menor quantidade para a maior. */
+    public List<FaixaPreco> faixas(Sessao sessao, long id) {
+        sessao.exigir(Permissao.PRODUTOS);
+        return transacao.executar(con -> produtoDAO.faixasDePreco(con, id));
+    }
+
+    /**
+     * Confere a embalagem de um código na tela (F20.3), antes de salvar o produto: quantidade maior que zero (inteira
+     * se a unidade não é fracionada) e preço opcional maior que zero, só para mais de uma unidade.
+     */
+    public static CodigoBarras conferirEmbalagem(CodigoBarras codigo, BigDecimal quantidade, BigDecimal preco,
+                                                 boolean fracionada) {
+        var embalagem = ValidacaoProduto.embalagem(codigo.codigo(), quantidade, preco, fracionada);
+        if (codigo.principal() && embalagem.ehEmbalagem()) {
+            throw new NegocioException("O código principal é o da unidade (quantidade 1, sem preço de embalagem). "
+                    + "Para cadastrar uma caixa ou um fardo, use outro código de barras.");
+        }
+        return codigo.comEmbalagem(embalagem.quantidade(), embalagem.preco());
+    }
+
+    /**
+     * Confere uma faixa na tela (F20.3), antes de salvar o produto: a partir de mais de 1 (inteira se a unidade não
+     * é fracionada) e preço maior que zero. As regras entre faixas e com o preço normal valem ao salvar.
+     */
+    public static FaixaPreco conferirFaixa(long id, BigDecimal quantidade, BigDecimal preco, boolean fracionada) {
+        BigDecimal qtd = ValidacaoProduto.faixaQuantidade(quantidade, fracionada);
+        return new FaixaPreco(id, qtd, ValidacaoProduto.faixaPreco(preco, qtd, fracionada));
     }
 
     /**
@@ -171,13 +234,18 @@ public class ProdutoService {
         String categoriaNome = conferirCategoria(con, v.categoriaId, null);
         conferirPlu(con, v.plu, unidade, false);
         conferirPluLivre(con, v.plu, null);
-        conferirCodigosLivres(con, v.codigos, null);
+        List<CodigoBarras> codigos = ValidacaoProduto.codigos(v.codigos, unidade.fracionada());
+        conferirCodigosLivres(con, codigos, null);
+        List<FaixaPreco> faixas = ValidacaoProduto.faixas(dados.faixas() == null ? List.of() : dados.faixas(),
+                v.preco, unidade.fracionada());
 
         ConteudoLiquido conteudo = v.conteudo == null ? ConteudoLiquido.SEM : v.conteudo;
         Integer validade = validadeBalanca(v.plu, v.validadeBalanca, null);
         long id = produtoDAO.inserir(con, gravacao(v, minimo, conteudo, validade), sessao.usuarioId(),
                 OffsetDateTime.now(clock));
-        produtoDAO.definirCodigos(con, id, v.codigos);
+        produtoDAO.definirCodigos(con, id, codigos);
+        produtoDAO.definirFaixas(con, id, faixas.stream().map(f -> new FaixaPreco(0, f.quantidadeMinima(),
+                f.preco())).toList());
         if (controla) {
             // F17: ligado antes do estoque inicial, que vai para o lote escolhido ou para o "SEM LOTE".
             estoqueService.definirControle(con, sessao, id, true);
@@ -208,6 +276,14 @@ public class ProdutoService {
         if (validade != null) {
             descricao.append(", validade na balança ").append(dias(validade));
         }
+        List<String> embalagens = codigos.stream().filter(CodigoBarras::ehEmbalagem)
+                .map(ProdutoService::descreverEmbalagem).toList();
+        if (!embalagens.isEmpty()) {
+            descricao.append(", embalagens ").append(String.join(", ", embalagens));
+        }
+        if (!faixas.isEmpty()) {
+            descricao.append(", preço por quantidade ").append(descreverFaixas(faixas));
+        }
         auditoria.registrar(con, sessao, AcaoAuditoria.PRODUTO_CRIADO, AuditoriaService.ENTIDADE_PRODUTO, id,
                 descricao.toString());
         return id;
@@ -232,15 +308,29 @@ public class ProdutoService {
             String categoriaNome = conferirCategoria(con, v.categoriaId, atual.categoriaId());
             conferirPlu(con, v.plu, unidade, Objects.equals(v.plu, atual.plu()));
             conferirPluLivre(con, v.plu, id);
-            conferirCodigosLivres(con, v.codigos, id);
+            List<CodigoBarras> codigos = ValidacaoProduto.codigos(v.codigos, unidade.fracionada());
+            conferirCodigosLivres(con, codigos, id);
+            // F20.3: as faixas que ficam (as informadas ou, sem elas, as gravadas) valem com o preço e a unidade novos.
+            List<FaixaPreco> faixasAntes = produtoDAO.faixasDePreco(con, id);
+            List<FaixaPreco> faixas = ValidacaoProduto.faixas(dados.faixas() == null ? faixasAntes : dados.faixas(),
+                    v.preco, unidade.fracionada());
 
             ConteudoLiquido conteudo = v.conteudo == null ? atual.conteudo() : v.conteudo;
             Integer validade = validadeBalanca(v.plu, v.validadeBalanca, atual.validadeBalancaDias());
             produtoDAO.alterar(con, id, gravacao(v, minimo, conteudo, validade), sessao.usuarioId(),
                     OffsetDateTime.now(clock));
-            produtoDAO.definirCodigos(con, id, v.codigos);
+            produtoDAO.definirCodigos(con, id, codigos);
+            if (dados.faixas() != null) {
+                produtoDAO.definirFaixas(con, id, faixas);
+            }
 
             List<String> mudancas = mudancas(atual, v, minimo, unidade, categoriaNome);
+            mudancas.addAll(mudancasDeEmbalagem(atual.codigosBarras(), codigos));
+            String faixasDepois = descreverFaixas(faixas);
+            if (!descreverFaixas(faixasAntes).equals(faixasDepois)) {
+                mudancas.add("preço por quantidade alterado de " + descreverFaixas(faixasAntes) + " para "
+                        + faixasDepois);
+            }
             if (!atual.conteudo().igual(conteudo)) {
                 mudancas.add("conteúdo líquido alterado de " + semConteudo(atual.conteudo()) + " para "
                         + semConteudo(conteudo));
@@ -337,7 +427,8 @@ public class ProdutoService {
         BigDecimal preco = ValidacaoProduto.preco(dados.precoVenda());
         BigDecimal custo = ValidacaoProduto.custo(dados.custo());
         BigDecimal minimo = dados.estoqueMinimo() == null ? BigDecimal.ZERO : dados.estoqueMinimo();
-        List<CodigoBarras> codigos = ValidacaoProduto.codigos(dados.codigosBarras());
+        // A unidade (inteira ou fracionada) só é conhecida no banco: a quantidade das embalagens é conferida de novo.
+        List<CodigoBarras> codigos = ValidacaoProduto.codigos(dados.codigosBarras(), true);
         return new Validado(nome, dados.categoriaId(), dados.unidade().strip(), preco, custo, minimo, dados.plu(),
                 codigos, ValidacaoProduto.conteudo(dados.conteudo()),
                 ValidacaoProduto.validadeBalanca(dados.validadeBalancaDias()));
@@ -475,6 +566,44 @@ public class ProdutoService {
             mudancas.add("código de barras principal: " + principalDepois);
         }
         return mudancas;
+    }
+
+    /** Embalagem que mudou num código que continua (F20.3); os códigos incluídos e removidos já aparecem. */
+    private static List<String> mudancasDeEmbalagem(List<CodigoBarras> antes, List<CodigoBarras> depois) {
+        List<String> mudancas = new ArrayList<>();
+        for (CodigoBarras novo : depois) {
+            antes.stream().filter(c -> c.codigo().equals(novo.codigo())).findFirst().ifPresent(velho -> {
+                String a = descreverEmbalagem(velho);
+                String d = descreverEmbalagem(novo);
+                if (!a.equals(d)) {
+                    mudancas.add("embalagem alterada de " + a + " para " + d);
+                }
+            });
+            if (novo.ehEmbalagem() && antes.stream().noneMatch(c -> c.codigo().equals(novo.codigo()))) {
+                mudancas.add("embalagem " + descreverEmbalagem(novo));
+            }
+        }
+        return mudancas;
+    }
+
+    /** "7891000315514: 12 un a R$ 59,90"; "7891000315514: 1 un" no código da unidade. */
+    static String descreverEmbalagem(CodigoBarras c) {
+        return c.codigo() + ": " + quantidade(c.quantidade())
+                + (c.precoEmbalagem() == null ? "" : " a " + Formatos.moeda(c.precoEmbalagem()));
+    }
+
+    /** "a partir de 6: R$ 4,99; a partir de 12: R$ 4,79", ou "(sem faixas)". */
+    static String descreverFaixas(List<FaixaPreco> faixas) {
+        if (faixas.isEmpty()) {
+            return "(sem faixas)";
+        }
+        return faixas.stream().map(f -> "a partir de " + quantidade(f.quantidadeMinima()) + ": "
+                + Formatos.moeda(f.preco())).collect(Collectors.joining("; "));
+    }
+
+    /** Quantidade sem casas quando inteira (12), com as casas que tem quando fracionada (0,5). */
+    private static String quantidade(BigDecimal q) {
+        return Formatos.quantidade(q, ValidacaoProduto.casas(q) > 0);
     }
 
     private static Set<String> codigos(List<CodigoBarras> codigos) {

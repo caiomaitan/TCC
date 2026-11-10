@@ -18,14 +18,26 @@ import java.util.List;
  *                          {@link ConteudoLiquido#SEM} = sem conteúdo líquido
  * @param validadeBalancaDias F18.2: dias de validade impressos pela balança, só no pesável com PLU; nulo = não muda
  *                          (no cadastro novo, sem); 0 = sem validade
+ * @param faixas            F20.3: faixas de preço por quantidade (id 0 = faixa nova); nulo = não muda (no cadastro
+ *                          novo, sem faixas)
  */
 public record DadosProduto(String nome, Long categoriaId, String unidade, BigDecimal precoVenda, BigDecimal custo,
                            BigDecimal estoqueMinimo, Integer plu, List<CodigoBarras> codigosBarras,
                            BigDecimal estoqueInicial, Boolean controlaValidade, ParteLote loteInicial,
-                           ConteudoLiquido conteudo, Integer validadeBalancaDias) {
+                           ConteudoLiquido conteudo, Integer validadeBalancaDias, List<FaixaPreco> faixas) {
 
     public DadosProduto {
         codigosBarras = codigosBarras == null ? List.of() : List.copyOf(codigosBarras);
+        faixas = faixas == null ? null : List.copyOf(faixas);
+    }
+
+    /** Sem mexer nas faixas de preço por quantidade. */
+    public DadosProduto(String nome, Long categoriaId, String unidade, BigDecimal precoVenda, BigDecimal custo,
+                        BigDecimal estoqueMinimo, Integer plu, List<CodigoBarras> codigosBarras,
+                        BigDecimal estoqueInicial, Boolean controlaValidade, ParteLote loteInicial,
+                        ConteudoLiquido conteudo, Integer validadeBalancaDias) {
+        this(nome, categoriaId, unidade, precoVenda, custo, estoqueMinimo, plu, codigosBarras, estoqueInicial,
+                controlaValidade, loteInicial, conteudo, validadeBalancaDias, null);
     }
 
     /** Sem mexer na validade da balança. */

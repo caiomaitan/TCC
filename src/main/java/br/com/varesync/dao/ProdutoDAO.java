@@ -298,10 +298,10 @@ public class ProdutoDAO {
         }
     }
 
-    /** Principal primeiro, depois na ordem de cadastro. */
+    /** Principal primeiro, depois na ordem de cadastro; com a quantidade e o preço da embalagem (F20.1). */
     public List<CodigoBarras> listarCodigos(Connection con, long produtoId) throws SQLException {
         String sql = """
-                SELECT codigo, principal
+                SELECT codigo, principal, quantidade, preco_embalagem
                   FROM produto_codigo_barras
                  WHERE produto_id = ?
                  ORDER BY principal DESC, id
@@ -311,33 +311,16 @@ public class ProdutoDAO {
             ps.setLong(1, produtoId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    codigos.add(new CodigoBarras(rs.getString("codigo"), rs.getBoolean("principal")));
+                    codigos.add(new CodigoBarras(rs.getString("codigo"), rs.getBoolean("principal"),
+                            rs.getBigDecimal("quantidade"), rs.getBigDecimal("preco_embalagem")));
                 }
             }
         }
         return codigos;
     }
 
-    /**
-     * Substitui os códigos de barras do produto. O código que continua mantém a quantidade e o preço da embalagem
-     * (F20.1), que o cadastro ainda não edita.
-     */
+    /** Substitui os códigos de barras do produto, com a quantidade e o preço da embalagem de cada um (F20.3). */
     public void definirCodigos(Connection con, long produtoId, List<CodigoBarras> codigos) throws SQLException {
-        Map<String, Embalagem> embalagens = new HashMap<>();
-        String atuais = """
-                SELECT codigo, quantidade, preco_embalagem
-                  FROM produto_codigo_barras
-                 WHERE produto_id = ?
-                """;
-        try (PreparedStatement ps = con.prepareStatement(atuais)) {
-            ps.setLong(1, produtoId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    embalagens.put(rs.getString("codigo"), new Embalagem(rs.getBigDecimal("quantidade"),
-                            rs.getBigDecimal("preco_embalagem")));
-                }
-            }
-        }
         try (PreparedStatement ps = con.prepareStatement("DELETE FROM produto_codigo_barras WHERE produto_id = ?")) {
             ps.setLong(1, produtoId);
             ps.executeUpdate();
@@ -351,15 +334,78 @@ public class ProdutoDAO {
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             for (CodigoBarras codigo : codigos) {
-                Embalagem embalagem = embalagens.getOrDefault(codigo.codigo(), Embalagem.UNIDADE);
                 ps.setLong(1, produtoId);
                 ps.setString(2, codigo.codigo());
                 ps.setBoolean(3, codigo.principal());
-                ps.setBigDecimal(4, embalagem.quantidade());
-                ps.setBigDecimal(5, embalagem.preco());
+                ps.setBigDecimal(4, codigo.quantidade());
+                ps.setBigDecimal(5, codigo.precoEmbalagem());
                 ps.addBatch();
             }
             ps.executeBatch();
+        }
+    }
+
+    /**
+     * Grava as faixas de preço por quantidade do produto <b>no lugar</b> (F20.3): a faixa com id é alterada, a sem id
+     * (0) é incluída e a que não veio é apagada. Assim o item vendido continua ligado à faixa que mudou de preço ou de
+     * quantidade. A lista já vem validada (quantidades sem repetição); para trocar duas quantidades entre si sem
+     * esbarrar no {@code uq_ppq_quantidade}, as que mudam de quantidade passam antes por um valor provisório.
+     */
+    public void definirFaixas(Connection con, long produtoId, List<FaixaPreco> faixas) throws SQLException {
+        Map<Long, FaixaPreco> atuais = new HashMap<>();
+        for (FaixaPreco f : faixasDePreco(con, produtoId)) {
+            atuais.put(f.id(), f);
+        }
+        java.util.Set<Long> mantidas = new java.util.HashSet<>();
+        for (FaixaPreco f : faixas) {
+            if (f.id() != 0) {
+                if (!atuais.containsKey(f.id())) {
+                    throw new IllegalArgumentException("Faixa " + f.id() + " não é do produto " + produtoId);
+                }
+                mantidas.add(f.id());
+            }
+        }
+        try (PreparedStatement ps = con.prepareStatement(
+                "DELETE FROM produto_preco_quantidade WHERE produto_id = ? AND id = ?")) {
+            for (long id : atuais.keySet()) {
+                if (!mantidas.contains(id)) {
+                    ps.setLong(1, produtoId);
+                    ps.setLong(2, id);
+                    ps.executeUpdate();
+                }
+            }
+        }
+        String atualizar = "UPDATE produto_preco_quantidade SET quantidade_minima = ?, preco = ? WHERE id = ?";
+        try (PreparedStatement ps = con.prepareStatement(atualizar)) {
+            BigDecimal provisoria = new BigDecimal("99999999999.999");
+            for (FaixaPreco f : faixas) {
+                if (f.id() != 0 && atuais.get(f.id()).quantidadeMinima().compareTo(f.quantidadeMinima()) != 0) {
+                    ps.setBigDecimal(1, provisoria);
+                    ps.setBigDecimal(2, atuais.get(f.id()).preco());
+                    ps.setLong(3, f.id());
+                    ps.executeUpdate();
+                    provisoria = provisoria.subtract(BigDecimal.ONE);
+                }
+            }
+            for (FaixaPreco f : faixas) {
+                if (f.id() != 0) {
+                    ps.setBigDecimal(1, f.quantidadeMinima());
+                    ps.setBigDecimal(2, f.preco());
+                    ps.setLong(3, f.id());
+                    ps.executeUpdate();
+                }
+            }
+        }
+        String incluir = "INSERT INTO produto_preco_quantidade (produto_id, quantidade_minima, preco) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = con.prepareStatement(incluir)) {
+            for (FaixaPreco f : faixas) {
+                if (f.id() == 0) {
+                    ps.setLong(1, produtoId);
+                    ps.setBigDecimal(2, f.quantidadeMinima());
+                    ps.setBigDecimal(3, f.preco());
+                    ps.executeUpdate();
+                }
+            }
         }
     }
 

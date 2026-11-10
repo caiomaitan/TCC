@@ -826,3 +826,29 @@ A NF-e é a de teste `src/test/resources/nfe/nfe-embalagem.xml` (5 CX pelo EAN d
 | CT-F20-07 | Supervisor | 1. Compras › Importar XML da NF-e… (`nfe-embalagem.xml`) | 1. Item "5 CX × 12 = 60", produto Refrigerante cola 2 L, vínculo "Cód. embalagem" | OK pela tela (captura `09`) |
 | CT-F20-08 | CT-F20-07 | 1. Gerar entrada | 1. Entrada aberta com 60 UN a R$ 3,2500 (R$ 39,00 ÷ 12), R$ 195,00 | OK pela tela (captura `10`) |
 | CT-F20-09 | Produto com a caixa de 12 | 1. Produtos › abrir o refrigerante › mudar o preço › Salvar | 1. A caixa continua com 12 un e R$ 59,90 (conferir no banco ou lendo a caixa no PDV) | Automático (`EmbalagemAtacadoIT.salvarOProdutoNoCadastroMantemAsEmbalagens`) |
+
+### Fase 20, parte B — cadastro, F7, etiqueta, segunda via, entrada manual e inventário (F20.3)
+
+Pela tela em 2026-11-09, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test`); os números são as capturas. Supervisor; caixa aberto; balança ativa (prefixo 2, 5 dígitos, PRECO).
+Refrigerante cola 2 L a R$ 5,49 (custo R$ 3,20, estoque 100) com o código da unidade 7891000315507 e o da caixa
+17891000315504, **sem** embalagem nem faixa (a tela grava as duas); promoção de R$ 5,99 no refrigerante e de R$ 42,90
+no Queijo muçarela (KG, R$ 39,90, PLU 123), as duas **acima** do preço normal; uma entrada aberta e um inventário
+"Bebidas" com o refrigerante. Para os dados de demonstração da versão nova, use o banco `varesync_amostra`
+(COMO_CONTINUAR.md), nunca o `varesync_demo`.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F20-10 | Acima | 1. Produtos › abrir o refrigerante 2. Selecionar 17891000315504 › Embalagem… 3. Qtd. 12, preço 59,90 › OK | 3. Na lista: "17891000315504 · 12 · R$ 59,90"; o principal com 1 e "—" | OK pela tela (capturas `01` e `02`) |
+| CT-F20-11 | CT-F20-10 | 1. Aba Preço por quantidade › Incluir… 2. A partir de 6, preço 4,99 › OK 3. Salvar | 2. "6 un · R$ 4,99 · 9,11% · margem" 3. "Produto salvo."; no banco, a caixa com 12 e R$ 59,90 e a faixa de 6 | OK pela tela (capturas `03` e `04`; no banco, a caixa e a faixa) |
+| CT-F20-12 | CT-F20-11 | 1. Incluir… a partir de 12 a 5,09 › OK › Salvar 2. Alterar… a de 12 para 3,10 › OK › Salvar › Não 3. Remover a de 12 › Salvar | 1. "…deve ser menor que o da faixa a partir de 6 (R$ 4,99)."; nada gravado 2. Confirmação "…abaixo do custo…"; "Não" não grava 3. "Produto salvo." com uma faixa | OK pela tela (capturas `05` e `06`) |
+| CT-F20-13 | CT-F20-11 | 1. Selecionar a caixa › Marcar principal | 1. "O código principal é o da unidade…"; o principal continua 7891000315507 | OK pela tela (mensagem conferida) |
+| CT-F20-14 | CT-F20-11 | 1. Produtos › Etiquetas… (pendentes) | 1. Refrigerante "R$ 5,49 · A partir de 6 un: R$ 4,99", sem "DE" (a promoção de R$ 5,99 não vale), "nunca" | OK pela tela (captura `07`) |
+| CT-F20-15 | CT-F20-14 | 1. Gerar PDF… (posição 1) 2. Abrir o PDF | 2. A etiqueta com R$ 5,49 e a linha "A partir de 6 un: R$ 4,99"; a impressão grava a faixa | OK pela tela (PDF `08_etiquetas.pdf` desenhado; no banco, a impressão com a faixa) |
+| CT-F20-16 | CT-F20-15 | 1. Mudar o preço da faixa para 4,89 no cadastro › Salvar 2. Etiquetas… › Carregar | 2. O refrigerante volta às pendentes com "A partir de 6 un: R$ 4,89" | OK pela tela (captura `09`) |
+| CT-F20-17 | Acima | 1. Produtos › Carga de balança… | 1. Queijo muçarela com R$ 39,90 (a promoção de R$ 42,90 não vale) | OK pela tela (captura `10`) |
+| CT-F20-18 | CT-F20-16 | 1. PDV › F7 › ler 17891000315504 | 1. "R$ 5,49 / UN" sem promoção; "Código lido: embalagem com 12 un"; "A partir de 6 un: R$ 4,89 / UN"; "Embalagem com 12 un (17891000315504): R$ 59,90" | OK pela tela (captura `11`) |
+| CT-F20-19 | CT-F20-18 | 1. Ler 6*7891000315507 › F10 › dinheiro › finalizar › Ver comprovante 2. Mudar a faixa para "a partir de 10" › F9 › Comprovante 3. Apagar a faixa › F9 › Comprovante | 1. Total R$ 29,34; "Preço de atacado (a partir de 6 un)" 2 e 3. A segunda via continua com "a partir de 6 un" | OK pela tela (capturas `12` a `14`) |
+| CT-F20-20 | Entrada aberta | 1. Compras › a entrada › ler 17891000315504 2. Quantidade 5, custo 39,00 3. Incluir | 1. "…embalagem com 12 UN: quantidade em embalagens e custo por embalagem" 2. "5 embalagens × 12 = 60 UN a R$ 3,2500 (R$ 195,00)" 3. Item de 60 UN a R$ 3,2500, R$ 195,00 | OK pela tela (capturas `15` e `16`) |
+| CT-F20-21 | Inventário "Bebidas" | 1. Inventário › Contagem › ler 17891000315504 | 1. Posiciona no refrigerante e avisa "…embalagem com 12 UN: a contagem é em unidades (UN)… (a embalagem tem 12)." | OK pela tela (captura `17`) |
+| CT-F20-22 | Dados de demonstração no `varesync_amostra` | 1. Relatórios › R01 e R05 dos 60 dias 2. PDV › F7 › ler o fardo do refrigerante cola (7896543900012) | 1. Receita e lucro iguais 2. "Embalagem com 6 un…: R$ 49,90" | Automático (`GeradorDemoIT.embalagensEAtacadoDaFase20`, `r01Er05BatemEVendaCanceladaFicaDeFora`) |

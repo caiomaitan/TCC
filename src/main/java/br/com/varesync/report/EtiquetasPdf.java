@@ -38,7 +38,8 @@ import net.sf.jasperreports.engine.data.JRMapCollectionDataSource;
  * começando na posição escolhida da primeira folha (para aproveitar uma folha já usada). Cada etiqueta tem o nome, o
  * preço em destaque, a unidade, a data da impressão, o "DE R$ X POR" e o "Oferta válida até" na promoção, o preço por
  * kg ou litro do produto com conteúdo líquido e o código de barras desenhado pelo ZXing (EAN-13, EAN-8 ou UPC-A);
- * sem um desses, o código interno; no pesável, o PLU.
+ * sem um desses, o código interno; no pesável, o PLU. Com a F20.3, a linha "A partir de N un: R$ Z" da faixa de
+ * atacado.
  *
  * <p>O layout é um JRXML gerado aqui (formato do JasperReports 7, como o {@link RelatorioPdf}), desenhado para uma
  * etiqueta de 185 × 100 pontos (3 × 8 na folha) e escalado para o tamanho de cada célula.
@@ -111,10 +112,20 @@ public class EtiquetasPdf {
         c.put("preco", Formatos.moeda(e.preco()));
         c.put("unidade", unidade(e));
         c.put("promo", e.promocional() ? "DE " + Formatos.moeda(e.precoDe()) + " POR" : null);
-        c.put("oferta", e.promocional() ? "Oferta válida até " + Formatos.data(e.fimPromocao()) : null);
+        String oferta = e.promocional() ? "Oferta válida até " + Formatos.data(e.fimPromocao()) : null;
+        String atacado = e.temAtacado() ? e.textoAtacado() : null;
         BigDecimal porMedida = e.precoPorMedida();
-        c.put("medida", porMedida == null ? null
-                : e.conteudo().descricao() + " · " + Formatos.moeda(porMedida) + " o " + e.conteudo().unidade().medida());
+        String medida = porMedida == null ? null
+                : e.conteudo().descricao() + " · " + Formatos.moeda(porMedida) + " o " + e.conteudo().unidade().medida();
+        // Duas linhas abaixo do preço (F20.3): a de cima (normal) e a de baixo (negrito). A linha de atacado vai para
+        // a de baixo, junto com a oferta; sem o preço por medida, e com as duas, a de atacado sobe.
+        if (medida == null && atacado != null && oferta != null) {
+            medida = atacado;
+        } else if (atacado != null) {
+            oferta = oferta == null ? atacado : atacado + " · " + oferta;
+        }
+        c.put("oferta", oferta);
+        c.put("medida", medida);
         if (e.codigoBarras() != null) {
             c.put("barras", imagens.computeIfAbsent(e.codigoBarras(), EtiquetasPdf::png));
             c.put("legenda", e.codigoBarras());
@@ -214,7 +225,7 @@ public class EtiquetasPdf {
         texto(s, e, 5, 35, 132, 26, 20, true, "Left", "preco", true);
         texto(s, e, 137, 46, 43, 12, 8, false, "Right", "unidade", true);
         texto(s, e, 5, 60, 175, 9, 6.5, false, "Left", "medida", true);
-        texto(s, e, 5, 68, 175, 9, 6.5, true, "Left", "oferta", false);
+        texto(s, e, 5, 68, 175, 9, 6.5, true, "Left", "oferta", true);
         s.append("            <element kind=\"image\" x=\"").append(e.x(5)).append("\" y=\"").append(e.y(77))
                 .append("\" width=\"").append(e.x(100)).append("\" height=\"").append(e.y(15))
                 .append("\" scaleImage=\"FillFrame\">\n")

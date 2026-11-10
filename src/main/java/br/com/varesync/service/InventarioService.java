@@ -196,6 +196,28 @@ public class InventarioService {
         });
     }
 
+    /** Leitura na contagem (F20.3): o item e, se o código lido é de uma embalagem, o aviso; senão, aviso nulo. */
+    public record LeituraContagem(ItemContagem item, String aviso) {
+    }
+
+    /**
+     * Como {@link #localizar}, e o código de uma embalagem (caixa, fardo) avisa que a contagem é em unidades (F20.3):
+     * a leitura só posiciona no produto.
+     */
+    public LeituraContagem localizarLeitura(Sessao sessao, long inventarioId, String codigo) {
+        ItemContagem item = localizar(sessao, inventarioId, codigo);
+        String digitos = Textos.normalizarEspacos(codigo);
+        BigDecimal embalagem = transacao.executar(con -> produtoDAO.embalagemDoCodigo(con, digitos))
+                .map(br.com.varesync.model.Embalagem::quantidade).orElse(BigDecimal.ONE);
+        if (embalagem.compareTo(BigDecimal.ONE) == 0) {
+            return new LeituraContagem(item, null);
+        }
+        String n = embalagem.stripTrailingZeros().toPlainString().replace('.', ',');
+        return new LeituraContagem(item, "O código lido é de uma embalagem com " + n + " " + item.unidade()
+                + ": a contagem é em unidades (" + item.unidade() + "). Conte as unidades soltas e as das embalagens "
+                + "(a embalagem tem " + n + ").");
+    }
+
     /**
      * Grava a contagem: quantidade contada, estoque do sistema naquele momento (lido com o saldo travado), custo
      * atual, quem e quando. A recontagem sobrescreve os cinco campos.

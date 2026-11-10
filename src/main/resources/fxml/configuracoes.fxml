@@ -239,7 +239,7 @@
                     <Button text="Exemplo DPL (Datamax e Allegro)" onAction="#exemploDpl"/>
                 </HBox>
                 <TextArea fx:id="campoModeloTermica" prefRowCount="11" VBox.vgrow="ALWAYS" styleClass="texto-modelo"/>
-                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Variáveis: {NOME} (ou {NOME:30}, cortado em 30 caracteres), {PRECO}, {PRECO_DE} (preço normal, só na promoção), {UNIDADE}, {CODBARRAS}, {PLU}, {CODIGO} e {VALIDADE} (fim da promoção). Os preços saem sem &quot;R$&quot; (12,90), o que não se aplica sai vazio, o texto vai sem acentos e &lt;STX&gt; vira o caractere STX do DPL. Uma etiqueta por unidade da quantidade. Os exemplos são um ponto de partida: confira-os na impressora da loja com &quot;Imprimir teste&quot;, que usa o modelo e a impressora como estão na tela."/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Variáveis: {NOME} (ou {NOME:30}, cortado em 30 caracteres), {PRECO}, {PRECO_DE} (preço normal, só na promoção), {UNIDADE}, {CODBARRAS}, {PLU}, {CODIGO}, {VALIDADE} (fim da promoção), {QTD_ATACADO} e {PRECO_ATACADO} (a faixa de atacado, vazias sem faixa). Os preços saem sem &quot;R$&quot; (12,90), o que não se aplica sai vazio, o texto vai sem acentos e &lt;STX&gt; vira o caractere STX do DPL. Uma etiqueta por unidade da quantidade. Os exemplos são um ponto de partida: confira-os na impressora da loja com &quot;Imprimir teste&quot;, que usa o modelo e a impressora como estão na tela."/>
                 <Label fx:id="mensagemEtiquetas" wrapText="true" minHeight="-Infinity"/>
             </VBox>
         </Tab>

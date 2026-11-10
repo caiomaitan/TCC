@@ -5,6 +5,7 @@ import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.ConteudoLiquido;
 import br.com.varesync.model.UnidadeConteudo;
 import br.com.varesync.model.DadosProduto;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.model.HistoricoPreco;
 import br.com.varesync.model.Lote;
 import br.com.varesync.model.ParteLote;
@@ -18,6 +19,7 @@ import br.com.varesync.service.ProdutoService;
 import br.com.varesync.service.RegistroEmUsoException;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Dialogos;
+import br.com.varesync.ui.DialogosProduto;
 import br.com.varesync.ui.DialogosVinculo;
 import br.com.varesync.ui.ConversorData;
 import br.com.varesync.ui.Mensagem;
@@ -41,8 +43,6 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -108,7 +108,19 @@ public class ProdutoController {
     @FXML private TextField campoValidadeBalanca;
     @FXML private Label ultimaAlteracao;
     @FXML private TextField campoNovoCodigo;
-    @FXML private ListView<CodigoBarras> listaCodigos;
+    @FXML private TableView<CodigoBarras> listaCodigos;
+    @FXML private TableColumn<CodigoBarras, String> colunaCodigoBarras;
+    @FXML private TableColumn<CodigoBarras, String> colunaQtdEmbalagem;
+    @FXML private TableColumn<CodigoBarras, String> colunaPrecoEmbalagem;
+    @FXML private Button botaoEmbalagem;
+    @FXML private Tab abaFaixas;
+    @FXML private TableView<FaixaPreco> tabelaFaixas;
+    @FXML private TableColumn<FaixaPreco, String> colunaFaixaQuantidade;
+    @FXML private TableColumn<FaixaPreco, String> colunaFaixaPreco;
+    @FXML private TableColumn<FaixaPreco, String> colunaFaixaDesconto;
+    @FXML private TableColumn<FaixaPreco, String> colunaFaixaMargem;
+    @FXML private Button botaoAlterarFaixa;
+    @FXML private Button botaoRemoverFaixa;
     @FXML private Button botaoPrincipal;
     @FXML private Button botaoRemoverCodigo;
     @FXML private Label lucroUnitario;
@@ -139,15 +151,23 @@ public class ProdutoController {
         campoUnidade.getItems().setAll(produtoService.unidades(sessao));
         balancaAtiva = produtoService.balancaAtiva(sessao);
 
-        listaCodigos.setCellFactory(l -> new ListCell<>() {
-            @Override
-            protected void updateItem(CodigoBarras codigo, boolean vazio) {
-                super.updateItem(codigo, vazio);
-                setText(vazio || codigo == null ? null
-                        : codigo.codigo() + (codigo.principal() ? "   (principal)" : ""));
-            }
-        });
+        // F20.3: cada código com a quantidade e o preço da embalagem (caixa, fardo).
+        colunaCodigoBarras.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().codigo()
+                + (c.getValue().principal() ? "  (principal)" : "")));
+        colunaQtdEmbalagem.setCellValueFactory(c -> new ReadOnlyStringWrapper(numero(c.getValue().quantidade())));
+        colunaPrecoEmbalagem.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().precoEmbalagem() == null
+                ? "—" : Formatos.moeda(c.getValue().precoEmbalagem())));
         listaCodigos.getSelectionModel().selectedItemProperty().addListener((obs, a, b) -> atualizarBotoesCodigo());
+        listaCodigos.setRowFactory(t -> {
+            javafx.scene.control.TableRow<CodigoBarras> linha = new javafx.scene.control.TableRow<>();
+            linha.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !linha.isEmpty()) {
+                    editarEmbalagem();
+                }
+            });
+            return linha;
+        });
+        prepararFaixas();
 
         coluna(colunaData, h -> Formatos.dataHora(h.criadoEm()));
         coluna(colunaUsuario, HistoricoPreco::usuarioNome);
@@ -199,6 +219,108 @@ public class ProdutoController {
         }
     }
 
+    // ----- Preço por quantidade (F20.3) -----
+
+    private void prepararFaixas() {
+        colunaFaixaQuantidade.setCellValueFactory(c -> new ReadOnlyStringWrapper(numero(c.getValue().quantidadeMinima())
+                + " " + siglaUnidade().toLowerCase()));
+        colunaFaixaPreco.setCellValueFactory(c -> new ReadOnlyStringWrapper(Formatos.moeda(c.getValue().preco())));
+        colunaFaixaDesconto.setCellValueFactory(c -> new ReadOnlyStringWrapper(lerSemErro(campoPreco)
+                .filter(p -> p.signum() > 0)
+                .map(p -> Formatos.percentual(p.subtract(c.getValue().preco()).multiply(BigDecimal.valueOf(100))
+                        .divide(p, Dinheiro.ESCALA_PERCENTUAL, Dinheiro.ARREDONDAMENTO)))
+                .orElse(Formatos.SEM_VALOR)));
+        colunaFaixaMargem.setCellValueFactory(c -> new ReadOnlyStringWrapper(lerSemErro(campoCusto)
+                .map(custo -> Formatos.percentual(Precificacao.margem(custo, c.getValue().preco())))
+                .orElse(Formatos.SEM_VALOR)));
+        tabelaFaixas.getSelectionModel().selectedItemProperty().addListener((obs, a, b) -> atualizarBotoesFaixa());
+        tabelaFaixas.setRowFactory(t -> {
+            javafx.scene.control.TableRow<FaixaPreco> linha = new javafx.scene.control.TableRow<>();
+            linha.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !linha.isEmpty()) {
+                    alterarFaixa();
+                }
+            });
+            return linha;
+        });
+    }
+
+    private void atualizarBotoesFaixa() {
+        boolean nenhuma = tabelaFaixas.getSelectionModel().getSelectedItem() == null;
+        botaoAlterarFaixa.setDisable(nenhuma);
+        botaoRemoverFaixa.setDisable(nenhuma);
+    }
+
+    @FXML
+    private void incluirFaixa() {
+        DialogosProduto.faixa(null, siglaUnidade(), precoDigitado(), (q, p) -> conferirFaixa(null, q, p))
+                .ifPresent(f -> {
+                    tabelaFaixas.getItems().add(f);
+                    ordenarFaixas(f);
+                });
+    }
+
+    @FXML
+    private void alterarFaixa() {
+        FaixaPreco atual = tabelaFaixas.getSelectionModel().getSelectedItem();
+        if (atual == null) {
+            return;
+        }
+        DialogosProduto.faixa(atual, siglaUnidade(), precoDigitado(), (q, p) -> conferirFaixa(atual, q, p))
+                .ifPresent(f -> {
+                    tabelaFaixas.getItems().set(tabelaFaixas.getItems().indexOf(atual), f);
+                    ordenarFaixas(f);
+                });
+    }
+
+    @FXML
+    private void removerFaixa() {
+        FaixaPreco atual = tabelaFaixas.getSelectionModel().getSelectedItem();
+        if (atual != null) {
+            tabelaFaixas.getItems().remove(atual);
+            Mensagem.informar(mensagem, "Faixa a partir de " + numero(atual.quantidadeMinima())
+                    + " removida da tela: clique em Salvar para gravar.");
+        }
+    }
+
+    /** A faixa digitada vale sozinha; a quantidade não pode repetir a de outra faixa da tela. */
+    private FaixaPreco conferirFaixa(FaixaPreco editando, BigDecimal quantidade, BigDecimal preco) {
+        FaixaPreco f = ProdutoService.conferirFaixa(editando == null ? 0 : editando.id(), quantidade, preco,
+                unidadeFracionada());
+        boolean repetida = tabelaFaixas.getItems().stream()
+                .anyMatch(o -> o != editando && o.quantidadeMinima().compareTo(f.quantidadeMinima()) == 0);
+        if (repetida) {
+            throw new NegocioException("Já existe uma faixa a partir de " + numero(f.quantidadeMinima()) + ".");
+        }
+        return f;
+    }
+
+    private void ordenarFaixas(FaixaPreco selecionar) {
+        tabelaFaixas.getItems().sort(java.util.Comparator.comparing(FaixaPreco::quantidadeMinima));
+        tabelaFaixas.getSelectionModel().select(selecionar);
+        Mensagem.informar(mensagem, "Faixa a partir de " + numero(selecionar.quantidadeMinima()) + " por "
+                + Formatos.moeda(selecionar.preco()) + " na tela: clique em Salvar para gravar.");
+    }
+
+    private String siglaUnidade() {
+        UnidadeMedida unidade = campoUnidade.getValue();
+        return unidade == null ? UnidadeMedida.PADRAO : unidade.sigla();
+    }
+
+    private boolean unidadeFracionada() {
+        UnidadeMedida unidade = campoUnidade.getValue();
+        return unidade != null && unidade.fracionada();
+    }
+
+    private String precoDigitado() {
+        return lerSemErro(campoPreco).map(Formatos::moeda).orElse("o preço de venda");
+    }
+
+    /** Sem separador de milhar nem zeros no fim (12; 0,5). */
+    private static String numero(BigDecimal valor) {
+        return valor.stripTrailingZeros().toPlainString().replace('.', ',');
+    }
+
     /** Código do produto na tela (o que acabou de ser salvo, no cadastro novo), ou vazio. */
     public Optional<Long> produtoId() {
         return produto == null ? Optional.empty() : Optional.of(produto.id());
@@ -231,6 +353,7 @@ public class ProdutoController {
             campoValidadeBalanca.setText("");
             ultimaAlteracao.setText(Formatos.SEM_VALOR);
             listaCodigos.getItems().clear();
+            tabelaFaixas.getItems().clear();
             tabelaHistorico.getItems().clear();
             abaHistorico.setDisable(true);
             tabelaVinculos.getItems().clear();
@@ -265,6 +388,7 @@ public class ProdutoController {
                     : String.valueOf(produto.validadeBalancaDias()));
             ultimaAlteracao.setText(Formatos.dataHora(produto.atualizadoEm()) + " por " + produto.atualizadoPorNome());
             listaCodigos.getItems().setAll(produto.codigosBarras());
+            tabelaFaixas.getItems().setAll(produtoService.faixas(sessao, produto.id()));
             tabelaHistorico.getItems().setAll(produtoService.historico(sessao, produto.id()));
             abaHistorico.setDisable(false);
             abaFornecedores.setDisable(false);
@@ -276,6 +400,7 @@ public class ProdutoController {
         campoNovoCodigo.clear();
         campoMargemDesejada.clear();
         atualizarBotoesCodigo();
+        atualizarBotoesFaixa();
         atualizarPlu();
         recalcular();
         abas.getSelectionModel().selectFirst();
@@ -431,9 +556,16 @@ public class ProdutoController {
             return;
         }
         listaCodigos.getItems().remove(selecionado);
-        if (selecionado.principal() && !listaCodigos.getItems().isEmpty()) {
-            CodigoBarras primeiro = listaCodigos.getItems().get(0);
-            listaCodigos.getItems().set(0, new CodigoBarras(primeiro.codigo(), true));
+        if (selecionado.principal()) {
+            // O novo principal é o primeiro código da unidade (a embalagem não pode ser principal, F20.3).
+            for (int i = 0; i < listaCodigos.getItems().size(); i++) {
+                CodigoBarras c = listaCodigos.getItems().get(i);
+                if (!c.ehEmbalagem()) {
+                    listaCodigos.getItems().remove(i);
+                    listaCodigos.getItems().add(0, c.comPrincipal(true));
+                    break;
+                }
+            }
         }
     }
 
@@ -443,18 +575,42 @@ public class ProdutoController {
         if (selecionado == null) {
             return;
         }
+        if (selecionado.ehEmbalagem()) {
+            Mensagem.erro(mensagem, "O código principal é o da unidade: o código " + selecionado.codigo() + " é de "
+                    + "uma embalagem. Tire a embalagem dele (Embalagem…) antes de marcá-lo como principal.");
+            return;
+        }
         List<CodigoBarras> codigos = new ArrayList<>();
-        codigos.add(new CodigoBarras(selecionado.codigo(), true));
+        codigos.add(selecionado.comPrincipal(true));
         listaCodigos.getItems().stream().filter(c -> !c.codigo().equals(selecionado.codigo()))
-                .map(c -> new CodigoBarras(c.codigo(), false)).forEach(codigos::add);
+                .map(c -> c.comPrincipal(false)).forEach(codigos::add);
         listaCodigos.getItems().setAll(codigos);
         listaCodigos.getSelectionModel().selectFirst();
+    }
+
+    /** F20.3: quantidade e preço da embalagem do código selecionado (caixa, fardo); vale ao salvar o produto. */
+    @FXML
+    private void editarEmbalagem() {
+        CodigoBarras selecionado = listaCodigos.getSelectionModel().getSelectedItem();
+        if (selecionado == null) {
+            return;
+        }
+        DialogosProduto.embalagem(selecionado, siglaUnidade(),
+                (q, p) -> ProdutoService.conferirEmbalagem(selecionado, q, p, unidadeFracionada()))
+                .ifPresent(novo -> {
+                    int indice = listaCodigos.getItems().indexOf(selecionado);
+                    listaCodigos.getItems().set(indice, novo);
+                    listaCodigos.getSelectionModel().select(indice);
+                    Mensagem.informar(mensagem, "Embalagem do código " + novo.codigo() + " na tela: clique em Salvar "
+                            + "para gravar.");
+                });
     }
 
     private void atualizarBotoesCodigo() {
         CodigoBarras selecionado = listaCodigos.getSelectionModel().getSelectedItem();
         botaoRemoverCodigo.setDisable(selecionado == null);
         botaoPrincipal.setDisable(selecionado == null || selecionado.principal());
+        botaoEmbalagem.setDisable(selecionado == null);
     }
 
     /**
@@ -492,6 +648,7 @@ public class ProdutoController {
                 : Optional.empty();
         precoSugerido.setText(Formatos.moeda(sugerido));
         botaoAplicarPreco.setDisable(sugerido.isEmpty());
+        tabelaFaixas.refresh(); // desconto e margem das faixas acompanham o preço e o custo digitados
     }
 
     @FXML
@@ -555,7 +712,8 @@ public class ProdutoController {
                 campoControlaValidade.isSelected(),
                 produto == null && campoControlaValidade.isSelected() ? loteInicial() : null,
                 lerConteudo(),
-                lerValidadeBalanca());
+                lerValidadeBalanca(),
+                List.copyOf(tabelaFaixas.getItems()));
     }
 
     /**

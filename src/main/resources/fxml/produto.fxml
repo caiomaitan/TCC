@@ -6,7 +6,6 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
@@ -18,7 +17,8 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<!-- Cadastro de produto (Fig. 20 revisada): dados, códigos de barras, simulador e aba de histórico.
+<!-- Cadastro de produto (Fig. 20 revisada): dados, códigos de barras (com a embalagem, F20.3), simulador e abas de
+     preço por quantidade (F20.3), fornecedores e histórico.
      Enter salva (no campo de código de barras, Enter adiciona o código); Esc fecha. -->
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.ProdutoController"
@@ -97,9 +97,18 @@
                                    HBox.hgrow="ALWAYS" onAction="#adicionarCodigo"/>
                         <Button text="Adicionar" onAction="#adicionarCodigo"/>
                     </HBox>
-                    <ListView fx:id="listaCodigos" prefHeight="110"/>
+                    <TableView fx:id="listaCodigos" prefHeight="130">
+                        <placeholder><Label text="Sem código de barras."/></placeholder>
+                        <columns>
+                            <TableColumn fx:id="colunaCodigoBarras" text="Código" prefWidth="185" sortable="false"/>
+                            <TableColumn fx:id="colunaQtdEmbalagem" text="Qtd. da&#10;embalagem" prefWidth="80" sortable="false" styleClass="coluna-numero"/>
+                            <TableColumn fx:id="colunaPrecoEmbalagem" text="Preço da&#10;embalagem" prefWidth="90" sortable="false" styleClass="coluna-numero"/>
+                        </columns>
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                    </TableView>
                     <HBox spacing="8">
                         <Button fx:id="botaoPrincipal" text="Marcar principal" onAction="#marcarPrincipal"/>
+                        <Button fx:id="botaoEmbalagem" text="Embalagem…" onAction="#editarEmbalagem"/>
                         <Button fx:id="botaoRemoverCodigo" text="Remover" onAction="#removerCodigo"/>
                     </HBox>
 
@@ -124,6 +133,28 @@
                     <Button fx:id="botaoAplicarPreco" text="Aplicar preço sugerido" onAction="#aplicarPrecoSugerido"/>
                 </VBox>
             </HBox>
+        </Tab>
+        <Tab fx:id="abaFaixas" text="Preço por quantidade">
+            <VBox spacing="8">
+                <padding><Insets top="10" right="4" bottom="4" left="4"/></padding>
+                <Label wrapText="true" styleClass="subtitulo" minHeight="-Infinity" maxWidth="Infinity"
+                       text="Preço de atacado: quando a venda chega à quantidade da faixa, todas as unidades do produto passam ao preço dela (vale a maior faixa alcançada). As faixas são gravadas com o botão Salvar."/>
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Button text="Incluir…" onAction="#incluirFaixa" minWidth="-Infinity"/>
+                    <Button fx:id="botaoAlterarFaixa" text="Alterar…" onAction="#alterarFaixa" minWidth="-Infinity"/>
+                    <Button fx:id="botaoRemoverFaixa" text="Remover" onAction="#removerFaixa" minWidth="-Infinity"/>
+                </HBox>
+                <TableView fx:id="tabelaFaixas" VBox.vgrow="ALWAYS">
+                    <placeholder><Label text="Sem faixas: o produto é vendido sempre pelo preço de venda (ou da promoção)."/></placeholder>
+                    <columns>
+                        <TableColumn fx:id="colunaFaixaQuantidade" text="A partir de" prefWidth="140" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaFaixaPreco" text="Preço" prefWidth="120" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaFaixaDesconto" text="Abaixo do preço de venda" prefWidth="180" styleClass="coluna-numero"/>
+                        <TableColumn fx:id="colunaFaixaMargem" text="Margem" prefWidth="100" styleClass="coluna-numero"/>
+                    </columns>
+                    <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
+                </TableView>
+            </VBox>
         </Tab>
         <Tab fx:id="abaFornecedores" text="Fornecedores">
             <VBox spacing="8">

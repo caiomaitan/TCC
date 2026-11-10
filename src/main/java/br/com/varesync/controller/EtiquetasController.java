@@ -189,6 +189,9 @@ public class EtiquetasController {
             s.append(" · ").append(Formatos.moeda(e.precoPorMedida())).append(" o ")
                     .append(e.conteudo().unidade().medida());
         }
+        if (e.temAtacado()) {
+            s.append(" · ").append(e.textoAtacado()); // F20.3
+        }
         return s.toString();
     }
 

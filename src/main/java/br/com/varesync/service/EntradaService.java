@@ -11,6 +11,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.ConferenciaPedido;
 import br.com.varesync.model.CustoAtualizado;
 import br.com.varesync.model.DadosEntrada;
+import br.com.varesync.model.Embalagem;
 import br.com.varesync.model.EntradaResumo;
 import br.com.varesync.model.Fornecedor;
 import br.com.varesync.model.ItemEntrada;
@@ -272,6 +273,117 @@ public class EntradaService {
             }
             return ativo(produto.orElseThrow(() -> new NegocioException("Produto não encontrado.")));
         });
+    }
+
+    /**
+     * Produto lido na entrada manual (F20.3), com a quantidade da embalagem do código lido: 1 no código da unidade e
+     * no código interno; 12 na caixa com 12. Com embalagem, a quantidade digitada é em embalagens e o custo, por
+     * embalagem.
+     */
+    public record LeituraEntrada(ProdutoVenda produto, BigDecimal embalagem) {
+
+        public boolean ehEmbalagem() {
+            return embalagem.compareTo(BigDecimal.ONE) != 0;
+        }
+
+        /** "embalagem com 12 UN: quantidade em embalagens e custo por embalagem" */
+        public String instrucao() {
+            return "embalagem com " + qtd(embalagem) + " " + produto.unidade() + ": quantidade em embalagens e "
+                    + "custo por embalagem";
+        }
+
+        /**
+         * A conversão que a tela mostra: "5 embalagens × 12 = 60 UN a R$ 3,2500 (R$ 195,00)". Vazio se a quantidade
+         * ou o valor ainda não servem.
+         *
+         * @param valorDaLinha o valor digitado é o total da linha (senão, o custo por embalagem)
+         */
+        public Optional<String> conversao(BigDecimal embalagens, BigDecimal valor, boolean valorDaLinha) {
+            if (!ehEmbalagem() || embalagens == null || embalagens.signum() <= 0) {
+                return Optional.empty();
+            }
+            String unidades = qtd(embalagens) + (embalagens.compareTo(BigDecimal.ONE) == 0 ? " embalagem" : " embalagens")
+                    + " × " + qtd(embalagem) + " = " + qtd(embalagens.multiply(embalagem)) + " " + produto.unidade();
+            try {
+                Valores v = valoresDaEmbalagem(embalagens, valorDaLinha ? null : valor, valorDaLinha ? valor : null,
+                        embalagem, produto.fracionada());
+                return Optional.of(unidades + " a " + custo(v.custo()) + " (" + Formatos.moeda(v.total()) + ")");
+            } catch (NegocioException e) {
+                return Optional.of(unidades);
+            }
+        }
+
+        private static String qtd(BigDecimal q) {
+            return q.stripTrailingZeros().toPlainString().replace('.', ',');
+        }
+
+        private static String custo(BigDecimal c) {
+            return "R$ " + Formatos.numero(c, Dinheiro.ESCALA_CUSTO);
+        }
+    }
+
+    /**
+     * Produto pelo código de barras exato (com a embalagem dele, F20.3) ou, se não houver, pelo código interno.
+     *
+     * @throws NegocioException se não existe ou está inativo
+     */
+    public LeituraEntrada lerCodigo(Sessao sessao, String codigo) {
+        ProdutoVenda produto = produtoPorCodigo(sessao, codigo);
+        String digitos = Textos.normalizarEspacos(codigo);
+        BigDecimal embalagem = transacao.executar(con -> produtoDAO.embalagemDoCodigo(con, digitos))
+                .map(Embalagem::quantidade).orElse(BigDecimal.ONE);
+        return new LeituraEntrada(produto, embalagem);
+    }
+
+    /**
+     * Inclui um item lido por um código de embalagem (F20.3, como na NF-e): a quantidade é o nº de embalagens (inteiro)
+     * e o custo, por embalagem; o item entra em unidades (× {@code embalagem}) e com o custo dividido por ela, 4 casas.
+     * Com o valor total da linha, o custo é o valor ÷ as unidades. Com {@code embalagem} 1, é o {@link #adicionarItem}
+     * comum.
+     *
+     * @return id do item
+     */
+    public long adicionarItem(Sessao sessao, long entradaId, long produtoId, BigDecimal quantidade,
+                              BigDecimal custoUnitario, BigDecimal valorTotal, BigDecimal embalagem) {
+        if (embalagem == null || embalagem.compareTo(BigDecimal.ONE) == 0) {
+            return adicionarItem(sessao, entradaId, produtoId, quantidade, custoUnitario, valorTotal);
+        }
+        sessao.exigir(Permissao.COMPRAS);
+        return transacao.executar(con -> {
+            exigirAberta(con, entradaId);
+            ProdutoVenda produto = produtoNovoNaEntrada(con, entradaId, produtoId);
+            Valores v = valoresDaEmbalagem(quantidade, custoUnitario, valorTotal, embalagem, produto.fracionada());
+            return dao.inserirItem(con, entradaId, produtoId, v.quantidade(), v.custo(), v.total());
+        });
+    }
+
+    /**
+     * Valores do item lido por embalagem: 5 caixas de 12 a R$ 39,00 → 60 UN a R$ 3,2500, linha de R$ 195,00 (o total é
+     * o das embalagens, como na nota).
+     */
+    static Valores valoresDaEmbalagem(BigDecimal embalagens, BigDecimal custoEmbalagem, BigDecimal valorTotal,
+                                      BigDecimal embalagem, boolean fracionada) {
+        if (embalagens == null || embalagens.signum() <= 0) {
+            throw new NegocioException("A quantidade deve ser maior que zero.");
+        }
+        if (ValidacaoProduto.casas(embalagens) > 0) {
+            throw new NegocioException("O código lido é de uma embalagem com "
+                    + embalagem.stripTrailingZeros().toPlainString().replace('.', ',') + ": informe a quantidade em "
+                    + "embalagens, um número inteiro.");
+        }
+        BigDecimal unidades = ValidacaoProduto.quantidade(embalagens.multiply(embalagem), "A quantidade", fracionada);
+        if (valorTotal != null) {
+            BigDecimal total = ValidacaoProduto.valor(valorTotal, "o valor total da linha", Dinheiro.ESCALA_DINHEIRO);
+            return new Valores(unidades, total.divide(unidades, Dinheiro.ESCALA_CUSTO, Dinheiro.ARREDONDAMENTO), total);
+        }
+        if (custoEmbalagem == null) {
+            throw new NegocioException("Informe o custo por embalagem ou o valor total da linha.");
+        }
+        BigDecimal porEmbalagem = ValidacaoProduto.valor(custoEmbalagem, "o custo da embalagem", Dinheiro.ESCALA_CUSTO);
+        BigDecimal total = ValidacaoProduto.valor(Dinheiro.multiplicar(embalagens, porEmbalagem),
+                "o valor total da linha", Dinheiro.ESCALA_DINHEIRO);
+        return new Valores(unidades, porEmbalagem.divide(embalagem, Dinheiro.ESCALA_CUSTO, Dinheiro.ARREDONDAMENTO),
+                total);
     }
 
     /**

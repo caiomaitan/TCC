@@ -113,7 +113,7 @@ public class EtiquetaService {
     }
 
     /**
-     * Registra o que foi impresso: uma linha por produto, com o preço e a promoção da etiqueta.
+     * Registra o que foi impresso: uma linha por produto, com o preço, a promoção e a faixa de atacado da etiqueta.
      *
      * @param origem PDF ou TERMICA
      */
@@ -127,7 +127,7 @@ public class EtiquetaService {
         transacao.executar(con -> {
             OffsetDateTime agora = OffsetDateTime.now(clock);
             for (Etiqueta e : impressas) {
-                dao.registrar(con, e.produtoId(), e.preco(), e.promocaoId(), origem, sessao.usuarioId(), agora);
+                dao.registrar(con, e, origem, sessao.usuarioId(), agora);
             }
             auditoria.registrar(con, sessao, AcaoAuditoria.ETIQUETAS_IMPRESSAS, ENTIDADE, null,
                     "Etiquetas impressas (" + origem.rotulo() + "): " + produtos(impressas.size()) + ", "
@@ -152,8 +152,7 @@ public class EtiquetaService {
             List<Etiqueta> atuais = dao.produtos(con, hoje(), ids);
             OffsetDateTime agora = OffsetDateTime.now(clock);
             for (Etiqueta e : atuais) {
-                dao.registrar(con, e.produtoId(), e.preco(), e.promocaoId(), OrigemEtiqueta.EM_DIA, sessao.usuarioId(),
-                        agora);
+                dao.registrar(con, e, OrigemEtiqueta.EM_DIA, sessao.usuarioId(), agora);
             }
             if (!atuais.isEmpty()) {
                 auditoria.registrar(con, sessao, AcaoAuditoria.ETIQUETAS_EM_DIA, ENTIDADE, null,

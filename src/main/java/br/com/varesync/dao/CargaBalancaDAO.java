@@ -12,8 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Carga de balança (F18.2): os pesáveis que vão para a balança, com o preço vigente na data (a mesma regra do
- * {@code PromocaoDAO.vigente} e das etiquetas: promoção ativa cujo período contém a data, a de menor preço) e o
+ * Carga de balança (F18.2): os pesáveis que vão para a balança, com o preço vigente na data (a regra do PDV e das
+ * etiquetas, {@link PromocaoDAO#VIGENTE_DO_PRODUTO}: promoção ativa cujo período contém a data e menor que o preço
+ * normal, a de menor preço) e o
  * último item carregado de cada um; e o registro de cada carga ({@code carga_balanca} e {@code carga_balanca_item}).
  */
 public class CargaBalancaDAO {
@@ -35,11 +36,7 @@ public class CargaBalancaDAO {
                        uc.plu AS ultimo_plu, uc.preco AS ultimo_preco, uc.descricao AS ultima_descricao,
                        uc.validade_dias AS ultima_validade, uc.criado_em AS ultima_em
                   FROM produto p
-                  LEFT JOIN LATERAL (SELECT preco_promocional
-                                       FROM promocao
-                                      WHERE produto_id = p.id AND ativa AND data_inicio <= ? AND data_fim >= ?
-                                      ORDER BY preco_promocional, id DESC
-                                      LIMIT 1) pr ON TRUE
+                """ + PromocaoDAO.VIGENTE_DO_PRODUTO + """
                   LEFT JOIN LATERAL (SELECT i.plu, i.preco, i.descricao, i.validade_dias, c.criado_em
                                        FROM carga_balanca_item i
                                        JOIN carga_balanca c ON c.id = i.carga_id

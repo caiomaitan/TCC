@@ -2,11 +2,15 @@ package br.com.varesync.service;
 
 import br.com.varesync.model.CodigoBarras;
 import br.com.varesync.model.ConteudoLiquido;
+import br.com.varesync.model.Embalagem;
+import br.com.varesync.model.FaixaPreco;
 import br.com.varesync.util.Dinheiro;
+import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Gtin;
 import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -169,11 +173,13 @@ final class ValidacaoProduto {
 
     /**
      * Códigos de barras: só dígitos, GTIN-8/12/13/14 com DV válido, sem repetição e no máximo um principal.
-     * Sem principal marcado, o primeiro vira o principal.
+     * Sem principal marcado, o primeiro vira o principal. A embalagem de cada código (F20.3) é conferida por
+     * {@link #embalagem}; o principal é o código da unidade (quantidade 1, sem preço de embalagem).
      *
+     * @param fracionada a unidade do produto aceita quantidade fracionada (a quantidade da embalagem segue a regra)
      * @return a lista normalizada, com o principal primeiro
      */
-    static List<CodigoBarras> codigos(List<CodigoBarras> informados) {
+    static List<CodigoBarras> codigos(List<CodigoBarras> informados, boolean fracionada) {
         List<CodigoBarras> normalizados = new ArrayList<>();
         Set<String> vistos = new HashSet<>();
         long principais = 0;
@@ -188,17 +194,116 @@ final class ValidacaoProduto {
             if (informado.principal()) {
                 principais++;
             }
-            normalizados.add(new CodigoBarras(codigo, informado.principal()));
+            Embalagem embalagem = embalagem(codigo, informado.quantidade(), informado.precoEmbalagem(), fracionada);
+            normalizados.add(new CodigoBarras(codigo, informado.principal(), embalagem.quantidade(),
+                    embalagem.preco()));
         }
         if (principais > 1) {
             throw new NegocioException("Marque só um código de barras como principal.");
         }
         if (principais == 0 && !normalizados.isEmpty()) {
-            normalizados.set(0, new CodigoBarras(normalizados.get(0).codigo(), true));
+            normalizados.set(0, normalizados.get(0).comPrincipal(true));
         }
         List<CodigoBarras> ordenados = new ArrayList<>(normalizados.stream().filter(CodigoBarras::principal).toList());
         normalizados.stream().filter(c -> !c.principal()).forEach(ordenados::add);
+        if (!ordenados.isEmpty() && ordenados.get(0).ehEmbalagem()) {
+            throw new NegocioException("O código principal é o da unidade: o código " + ordenados.get(0).codigo()
+                    + " é de uma embalagem. Marque como principal o código da unidade (ou tire a embalagem dele).");
+        }
         return ordenados;
+    }
+
+    /** Códigos da unidade (quantidade inteira). */
+    static List<CodigoBarras> codigos(List<CodigoBarras> informados) {
+        return codigos(informados, false);
+    }
+
+    /**
+     * Embalagem do código de barras (F20.3): quantidade maior que zero, com até 3 casas e inteira se a unidade não é
+     * fracionada; preço opcional, maior que zero, com 2 casas, só no código de mais de uma unidade.
+     *
+     * @param codigo para a mensagem (pode ser vazio)
+     */
+    static Embalagem embalagem(String codigo, BigDecimal quantidade, BigDecimal preco, boolean fracionada) {
+        BigDecimal qtd = quantidade == null ? BigDecimal.ONE : quantidade;
+        String doCodigo = codigo == null || codigo.isBlank() ? "" : " do código " + codigo;
+        if (qtd.signum() <= 0) {
+            throw new NegocioException("A quantidade da embalagem" + doCodigo + " deve ser maior que zero.");
+        }
+        qtd = quantidade(qtd, "A quantidade da embalagem" + doCodigo, fracionada);
+        if (preco == null) {
+            return new Embalagem(qtd, null);
+        }
+        if (qtd.compareTo(BigDecimal.ONE) == 0) {
+            throw new NegocioException("O preço da embalagem" + doCodigo + " só vale para o código de mais de uma "
+                    + "unidade (caixa, fardo): informe a quantidade da embalagem ou apague o preço.");
+        }
+        if (preco.signum() <= 0) {
+            throw new NegocioException("O preço da embalagem" + doCodigo + " deve ser maior que zero (vazio = sem "
+                    + "preço próprio).");
+        }
+        return new Embalagem(qtd, valor(preco, "o preço da embalagem", Dinheiro.ESCALA_DINHEIRO));
+    }
+
+    /**
+     * Faixas de preço por quantidade (F20.3): a partir de mais de 1 (inteira se a unidade não é fracionada), sem
+     * repetir a quantidade, preço maior que zero com 2 casas, menor que o preço normal e menor que o da faixa de
+     * quantidade menor.
+     *
+     * @param precoVenda o preço normal (já validado)
+     * @return as faixas da menor quantidade para a maior, com as escalas do banco
+     */
+    static List<FaixaPreco> faixas(List<FaixaPreco> informadas, BigDecimal precoVenda, boolean fracionada) {
+        List<FaixaPreco> normalizadas = new ArrayList<>();
+        Set<BigDecimal> quantidades = new HashSet<>();
+        for (FaixaPreco f : informadas) {
+            BigDecimal qtd = faixaQuantidade(f.quantidadeMinima(), fracionada);
+            if (!quantidades.add(qtd)) {
+                throw new NegocioException("Há duas faixas de preço a partir de "
+                        + Formatos.quantidade(qtd, fracionada) + ": cada quantidade só pode ter uma faixa.");
+            }
+            normalizadas.add(new FaixaPreco(f.id(), qtd, faixaPreco(f.preco(), qtd, fracionada)));
+        }
+        normalizadas.sort(Comparator.comparing(FaixaPreco::quantidadeMinima));
+        FaixaPreco anterior = null;
+        for (FaixaPreco f : normalizadas) {
+            if (f.preco().compareTo(precoVenda) >= 0) {
+                throw new NegocioException("O preço da faixa a partir de " + Formatos.quantidade(f.quantidadeMinima(),
+                        fracionada) + " (" + Formatos.moeda(f.preco()) + ") deve ser menor que o preço de venda ("
+                        + Formatos.moeda(precoVenda) + ").");
+            }
+            if (anterior != null && f.preco().compareTo(anterior.preco()) >= 0) {
+                throw new NegocioException("O preço da faixa a partir de " + Formatos.quantidade(f.quantidadeMinima(),
+                        fracionada) + " (" + Formatos.moeda(f.preco()) + ") deve ser menor que o da faixa a partir de "
+                        + Formatos.quantidade(anterior.quantidadeMinima(), fracionada) + " ("
+                        + Formatos.moeda(anterior.preco()) + ").");
+            }
+            anterior = f;
+        }
+        return normalizadas;
+    }
+
+    /** Quantidade mínima de uma faixa: mais de 1, até 3 casas, inteira se a unidade não é fracionada. */
+    static BigDecimal faixaQuantidade(BigDecimal quantidade, boolean fracionada) {
+        if (quantidade == null) {
+            throw new NegocioException("Informe a quantidade a partir da qual vale o preço da faixa.");
+        }
+        if (quantidade.compareTo(BigDecimal.ONE) <= 0) {
+            throw new NegocioException("A faixa de preço vale a partir de mais de 1 (ex.: a partir de 6 unidades).");
+        }
+        return quantidade(quantidade, "A quantidade da faixa", fracionada);
+    }
+
+    /** Preço de uma faixa: obrigatório, maior que zero, com até 2 casas. */
+    static BigDecimal faixaPreco(BigDecimal preco, BigDecimal quantidade, boolean fracionada) {
+        if (preco == null) {
+            throw new NegocioException("Informe o preço da faixa a partir de "
+                    + Formatos.quantidade(quantidade, fracionada) + ".");
+        }
+        if (preco.signum() <= 0) {
+            throw new NegocioException("O preço da faixa deve ser maior que zero.");
+        }
+        return valor(preco, "o preço da faixa", Dinheiro.ESCALA_DINHEIRO);
     }
 
     /** Casas decimais significativas: 1,50 → 1; 10 → 0. */

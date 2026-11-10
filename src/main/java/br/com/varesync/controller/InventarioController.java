@@ -477,10 +477,14 @@ public class InventarioController {
             return;
         }
         Optional<ItemContagem> encontrado;
+        String aviso = null;
         if (Textos.soDigitos(texto)) {
             try {
-                ItemContagem item = inventarioService.localizar(sessao, inventario.id(), texto);
-                encontrado = tabelaContagem.getItems().stream().filter(i -> i.itemId() == item.itemId()).findFirst();
+                InventarioService.LeituraContagem leitura = inventarioService.localizarLeitura(sessao, inventario.id(),
+                        texto);
+                aviso = leitura.aviso(); // F20.3: código de embalagem só posiciona; a contagem é em unidades
+                encontrado = tabelaContagem.getItems().stream()
+                        .filter(i -> i.itemId() == leitura.item().itemId()).findFirst();
             } catch (NegocioException e) {
                 recusarLeitura(e.getMessage());
                 return;
@@ -494,10 +498,15 @@ public class InventarioController {
                 return;
             }
         }
+        String avisoEmbalagem = aviso;
         encontrado.ifPresent(item -> {
             tabelaContagem.getSelectionModel().select(item);
             tabelaContagem.scrollTo(item);
-            Mensagem.limpar(mensagem);
+            if (avisoEmbalagem == null) {
+                Mensagem.limpar(mensagem);
+            } else {
+                Mensagem.informar(mensagem, avisoEmbalagem);
+            }
             focarQuantidade();
         });
     }

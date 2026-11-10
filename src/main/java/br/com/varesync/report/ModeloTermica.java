@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
  * variáveis trocadas pelos dados do produto, uma etiqueta por unidade da quantidade.
  *
  * <p>Variáveis: {NOME} (ou {NOME:n}, cortado em n caracteres), {PRECO}, {PRECO_DE}, {UNIDADE}, {CODBARRAS}, {PLU},
- * {CODIGO} e {VALIDADE} (fim da promoção). Os preços saem sem "R$" (12,90); a variável que não se aplica sai vazia;
+ * {CODIGO}, {VALIDADE} (fim da promoção) e, com a F20.3, {QTD_ATACADO} e {PRECO_ATACADO} (a faixa de atacado da
+ * etiqueta, vazias sem faixa). Os preços saem sem "R$" (12,90); a variável que não se aplica sai vazia;
  * texto entre chaves que não é variável fica como está.
  *
  * <p>O texto enviado sai sem acentos e só com caracteres ASCII (o que sobra vira "?"), porque as impressoras
@@ -24,7 +25,8 @@ import java.util.regex.Pattern;
 public final class ModeloTermica {
 
     private static final Pattern VARIAVEL =
-            Pattern.compile("\\{(NOME|PRECO_DE|PRECO|UNIDADE|CODBARRAS|PLU|CODIGO|VALIDADE)(?::(\\d{1,3}))?}");
+            Pattern.compile("\\{(NOME|PRECO_DE|PRECO_ATACADO|PRECO|UNIDADE|CODBARRAS|PLU|CODIGO|VALIDADE|QTD_ATACADO)"
+                    + "(?::(\\d{1,3}))?}");
     static final String STX = "<STX>";
 
     private ModeloTermica() {
@@ -75,6 +77,8 @@ public final class ModeloTermica {
             case "PLU" -> e.plu() == null ? "" : String.valueOf(e.plu());
             case "CODIGO" -> String.valueOf(e.produtoId());
             case "VALIDADE" -> e.fimPromocao() == null ? "" : Formatos.data(e.fimPromocao());
+            case "QTD_ATACADO" -> e.quantidadeAtacado();
+            case "PRECO_ATACADO" -> e.temAtacado() ? preco(e.atacadoPreco()) : "";
             default -> throw new IllegalArgumentException(variavel);
         };
     }
