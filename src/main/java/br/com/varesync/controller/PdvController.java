@@ -43,16 +43,16 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
+import br.com.varesync.ui.PainelAjuda;
+import java.util.List;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import javafx.stage.Window;
@@ -68,22 +68,6 @@ public class PdvController {
 
     private static final String ITEM_CANCELADO = "item-cancelado";
     private static final String ENTRADA_ERRO = "entrada-erro";
-    private static final KeyCombination CTRL_R = new KeyCodeCombination(KeyCode.R, KeyCombination.SHORTCUT_DOWN);
-    private static final String AJUDA = """
-            Leitura do produto (campo Código, sempre focado):
-              • leia o código de barras ou digite o código interno e tecle Enter;
-              • quantidade*código: 3*7891000315507 ou 0,345*123;
-              • etiqueta de balança (com a leitura ligada em Configurações): já traz o peso ou o valor;
-              • texto: abre a busca já filtrada.
-            Produto vendido por peso ou volume sem quantidade: o sistema pede a quantidade.
-
-            F1 ajuda · F2 buscar produto · F3 quantidade do próximo item
-            F4 desconto no item selecionado · F5 desconto na venda (R$ ou %)
-            F6 cancelar o item selecionado · F7 consultar preço (sem vender)
-            F8 sangria/suprimento · F9 vendas da sessão (comprovante ou cancelamento)
-            F10 pagamento e finalização · F11 identificar o cliente (CPF/CNPJ ou nome) · F12 fechar o caixa
-            Ctrl+R receber o crediário
-            ↑/↓ escolhem o item · Esc abandona a venda em andamento (ou sai do PDV, sem venda)""";
 
     private final VendaService vendaService;
     private final ClienteService clienteService;
@@ -98,6 +82,7 @@ public class PdvController {
     private Carrinho carrinho = new Carrinho();
     private BigDecimal quantidadeProxima;
     private Stage janela;
+    private PainelAjuda painelAjuda;
 
     @FXML private BorderPane raiz;
     @FXML private Label loja;
@@ -171,14 +156,63 @@ public class PdvController {
         operadorInfo.setText("Operador: " + sessao.usuario().nome());
         atualizarCaixa();
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, this::atalho);
-        entrada.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.UP || e.getCode() == KeyCode.DOWN) {
-                e.consume();
-                moverSelecao(e.getCode() == KeyCode.UP ? -1 : 1);
-            }
-        });
+        registrarAtalhos();
         atualizarTela();
+    }
+
+    // ----- Teclado (6.6): um registro só, que trata a tecla e dá a lista da ajuda (F21.3) -----
+
+    private void registrarAtalhos() {
+        Atalhos.de(raiz)
+                .em(Tecla.de(KeyCode.F1), "Ajuda desta tela (abre e fecha)", () -> executar(this::alternarAjuda))
+                .em(Tecla.de(KeyCode.F2), "Buscar o produto pelo nome", () -> executar(this::buscar))
+                .em(Tecla.de(KeyCode.F3), "Quantidade do próximo item", () -> executar(this::quantidadeDoProximo))
+                .em(Tecla.de(KeyCode.F4), "Desconto no item selecionado (R$ ou %)",
+                        () -> executar(this::descontoNoItem))
+                .em(Tecla.de(KeyCode.F5), "Desconto na venda (R$ ou %)", () -> executar(this::descontoNaVenda))
+                .em(Tecla.de(KeyCode.F6), "Cancelar o item selecionado", () -> executar(this::cancelarItem))
+                .em(Tecla.de(KeyCode.F7), "Consultar o preço (sem vender)", () -> executar(this::consultarPreco))
+                .em(Tecla.de(KeyCode.F8), "Sangria ou suprimento", () -> executar(this::sangriaSuprimento))
+                .em(Tecla.de(KeyCode.F9), "Vendas da sessão (comprovante, cancelamento ou devolução)",
+                        () -> executar(this::vendasDaSessao))
+                .em(Tecla.de(KeyCode.F10), "Pagamento e finalização da venda", () -> executar(this::pagar))
+                .em(Tecla.de(KeyCode.F11), "Identificar o cliente (CPF/CNPJ ou nome)",
+                        () -> executar(this::identificarCliente))
+                .em(Tecla.de(KeyCode.F12), "Fechar o caixa", () -> executar(this::fecharCaixa))
+                .em(Tecla.ctrl(KeyCode.R), "Receber o crediário", () -> executar(this::receberCrediario))
+                .em(Tecla.de(KeyCode.ESCAPE), "Fechar a ajuda; sem ela, abandonar a venda em andamento (ou sair do "
+                        + "PDV, sem venda)", () -> executar(() -> {
+                            if (ajudaAberta()) {
+                                fecharAjuda();
+                            } else {
+                                escape();
+                            }
+                        }));
+        Atalhos.de(entrada)
+                .em(Tecla.de(KeyCode.UP), "Selecionar o item de cima (no campo Código)", () -> moverSelecao(-1))
+                .em(Tecla.de(KeyCode.DOWN), "Selecionar o item de baixo (no campo Código)", () -> moverSelecao(1));
+    }
+
+    /** F1: a ajuda do PDV no painel lateral (F21.3), sem tirar o foco do campo de leitura. */
+    private void alternarAjuda() {
+        if (ajudaAberta()) {
+            fecharAjuda();
+            return;
+        }
+        if (painelAjuda == null) {
+            painelAjuda = new PainelAjuda(this::fecharAjuda);
+        }
+        painelAjuda.mostrar(ItemMenu.PDV.ajuda(), Atalhos.daTela(raiz), List.of());
+        raiz.setRight(painelAjuda);
+    }
+
+    private boolean ajudaAberta() {
+        return painelAjuda != null && raiz.getRight() == painelAjuda;
+    }
+
+    private void fecharAjuda() {
+        raiz.setRight(null);
+        Platform.runLater(entrada::requestFocus);
     }
 
     /** Chamado pela janela principal antes de mostrar: fechar a janela com venda em andamento pede confirmação. */
@@ -190,37 +224,6 @@ public class PdvController {
             }
         });
         Platform.runLater(entrada::requestFocus);
-    }
-
-    // ----- Teclado -----
-
-    private void atalho(KeyEvent e) {
-        if (CTRL_R.match(e)) {
-            e.consume();
-            executar(this::receberCrediario);
-            return;
-        }
-        Runnable acao = switch (e.getCode()) {
-            case F1 -> () -> Dialogos.alerta(Alert.AlertType.INFORMATION, AJUDA);
-            case F2 -> this::buscar;
-            case F3 -> this::quantidadeDoProximo;
-            case F4 -> this::descontoNoItem;
-            case F5 -> this::descontoNaVenda;
-            case F6 -> this::cancelarItem;
-            case F7 -> this::consultarPreco;
-            case F8 -> this::sangriaSuprimento;
-            case F9 -> this::vendasDaSessao;
-            case F10 -> this::pagar;
-            case F11 -> this::identificarCliente;
-            case F12 -> this::fecharCaixa;
-            case ESCAPE -> this::escape;
-            default -> null;
-        };
-        if (acao == null) {
-            return;
-        }
-        e.consume();
-        executar(acao);
     }
 
     /** Executa a ação; erro de regra vira mensagem no painel, o resto vai para o tratador global. O foco volta ao campo. */

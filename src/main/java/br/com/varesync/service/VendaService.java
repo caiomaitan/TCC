@@ -871,6 +871,20 @@ public class VendaService {
         return transacao.executar(con -> montarComprovante(con, vendaId));
     }
 
+    /**
+     * Segunda via do comprovante de qualquer venda, pela busca global (F21.3): para quem tem PDV, RELATORIOS ou
+     * DEVOLUCAO. Só mostra: não muda nada nem grava auditoria.
+     */
+    public Comprovante segundaVia(Sessao sessao, long vendaId) {
+        sessao.exigirAlguma(Permissao.PDV, Permissao.RELATORIOS, Permissao.DEVOLUCAO);
+        return transacao.executar(con -> {
+            if (vendaDAO.cabecalho(con, vendaId).isEmpty()) {
+                throw new NegocioException("Venda nº " + vendaId + " não encontrada.");
+            }
+            return montarComprovante(con, vendaId);
+        });
+    }
+
     // ----- Apoio -----
 
     /** Código de barras exato → código interno → etiqueta de balança (com a balança ativa) → não encontrado. */

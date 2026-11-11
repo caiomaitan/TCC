@@ -22,6 +22,8 @@
         <Button fx:id="botaoPdf" text="Salvar PDF…" onAction="#salvarPdf"/>
         <ProgressIndicator fx:id="progresso" visible="false" prefWidth="22" prefHeight="22"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <!-- Só pela busca global (F21.3), para quem tem DEVOLUCAO. -->
+        <Button fx:id="botaoDevolver" text="Devolver itens…" onAction="#devolver" visible="false" managed="false"/>
         <Button fx:id="botaoFechar" text="Fechar (Esc)" onAction="#fechar" defaultButton="true" cancelButton="true"/>
     </HBox>
     <Label fx:id="mensagem" wrapText="true" maxWidth="460"/>

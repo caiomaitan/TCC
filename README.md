@@ -94,6 +94,10 @@ O passo a passo do ambiente de desenvolvimento no Cursor (variáveis de ambiente
    do menu, para todos) cada usuário escolhe o tema (claro ou escuro) e o tamanho da fonte (100%, 115% ou 130%); a
    escolha fica gravada para o usuário, vale na hora e em qualquer computador, e a tela de entrada continua no padrão
    (claro, 100%). O comprovante em tela, os PDFs e as etiquetas continuam claros.
+   Em qualquer tela do menu, **F1** abre a ajuda da tela num painel à direita, com a lista de atalhos dela (no PDV
+   também), e **Ctrl+K** abre a busca: produto (nome, código, código de barras, inclusive o da caixa, ou PLU),
+   cliente (nome ou CPF), venda pelo número (segunda via do comprovante), fornecedor ou tela, só com o que o usuário
+   pode abrir. No PDV o Ctrl+K não abre (use F2).
 4. **Configurações** (só o supervisor): dados da loja (aparecem no comprovante; em Loja ficam também o regime
    tributário, a UF e a inscrição estadual, usados no cadastro fiscal), parâmetros de venda (estoque
    negativo, desconto máximo do operador, cancelamento de item com supervisor, prazo de devolução), margem mínima,

@@ -63,10 +63,9 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -85,7 +84,6 @@ public class ComprasController {
     static final String VALOR_DA_LINHA = "Valor total da linha";
     private static final String NEGATIVO = "negativo";
     private static final String DIVISAO_INCOMPLETA = "linha-aviso";
-    private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final EntradaService entradaService;
     private final Sessao sessao;
@@ -256,17 +254,13 @@ public class ComprasController {
         campoValor.textProperty().addListener((obs, a, b) -> mostrarConversao());
         modoValor.valueProperty().addListener((obs, a, b) -> mostrarConversao());
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (abas.getSelectionModel().getSelectedItem() == abaSugestao) {
-                if (e.getCode() == KeyCode.F5) {
-                    e.consume();
-                    calcularSugestao();
-                }
-            } else if (abas.getSelectionModel().getSelectedItem() != abaPedidos && CTRL_N.match(e)) {
-                e.consume();
-                nova();
-            }
-        });
+        Atalhos.de(raiz)
+                .em(Tecla.ctrl(KeyCode.N), "Nova entrada de mercadoria (aba Entradas)",
+                        () -> abas.getSelectionModel().getSelectedItem() != abaPedidos
+                                && abas.getSelectionModel().getSelectedItem() != abaSugestao,
+                        this::nova)
+                .em(Tecla.de(KeyCode.F5), "Calcular a sugestão de compra (aba Sugestão de compra)",
+                        () -> abas.getSelectionModel().getSelectedItem() == abaSugestao, this::calcularSugestao);
         prepararSugestao();
         mostrar(null);
         pesquisar();

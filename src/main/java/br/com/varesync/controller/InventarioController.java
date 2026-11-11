@@ -47,10 +47,9 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -65,7 +64,6 @@ public class InventarioController {
 
     private static final String NEGATIVO = "negativo";
     private static final String NAO_CONTADO = "nao-contado";
-    private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final InventarioService inventarioService;
     private final AcessoService acessoService;
@@ -182,12 +180,9 @@ public class InventarioController {
                 focarQuantidade();
             }
         });
-        tabelaContagem.addEventHandler(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.ENTER && itemAtual != null) {
-                e.consume();
-                focarQuantidade();
-            }
-        });
+        Atalhos.de(tabelaContagem).em(Tecla.de(KeyCode.ENTER),
+                "Ir para a quantidade contada do item selecionado (na lista da contagem)", () -> itemAtual != null,
+                this::focarQuantidade);
 
         colunaDivCodigo.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().produtoId()));
         colunaDivProduto.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().nome()));
@@ -225,12 +220,7 @@ public class InventarioController {
             }
         });
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_N.match(e)) {
-                e.consume();
-                novo();
-            }
-        });
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo inventário", this::novo);
 
         mostrar(null);
         pesquisar();

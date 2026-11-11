@@ -26,10 +26,9 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 
 /**
@@ -40,7 +39,6 @@ public class FornecedoresController {
 
     static final List<String> UFS = List.of("", "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG",
             "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO");
-    private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final FornecedorService fornecedorService;
     private final Sessao sessao;
@@ -114,14 +112,17 @@ public class FornecedoresController {
                 mascararTelefone();
             }
         });
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_N.match(e)) {
-                e.consume();
-                novo();
-            }
-        });
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo fornecedor", this::novo);
         recarregar(null);
         novo();
+    }
+
+    /** Busca global (Ctrl+K, F21.3): mostra o cadastro do fornecedor achado (também se estiver inativo). */
+    public void mostrarFornecedor(long id) {
+        campoBusca.clear();
+        filtroInativos.setSelected(true);
+        recarregar(id);
+        tabela.scrollTo(tabela.getSelectionModel().getSelectedIndex());
     }
 
     private static void coluna(TableColumn<Fornecedor, String> coluna, Function<Fornecedor, String> valor) {

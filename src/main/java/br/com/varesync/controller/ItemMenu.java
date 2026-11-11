@@ -4,6 +4,7 @@ import br.com.varesync.model.Permissao;
 import br.com.varesync.service.Sessao;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Itens do menu lateral (8.1) e o que cada um exige. O menu mostra só o permitido;
@@ -48,6 +49,11 @@ public enum ItemMenu {
     /** Tela da rotina; nulo enquanto ela não foi implementada. */
     public String fxml() {
         return fxml;
+    }
+
+    /** Texto da ajuda da tela (F1, F21.3): {@code /ajuda/<item>.md}, por exemplo {@code /ajuda/estoque.md}. */
+    public String ajuda() {
+        return "/ajuda/" + name().toLowerCase(Locale.ROOT) + ".md";
     }
 
     /** Abre em janela própria (o PDV), em vez da área de conteúdo da janela principal. */

@@ -38,6 +38,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
@@ -105,12 +107,7 @@ public class PainelController {
         boolean comFinanceiro = sessao.pode(Permissao.FINANCEIRO);
         secaoFinanceiro.setVisible(comFinanceiro);
         secaoFinanceiro.setManaged(comFinanceiro);
-        raiz.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.F5) {
-                e.consume();
-                atualizar();
-            }
-        });
+        Atalhos.de(raiz).em(Tecla.de(KeyCode.F5), "Atualizar o painel", this::atualizar);
     }
 
     /** Liga os alertas e atalhos à janela principal, monta os atalhos e carrega o painel. */

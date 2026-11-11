@@ -38,8 +38,9 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 
@@ -183,15 +184,10 @@ public class EstoqueController {
         dataInicio.setValue(padrao.inicio());
         dataFim.setValue(padrao.fim());
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.F4) {
-                e.consume();
-                ajustar();
-            } else if (e.getCode() == KeyCode.F5) {
-                e.consume();
-                ajustarSaldo();
-            }
-        });
+        Atalhos.de(raiz)
+                .em(Tecla.de(KeyCode.F4), "Ajustar o estoque do produto selecionado (entrada, saída ou perda)",
+                        this::ajustar)
+                .em(Tecla.de(KeyCode.F5), "Ajustar o saldo para… (informa o saldo certo)", this::ajustarSaldo);
 
         mostrar(null);
         pesquisar();
@@ -201,6 +197,16 @@ public class EstoqueController {
     /** Abre já filtrando os produtos abaixo do mínimo (alerta do painel). */
     public void mostrarAbaixoDoMinimo() {
         filtroAbaixoMinimo.setSelected(true);
+        pesquisar();
+    }
+
+    /**
+     * Busca global (Ctrl+K, F21.3), para quem não tem PRODUTOS: mostra o produto achado (pelo código interno, também
+     * se estiver inativo).
+     */
+    public void mostrarProduto(long id) {
+        campoBusca.setText(String.valueOf(id));
+        filtroInativos.setSelected(true);
         pesquisar();
     }
 

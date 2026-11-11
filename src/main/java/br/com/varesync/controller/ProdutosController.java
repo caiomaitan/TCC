@@ -24,10 +24,9 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.util.Callback;
 
 /**
@@ -109,13 +108,9 @@ public class ProdutosController {
             });
             return linha;
         });
-        tabela.setOnKeyPressed(e -> {
-            ProdutoResumo selecionado = tabela.getSelectionModel().getSelectedItem();
-            if (e.getCode() == KeyCode.ENTER && selecionado != null) {
-                abrir(selecionado.id());
-                e.consume();
-            }
-        });
+        Atalhos.de(tabela).em(Tecla.de(KeyCode.ENTER), "Abrir o produto selecionado (na lista)",
+                () -> tabela.getSelectionModel().getSelectedItem() != null,
+                () -> abrir(tabela.getSelectionModel().getSelectedItem().id()));
 
         boolean fiscal = sessao.pode(Permissao.FISCAL);
         botaoFiscal.setVisible(fiscal);
@@ -126,13 +121,7 @@ public class ProdutosController {
         filtroCategoria.setOnAction(e -> pesquisar());
         filtroSituacao.setOnAction(e -> pesquisar());
 
-        KeyCombination atalhoNovo = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
-        tabela.getParent().addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (atalhoNovo.match(e)) {
-                e.consume();
-                novo();
-            }
-        });
+        Atalhos.de(tabela.getParent()).em(Tecla.ctrl(KeyCode.N), "Novo produto", this::novo);
 
         pesquisar();
         Platform.runLater(campoBusca::requestFocus);
@@ -186,6 +175,11 @@ public class ProdutosController {
     @FXML
     private void novo() {
         abrir(null);
+    }
+
+    /** Busca global (Ctrl+K, F21.3): abre o cadastro do produto achado. */
+    public void abrirProduto(long id) {
+        abrir(id);
     }
 
     /** Abre o cadastro (nulo = novo) e, ao fechar, refaz a busca. */

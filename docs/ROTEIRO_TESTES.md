@@ -870,3 +870,22 @@ operadora "caixa" só com PDV; caixa aberto. Para os dados de demonstração da 
 | CT-F21-06 | CT-F21-05 | 1. Minhas preferências › Claro, Maior (130%) 2. Percorrer as telas de CT-F21-03 3. Minhas preferências › Escuro, Grande (115%) › Painel 4. Claro, Normal (100%) › percorrer de novo | 2. Claro de 130% sem cortes 3. Escuro de 115% 4. Igual a antes da fase | OK pela tela (capturas `claro130_*`, `escuro115_painel` e `claro100_*`) |
 | CT-F21-07 | Escuro, 130% | 1. PDV › vender › Ver comprovante | 1. O comprovante em tela continua claro (fundo branco, texto escuro); o PDF e a impressão não mudam | Pendente (pessoa) |
 | CT-F21-08 | Escuro, 130% | 1. Abrir uma caixa de escolha (Categoria em Produtos) e uma data 2. Passar o Tab pelo diálogo de preferências e confirmar com Enter | 1. Lista e calendário escuros e legíveis 2. Ordem lógica; Enter salva, Esc cancela | Pendente (pessoa: popups e teclado de verdade) |
+
+### Fase 21, parte B — ajuda contextual (F1) e busca global (Ctrl+K) (F21.3)
+
+Pela tela em 2026-11-11, com o roteiro descartável (eventos nos componentes, sem teclado nem mouse do sistema, banco
+`varesync_test` com os dados de demonstração); os nomes são as capturas. Supervisor e uma estoquista (só ESTOQUE) no
+escuro de 130%; um operador "caixa" (só PDV) no padrão; caixa aberto. Para os dados de demonstração da versão nova,
+use o banco `varesync_amostra` (COMO_CONTINUAR.md), nunca o `varesync_demo`. Janela em 1280×720.
+
+| ID | Pré-condição | Passos | Resultado esperado | Resultado obtido |
+|---|---|---|---|---|
+| CT-F21-09 | Supervisor, escuro de 130% | 1. Em cada tela do menu (Painel, Caixa, Clientes, Devoluções, Produtos, Fiscal, Estoque, Inventário, Compras, Fornecedores, Financeiro, Relatórios, Usuários, Configurações), teclar F1 2. F1 de novo | 1. Painel lateral "Ajuda — <tela>" com o texto da tela, "Atalhos desta tela" (as teclas da tela) e "Em todas as telas" (F1 e Ctrl+K), sem textos cortados 2. O painel fecha | OK pela tela (capturas `01_ajuda_painel` a `14_ajuda_configuracoes`; a lista conferida com o registro da tela) |
+| CT-F21-10 | CT-F21-09 | 1. Estoque › F1 2. Menu › Produtos 3. Fechar (F1) 4. Estoque › escolher um produto › F4 | 2. A ajuda passa a ser a de Produtos 3. Fecha 4. Abre o ajuste de estoque, como a ajuda diz | OK pela tela (captura `16`) |
+| CT-F21-11 | Caixa aberto | 1. PDV › ler um produto › F1 2. Ctrl+K 3. Esc 4. Esc | 1. Mesmo painel "Ajuda — PDV", com F1 a F12, Ctrl+R, Esc, ↑ e ↓; o foco continua no campo Código 2. Nada abre 3. A ajuda fecha e a venda continua 4. Pergunta se abandona a venda | OK pela tela (capturas `escuro130_17` e `escuro130_18`) |
+| CT-F21-12 | Supervisor | 1. Ctrl+K › digitar "a" 2. Digitar 7896543900012 (fardo do refrigerante) › Enter | 1. "Digite ao menos 2 letras ou números", sem resultados 2. Produtos: o refrigerante cola, "embalagem com 6 UN (código 7896543900012)"; Enter abre o cadastro dele | OK pela tela (capturas `20` a `22`) |
+| CT-F21-13 | Supervisor | 1. Ctrl+K › CPF de um cliente › Enter 2. Ctrl+K › nome de um fornecedor › ↓ até ele › Enter | 1. Clientes: o cliente, com o CPF oculto (***.xxx.xxx-**); Enter abre a ficha em Clientes 2. Abre o cadastro em Fornecedores | OK pela tela (capturas `23`, `24` e `27`) |
+| CT-F21-14 | Supervisor | 1. Ctrl+K › número de uma venda › ↓ até Vendas › Enter 2. Ctrl+K › "inventa" › Enter 3. Ctrl+K › "refri" › Esc | 1. "Venda nº N" com data e total; a segunda via do comprovante, com "Devolver itens…" 2. Telas: Inventário; abre a tela 3. Fecha | OK pela tela (capturas `25`, `26`, `28` e `29`) |
+| CT-F21-15 | Estoquista (só ESTOQUE) | 1. Ctrl+K › "silva", o número de uma venda, "con" 2. Ctrl+K › 7896543900012 › Enter 3. F1 | 1. Nenhum cliente, fornecedor, venda, Configurações ou Compras 2. O produto abre no Estoque (sem PRODUTOS) 3. A ajuda do Estoque | OK pela tela (capturas `30` a `32_estoquista_ajuda_estoque`) |
+| CT-F21-16 | Operador "caixa" (só PDV) | 1. Ctrl+K › número de uma venda › Enter | 1. Só a venda; a segunda via sem "Devolver itens…" | OK pela tela (captura `33`) |
+| CT-F21-17 | Qualquer usuário | 1. Teclar F1 e Ctrl+K com o teclado de verdade 2. Na busca, ↑ e ↓, clique duplo num resultado 3. Ler a ajuda de cada tela | 1. Abrem como no roteiro 2. Escolhem e abrem 3. Textos certos para a loja | Pendente (pessoa: teclado e mouse de verdade, revisão dos textos) |

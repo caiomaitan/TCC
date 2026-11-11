@@ -40,7 +40,9 @@ public class ComprovanteController {
     @FXML private Button botaoPdf;
     @FXML private ProgressIndicator progresso;
     @FXML private Button botaoFechar;
+    @FXML private Button botaoDevolver;
     @FXML private Label mensagem;
+    private boolean devolverPedido;
 
     public ComprovanteController(ComprovantePdf comprovantePdf, ImpressaoComprovante impressao) {
         this.impressao = impressao;
@@ -53,6 +55,24 @@ public class ComprovanteController {
         Janelas.abrirModal(dona, "/fxml/comprovante.fxml", comprovante.titulo(),
                 tipo -> new ComprovanteController(comprovantePdf, impressao),
                 (ComprovanteController c) -> c.mostrar(comprovante));
+    }
+
+    /**
+     * Segunda via pela busca global (F21.3): com {@code devolver} (quem tem DEVOLUCAO), a janela ganha "Devolver
+     * itens…", que fecha o comprovante e só então chama {@code devolver}.
+     */
+    public static void abrir(Window dona, ComprovanteImpresso comprovante, ComprovantePdf comprovantePdf,
+                             ImpressaoComprovante impressao, Runnable devolver) {
+        ComprovanteController c = Janelas.abrirModal(dona, "/fxml/comprovante.fxml", comprovante.titulo(),
+                tipo -> new ComprovanteController(comprovantePdf, impressao),
+                (ComprovanteController controller) -> {
+                    controller.mostrar(comprovante);
+                    controller.botaoDevolver.setVisible(devolver != null);
+                    controller.botaoDevolver.setManaged(devolver != null);
+                });
+        if (c.devolverPedido && devolver != null) {
+            devolver.run();
+        }
     }
 
     public void mostrar(ComprovanteImpresso exibido) {
@@ -126,6 +146,12 @@ public class ComprovanteController {
             Mensagem.erro(mensagem, TratadorExcecoes.mensagem(tarefa.getException()));
         });
         Tarefas.executar("comprovante-pdf", tarefa);
+    }
+
+    @FXML
+    private void devolver() {
+        devolverPedido = true;
+        fechar();
     }
 
     @FXML

@@ -2,7 +2,16 @@ package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
 import br.com.varesync.model.CaixaSessao;
+import br.com.varesync.model.ItemBusca;
 import br.com.varesync.model.Permissao;
+import br.com.varesync.service.BuscaGlobalService;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
+import br.com.varesync.ui.PainelAjuda;
+import java.util.List;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Region;
 import br.com.varesync.report.FechamentoCaixaPdf;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.BackupService;
@@ -69,6 +78,9 @@ public class PrincipalController {
     private final BackupService backupService;
     private final FechamentoCaixaPdf fechamentoPdf;
     private final Navegacao navegacao;
+    private final BuscaGlobalService buscaService;
+    private final AcoesBusca acoesBusca;
+    private PainelAjuda painelAjuda;
     /** Trocada quando o acesso do usuário muda em outro computador (F10.1). */
     private Sessao sessao;
     private final Callback<Class<?>, Object> fabricaControllers;
@@ -79,6 +91,7 @@ public class PrincipalController {
     private PdvController pdvAberto;
     private boolean encerrado;
 
+    @FXML private BorderPane raiz;
     @FXML private Label nomeLoja;
     @FXML private VBox menu;
     @FXML private StackPane conteudo;
@@ -91,7 +104,10 @@ public class PrincipalController {
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
                                PreferenciaService preferenciaService, CaixaService caixaService, BackupService backupService, FechamentoCaixaPdf fechamentoPdf,
                                Navegacao navegacao, Sessao sessao,
-                               Callback<Class<?>, Object> fabricaControllers) {
+                               Callback<Class<?>, Object> fabricaControllers, BuscaGlobalService buscaService,
+                               AcoesBusca acoesBusca) {
+        this.buscaService = buscaService;
+        this.acoesBusca = acoesBusca;
         this.config = config;
         this.clock = clock;
         this.acessoService = acessoService;
@@ -117,6 +133,11 @@ public class PrincipalController {
         relogio = new Timeline(new KeyFrame(Duration.seconds(1), e -> atualizarDataHora()));
         relogio.setCycleCount(Animation.INDEFINITE);
         relogio.play();
+
+        // Valem em todas as telas da janela principal (F21.3); o PDV, em janela própria, tem os dele.
+        Atalhos.de(raiz)
+                .em(Tecla.de(KeyCode.F1), "Ajuda desta tela (abre e fecha)", this::alternarAjuda)
+                .em(Tecla.ctrl(KeyCode.K), "Buscar produto, cliente, venda, fornecedor ou tela", this::buscar);
 
         abrir(ItemMenu.PAINEL);
         // Foco inicial no primeiro item do menu (o ScrollPane do menu não entra na ordem do Tab).
@@ -202,8 +223,89 @@ public class PrincipalController {
             }
             tela = loader.getRoot();
         }
+        mostrarTela(tela);
+    }
+
+    /** A tela é sempre o primeiro filho da área de conteúdo; a ajuda, quando aberta, fica por cima dela. */
+    private void mostrarTela(Node tela) {
+        boolean ajuda = ajudaAberta();
         conteudo.getChildren().setAll(tela);
         Aparencia.ajustar(tela); // larguras fixas e rótulos na fonte do usuário (F21.2)
+        if (ajuda) {
+            mostrarAjuda(); // a ajuda acompanha a tela aberta
+        }
+    }
+
+    // ----- Ajuda (F1) e busca global (Ctrl+K), F21.3 -----
+
+    private void alternarAjuda() {
+        if (ajudaAberta()) {
+            fecharAjuda();
+        } else {
+            mostrarAjuda();
+        }
+    }
+
+    private boolean ajudaAberta() {
+        return painelAjuda != null && conteudo.getChildren().contains(painelAjuda);
+    }
+
+    private void fecharAjuda() {
+        conteudo.getChildren().remove(painelAjuda);
+    }
+
+    /**
+     * A ajuda da tela aberta, com os atalhos registrados nela e os da janela principal. O painel fica por cima da
+     * borda direita da tela, sem espremê-la: as telas têm larguras mínimas e, na fonte de 130%, a tela espremida
+     * passaria da borda da janela.
+     */
+    private void mostrarAjuda() {
+        if (painelAjuda == null) {
+            painelAjuda = new PainelAjuda(this::fecharAjuda);
+            painelAjuda.setMaxWidth(Region.USE_PREF_SIZE);
+            StackPane.setAlignment(painelAjuda, Pos.TOP_RIGHT);
+        }
+        ItemMenu item = itemAtual == null ? ItemMenu.PAINEL : itemAtual;
+        Node tela = conteudo.getChildren().isEmpty() ? null : conteudo.getChildren().get(0);
+        painelAjuda.mostrar(item.ajuda(), tela == null || tela == painelAjuda ? List.of() : Atalhos.daTela(tela),
+                Atalhos.de(raiz).lista());
+        if (!conteudo.getChildren().contains(painelAjuda)) {
+            conteudo.getChildren().add(painelAjuda);
+        }
+    }
+
+    /** Ctrl+K: a busca global; o resultado escolhido abre aqui, na janela principal. */
+    private void buscar() {
+        BuscaGlobal.abrir(raiz.getScene().getWindow(), buscaService, sessao).ifPresent(escolha -> {
+            try {
+                abrirResultado(escolha);
+            } catch (RuntimeException e) {
+                TratadorExcecoes.mostrar(e);
+            }
+        });
+    }
+
+    private void abrirResultado(BuscaGlobal.Escolha escolha) {
+        if (escolha.tela() != null) {
+            abrir(escolha.tela());
+            return;
+        }
+        ItemBusca item = escolha.item();
+        switch (item.grupo()) {
+            case PRODUTOS -> {
+                if (sessao.pode(Permissao.PRODUTOS)) {
+                    abrirFiltrado(ItemMenu.PRODUTOS).<ProdutosController>getController().abrirProduto(item.id());
+                } else {
+                    abrirFiltrado(ItemMenu.ESTOQUE).<EstoqueController>getController().mostrarProduto(item.id());
+                }
+            }
+            case CLIENTES -> abrirFiltrado(ItemMenu.CLIENTES).<ClientesController>getController()
+                    .mostrarCliente(item.id());
+            case FORNECEDORES -> abrirFiltrado(ItemMenu.FORNECEDORES).<FornecedoresController>getController()
+                    .mostrarFornecedor(item.id());
+            case VENDAS -> acoesBusca.segundaVia(raiz.getScene().getWindow(), sessao, item.id());
+            case TELAS -> { } // as telas vêm em escolha.tela()
+        }
     }
 
     /**
@@ -367,8 +469,7 @@ public class PrincipalController {
             botao.getStyleClass().add(ITEM_SELECIONADO);
         }
         FXMLLoader loader = carregar(item.fxml());
-        conteudo.getChildren().setAll(loader.<Parent>getRoot());
-        Aparencia.ajustar(loader.<Parent>getRoot());
+        mostrarTela(loader.<Parent>getRoot());
         return loader;
     }
 

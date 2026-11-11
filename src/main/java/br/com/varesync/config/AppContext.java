@@ -21,6 +21,7 @@ import br.com.varesync.controller.PainelController;
 import br.com.varesync.controller.PdvController;
 import br.com.varesync.controller.PrimeiroAcessoController;
 import br.com.varesync.controller.PrincipalController;
+import br.com.varesync.controller.AcoesBusca;
 import br.com.varesync.controller.ProdutoController;
 import br.com.varesync.controller.ProdutosController;
 import br.com.varesync.controller.PromocoesController;
@@ -122,7 +123,9 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == PrincipalController.class) {
             // As telas abertas pelo menu recebem a sessão do momento (trocada quando o acesso muda, F10.1).
-            return new PrincipalController(config, clock, s.acesso(), s.preferencias(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()));
+            return new PrincipalController(config, clock, s.acesso(), s.preferencias(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()),
+                    s.busca(), new AcoesBusca(s.vendas(), s.devolucoes(), s.clientes(), s.acesso(), comprovantePdf,
+                            impressaoComprovante));
         }
         if (tipo == UsuariosController.class) {
             return new UsuariosController(s.usuarios(), sessao, clock);

@@ -13,7 +13,7 @@
 
 <!-- Janela principal (8.1): menu lateral à esquerda, conteúdo à direita, barra de status embaixo. -->
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="br.com.varesync.controller.PrincipalController"
+            fx:id="raiz" fx:controller="br.com.varesync.controller.PrincipalController"
             styleClass="janela-principal">
 
     <left>

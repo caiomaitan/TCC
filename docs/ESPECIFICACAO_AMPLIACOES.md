@@ -1220,12 +1220,15 @@ A fase tem três partes: A (preferências, tema escuro, fonte e cortes), B (ajud
 - **Ajuda contextual (F1):** abre a ajuda da tela atual num painel lateral, com a lista de atalhos.
   - Os textos ficam em `resources/ajuda/<tela>.md`, num Markdown simples (títulos, parágrafos, listas, negrito e teclas entre crases), desenhado com TextFlow, sem biblioteca nova nem WebView.
   - Toda tela do menu tem o seu texto, e um teste confere isso.
+  - A lista de atalhos sai dos atalhos registrados na tela, e não de texto escrito à mão, para não ficar desatualizada.
   - No PDV, o F1 atual passa a usar o mesmo painel.
 - **Busca global (Ctrl+K):**
   - encontra produtos (por nome, código interno, código de barras, inclusive o da embalagem, e PLU), clientes (por nome e CPF), venda por número, fornecedores e telas do menu;
-  - cada resultado só aparece se o usuário pode abrir a tela que ele abre;
+  - o que cada resultado abre: o produto, o cadastro (PRODUTOS) ou, sem essa permissão, o produto no Estoque (ESTOQUE); o cliente, a ficha em Clientes; o fornecedor, o cadastro em Fornecedores; a venda, a segunda via do comprovante (para quem tem PDV, RELATORIOS ou DEVOLUCAO), com "Devolver" para quem tem DEVOLUCAO; a tela, a própria tela;
+  - cada resultado só aparece se o usuário pode abrir o que ele abre;
   - procura a partir de 2 caracteres, fora da FX Application Thread, com até 8 resultados por grupo;
-  - Enter abre o resultado, e Esc fecha.
+  - Enter abre o resultado, e Esc fecha;
+  - no PDV, o Ctrl+K não abre: o PDV já tem a busca de produto, e sair dele no meio de uma venda confunde.
 
 ### F21.4 Assistente "Primeiros passos" (parte C)
 
@@ -1246,13 +1249,18 @@ A fase tem três partes: A (preferências, tema escuro, fonte e cortes), B (ajud
 - foco inicial e ordem do Tab revisados;
 - Configurações: as abas já não cabem e a barra rola; as seções passam para uma lista lateral, ou outra organização que caiba em 1280×720;
 - no painel, o cartão do resultado do mês avisa que as despesas do mês inteiro já entram pela competência, para o valor negativo do começo do mês não assustar;
-- os modelos de exemplo da térmica ganham a linha de atacado ({QTD_ATACADO} e {PRECO_ATACADO}).
+- os modelos de exemplo da térmica ganham a linha de atacado ({QTD_ATACADO} e {PRECO_ATACADO});
+- pendências da parte A:
+  - nas tabelas, valores (dinheiro, quantidade e data) nunca saem cortados: a coluna tem pelo menos a largura do maior valor. Texto longo pode sair com "…", com o texto inteiro na dica ao parar o mouse;
+  - nas telas divididas (lista em cima, detalhe embaixo), a lista mostra pelo menos 5 linhas a 130%, e a divisória pode ser arrastada;
+  - a conferência por captura, no escuro e a 130%, passa a cobrir também as telas que ficaram fora da F21.2: Inventário, Usuários, Fornecedores, Devoluções, Promoções, Unidades, Categorias, Fiscal, Etiquetas e Carga de balança;
+  - na entrada de mercadoria a 100%, a linha de inclusão do item volta a caber numa linha só.
 
 ### Aceite F21
 
 - **Parte A:** o tema escuro e a fonte de 130% ficam salvos por usuário e não cortam textos nas telas principais (conferido por capturas); o teste de contraste passa nos dois temas.
-- **Parte B:** F1 mostra a ajuda da tela atual, também no PDV; Ctrl+K encontra produto (inclusive pelo código da caixa), cliente, venda e tela, e não mostra o que o usuário não pode abrir.
-- **Parte C:** o assistente marca os passos concluídos e some quando todos estão concluídos ou dispensados; as ações destrutivas pedem confirmação; Configurações cabe em 1280×720 sem a barra de abas rolando.
+- **Parte B:** F1 mostra a ajuda da tela atual, também no PDV, e a lista de atalhos bate com os atalhos da tela; Ctrl+K encontra produto (inclusive pelo código da caixa), cliente, venda e tela, não mostra o que o usuário não pode abrir e não abre no PDV.
+- **Parte C:** o assistente marca os passos concluídos e some quando todos estão concluídos ou dispensados; as ações destrutivas pedem confirmação; Configurações cabe em 1280×720 sem a barra de abas rolando; a 130%, nenhuma coluna de valor sai cortada e a lista do Estoque mostra pelo menos 5 linhas.
 
 ---
 

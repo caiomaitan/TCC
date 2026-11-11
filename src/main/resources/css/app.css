@@ -610,3 +610,101 @@
 .cabecalho-grade {
     -fx-font-weight: bold;
 }
+
+/* ===== Ajuda (F1) e busca global (Ctrl+K), F21.3 ===== */
+.painel-ajuda {
+    -fx-pref-width: 360px;
+    -fx-min-width: 360px;
+    -fx-background-color: -vs-superficie;
+    -fx-border-color: -vs-borda;
+    -fx-border-width: 0 0 0 1;
+    -fx-effect: dropshadow(gaussian, -vs-sombra, 14, 0, -2, 0);
+}
+
+.ajuda-topo {
+    -fx-padding: 12 12 8 14;
+}
+
+.ajuda-cabecalho {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.ajuda-rolagem,
+.ajuda-rolagem > .viewport {
+    -fx-background-color: transparent;
+}
+
+.ajuda-corpo {
+    -fx-padding: 0 14 14 14;
+    -fx-spacing: 8;
+}
+
+.ajuda-texto {
+    -fx-fill: -vs-texto;
+    -fx-font-size: 13.5px;
+}
+
+.ajuda-negrito {
+    -fx-font-weight: bold;
+}
+
+.ajuda-titulo-2 .ajuda-texto {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.ajuda-titulo-3 .ajuda-texto {
+    -fx-font-weight: bold;
+}
+
+.ajuda-titulo-2 {
+    -fx-padding: 6 0 0 0;
+}
+
+.ajuda-lista {
+    -fx-spacing: 3;
+    -fx-padding: 0 0 0 4;
+}
+
+.ajuda-atalhos {
+    -fx-hgap: 10;
+    -fx-vgap: 6;
+}
+
+.tecla {
+    -fx-text-fill: -vs-texto;
+    -fx-background-color: -vs-fundo;
+    -fx-border-color: -vs-borda;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 0 5 0 5;
+    -fx-font-weight: bold;
+}
+
+.busca-global {
+    -fx-pref-width: 620px;
+    -fx-pref-height: 460px;
+}
+
+.busca-campo {
+    -fx-font-size: 16px;
+}
+
+.busca-lista .list-cell.busca-grupo {
+    -fx-font-weight: bold;
+    -fx-text-fill: -vs-texto-suave;
+    -fx-background-color: -vs-fundo;
+}
+
+.busca-titulo {
+    -fx-font-weight: bold;
+}
+
+.busca-lista .list-cell:filled:selected {
+    -fx-background-color: -vs-destaque;
+}
+
+.busca-lista .list-cell:filled:selected .label {
+    -fx-text-fill: -vs-texto-sobre-destaque;
+}

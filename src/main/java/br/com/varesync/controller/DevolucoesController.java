@@ -27,8 +27,9 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
@@ -115,12 +116,8 @@ public class DevolucoesController {
             });
             return linha;
         });
-        tabelaVendas.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (e.getCode() == KeyCode.ENTER) {
-                e.consume();
-                devolver();
-            }
-        });
+        Atalhos.de(tabelaVendas).em(Tecla.de(KeyCode.ENTER), "Devolver itens da venda selecionada (na lista)",
+                this::devolver);
         tabelaVendas.getSelectionModel().selectedItemProperty().addListener((o, antes, depois) -> mostrarDevolucoes());
         botaoDevolver.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
         botaoComprovante.disableProperty()

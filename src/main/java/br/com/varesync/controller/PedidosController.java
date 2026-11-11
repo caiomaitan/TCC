@@ -41,10 +41,9 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -68,7 +67,6 @@ public class PedidosController {
             EnumSet.of(StatusPedido.RASCUNHO, StatusPedido.ENVIADO, StatusPedido.PARCIAL));
     static final FiltroSituacao TODAS = new FiltroSituacao("Todas", EnumSet.noneOf(StatusPedido.class));
     private static final Opcao TODOS = new Opcao(0, "Todos");
-    private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
 
     private final PedidoCompraService pedidoService;
     private final EntradaService entradaService;
@@ -179,12 +177,7 @@ public class PedidosController {
         filtroSituacao.getItems().add(TODAS);
         filtroSituacao.setValue(EM_ANDAMENTO);
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_N.match(e)) {
-                e.consume();
-                novo();
-            }
-        });
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo pedido de compra (aba Pedidos)", this::novo);
         mostrar(null);
         pesquisar();
     }

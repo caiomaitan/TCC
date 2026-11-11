@@ -50,10 +50,9 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 
 /**
@@ -65,7 +64,6 @@ import javafx.scene.layout.HBox;
  */
 public class ClientesController {
 
-    private static final KeyCombination CTRL_N = new KeyCodeCombination(KeyCode.N, KeyCombination.SHORTCUT_DOWN);
     private static final ConversorData DATA = new ConversorData();
 
     private final ClienteService clienteService;
@@ -252,14 +250,17 @@ public class ClientesController {
         aoSairDoCampo(campoCep, this::mascararCep);
         botaoAnonimizar.setVisible(sessao.supervisor());
         botaoAnonimizar.setManaged(sessao.supervisor());
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_N.match(e)) {
-                e.consume();
-                novo();
-            }
-        });
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo cliente", this::novo);
         recarregar(null);
         novo();
+    }
+
+    /** Busca global (Ctrl+K, F21.3): mostra a ficha do cliente achado (também se estiver inativo). */
+    public void mostrarCliente(long id) {
+        campoBusca.clear();
+        filtroInativos.setSelected(true);
+        recarregar(id);
+        tabela.scrollTo(tabela.getSelectionModel().getSelectedIndex());
     }
 
     private static void coluna(TableColumn<Cliente, String> coluna, Function<Cliente, String> valor) {

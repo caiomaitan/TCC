@@ -22,10 +22,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import br.com.varesync.ui.Atalhos;
+import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 
 /**
@@ -33,8 +32,6 @@ import javafx.scene.layout.VBox;
  * fechamento às cegas (F12) com o relatório R11. O PDV usa as mesmas operações ({@link AcoesCaixa}).
  */
 public class CaixaController {
-
-    private static final KeyCombination CTRL_R = new KeyCodeCombination(KeyCode.R, KeyCombination.SHORTCUT_DOWN);
 
     private final CaixaService caixaService;
     private final Sessao sessao;
@@ -107,18 +104,12 @@ public class CaixaController {
             botaoEstornar.setDisable(r == null || r.estornado());
         });
 
-        raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (CTRL_R.match(e) && caixa != null) {
-                e.consume();
-                receber();
-            } else if (e.getCode() == KeyCode.F8 && caixa != null) {
-                e.consume();
-                movimentar();
-            } else if (e.getCode() == KeyCode.F12 && caixa != null) {
-                e.consume();
-                fechar();
-            }
-        });
+        Atalhos.de(raiz)
+                .em(Tecla.de(KeyCode.F8), "Sangria ou suprimento (com o caixa aberto)", () -> caixa != null,
+                        this::movimentar)
+                .em(Tecla.de(KeyCode.F12), "Fechar o caixa (às cegas)", () -> caixa != null, this::fechar)
+                .em(Tecla.ctrl(KeyCode.R), "Receber o crediário (com o caixa aberto)", () -> caixa != null,
+                        this::receber);
         atualizar();
     }
 

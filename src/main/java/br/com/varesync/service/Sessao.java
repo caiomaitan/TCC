@@ -125,6 +125,23 @@ public final class Sessao {
     }
 
     /**
+     * Rotina que aceita qualquer uma das permissões (ex.: a segunda via do comprovante pela busca global, F21.3: PDV,
+     * RELATORIOS ou DEVOLUCAO). Sem nenhuma, a mensagem cita a primeira.
+     *
+     * @return a sessão conferida com o banco
+     */
+    public Sessao exigirAlguma(Permissao primeira, Permissao... outras) {
+        Sessao atual = conferida();
+        for (Permissao outra : outras) {
+            if (atual.pode(outra)) {
+                return atual;
+            }
+        }
+        atual.exigirNaSessao(primeira);
+        return atual;
+    }
+
+    /**
      * Ação que exige a permissão ou a liberação de quem a tem (6.2): sangria, cancelamento, desconto acima do limite.
      * A liberação só vale se quem liberou continua ativo e com a permissão (F10.1), como {@code AcessoService.liberar}
      * conferiu ao concedê-la.

@@ -47,7 +47,8 @@
         <Label fx:id="resumo" styleClass="subtitulo"/>
     </VBox>
 
-    <VBox spacing="12" prefWidth="430" minWidth="430" styleClass="painel-formulario">
+    <!-- Mínima de 380 (F21.3): com 430, na fonte de 130% a tela passava 14 px da borda em 1280×720. -->
+    <VBox spacing="12" prefWidth="430" minWidth="380" styleClass="painel-formulario">
         <padding><Insets top="16" right="18" bottom="16" left="18"/></padding>
         <Label fx:id="tituloFormulario" styleClass="titulo-secao"/>
 
