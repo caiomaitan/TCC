@@ -11,6 +11,8 @@ import br.com.varesync.model.Painel;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
 import br.com.varesync.service.PainelService;
+import br.com.varesync.service.PrimeirosPassosService;
+import br.com.varesync.model.PrimeirosPassos;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.ui.Aparencia;
 import br.com.varesync.ui.LinhaDeCartoes;
@@ -61,6 +63,9 @@ public class PainelController {
 
     private final PainelService painelService;
     private final Sessao sessao;
+    private final PrimeirosPassosService passosService;
+    private PrimeirosPassosPainel passos;
+    private boolean passosSempre;
     private NavegacaoPainel navegacao;
     private Painel painel;
 
@@ -83,8 +88,10 @@ public class PainelController {
     @FXML private FlowPane cartoesFinanceiro;
     @FXML private VBox alertas;
     @FXML private FlowPane atalhos;
+    @FXML private VBox secaoPassos;
 
-    public PainelController(PainelService painelService, Sessao sessao) {
+    public PainelController(PainelService painelService, PrimeirosPassosService passosService, Sessao sessao) {
+        this.passosService = passosService;
         this.painelService = painelService;
         this.sessao = sessao;
     }
@@ -126,6 +133,56 @@ public class PainelController {
         atualizar();
     }
 
+    /** Reaberto pela Ajuda (F21.4): o assistente aparece mesmo com todos os passos feitos. */
+    public void preparar(NavegacaoPainel destino, boolean mostrarPrimeirosPassos) {
+        this.passosSempre = mostrarPrimeirosPassos;
+        preparar(destino);
+    }
+
+    // ----- Primeiros passos (F21.4), só para o supervisor -----
+
+    private void carregarPassos() {
+        if (!sessao.supervisor() || passosService == null) {
+            return;
+        }
+        if (passos == null) {
+            passos = new PrimeirosPassosPainel(secaoPassos, new PrimeirosPassosPainel.Acoes() {
+                @Override
+                public void abrir(PrimeirosPassos.Etapa etapa) {
+                    navegacao.abrirPasso(etapa);
+                }
+
+                @Override
+                public PrimeirosPassos revisarFormas() {
+                    return passosService.marcarFormasRevisadas(sessao);
+                }
+
+                @Override
+                public PrimeirosPassos dispensarUsuarios() {
+                    return passosService.dispensarUsuarios(sessao);
+                }
+
+                @Override
+                public PrimeirosPassos dispensarBalanca() {
+                    return passosService.dispensarBalanca(sessao);
+                }
+            }, e -> Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e)));
+            if (passosSempre) {
+                passos.mostrarSempre();
+            }
+        }
+        Task<PrimeirosPassos> tarefa = new Task<>() {
+            @Override
+            protected PrimeirosPassos call() {
+                return passosService.carregar(sessao);
+            }
+        };
+        tarefa.setOnSucceeded(e -> passos.mostrar(tarefa.getValue()));
+        tarefa.setOnFailed(e -> Mensagem.erro(mensagem, "Não foi possível carregar os primeiros passos. "
+                + TratadorExcecoes.mensagem(tarefa.getException())));
+        Tarefas.executar("primeiros-passos", tarefa);
+    }
+
     @FXML
     private void atualizar() {
         carregar();
@@ -133,6 +190,7 @@ public class PainelController {
 
     /** Carrega em {@link Task}; a tela mostra o indicador e desabilita "Atualizar" enquanto isso. */
     Task<Painel> carregar() {
+        carregarPassos();
         long inicio = System.nanoTime();
         Task<Painel> tarefa = new Task<>() {
             @Override
@@ -188,8 +246,17 @@ public class PainelController {
         Label resultado = valorFinanceiro(f.resultadoMes());
         cartoesFinanceiro.getChildren().setAll(
                 cartaoFinanceiro("Saldo das contas", saldo, porConta),
-                cartaoFinanceiro("Resultado líquido do mês", resultado, "DRE de " + DIA_MES.format(f.inicioMes())
-                        + " a " + DIA_MES.format(hoje) + " (despesas pela competência)"));
+                cartaoFinanceiro("Resultado líquido do mês", resultado, avisoResultado(f.inicioMes(), hoje)));
+    }
+
+    /**
+     * F21.5: as despesas do mês inteiro entram pela competência desde o dia 1º; no começo do mês, com pouca venda, o
+     * resultado sai negativo sem nada de errado.
+     */
+    static String avisoResultado(LocalDate inicioMes, LocalDate hoje) {
+        return "DRE de " + DIA_MES.format(inicioMes) + " a " + DIA_MES.format(hoje) + ". As despesas do mês inteiro "
+                + "já entram pela competência; as vendas, só até hoje. No começo do mês o resultado costuma sair "
+                + "negativo e melhora com as vendas.";
     }
 
     private static Label valorFinanceiro(BigDecimal valor) {

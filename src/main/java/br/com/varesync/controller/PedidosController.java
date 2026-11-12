@@ -177,7 +177,8 @@ public class PedidosController {
         filtroSituacao.getItems().add(TODAS);
         filtroSituacao.setValue(EM_ANDAMENTO);
 
-        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo pedido de compra (aba Pedidos)", this::novo);
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo pedido de compra (aba Pedidos)", this::novo)
+                .curto("novo pedido");
         mostrar(null);
         pesquisar();
     }

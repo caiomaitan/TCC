@@ -3,11 +3,13 @@ package br.com.varesync.controller;
 import br.com.varesync.config.AppConfig;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ItemBusca;
+import br.com.varesync.model.PrimeirosPassos;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.service.BuscaGlobalService;
 import br.com.varesync.ui.Atalhos;
 import br.com.varesync.ui.Atalhos.Tecla;
 import br.com.varesync.ui.PainelAjuda;
+import br.com.varesync.ui.Notificacao;
 import java.util.List;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
@@ -90,6 +92,8 @@ public class PrincipalController {
     /** PDV aberto (janela modal), para abandonar a venda no log off forçado ou na troca de usuário. */
     private PdvController pdvAberto;
     private boolean encerrado;
+    /** "Primeiros passos…" da Ajuda: o próximo Painel mostra o assistente mesmo com tudo feito (F21.4). */
+    private boolean reabrirPassos;
 
     @FXML private BorderPane raiz;
     @FXML private Label nomeLoja;
@@ -209,7 +213,8 @@ public class PrincipalController {
         Node tela;
         if (item == ItemMenu.PAINEL) {
             FXMLLoader loader = carregar("/fxml/painel.fxml");
-            loader.<PainelController>getController().preparar(navegacaoPainel());
+            loader.<PainelController>getController().preparar(navegacaoPainel(), reabrirPassos);
+            reabrirPassos = false;
             tela = loader.getRoot();
         } else if (item.fxml() == null) {
             tela = aviso(item.rotulo(), "Esta rotina ainda está em construção.");
@@ -230,6 +235,7 @@ public class PrincipalController {
     private void mostrarTela(Node tela) {
         boolean ajuda = ajudaAberta();
         conteudo.getChildren().setAll(tela);
+        Atalhos.preencherDicas(tela); // os rodapés com atalhos saem do registro (F21.5)
         Aparencia.ajustar(tela); // larguras fixas e rótulos na fonte do usuário (F21.2)
         if (ajuda) {
             mostrarAjuda(); // a ajuda acompanha a tela aberta
@@ -269,6 +275,14 @@ public class PrincipalController {
         Node tela = conteudo.getChildren().isEmpty() ? null : conteudo.getChildren().get(0);
         painelAjuda.mostrar(item.ajuda(), tela == null || tela == painelAjuda ? List.of() : Atalhos.daTela(tela),
                 Atalhos.de(raiz).lista());
+        if (sessao.supervisor()) {
+            // F21.4: o assistente "Primeiros passos" pode ser reaberto pela Ajuda, mesmo com tudo feito.
+            painelAjuda.adicionarLink("Primeiros passos…", () -> {
+                fecharAjuda();
+                reabrirPassos = true;
+                abrir(ItemMenu.PAINEL);
+            });
+        }
         if (!conteudo.getChildren().contains(painelAjuda)) {
             conteudo.getChildren().add(painelAjuda);
         }
@@ -450,6 +464,21 @@ public class PrincipalController {
             }
 
             @Override
+            public void abrirPasso(PrimeirosPassos.Etapa etapa) {
+                switch (etapa) {
+                    case PRODUTOS -> PrincipalController.this.abrir(ItemMenu.PRODUTOS);
+                    case USUARIOS -> PrincipalController.this.abrir(ItemMenu.USUARIOS);
+                    default -> abrirFiltrado(ItemMenu.CONFIGURACOES).<ConfiguracoesController>getController()
+                            .mostrarSecao(switch (etapa) {
+                                case LOJA -> ConfiguracoesController.Secao.LOJA;
+                                case FORMAS -> ConfiguracoesController.Secao.FORMAS;
+                                case BALANCA -> ConfiguracoesController.Secao.BALANCA;
+                                default -> ConfiguracoesController.Secao.BACKUP;
+                            });
+                }
+            }
+
+            @Override
             public void abrirInconsistenciasFiscais() {
                 if (sessao.pode(Permissao.RELATORIOS)) {
                     FXMLLoader loader = abrirFiltrado(ItemMenu.RELATORIOS);
@@ -485,7 +514,7 @@ public class PrincipalController {
         boolean alterada = DialogoSenha.alterarPropria(acessoService.politicaSenha().descricao(),
                 (atual, nova, confirmacao) -> acessoService.trocarSenha(sessao, atual, nova, confirmacao));
         if (alterada) {
-            Dialogos.alerta(Alert.AlertType.INFORMATION, "Senha alterada.");
+            Notificacao.mostrar(raiz.getScene().getWindow(), "Senha alterada.");
         }
     }
 

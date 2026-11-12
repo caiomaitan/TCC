@@ -184,6 +184,7 @@ public class FinanceiroController {
         carregarContas(null);
         carregarRecebiveis();
         carregarTitulos();
+        javafx.application.Platform.runLater(tabelaContas::requestFocus); // F21.5: foco inicial
     }
 
     /** Alerta do painel (F15.6): contas a pagar em aberto com vencimento de {@code de} até {@code ate}. */

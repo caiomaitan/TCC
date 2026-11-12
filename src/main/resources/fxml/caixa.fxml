@@ -76,6 +76,6 @@
         <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
     </TableView>
 
-    <Label styleClass="subtitulo"
-           text="F8 sangria ou suprimento · F12 fechar caixa (às cegas: o valor esperado só aparece depois do fechamento) · Ctrl+R receber crediário"/>
+    <Label styleClass="subtitulo,dica-atalhos" wrapText="true" minHeight="-Infinity"
+           text="O fechamento é às cegas: o valor esperado só aparece depois do fechamento"/>
 </VBox>

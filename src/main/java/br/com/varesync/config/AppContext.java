@@ -201,7 +201,7 @@ public final class AppContext implements AutoCloseable {
             return new ImportacaoProdutosController(s.importacao(), sessao);
         }
         if (tipo == PainelController.class) {
-            return new PainelController(s.painel(), sessao);
+            return new PainelController(s.painel(), s.primeirosPassos(), sessao);
         }
         if (tipo == RelatoriosController.class) {
             return new RelatoriosController(s.relatorios(), relatorioPdf, sessao,

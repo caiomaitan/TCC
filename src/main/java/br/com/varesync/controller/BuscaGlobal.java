@@ -119,13 +119,14 @@ final class BuscaGlobal {
     }
 
     private void mostrarSituacao() {
-        situacao.setText("Digite ao menos " + BuscaGlobalService.MINIMO + " letras ou números. Enter abre, Esc fecha.");
+        situacao.setText("Digite ao menos " + BuscaGlobalService.MINIMO + " letras ou números (o número da venda, a "
+                + "partir de 1). Enter abre, Esc fecha.");
     }
 
     private void procurar() {
         String texto = campo.getText() == null ? "" : campo.getText();
         int minha = ++consulta;
-        if (texto.strip().length() < BuscaGlobalService.MINIMO) {
+        if (!BuscaGlobalService.procuravel(texto)) {
             lista.getItems().clear();
             mostrarSituacao();
             return;

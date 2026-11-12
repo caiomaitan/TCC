@@ -220,7 +220,7 @@ public class InventarioController {
             }
         });
 
-        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo inventário", this::novo);
+        Atalhos.de(raiz).em(Tecla.ctrl(KeyCode.N), "Novo inventário", this::novo).curto("novo inventário");
 
         mostrar(null);
         pesquisar();

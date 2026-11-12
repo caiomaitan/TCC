@@ -98,6 +98,6 @@
         </VBox>
     </SplitPane>
 
-    <Label text="Ctrl+N novo pedido · Só o rascunho muda: leia o código (Enter), digite a quantidade na unidade de venda (Enter) e o custo previsto (Enter inclui) · Enviado e parcial contam como pendente na Sugestão de compra e recebem entrada (Entradas › Pedido…)"
-           styleClass="subtitulo" wrapText="true" minHeight="-Infinity"/>
+    <Label text="Só o rascunho muda: leia o código (Enter), digite a quantidade na unidade de venda (Enter) e o custo previsto (Enter inclui) · Enviado e parcial contam como pendente na Sugestão de compra e recebem entrada (Entradas › Pedido…)"
+           styleClass="subtitulo,dica-atalhos" wrapText="true" minHeight="-Infinity"/>
 </VBox>

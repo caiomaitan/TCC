@@ -51,6 +51,9 @@ class ConfiguracoesTest {
         m.put("etiqueta.linhas", "8");
         m.put("etiqueta.modelo_termica", "");
         m.put("etiqueta.impressora_termica", "");
+        m.put("assistente.formas_revisadas", "false"); // V22 (F21.4)
+        m.put("assistente.usuarios_dispensado", "false");
+        m.put("assistente.balanca_dispensada", "false");
         m.put("balanca.pasta_carga", ""); // V17 (F18.2)
         m.put("empresa.regime_tributario", "SIMPLES"); // V18 (F19.1)
         m.put("empresa.uf", "");
@@ -174,6 +177,20 @@ class ConfiguracoesTest {
         assertThat(Configuracoes.de(m).validadeAlertaDias()).isEqualTo(7);
         m.put("validade.alerta_dias", "0");
         assertThat(Configuracoes.de(m).validadeAlertaDias()).isZero();
+    }
+
+    /** V22 (F21.4): as marcações do assistente "Primeiros passos"; valor inválido volta a falso. */
+    @Test
+    void assistenteDaV22() {
+        Map<String, String> m = v2();
+        m.put("assistente.formas_revisadas", "true");
+        m.put("assistente.balanca_dispensada", "talvez");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.assistente()).isEqualTo(new Configuracoes.Assistente(true, false, false));
+        assertThat(c.comAssistente(new Configuracoes.Assistente(false, true, true)).paraMapa())
+                .containsEntry("assistente.formas_revisadas", "false")
+                .containsEntry("assistente.usuarios_dispensado", "true")
+                .containsEntry("assistente.balanca_dispensada", "true");
     }
 
     @Test

@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
  *
  * <p>Variáveis: {NOME} (ou {NOME:n}, cortado em n caracteres), {PRECO}, {PRECO_DE}, {UNIDADE}, {CODBARRAS}, {PLU},
  * {CODIGO}, {VALIDADE} (fim da promoção) e, com a F20.3, {QTD_ATACADO} e {PRECO_ATACADO} (a faixa de atacado da
- * etiqueta, vazias sem faixa). Os preços saem sem "R$" (12,90); a variável que não se aplica sai vazia;
+ * etiqueta; sem faixa, a linha do modelo que as usa não sai). Os preços saem sem "R$" (12,90); a variável que não se
+ * aplica sai vazia;
  * texto entre chaves que não é variável fica como está.
  *
  * <p>O texto enviado sai sem acentos e só com caracteres ASCII (o que sobra vira "?"), porque as impressoras
@@ -34,7 +35,7 @@ public final class ModeloTermica {
 
     /** Uma etiqueta (sem repetir pela quantidade). */
     public static String aplicar(String modelo, Etiqueta e) {
-        Matcher m = VARIAVEL.matcher(modelo);
+        Matcher m = VARIAVEL.matcher(e.temAtacado() ? modelo : semLinhasDeAtacado(modelo));
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
             String nome = m.group(1);
@@ -63,6 +64,20 @@ public final class ModeloTermica {
                 uma = uma + "\r\n";
             }
             sb.append(uma.repeat(e.quantidade()));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * F21.5: sem faixa de atacado, as linhas do modelo que usam {QTD_ATACADO} ou {PRECO_ATACADO} saem inteiras (senão
+     * a linha fixa ficaria "A partir de  un: R$ "). Num modelo ZPL ou DPL cada linha é um comando.
+     */
+    static String semLinhasDeAtacado(String modelo) {
+        StringBuilder sb = new StringBuilder(modelo.length());
+        for (String linha : modelo.split("(?<=\\n)")) {
+            if (!linha.contains("{QTD_ATACADO}") && !linha.contains("{PRECO_ATACADO}")) {
+                sb.append(linha);
+            }
         }
         return sb.toString();
     }

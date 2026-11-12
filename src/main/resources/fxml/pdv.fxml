@@ -80,8 +80,7 @@
                 <TextField fx:id="entrada" HBox.hgrow="ALWAYS" styleClass="pdv-entrada" onAction="#registrar"
                            promptText="Código de barras, código, quantidade*código (3*789…) ou nome do produto"/>
             </HBox>
-            <Label styleClass="pdv-atalhos" wrapText="true"
-                   text="F1 ajuda · F2 buscar · F3 quantidade · F4 desconto no item · F5 desconto na venda · F6 cancelar item · F7 consultar preço · F8 sangria/suprimento · F9 vendas da sessão · F10 pagamento · F11 cliente · F12 fechar caixa · Ctrl+R receber crediário · Esc abandonar venda / sair"/>
+            <Label styleClass="pdv-atalhos,dica-atalhos" wrapText="true" text=""/>
         </VBox>
     </bottom>
 </BorderPane>

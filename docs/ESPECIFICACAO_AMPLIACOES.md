@@ -1255,12 +1255,15 @@ A fase tem três partes: A (preferências, tema escuro, fonte e cortes), B (ajud
   - nas telas divididas (lista em cima, detalhe embaixo), a lista mostra pelo menos 5 linhas a 130%, e a divisória pode ser arrastada;
   - a conferência por captura, no escuro e a 130%, passa a cobrir também as telas que ficaram fora da F21.2: Inventário, Usuários, Fornecedores, Devoluções, Promoções, Unidades, Categorias, Fiscal, Etiquetas e Carga de balança;
   - na entrada de mercadoria a 100%, a linha de inclusão do item volta a caber numa linha só.
+- pendências da parte B:
+  - a barra de atalhos do PDV e as dicas de atalho nos rodapés das telas saem do registro de atalhos, como a lista da ajuda, e não de texto escrito à mão;
+  - na busca global, um número puro procura a venda a partir de 1 dígito (os outros grupos continuam pedindo 2 caracteres).
 
 ### Aceite F21
 
 - **Parte A:** o tema escuro e a fonte de 130% ficam salvos por usuário e não cortam textos nas telas principais (conferido por capturas); o teste de contraste passa nos dois temas.
 - **Parte B:** F1 mostra a ajuda da tela atual, também no PDV, e a lista de atalhos bate com os atalhos da tela; Ctrl+K encontra produto (inclusive pelo código da caixa), cliente, venda e tela, não mostra o que o usuário não pode abrir e não abre no PDV.
-- **Parte C:** o assistente marca os passos concluídos e some quando todos estão concluídos ou dispensados; as ações destrutivas pedem confirmação; Configurações cabe em 1280×720 sem a barra de abas rolando; a 130%, nenhuma coluna de valor sai cortada e a lista do Estoque mostra pelo menos 5 linhas.
+- **Parte C:** o assistente marca os passos concluídos e some quando todos estão concluídos ou dispensados; as ações destrutivas pedem confirmação; Configurações cabe em 1280×720 sem a barra de abas rolando; a 130%, nenhuma coluna de valor sai cortada e a lista do Estoque mostra pelo menos 5 linhas; a barra de atalhos do PDV bate com o registro; a venda nº 7 é achada pelo Ctrl+K.
 
 ---
 

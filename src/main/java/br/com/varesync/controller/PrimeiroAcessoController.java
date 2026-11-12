@@ -3,15 +3,14 @@ package br.com.varesync.controller;
 import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.service.AcessoService;
 import br.com.varesync.service.AcessoService.PrimeiroAcesso;
-import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.Notificacao;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Textos;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -59,9 +58,10 @@ public class PrimeiroAcessoController {
         formulario.setDisable(true);
         Mensagem.informar(mensagem, "Criando o supervisor…");
         tarefa.setOnSucceeded(e -> {
-            Dialogos.alerta(Alert.AlertType.INFORMATION,
-                    "Supervisor criado. Entre com o login \"" + login + "\" e a senha que você definiu.");
+            javafx.stage.Window janela = mensagem.getScene() == null ? null : mensagem.getScene().getWindow();
             navegacao.mostrarLogin(login);
+            Notificacao.mostrar(janela, "Supervisor criado. Entre com o login \"" + login
+                    + "\" e a senha que você definiu.");
         });
         tarefa.setOnFailed(e -> {
             formulario.setDisable(false);

@@ -42,6 +42,8 @@ import br.com.varesync.service.CaixaService;
 import br.com.varesync.service.CategoriaService;
 import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ConfiguracaoService;
+import br.com.varesync.service.PrimeirosPassosService;
+import br.com.varesync.dao.PrimeirosPassosDAO;
 import br.com.varesync.service.ConsultaAuditoriaService;
 import br.com.varesync.service.ContaFinanceiraService;
 import br.com.varesync.service.ContaPagarService;
@@ -94,7 +96,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        FluxoCaixaService fluxoCaixa, ProdutoFornecedorService vinculos,
                        SugestaoCompraService sugestao, PedidoCompraService pedidos,
                        EtiquetaService etiquetas, CargaBalancaService cargaBalanca,
-                       FiscalService fiscal, PreferenciaService preferencias, BuscaGlobalService busca) {
+                       FiscalService fiscal, PreferenciaService preferencias, BuscaGlobalService busca,
+                       PrimeirosPassosService primeirosPassos) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
         Transacao transacao = new Transacao(dataSource);
@@ -172,7 +175,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                 new FiscalService(transacao, new PerfilTributarioDAO(), new FiscalDAO(), categoriaDAO, nfe, configuracaoDAO,
                         auditoria, clock),
                 new PreferenciaService(transacao, new PreferenciaDAO(), clock),
-                new BuscaGlobalService(transacao, new BuscaGlobalDAO(), fornecedorDAO));
+                new BuscaGlobalService(transacao, new BuscaGlobalDAO(), fornecedorDAO),
+                new PrimeirosPassosService(transacao, configuracaoDAO, new PrimeirosPassosDAO(), configuracoes));
     }
 
     /**

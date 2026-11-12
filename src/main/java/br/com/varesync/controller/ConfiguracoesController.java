@@ -170,6 +170,11 @@ public class ConfiguracoesController {
     @FXML private TextField campoBloqueioAtraso;
     @FXML private Tab abaFinanceiro;
     @FXML private CheckBox campoIntegrarCaixa;
+    @FXML private ListView<Tab> secoes;
+    @FXML private Tab abaPrimeirosPassos;
+    @FXML private CheckBox campoFormasRevisadas;
+    @FXML private CheckBox campoSoEuUso;
+    @FXML private CheckBox campoSemBalanca;
     @FXML private Tab abaCompras;
     @FXML private Tab abaEstoque;
     @FXML private TextField campoAlertaValidade;
@@ -298,7 +303,8 @@ public class ConfiguracoesController {
                 Formatos.moeda(c.getValue().diferenca())));
 
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaEtiquetas, abaBackup);
+                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaEtiquetas, abaBackup, abaPrimeirosPassos);
+        prepararSecoes();
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
             barraSalvar.setVisible(visivel);
@@ -361,6 +367,7 @@ public class ConfiguracoesController {
         mostrar(configuracaoService.carregar(sessao));
         carregarFormas(null);
         verificar();
+        javafx.application.Platform.runLater(secoes::requestFocus); // F21.5: foco inicial na lista de seções
     }
 
     // ----- Parâmetros (loja, venda, relatórios, balança) -----
@@ -409,6 +416,9 @@ public class ConfiguracoesController {
         campoEtiquetaLinhas.setText(String.valueOf(c.etiquetas().linhas()));
         campoImpressoraTermica.getEditor().setText(c.etiquetas().impressoraTermica());
         campoModeloTermica.setText(c.etiquetas().modeloTermica());
+        campoFormasRevisadas.setSelected(c.assistente().formasRevisadas());
+        campoSoEuUso.setSelected(c.assistente().usuariosDispensado());
+        campoSemBalanca.setSelected(c.assistente().balancaDispensada());
         atualizarBalanca();
     }
 
@@ -445,7 +455,9 @@ public class ConfiguracoesController {
                 inteiro(campoAlertaValidade, "Alerta de validade"),
                 new Configuracoes.Etiquetas(inteiro(campoEtiquetaColunas, "Etiquetas por linha"),
                         inteiro(campoEtiquetaLinhas, "Linhas por folha"), campoModeloTermica.getText(),
-                        campoImpressoraTermica.getEditor().getText()));
+                        campoImpressoraTermica.getEditor().getText()),
+                new Configuracoes.Assistente(campoFormasRevisadas.isSelected(), campoSoEuUso.isSelected(),
+                        campoSemBalanca.isSelected()));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -517,6 +529,45 @@ public class ConfiguracoesController {
     /** Abre a tela já na aba Backup (alerta "último backup há mais de 7 dias" do Painel). */
     public void mostrarBackup() {
         abas.getSelectionModel().select(abaBackup);
+    }
+
+    /** Seções para onde o assistente "Primeiros passos" (F21.4) leva. */
+    public enum Secao { LOJA, FORMAS, BALANCA, BACKUP }
+
+    public void mostrarSecao(Secao secao) {
+        abas.getSelectionModel().select(switch (secao) {
+            case LOJA -> abaLoja;
+            case FORMAS -> abaFormas;
+            case BALANCA -> abaBalanca;
+            case BACKUP -> abaBackup;
+        });
+    }
+
+    /**
+     * F21.5: as seções numa lista à esquerda, no lugar da barra de abas, que já não cabia em 1280×720 e rolava (a
+     * barra fica escondida pela classe {@code abas-ocultas}). A lista e as abas escolhem juntas.
+     */
+    private void prepararSecoes() {
+        secoes.setItems(abas.getTabs());
+        secoes.setCellFactory(l -> new ListCell<>() {
+            @Override
+            protected void updateItem(Tab aba, boolean vazio) {
+                super.updateItem(aba, vazio);
+                setText(vazio || aba == null ? null : aba.getText());
+            }
+        });
+        secoes.getSelectionModel().select(abas.getSelectionModel().getSelectedItem());
+        secoes.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
+            if (aba != null && abas.getSelectionModel().getSelectedItem() != aba) {
+                abas.getSelectionModel().select(aba);
+            }
+        });
+        abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
+            if (secoes.getSelectionModel().getSelectedItem() != aba) {
+                secoes.getSelectionModel().select(aba);
+                secoes.scrollTo(aba);
+            }
+        });
     }
 
     private void prepararTabelaBackups() {

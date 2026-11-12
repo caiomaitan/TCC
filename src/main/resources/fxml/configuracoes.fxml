@@ -24,14 +24,17 @@
 
 <!-- Configurações (6.13, só supervisor): loja, venda, relatórios, balança, formas de pagamento, diagnóstico do estoque
      (6.4), backup (6.12), auditoria e dados de demonstração (6.14). Loja, Venda, Relatórios, Balança e Backup são
-     salvas juntas pelo botão "Salvar alterações". -->
+     salvas juntas pelo botão "Salvar alterações". F21.5: as seções ficam numa lista à esquerda (a barra de abas fica
+     escondida), para caber em 1280×720. -->
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.ConfiguracoesController"
       spacing="10" styleClass="tela-cadastro">
 
     <Label text="Configurações" styleClass="titulo"/>
 
-    <TabPane fx:id="abas" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+    <HBox spacing="12" VBox.vgrow="ALWAYS">
+    <ListView fx:id="secoes" styleClass="lista-secoes" prefWidth="200" minWidth="170"/>
+    <TabPane fx:id="abas" tabClosingPolicy="UNAVAILABLE" HBox.hgrow="ALWAYS" styleClass="abas-ocultas">
         <Tab fx:id="abaLoja" text="Loja">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
@@ -431,6 +434,16 @@
             </VBox>
             </ScrollPane>
         </Tab>
+        <Tab fx:id="abaPrimeirosPassos" text="Primeiros passos">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label wrapText="true" minHeight="-Infinity" text="O assistente &quot;Primeiros passos&quot; do Painel confere sozinho os dados da loja, os produtos, os usuários, a balança e o backup. Estas três marcações são o que ele não tem como conferir; o próprio assistente as liga pelos botões &quot;Revisei&quot;, &quot;Só eu uso o sistema&quot; e &quot;Não uso balança&quot;. Desmarcar volta o passo para pendente."/>
+                <CheckBox fx:id="campoFormasRevisadas" text="Revisei as formas de pagamento"/>
+                <CheckBox fx:id="campoSoEuUso" text="Só eu uso o sistema (dispensa o passo Usuários)"/>
+                <CheckBox fx:id="campoSemBalanca" text="Não uso balança (dispensa o passo Balança)"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Para ver o assistente de novo depois de concluído: Ajuda › Primeiros passos…"/>
+            </VBox>
+        </Tab>
         <Tab text="Dados de demonstração">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
@@ -446,6 +459,7 @@
             </VBox>
         </Tab>
     </TabPane>
+    </HBox>
 
     <HBox fx:id="barraSalvar" spacing="10" alignment="CENTER_LEFT">
         <Label fx:id="mensagemParametros" wrapText="true" minHeight="-Infinity" styleClass="mensagem"

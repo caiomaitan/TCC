@@ -155,6 +155,22 @@ public final class Aparencia {
         coluna.setMinWidth(minima * escala());
     }
 
+    /**
+     * Conteúdo de uma janela que o sistema não observa (popup, como a {@link Notificacao}): a folha do sistema, a da
+     * fonte e o tema atuais na própria raiz, que ganha a classe {@code root} para ter as variáveis de cor.
+     */
+    public static void estilizarAvulso(Parent raiz, String classe) {
+        raiz.getStyleClass().addAll("root", classe);
+        if (atual.tema() == Tema.ESCURO) {
+            raiz.getStyleClass().add(CLASSE_ESCURO);
+        }
+        raiz.getStylesheets().add(urlFolha());
+        String folha = folha(atual.fonte());
+        if (folha != null) {
+            raiz.getStylesheets().add(folha);
+        }
+    }
+
     // ---- janelas e cenas ----
 
     private static void observar(Window janela) {
@@ -291,11 +307,62 @@ public final class Aparencia {
         return nos;
     }
 
+
+    // ---- telas divididas: lista em cima, detalhe embaixo (F21.5) ----
+
+    /** Linhas que a lista de cima mostra, no mínimo, em qualquer fonte. */
+    public static final int LINHAS_DA_LISTA = 5;
+    private static final String ALTURA_ORIGINAL = "varesync.altura-minima-original";
+
+    /**
+     * Na tela dividida, a primeira tabela do item de cima mostra pelo menos {@link #LINHAS_DA_LISTA} linhas e o título
+     * (a linha da tabela tem 2em, como no modena); os itens de baixo podem encolher até zero, para a divisória descer
+     * até onde a pessoa quiser e a lista nunca ficar com duas linhas na fonte de 130%.
+     */
+    private static void listaComCincoLinhas(SplitPane divisao, double escala) {
+        if (divisao.getItems().isEmpty()) {
+            return;
+        }
+        TableView<?> lista = primeiraTabela(divisao.getItems().get(0));
+        if (lista == null) {
+            return;
+        }
+        Object original = lista.getProperties().computeIfAbsent(ALTURA_ORIGINAL, k -> lista.getMinHeight());
+        double linha = 2 * FolhaFonte.fonteDaRaiz(css()).doubleValue() * escala;
+        double minima = Math.ceil(linha * (LINHAS_DA_LISTA + 1) + 4);
+        lista.setMinHeight(Math.max(minima, (Double) original));
+        for (int i = 1; i < divisao.getItems().size(); i++) {
+            if (divisao.getItems().get(i) instanceof Region detalhe) {
+                detalhe.setMinHeight(0);
+            }
+        }
+    }
+
+    private static TableView<?> primeiraTabela(Node no) {
+        if (no instanceof TableView<?> tabela) {
+            return tabela;
+        }
+        if (no instanceof SplitPane || no instanceof TabPane) {
+            return null; // a lista fica no primeiro nível do item de cima
+        }
+        if (no instanceof Parent pai) {
+            for (Node filho : pai.getChildrenUnmodifiable()) {
+                TableView<?> achada = primeiraTabela(filho);
+                if (achada != null) {
+                    return achada;
+                }
+            }
+        }
+        return null;
+    }
     // ---- larguras fixas ----
 
     private static void ajustarLarguras(Node no, double escala) {
         if (no instanceof Region regiao) {
             escalar(regiao, escala);
+        }
+        if (no instanceof SplitPane divisao && divisao.getOrientation() == javafx.geometry.Orientation.VERTICAL) {
+            listaComCincoLinhas(divisao, escala);
         }
         if (no instanceof TableView<?> tabela) {
             tabela.getColumns().forEach(c -> escalar(c, escala));
@@ -419,6 +486,7 @@ public final class Aparencia {
         }
         if (tabela instanceof TableView<?> tv) {
             rolarQuandoNaoCouber(tv);
+            ColunasDeValor.instalar(tv); // F21.5: coluna de valor com a largura do maior valor
         }
     }
 
@@ -438,7 +506,7 @@ public final class Aparencia {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void avaliarPolitica(TableView tabela) {
+    static void avaliarPolitica(TableView tabela) {
         Object original = tabela.getProperties().get(POLITICA);
         if (original == null || original == TableView.UNCONSTRAINED_RESIZE_POLICY || tabela.getWidth() <= 0) {
             return;

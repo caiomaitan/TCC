@@ -146,7 +146,7 @@
     </SplitPane>
 
     <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="Ctrl+N novo inventário · Contar: leia o código (Enter) e digite o contado (Enter grava) · Recontagem sobrescreve a anterior"
-               styleClass="subtitulo"/>
+        <Label text="Contar: leia o código (Enter) e digite o contado (Enter grava) · Recontagem sobrescreve a anterior"
+               styleClass="subtitulo,dica-atalhos"/>
     </HBox>
 </VBox>

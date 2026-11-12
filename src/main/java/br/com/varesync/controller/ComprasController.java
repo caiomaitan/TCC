@@ -259,8 +259,10 @@ public class ComprasController {
                         () -> abas.getSelectionModel().getSelectedItem() != abaPedidos
                                 && abas.getSelectionModel().getSelectedItem() != abaSugestao,
                         this::nova)
+                .curto("nova entrada", "entradas")
                 .em(Tecla.de(KeyCode.F5), "Calcular a sugestão de compra (aba Sugestão de compra)",
-                        () -> abas.getSelectionModel().getSelectedItem() == abaSugestao, this::calcularSugestao);
+                        () -> abas.getSelectionModel().getSelectedItem() == abaSugestao, this::calcularSugestao)
+                .curto("calcula", "sugestao");
         prepararSugestao();
         mostrar(null);
         pesquisar();

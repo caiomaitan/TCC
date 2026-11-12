@@ -520,3 +520,23 @@ Casos do roteiro manual: CT-F21-01 a CT-F21-06 (pela tela em 2026-11-10) e CT-F2
 | RNF12 / F21.3 Segunda via pela busca | `VendaService.segundaVia` (PDV, RELATORIOS ou DEVOLUCAO), `Sessao.exigirAlguma`, `AcoesBusca`, `ComprovanteController.abrir` com "Devolver itens…" (DEVOLUCAO) | `BuscaGlobalIT.segundaViaParaQuemTemPdvRelatoriosOuDevolucao`, `FxmlTest` |
 
 Casos do roteiro manual: CT-F21-09 a CT-F21-16 (pela tela em 2026-11-11) e CT-F21-17 (pela pessoa).
+
+## Fase 21 — Usabilidade e acessibilidade, parte C (RNF12)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RNF12 / F21.4 Banco | Migration `V22__primeiros_passos.sql`: `assistente.formas_revisadas`, `assistente.usuarios_dispensado`, `assistente.balanca_dispensada` | `MigracaoIT`, `ConfiguracoesTest.assistenteDaV22`, `valoresDaV2SaoOPadrao` |
+| RNF12 / F21.4 Assistente "Primeiros passos" | `model.PrimeirosPassos`, `Configuracoes.Assistente`, `PrimeirosPassosDAO`, `PrimeirosPassosService` (carregar, Revisei, Só eu uso o sistema, Não uso balança, pelo `ConfiguracaoService.salvar`), `Servicos`, `AppContext`; `controller.PrimeirosPassosPainel` no Painel (`painel.fxml` › `secaoPassos`, `PainelController`), `NavegacaoPainel.abrirPasso`, `PrincipalController` ("Primeiros passos…" na Ajuda), `PainelAjuda.adicionarLink`, `ConfiguracoesController.mostrarSecao` e a seção Primeiros passos | `PrimeirosPassosServiceIT` (tudo pendente na loja nova; concluídos pelos dados; Revisei grava e audita; dispensados; tudo feito termina; produto e usuário inativos não contam; só o supervisor) |
+| RNF12 / F21.5 Confirmações | `CategoriasController.alternarSituacao` (a que faltava); lista conferida no PROGRESSO | Pela tela (Categorias › Inativar › Não) |
+| RNF12 / F21.5 Notificação discreta | `ui.Notificacao` (Popup sem foco, some sozinha), `ui.Mensagem.sucesso`, `Aparencia.estilizarAvulso`, `PrincipalController` (senha alterada), `PrimeiroAcessoController` (supervisor criado), `app.css` (`.notificacao`) | `ContrasteTest`, `FolhaFonteTest`; pela tela (aparece, não tira o foco, some) |
+| RNF12 / F21.5 Foco inicial e Tab | `FinanceiroController`, `RelatoriosController`, `ConfiguracoesController` (foco inicial) | Pela tela (Tab na linha de inclusão da entrada) |
+| RNF12 / F21.5 Configurações em lista lateral | `configuracoes.fxml` (`secoes`, `abas-ocultas`), `ConfiguracoesController.prepararSecoes`, `app.css` | `FxmlTest`; pela tela (17 seções sem rolar, cada uma conferida no escuro de 130%) |
+| RNF12 / F21.5 Cartão do resultado do mês | `PainelController.avisoResultado` | Pela tela |
+| RNF12 / F21.5 Atacado nos modelos da térmica | `resources/etiquetas/exemplo-zpl.txt` e `exemplo-dpl.txt`, `ModeloTermica.semLinhasDeAtacado`, `ImpressaoTermica.exemplo` | `ModeloTermicaTest` (`exemplosTrazemALinhaDeAtacadoSoComFaixa`, `linhaDeAtacadoSaiInteiraSemFaixa`, `faixaDeAtacadoNasVariaveisDaTermica`) |
+| RNF12 / F21.5 Colunas de valor e dica | `ui.ColunasDeValor` (ligada pela `Aparencia` a toda tabela) | Pela tela (nenhum valor cortado nas tabelas das telas principais e das que ficaram fora da F21.2; dica do texto cortado) |
+| RNF12 / F21.5 Telas divididas | `Aparencia.listaComCincoLinhas` (Estoque, Compras, Pedidos, Inventário, Financeiro) | Pela tela (Estoque com ≥ 5 linhas a 130%; divisória move) |
+| RNF12 / F21.5 Rodapés e barra do PDV pelo registro | `ui.Atalhos` (`curto`, `dica`, `preencherDicas`), `pdv.fxml`, `estoque.fxml`, `caixa.fxml`, `compras.fxml`, `inventario.fxml`, `pedidos.fxml`, `PdvController`, `EstoqueController`, `CaixaController`, `ComprasController`, `InventarioController`, `PedidosController`, `PrincipalController.mostrarTela` | `AtalhosTest.dicaDoRodapeSaiDoRegistro`, `AjudaTest.rodapesDeAtalhosSaemDoRegistro`; pela tela (a barra do PDV igual à do registro e à de antes) |
+| RNF12 / F21.5 Busca de 1 dígito | `BuscaGlobalService.procuravel`, `controller.BuscaGlobal` | `BuscaGlobalIT.vendaNumeroSeteComUmDigito`; pela tela (Ctrl+K › 7) |
+| RNF12 / F21.5 Entrada a 100% | `compras.fxml` (linha de inclusão) | Pela tela (uma linha só no claro de 100%) |
+
+Casos do roteiro manual: CT-F21-18 a CT-F21-30 (pela tela em 2026-11-12) e CT-F21-31 e CT-F21-32 (pendentes: impressora térmica, teclado e mouse de verdade).

@@ -55,13 +55,32 @@ public class BuscaGlobalService {
     }
 
     /**
+     * Já dá para procurar? A partir de {@link #MINIMO} caracteres; um número puro, a partir de 1 dígito, mas só a
+     * venda pelo número (F21.5): "7" acha a venda nº 7, e os outros grupos continuam pedindo 2 caracteres.
+     */
+    public static boolean procuravel(String texto) {
+        String termo = Textos.normalizarEspacos(texto == null ? "" : texto);
+        return termo.length() >= MINIMO || (!termo.isEmpty() && Textos.soDigitos(termo));
+    }
+
+    /**
      * Resultados em ordem de grupo (produtos, clientes, vendas, fornecedores). Menos de {@link #MINIMO} caracteres →
+     * só a venda, se for um número de 1 dígito ({@link #procuravel}); senão
      * lista vazia, sem consultar o banco.
      */
     public List<ItemBusca> buscar(Sessao sessao, String texto) {
         String termo = Textos.normalizarEspacos(texto);
         if (termo.length() < MINIMO) {
-            return List.of();
+            if (!procuravel(termo)) {
+                return List.of();
+            }
+            Sessao conferida = sessao.conferida();
+            if (!podeVerVendas(conferida)) {
+                return List.of();
+            }
+            return transacao.executar(con -> dao.venda(con, Long.parseLong(termo))
+                    .map(v -> List.of(new ItemBusca(GrupoBusca.VENDAS, v.id(), "Venda nº " + v.id(), detalhe(v))))
+                    .orElse(List.of()));
         }
         Sessao atual = sessao.conferida(); // F10.1: vale o acesso de agora
         String nome = Textos.normalizarBusca(termo);

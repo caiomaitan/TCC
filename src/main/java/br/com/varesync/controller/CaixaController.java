@@ -107,9 +107,12 @@ public class CaixaController {
         Atalhos.de(raiz)
                 .em(Tecla.de(KeyCode.F8), "Sangria ou suprimento (com o caixa aberto)", () -> caixa != null,
                         this::movimentar)
+                .curto("sangria ou suprimento")
                 .em(Tecla.de(KeyCode.F12), "Fechar o caixa (às cegas)", () -> caixa != null, this::fechar)
+                .curto("fechar caixa")
                 .em(Tecla.ctrl(KeyCode.R), "Receber o crediário (com o caixa aberto)", () -> caixa != null,
-                        this::receber);
+                        this::receber)
+                .curto("receber crediário");
         atualizar();
     }
 

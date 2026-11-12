@@ -249,6 +249,7 @@ public class RelatoriosController {
         });
 
         escolhaRelatorio.getSelectionModel().select(0);
+        javafx.application.Platform.runLater(escolhaRelatorio::requestFocus); // F21.5: foco inicial
     }
 
     /** Alerta do painel (F19.5): R30 com todas as regras, já gerado. */

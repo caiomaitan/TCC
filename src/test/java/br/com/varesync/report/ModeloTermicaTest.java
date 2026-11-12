@@ -62,14 +62,15 @@ class ModeloTermicaTest {
                 .isEqualTo("[Queijo Mussarela][39,90][][KG][][123][30][]");
     }
 
-    /** F20.3: {QTD_ATACADO} e {PRECO_ATACADO}, vazias sem faixa. */
+    /** F20.3: {QTD_ATACADO} e {PRECO_ATACADO}; sem faixa, a linha delas não sai (F21.5). */
     @Test
     void faixaDeAtacadoNasVariaveisDaTermica() {
         String modelo = "^FDA partir de {QTD_ATACADO} un: {PRECO_ATACADO}^FS|{PRECO}";
         Etiqueta comFaixa = new Etiqueta(12, "Refrigerante", "UN", new BigDecimal("5.49"), null, null, null, null,
                 null, ConteudoLiquido.SEM, HOJE, null, true, 1, new BigDecimal("6.000"), new BigDecimal("4.99"));
         assertThat(ModeloTermica.aplicar(modelo, comFaixa)).isEqualTo("^FDA partir de 6 un: 4,99^FS|5,49");
-        assertThat(ModeloTermica.aplicar("[{QTD_ATACADO}][{PRECO_ATACADO}]", queijo())).isEqualTo("[][]");
+        // F21.5: sem faixa, a linha do modelo que usa as variáveis de atacado não sai (antes saía com elas vazias).
+        assertThat(ModeloTermica.aplicar("[{QTD_ATACADO}][{PRECO_ATACADO}]", queijo())).isEmpty();
     }
 
     @Test
@@ -108,6 +109,31 @@ class ModeloTermicaTest {
         String dpl = ModeloTermica.aplicar(ImpressaoTermica.Exemplo.DPL.texto(), acucar());
         assertThat(dpl).startsWith("\u0002L\r\n").contains("Acucar Cristal Uniao 1 kg", "7891000315507")
                 .doesNotContain("{", "<STX>");
+    }
+
+    /** F21.5: os exemplos trazem a linha de atacado; sem faixa, ela não sai (nada de "A partir de  un:"). */
+    @Test
+    void exemplosTrazemALinhaDeAtacadoSoComFaixa() {
+        Etiqueta fardo = new Etiqueta(40, "Refrigerante Cola 2 L", "UN", new BigDecimal("8.99"), null, null, null,
+                "7894900011517", null, ConteudoLiquido.SEM, HOJE, null, true, 1, new BigDecimal("6.000"),
+                new BigDecimal("7.99"));
+        for (ImpressaoTermica.Exemplo exemplo : ImpressaoTermica.Exemplo.values()) {
+            assertThat(exemplo.texto()).as(exemplo.name()).contains("{QTD_ATACADO}", "{PRECO_ATACADO}");
+            assertThat(ModeloTermica.aplicar(exemplo.texto(), fardo)).as(exemplo.name())
+                    .contains("A partir de 6 UN: R$ 7,99");
+            String semFaixa = ModeloTermica.aplicar(exemplo.texto(), acucar());
+            assertThat(semFaixa).as(exemplo.name()).doesNotContain("A partir de", "{");
+            assertThat(semFaixa.lines().count()).as(exemplo.name())
+                    .isEqualTo(exemplo.texto().lines().count() - 1);
+        }
+    }
+
+    @Test
+    void linhaDeAtacadoSaiInteiraSemFaixa() {
+        String modelo = "A\n{NOME:5} {QTD_ATACADO}\nB {PRECO_ATACADO}\nC";
+        assertThat(ModeloTermica.aplicar(modelo, acucar())).isEqualTo("A\r\nC");
+        assertThat(ModeloTermica.semLinhasDeAtacado("x {QTD_ATACADO}")).isEmpty();
+        assertThat(ModeloTermica.semLinhasDeAtacado("{PRECO} {UNIDADE}\r\n")).isEqualTo("{PRECO} {UNIDADE}\r\n");
     }
 
     @Test

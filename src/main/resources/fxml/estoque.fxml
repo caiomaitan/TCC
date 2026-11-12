@@ -145,7 +145,7 @@
     </SplitPane>
 
     <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="F4 ajustar estoque · F5 ajustar saldo para… · Enter no campo de busca pesquisa" styleClass="subtitulo"/>
+        <Label text="Enter no campo de busca pesquisa" styleClass="subtitulo,dica-atalhos"/>
         <Region HBox.hgrow="ALWAYS"/>
         <Label text="Saldo abaixo do mínimo em destaque; saldo negativo em vermelho." styleClass="subtitulo"/>
     </HBox>

@@ -58,8 +58,8 @@
 
                     <VBox spacing="8">
                         <HBox alignment="CENTER_LEFT" spacing="10">
-                            <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao"/>
-                            <Label fx:id="situacao" styleClass="subtitulo"/>
+                            <Label fx:id="tituloEntrada" text="Selecione uma entrada" styleClass="titulo-secao" minWidth="-Infinity"/>
+                            <Label fx:id="situacao" styleClass="subtitulo" wrapText="true" minHeight="-Infinity" minWidth="120"/>
                             <FlowPane alignment="CENTER_RIGHT" hgap="10" vgap="8" prefWrapLength="900" HBox.hgrow="ALWAYS">
                             <Button fx:id="botaoEditarNota" text="Dados da nota…" onAction="#editarNota" minWidth="-Infinity"/>
                             <Button fx:id="botaoPedido" text="Pedido…" onAction="#escolherPedido" minWidth="-Infinity"/>
@@ -74,14 +74,14 @@
                         <!-- Quebra a linha quando não cabe (fonte de 130%, F21.2). -->
                         <FlowPane fx:id="painelItem" alignment="CENTER_LEFT" hgap="8" vgap="8" styleClass="painel-formulario">
                             <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
-                            <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="230" minWidth="-Infinity"
+                            <TextField fx:id="campoProduto" promptText="Código de barras, código ou nome (Enter)" prefWidth="200" minWidth="-Infinity"
                                        onAction="#escolherProduto"/>
                             <Label fx:id="produtoEscolhido" text="Nenhum produto" styleClass="produto-contagem" wrapText="true" minHeight="-Infinity"
-                                   HBox.hgrow="ALWAYS" maxWidth="Infinity" minWidth="0"/>
+                                   prefWidth="120" maxWidth="120" minWidth="0"/>
                             <Label text="Qtd. *" minWidth="-Infinity"/>
                             <TextField fx:id="campoQuantidade" prefWidth="80" minWidth="-Infinity" styleClass="campo-numero" onAction="#focarValor"/>
-                            <ComboBox fx:id="modoValor" prefWidth="160" minWidth="-Infinity"/>
-                            <TextField fx:id="campoValor" prefWidth="100" minWidth="-Infinity" styleClass="campo-numero" onAction="#gravarItem"/>
+                            <ComboBox fx:id="modoValor" prefWidth="145" minWidth="-Infinity"/>
+                            <TextField fx:id="campoValor" prefWidth="90" minWidth="-Infinity" styleClass="campo-numero" onAction="#gravarItem"/>
                             <Button fx:id="botaoGravarItem" text="Incluir" onAction="#gravarItem" minWidth="-Infinity"/>
                             <Button text="Limpar" onAction="#limparItem" minWidth="-Infinity"/>
                             <Button fx:id="botaoRemover" text="Remover…" onAction="#removerItem" minWidth="-Infinity"/>
@@ -113,8 +113,8 @@
                     </VBox>
                 </SplitPane>
 
-                <Label text="Ctrl+N nova entrada · Itens: leia o código (Enter), digite a quantidade (Enter) e o custo ou o valor da linha (Enter inclui) · Clique num item para alterá-lo"
-                       styleClass="subtitulo"/>
+                <Label userData="entradas" text="Itens: leia o código (Enter), digite a quantidade (Enter) e o custo ou o valor da linha (Enter inclui) · Clique num item para alterá-lo"
+                       styleClass="subtitulo,dica-atalhos"/>
             </VBox>
         </Tab>
 
@@ -168,8 +168,8 @@
                             minWidth="-Infinity"/>
                 </HBox>
                 <Label fx:id="mensagemSugestao" wrapText="true" minHeight="-Infinity"/>
-                <Label text="F5 calcula · Pedir: marque as linhas e clique em Gerar pedido (um rascunho por fornecedor principal) · Pendente: o que falta receber dos pedidos enviados e parciais · Cobertura: dias que o saldo dura na média · Un. compra: a sugestão em embalagens do fornecedor principal · Fornecedor principal, prazo e fator: cadastro do produto, aba Fornecedores · Dias da média e cobertura desejada: Configurações › Compras · Em vermelho, produto sem saldo que vendeu nos últimos 30 dias · Em amarelo, fornecedor principal inativo (prazo 0 e fator 1)"
-                       styleClass="subtitulo" wrapText="true" minHeight="-Infinity"/>
+                <Label userData="sugestao" text="Pedir: marque as linhas e clique em Gerar pedido (um rascunho por fornecedor principal) · Pendente: o que falta receber dos pedidos enviados e parciais · Cobertura: dias que o saldo dura na média · Un. compra: a sugestão em embalagens do fornecedor principal · Fornecedor principal, prazo e fator: cadastro do produto, aba Fornecedores · Dias da média e cobertura desejada: Configurações › Compras · Em vermelho, produto sem saldo que vendeu nos últimos 30 dias · Em amarelo, fornecedor principal inativo (prazo 0 e fator 1)"
+                       styleClass="subtitulo,dica-atalhos" wrapText="true" minHeight="-Infinity"/>
             </VBox>
         </Tab>
     </TabPane>

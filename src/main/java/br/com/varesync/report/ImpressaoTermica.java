@@ -96,7 +96,7 @@ public class ImpressaoTermica {
     public static Etiqueta exemplo(LocalDate hoje) {
         return new Etiqueta(0, "PRODUTO TESTE Açúcar Cristal 1 kg", "UN", new BigDecimal("12.90"),
                 new BigDecimal("14.90"), -1L, hoje.plusDays(7), "7891000315507", null,
-                ConteudoLiquido.SEM, hoje, null, false, 1);
+                ConteudoLiquido.SEM, hoje, null, false, 1, new BigDecimal("6"), new BigDecimal("11.90"));
     }
 
     private static void conferir(String impressora, String modelo) {

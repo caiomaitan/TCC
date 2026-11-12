@@ -80,8 +80,13 @@ class BuscaGlobalIT extends IntegracaoBase {
                 "11.222.333/0001-81", null, null, null, "Ribeirão Preto", "SP", null));
 
         t.caixa.abrir(admin, v("100.00"));
-        // A busca começa em 2 caracteres: a venda procurada tem número de 2 dígitos ou mais (a limpeza dos testes
-        // pode recomeçar a numeração).
+        // A numeração das vendas recomeça em 1 (a limpeza dos testes esvazia a tabela, mas não volta o contador): a
+        // venda nº 7 é a de 1 dígito (F21.5) e a última tem 2 dígitos.
+        try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
+            st.executeUpdate("ALTER TABLE venda ALTER COLUMN id RESTART WITH 1");
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException(e);
+        }
         do {
             venda = vender();
         } while (venda < 10);
@@ -165,6 +170,22 @@ class BuscaGlobalIT extends IntegracaoBase {
         assertThat(achadas.get(0).detalhe()).contains("R$ 9,49");
         assertThat(doGrupo(busca.buscar(admin, "999999999"), GrupoBusca.VENDAS)).isEmpty();
         assertThat(doGrupo(busca.buscar(admin, "refri"), GrupoBusca.VENDAS)).isEmpty();
+    }
+
+    /** F21.5: um número puro procura a venda a partir de 1 dígito; os outros grupos continuam pedindo 2. */
+    @Test
+    void vendaNumeroSeteComUmDigito() {
+        assertThat(BuscaGlobalService.procuravel("7")).isTrue();
+        assertThat(BuscaGlobalService.procuravel(" 7 ")).isTrue();
+        assertThat(BuscaGlobalService.procuravel("a")).isFalse();
+        assertThat(BuscaGlobalService.procuravel("")).isFalse();
+
+        List<ItemBusca> achados = busca.buscar(admin, "7");
+        assertThat(achados).extracting(ItemBusca::grupo).containsExactly(GrupoBusca.VENDAS);
+        assertThat(achados.get(0).id()).isEqualTo(7L);
+        assertThat(achados.get(0).titulo()).isEqualTo("Venda nº 7");
+        assertThat(busca.buscar(admin, "c")).isEmpty();
+        assertThat(busca.buscar(usuario("semvenda1", Permissao.CLIENTES), "7")).isEmpty();
     }
 
     @Test

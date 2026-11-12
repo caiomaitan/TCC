@@ -25,6 +25,17 @@ import org.junit.jupiter.api.Test;
  */
 class AtalhosTest {
 
+    /** Sobe o JavaFX uma vez (sem janela); sem tela disponível, o teste é pulado. */
+    static void iniciarJavaFx() {
+        try {
+            javafx.application.Platform.startup(() -> { });
+        } catch (IllegalStateException jaIniciado) {
+            // já estava no ar
+        } catch (UnsupportedOperationException semTela) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "JavaFX sem tela");
+        }
+    }
+
     private static KeyEvent tecla(KeyCode codigo, boolean ctrl) {
         return new KeyEvent(KeyEvent.KEY_PRESSED, "", "", codigo, false, ctrl, false, false);
     }
@@ -34,6 +45,34 @@ class AtalhosTest {
         KeyEvent evento = tecla(codigo, ctrl);
         Event.fireEvent(alvo, evento);
         return evento;
+    }
+
+    /** F21.5: a barra e o rodapé saem do registro, com o texto curto, por grupo e na ordem do registro. */
+    @Test
+    void dicaDoRodapeSaiDoRegistro() {
+        iniciarJavaFx(); // os rótulos (controles) pedem o JavaFX iniciado; nenhuma janela é aberta
+        VBox raiz = new VBox();
+        javafx.scene.control.Label rodape = new javafx.scene.control.Label("Enter no campo de busca pesquisa");
+        rodape.getStyleClass().add(Atalhos.CLASSE_DICA);
+        javafx.scene.control.Label sugestao = new javafx.scene.control.Label("Pedir: marque as linhas");
+        sugestao.getStyleClass().add(Atalhos.CLASSE_DICA);
+        sugestao.setUserData("sugestao");
+        Pane semDica = new Pane();
+        raiz.getChildren().addAll(semDica, rodape, sugestao);
+        Atalhos.de(raiz)
+                .em(Tecla.de(KeyCode.F4), "Ajustar o estoque do produto selecionado", () -> { }).curto("ajustar")
+                .em(Tecla.de(KeyCode.F6), "Só na ajuda", () -> { })
+                .em(Tecla.de(KeyCode.F5), "Calcular a sugestão", () -> { }).curto("calcula", "sugestao");
+        Atalhos.de(semDica).em(Tecla.ctrl(KeyCode.N), "Novo", () -> { }).curto("novo");
+
+        Atalhos.preencherDicas(raiz);
+        assertThat(rodape.getText()).isEqualTo("F4 ajustar · Ctrl+N novo · Enter no campo de busca pesquisa");
+        assertThat(sugestao.getText()).isEqualTo("F5 calcula · Pedir: marque as linhas");
+        Atalhos.preencherDicas(raiz); // de novo: não repete o texto fixo
+        assertThat(rodape.getText()).isEqualTo("F4 ajustar · Ctrl+N novo · Enter no campo de busca pesquisa");
+        assertThat(Atalhos.dica(Atalhos.daTela(raiz), null, null)).isEqualTo("F4 ajustar · Ctrl+N novo");
+        // A lista da ajuda continua com todos, inclusive os sem texto curto.
+        assertThat(Atalhos.daTela(raiz)).extracting(Atalho::descricao).contains("Só na ajuda");
     }
 
     @Test

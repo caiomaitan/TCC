@@ -17,6 +17,7 @@ import java.util.Map;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 
@@ -91,6 +92,14 @@ public final class PainelAjuda extends VBox {
                     "ajuda-titulo-2"));
             corpo.getChildren().add(tabela(globais));
         }
+    }
+
+    /** Um link no fim da ajuda (F21.4: "Primeiros passos…", para o supervisor reabrir o assistente). */
+    public void adicionarLink(String texto, Runnable acao) {
+        Hyperlink link = new Hyperlink(texto);
+        link.getStyleClass().add("ajuda-link");
+        link.setOnAction(e -> acao.run());
+        corpo.getChildren().add(link);
     }
 
     /** Texto do recurso; se faltar (o teste confere que não falta), um aviso. */

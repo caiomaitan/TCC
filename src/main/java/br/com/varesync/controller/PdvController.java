@@ -165,21 +165,34 @@ public class PdvController {
     private void registrarAtalhos() {
         Atalhos.de(raiz)
                 .em(Tecla.de(KeyCode.F1), "Ajuda desta tela (abre e fecha)", () -> executar(this::alternarAjuda))
+                .curto("ajuda")
                 .em(Tecla.de(KeyCode.F2), "Buscar o produto pelo nome", () -> executar(this::buscar))
+                .curto("buscar")
                 .em(Tecla.de(KeyCode.F3), "Quantidade do próximo item", () -> executar(this::quantidadeDoProximo))
+                .curto("quantidade")
                 .em(Tecla.de(KeyCode.F4), "Desconto no item selecionado (R$ ou %)",
                         () -> executar(this::descontoNoItem))
+                .curto("desconto no item")
                 .em(Tecla.de(KeyCode.F5), "Desconto na venda (R$ ou %)", () -> executar(this::descontoNaVenda))
+                .curto("desconto na venda")
                 .em(Tecla.de(KeyCode.F6), "Cancelar o item selecionado", () -> executar(this::cancelarItem))
+                .curto("cancelar item")
                 .em(Tecla.de(KeyCode.F7), "Consultar o preço (sem vender)", () -> executar(this::consultarPreco))
+                .curto("consultar preço")
                 .em(Tecla.de(KeyCode.F8), "Sangria ou suprimento", () -> executar(this::sangriaSuprimento))
+                .curto("sangria/suprimento")
                 .em(Tecla.de(KeyCode.F9), "Vendas da sessão (comprovante, cancelamento ou devolução)",
                         () -> executar(this::vendasDaSessao))
+                .curto("vendas da sessão")
                 .em(Tecla.de(KeyCode.F10), "Pagamento e finalização da venda", () -> executar(this::pagar))
+                .curto("pagamento")
                 .em(Tecla.de(KeyCode.F11), "Identificar o cliente (CPF/CNPJ ou nome)",
                         () -> executar(this::identificarCliente))
+                .curto("cliente")
                 .em(Tecla.de(KeyCode.F12), "Fechar o caixa", () -> executar(this::fecharCaixa))
+                .curto("fechar caixa")
                 .em(Tecla.ctrl(KeyCode.R), "Receber o crediário", () -> executar(this::receberCrediario))
+                .curto("receber crediário")
                 .em(Tecla.de(KeyCode.ESCAPE), "Fechar a ajuda; sem ela, abandonar a venda em andamento (ou sair do "
                         + "PDV, sem venda)", () -> executar(() -> {
                             if (ajudaAberta()) {
@@ -187,7 +200,9 @@ public class PdvController {
                             } else {
                                 escape();
                             }
-                        }));
+                        }))
+                .curto("abandonar venda / sair");
+        Atalhos.preencherDicas(raiz); // a barra de atalhos sai do registro (F21.5)
         Atalhos.de(entrada)
                 .em(Tecla.de(KeyCode.UP), "Selecionar o item de cima (no campo Código)", () -> moverSelecao(-1))
                 .em(Tecla.de(KeyCode.DOWN), "Selecionar o item de baixo (no campo Código)", () -> moverSelecao(1));
@@ -353,7 +368,7 @@ public class PdvController {
                         carrinho, item.sequencia(), tipo, CampoNumero.ler(texto, "Desconto"), liberacao)))
                 .ifPresent(ok -> {
                     atualizarTela();
-                    Mensagem.sucesso(mensagem, "Desconto aplicado no item " + item.sequencia() + ".");
+                    Mensagem.sucessoNoRotulo(mensagem, "Desconto aplicado no item " + item.sequencia() + ".");
                 });
     }
 
@@ -369,7 +384,7 @@ public class PdvController {
                         carrinho, tipo, CampoNumero.ler(texto, "Desconto"), liberacao)))
                 .ifPresent(ok -> {
                     atualizarTela();
-                    Mensagem.sucesso(mensagem, "Desconto na venda: " + Formatos.moeda(carrinho.descontoVenda()) + ".");
+                    Mensagem.sucessoNoRotulo(mensagem, "Desconto na venda: " + Formatos.moeda(carrinho.descontoVenda()) + ".");
                 });
     }
 
@@ -406,7 +421,7 @@ public class PdvController {
         if (aviso != null) {
             Mensagem.erro(mensagem, aviso);
         } else {
-            Mensagem.sucesso(mensagem, "Item " + item.sequencia() + " cancelado.");
+            Mensagem.sucessoNoRotulo(mensagem, "Item " + item.sequencia() + " cancelado.");
         }
     }
 
@@ -522,7 +537,7 @@ public class PdvController {
         carrinho = new Carrinho();
         quantidadeProxima = null;
         atualizarTela();
-        Mensagem.sucesso(mensagem, "Venda nº " + venda.vendaId() + " finalizada. Troco: "
+        Mensagem.sucessoNoRotulo(mensagem, "Venda nº " + venda.vendaId() + " finalizada. Troco: "
                 + Formatos.moeda(venda.troco()) + "." + (venda.cashback().signum() > 0
                 ? " Cashback para o cliente: " + Formatos.moeda(venda.cashback()) + "." : ""));
         if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco())) {
@@ -573,7 +588,7 @@ public class PdvController {
                     } else {
                         ClienteVenda identificado = vendaService.identificarCliente(sessao, carrinho,
                                 escolha.cliente().id());
-                        Mensagem.sucesso(mensagem, "Cliente identificado: " + identificado.nome()
+                        Mensagem.sucessoNoRotulo(mensagem, "Cliente identificado: " + identificado.nome()
                                 + ". Saldo de crédito: " + Formatos.moeda(identificado.saldoCredito()) + ".");
                     }
                     atualizarTela();
@@ -585,12 +600,12 @@ public class PdvController {
     /** Ctrl+R (F14.3): não mexe na venda em andamento; o carrinho continua como está. */
     private void receberCrediario() {
         if (acoesRecebimento.receber(janela != null ? janela : raiz.getScene().getWindow())) {
-            Mensagem.sucesso(mensagem, "Recebimento registrado.");
+            Mensagem.sucessoNoRotulo(mensagem, "Recebimento registrado.");
         }
     }
 
     private void sangriaSuprimento() {
-        acoesCaixa.movimentar().ifPresent(texto -> Mensagem.sucesso(mensagem, texto));
+        acoesCaixa.movimentar().ifPresent(texto -> Mensagem.sucessoNoRotulo(mensagem, texto));
     }
 
     private void fecharCaixa() {

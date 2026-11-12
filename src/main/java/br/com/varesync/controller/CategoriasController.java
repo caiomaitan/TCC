@@ -127,9 +127,15 @@ public class CategoriasController {
 
     @FXML
     private void alternarSituacao() {
-        if (emEdicao != null) {
-            mudarSituacao(emEdicao, !emEdicao.ativa());
+        if (emEdicao == null) {
+            return;
         }
+        // F21.5: inativar pede confirmação, como nas outras telas; reativar não.
+        if (emEdicao.ativa() && !Dialogos.confirmar("Inativar a categoria \"" + emEdicao.nome() + "\"? Ela sai da "
+                + "escolha no cadastro de produtos, mas continua nos produtos e nos relatórios.")) {
+            return;
+        }
+        mudarSituacao(emEdicao, !emEdicao.ativa());
     }
 
     private void mudarSituacao(Categoria categoria, boolean ativa) {

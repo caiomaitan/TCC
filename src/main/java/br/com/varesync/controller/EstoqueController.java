@@ -187,7 +187,9 @@ public class EstoqueController {
         Atalhos.de(raiz)
                 .em(Tecla.de(KeyCode.F4), "Ajustar o estoque do produto selecionado (entrada, saída ou perda)",
                         this::ajustar)
-                .em(Tecla.de(KeyCode.F5), "Ajustar o saldo para… (informa o saldo certo)", this::ajustarSaldo);
+                .curto("ajustar estoque")
+                .em(Tecla.de(KeyCode.F5), "Ajustar o saldo para… (informa o saldo certo)", this::ajustarSaldo)
+                .curto("ajustar saldo para…");
 
         mostrar(null);
         pesquisar();

@@ -77,6 +77,33 @@ class AjudaTest {
     }
 
     /**
+     * F21.5: a barra de atalhos do PDV e as dicas de atalho nos rodapés saem do registro (rótulos com a classe
+     * {@code dica-atalhos}, preenchidos por {@code Atalhos.preencherDicas}): nenhum rótulo de FXML traz tecla de
+     * função ou Ctrl escrita à mão, e as telas com rodapé de atalhos têm o rótulo de dica.
+     */
+    @Test
+    void rodapesDeAtalhosSaemDoRegistro() throws IOException, URISyntaxException {
+        Pattern rotulo = Pattern.compile("<Label\\b[^>]*>", Pattern.DOTALL);
+        Pattern tecla = Pattern.compile("text=\"[^\"]*\\b(F([1-9]|1[0-2])|Ctrl\\+[A-Z])\\b");
+        Path pasta = Path.of(AjudaTest.class.getResource("/fxml/pdv.fxml").toURI()).getParent();
+        try (Stream<Path> arquivos = Files.list(pasta)) {
+            for (Path arquivo : arquivos.toList()) {
+                String fxml = Files.readString(arquivo, StandardCharsets.UTF_8);
+                Matcher m = rotulo.matcher(fxml);
+                while (m.find()) {
+                    assertThat(tecla.matcher(m.group()).find()).as("%s: %s", arquivo.getFileName(), m.group())
+                            .isFalse();
+                }
+            }
+        }
+        for (String fxml : List.of("pdv", "estoque", "caixa", "compras", "inventario", "pedidos")) {
+            assertThat(recurso("/fxml/" + fxml + ".fxml")).as(fxml).contains("dica-atalhos");
+        }
+        assertThat(Files.readString(Path.of("src/main/java/br/com/varesync/controller/PrincipalController.java"),
+                StandardCharsets.UTF_8)).contains("Atalhos.preencherDicas(tela)");
+    }
+
+    /**
      * A lista de atalhos da ajuda sai do registro: nenhuma tela do menu (nem as partes incluídas nela, como a aba
      * Pedidos de Compras) trata tecla por fora dele.
      */

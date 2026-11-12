@@ -64,13 +64,27 @@ public final class Atalhos {
 
     /**
      * @param quando nulo = sempre; senão o atalho só vale quando a condição é verdadeira (ex.: só na aba Sugestão)
+     * @param curto  texto curto da barra de atalhos e do rodapé da tela ("buscar", "ajustar estoque"); nulo = o
+     *               atalho só aparece na ajuda (F21.5)
+     * @param grupo  qual rodapé mostra o atalho, quando a tela tem mais de um (o {@code userData} do rótulo); nulo =
+     *               o rodapé sem grupo
      */
-    public record Atalho(Tecla tecla, String descricao, BooleanSupplier quando, Runnable acao) {
+    public record Atalho(Tecla tecla, String descricao, BooleanSupplier quando, Runnable acao, String curto,
+                         String grupo) {
+
+        public Atalho(Tecla tecla, String descricao, BooleanSupplier quando, Runnable acao) {
+            this(tecla, descricao, quando, acao, null, null);
+        }
 
         boolean vale() {
             return quando == null || quando.getAsBoolean();
         }
     }
+
+    /** Classe de estilo do rótulo de rodapé (e da barra do PDV) que mostra os atalhos da tela (F21.5). */
+    public static final String CLASSE_DICA = "dica-atalhos";
+    private static final String TEXTO_FIXO = "varesync.dica-texto-fixo";
+    static final String SEPARADOR = " · ";
 
     private final List<Atalho> lista = new ArrayList<>();
 
@@ -98,8 +112,90 @@ public final class Atalhos {
         return this;
     }
 
+    /** O último atalho registrado aparece na barra e no rodapé sem grupo, com este texto curto. */
+    public Atalhos curto(String texto) {
+        return curto(texto, null);
+    }
+
+    /** O último atalho registrado aparece no rodapé do {@code grupo} (uma aba da tela), com este texto curto. */
+    public Atalhos curto(String texto, String grupo) {
+        if (lista.isEmpty()) {
+            throw new IllegalStateException("Registre o atalho antes do texto curto.");
+        }
+        Atalho a = lista.remove(lista.size() - 1);
+        lista.add(new Atalho(a.tecla(), a.descricao(), a.quando(), a.acao(), texto, grupo));
+        return this;
+    }
+
     public List<Atalho> lista() {
         return Collections.unmodifiableList(lista);
+    }
+
+    /**
+     * Texto da barra de atalhos ou do rodapé (F21.5): os atalhos com texto curto do grupo, na ordem do registro ("F4
+     * ajustar estoque · F5 ajustar saldo para…"), seguidos do texto fixo do rodapé, se houver.
+     */
+    public static String dica(List<Atalho> atalhos, String grupo, String textoFixo) {
+        List<String> partes = new ArrayList<>();
+        for (Atalho atalho : atalhos) {
+            if (atalho.curto() != null && java.util.Objects.equals(atalho.grupo(), grupo)) {
+                String parte = atalho.tecla().texto() + " " + atalho.curto();
+                if (!partes.contains(parte)) {
+                    partes.add(parte);
+                }
+            }
+        }
+        if (textoFixo != null && !textoFixo.isBlank()) {
+            partes.add(textoFixo.strip());
+        }
+        return String.join(SEPARADOR, partes);
+    }
+
+    /**
+     * Preenche os rótulos de dica da tela (classe {@link #CLASSE_DICA}) pelo registro: o texto que o rótulo trazia
+     * (no FXML) é o texto fixo, que vai depois dos atalhos; o {@code userData} do rótulo, se houver, é o grupo.
+     * Chamar de novo não repete o texto fixo.
+     */
+    public static void preencherDicas(Node raiz) {
+        List<Atalho> atalhos = daTela(raiz);
+        for (Node no : nos(raiz)) {
+            if (no instanceof javafx.scene.control.Labeled rotulo && no.getStyleClass().contains(CLASSE_DICA)) {
+                Object fixo = rotulo.getProperties().computeIfAbsent(TEXTO_FIXO,
+                        k -> rotulo.getText() == null ? "" : rotulo.getText());
+                String grupo = rotulo.getUserData() == null ? null : rotulo.getUserData().toString();
+                rotulo.setText(dica(atalhos, grupo, (String) fixo));
+            }
+        }
+    }
+
+    /** Todos os nós da tela, também os das abas que não estão à vista (como {@link #daTela}). */
+    static List<Node> nos(Node raiz) {
+        List<Node> nos = new ArrayList<>();
+        percorrer(raiz, nos, new IdentityHashMap<>());
+        return nos;
+    }
+
+    private static void percorrer(Node no, List<Node> nos, Map<Node, Boolean> vistos) {
+        if (no == null || vistos.put(no, Boolean.TRUE) != null) {
+            return;
+        }
+        nos.add(no);
+        if (no instanceof TabPane abas) {
+            for (Tab aba : abas.getTabs()) {
+                percorrer(aba.getContent(), nos, vistos);
+            }
+        } else if (no instanceof ScrollPane rolagem) {
+            percorrer(rolagem.getContent(), nos, vistos);
+        } else if (no instanceof SplitPane divisoria) {
+            divisoria.getItems().forEach(item -> percorrer(item, nos, vistos));
+        } else if (no instanceof TitledPane painel) {
+            percorrer(painel.getContent(), nos, vistos);
+        }
+        if (no instanceof Parent pai) {
+            for (Node filho : pai.getChildrenUnmodifiable()) {
+                percorrer(filho, nos, vistos);
+            }
+        }
     }
 
     /**
@@ -125,32 +221,11 @@ public final class Atalhos {
      */
     public static List<Atalho> daTela(Node raiz) {
         List<Atalho> atalhos = new ArrayList<>();
-        visitar(raiz, atalhos, new IdentityHashMap<>());
+        for (Node no : nos(raiz)) {
+            if (no.getProperties().get(CHAVE) instanceof Atalhos registro) {
+                atalhos.addAll(registro.lista);
+            }
+        }
         return atalhos;
-    }
-
-    private static void visitar(Node no, List<Atalho> atalhos, Map<Node, Boolean> vistos) {
-        if (no == null || vistos.put(no, Boolean.TRUE) != null) {
-            return;
-        }
-        if (no.getProperties().get(CHAVE) instanceof Atalhos registro) {
-            atalhos.addAll(registro.lista);
-        }
-        if (no instanceof TabPane abas) {
-            for (Tab aba : abas.getTabs()) {
-                visitar(aba.getContent(), atalhos, vistos);
-            }
-        } else if (no instanceof ScrollPane rolagem) {
-            visitar(rolagem.getContent(), atalhos, vistos);
-        } else if (no instanceof SplitPane divisoria) {
-            divisoria.getItems().forEach(item -> visitar(item, atalhos, vistos));
-        } else if (no instanceof TitledPane painel) {
-            visitar(painel.getContent(), atalhos, vistos);
-        }
-        if (no instanceof Parent pai) {
-            for (Node filho : pai.getChildrenUnmodifiable()) {
-                visitar(filho, atalhos, vistos);
-            }
-        }
     }
 }

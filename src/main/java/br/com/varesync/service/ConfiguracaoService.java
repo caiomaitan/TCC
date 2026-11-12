@@ -274,7 +274,8 @@ public class ConfiguracaoService {
                 telefone == null ? "" : telefone, loja.regime(), uf, ie),
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
-                crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()));
+                crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()),
+                c.assistente() == null ? Configuracoes.Assistente.PADRAO : c.assistente());
     }
 
 
@@ -504,6 +505,12 @@ public class ConfiguracaoService {
                 String.valueOf(n.etiquetas().linhas()));
         comparar(m, "impressora térmica", texto(a.etiquetas().impressoraTermica()),
                 texto(n.etiquetas().impressoraTermica()));
+        comparar(m, "formas de pagamento revisadas (primeiros passos)", a.assistente().formasRevisadas() ? "sim"
+                : "não", n.assistente().formasRevisadas() ? "sim" : "não");
+        comparar(m, "só eu uso o sistema (primeiros passos)", a.assistente().usuariosDispensado() ? "sim" : "não",
+                n.assistente().usuariosDispensado() ? "sim" : "não");
+        comparar(m, "não uso balança (primeiros passos)", a.assistente().balancaDispensada() ? "sim" : "não",
+                n.assistente().balancaDispensada() ? "sim" : "não");
         if (!a.etiquetas().modeloTermica().equals(n.etiquetas().modeloTermica())) {
             m.add(n.etiquetas().modeloTermica().isEmpty() ? "modelo da impressora térmica apagado"
                     : "modelo da impressora térmica alterado (" + n.etiquetas().modeloTermica().length()
