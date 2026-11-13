@@ -281,12 +281,67 @@ terminal.id=CAIXA-01
 - `db.senha` é preenchida pela tela **Conexão com o banco**. O arquivo fica na pasta do usuário, fora do repositório.
 - `terminal.id` identifica o computador no controle de caixa e **deve ser único por máquina**. Com dois caixas, troque
   no segundo para `CAIXA-02` (com o sistema fechado).
-- Com vários computadores, todos apontam `db.url` para o servidor do banco (ex.:
-  `jdbc:postgresql://192.168.0.10:5432/varesync`). No servidor, o PostgreSQL precisa aceitar conexões da rede
-  (`listen_addresses` no `postgresql.conf` e uma linha para a rede da loja no `pg_hba.conf`).
+- Com vários computadores, veja a seção 5.1.
 
 Logs: `~/.varesync/logs/varesync.log`, um arquivo por dia, mantidos 30 dias. Erros técnicos vão para o log; a tela
 mostra só a mensagem para o usuário.
+
+### 5.1 Instalação em rede (um servidor e vários terminais)
+
+Numa loja com mais de um computador, o banco fica num PC só, o **servidor**, e o VareSync de cada caixa ou escritório,
+os **terminais**, se conecta a ele pela rede da loja. O servidor pode ser também um dos caixas, mas precisa estar
+ligado sempre que alguém for usar o sistema.
+
+**No servidor**
+
+1. Dê ao PC um **IP fixo** na rede da loja (no roteador, reservando o IP para ele, ou nas configurações de rede do
+   Windows). Nos exemplos: servidor `192.168.0.10`, rede da loja `192.168.0.0/24`.
+2. Instale o PostgreSQL 16 e crie o usuário e o banco como na seção 2, com uma senha forte.
+3. **Aceitar conexões da rede:** no `postgresql.conf` (no Windows, `C:\Program Files\PostgreSQL\16\data`), troque
+   `listen_addresses`:
+
+   ```
+   listen_addresses = 'localhost,192.168.0.10'
+   ```
+
+4. **Liberar só a rede da loja:** no fim do `pg_hba.conf` (na mesma pasta), acrescente uma linha para o banco e o
+   usuário do VareSync, só com a faixa da loja. Não use `0.0.0.0/0` (qualquer endereço) nem `trust` (sem senha):
+
+   ```
+   # TIPO  BANCO     USUÁRIO   ENDEREÇO          MÉTODO
+   host    varesync  varesync  192.168.0.0/24    scram-sha-256
+   ```
+
+5. Reinicie o serviço do PostgreSQL (PowerShell como administrador): `Restart-Service postgresql-x64-16`.
+6. **Firewall:** libere a porta 5432 só para a rede da loja (PowerShell como administrador):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "PostgreSQL (VareSync)" -Direction Inbound -Protocol TCP -LocalPort 5432 `
+       -RemoteAddress 192.168.0.0/24 -Action Allow
+   ```
+
+   Não abra a porta 5432 no roteador para a internet.
+7. **Backup no servidor:** o `pg_dump` vem com o PostgreSQL, então é no servidor que o backup funciona (seção 7). Abra o
+   VareSync no servidor e, em **Configurações › Backup**, informe uma pasta local dele (ex.: `D:\VareSync\backup`) e,
+   se preciso, o caminho do `pg_dump`. O backup automático roda no computador de quem sai primeiro do sistema no dia;
+   num terminal sem o `pg_dump`, ele só registra a falha no log (o supervisor vê um aviso), e o backup daquele dia fica
+   para o manual. Por isso, o supervisor faz o backup manual pelo servidor ou deixa o servidor ser o último a fechar o
+   sistema. Copie a pasta de backup para fora do PC (pen drive ou nuvem) de vez em quando.
+
+**Em cada terminal**
+
+1. Instale o VareSync (seção 3.1). O PostgreSQL **não** precisa ser instalado nos terminais.
+2. Abra o sistema uma vez: sem conexão, aparece a tela **Conexão com o banco**. Informe o endereço com o IP do
+   servidor, `jdbc:postgresql://192.168.0.10:5432/varesync`, o usuário `varesync` e a senha, e clique em
+   **Testar conexão**: a tela mostra a versão do PostgreSQL do servidor e o tempo de resposta (na rede da loja, poucos
+   milissegundos; acima de 100 ms, confira o cabo ou o Wi-Fi). Depois, **Salvar**.
+3. Com o sistema fechado, troque o `terminal.id` em `~/.varesync/config.properties` para um nome **único** por PC
+   (`CAIXA-01`, `CAIXA-02`, `ESCRITORIO`…). Dois PCs com o mesmo nome dividiriam o mesmo caixa.
+
+O primeiro acesso (seção 4) é feito uma vez só, no primeiro computador que abrir o sistema; os outros já mostram o
+login. Vários terminais podem vender ao mesmo tempo: o banco trava o saldo de cada produto na mesma ordem, e as
+situações de disputa (duas vendas do mesmo produto, duas sangrias, o mesmo crédito do cliente, a mesma parcela) são
+testadas em `ConcorrenciaIT` (seção 10).
 
 ## 6. Banco de demonstração e usuários de demonstração
 
@@ -505,8 +560,13 @@ mvn -q clean verify
 ```
 
 - `mvn test`: só os unitários (`*Test`, sem banco).
-- `mvn verify`: unitários e integração (`*IT`, no banco `varesync_test`).
+- `mvn verify`: unitários e integração (`*IT`, no banco `varesync_test`), sem os testes de interface (seção 10.3).
 - `IntegridadeBancoIT` executa `scripts/teste_integridade_banco.sql` (15 cenários, tudo desfeito no fim).
+- `ConcorrenciaIT` roda 7 situações com duas operações ao mesmo tempo, em duas conexões (duas vendas com os mesmos
+  produtos em ordens diferentes, duas sangrias, o mesmo produto em dois inventários, duas confirmações da mesma
+  entrada, duas vendas do mesmo produto com lotes, duas vendas com o crédito do mesmo cliente e dois recebimentos da
+  mesma parcela). Cada uma repete 3 vezes no `verify`; para repetir mais:
+  `mvn verify -Dit.test=ConcorrenciaIT -Dtest=NenhumTest -Dsurefire.failIfNoSpecifiedTests=false -Dconcorrencia.repeticoes=20`.
 
 Os testes de integração leem a conexão de variáveis de ambiente (a senha nunca vai para arquivo do repositório):
 
@@ -541,9 +601,10 @@ Um falso positivo é suprimido no próprio código, com o motivo ao lado (`@Supp
 
 ### 10.2 Integração contínua (GitHub Actions)
 
-O arquivo `.github/workflows/ci.yml` roda, a cada push e pull request, `mvn -B verify` e `mvn -B -Pqualidade verify`
-num Linux com JDK 21 e um PostgreSQL 16 descartável, e publica o relatório de cobertura como artefato
-(`cobertura-jacoco`). Ele usa o fuso `America/Sao_Paulo` e o idioma pt-BR, como no computador da loja, e uma tela
+O arquivo `.github/workflows/ci.yml` roda, a cada push e pull request, `mvn -B -Pqualidade verify` (o build e todos
+os testes, com a cobertura e a análise estática, numa rodada só) e `mvn -B -Pui verify` (seção 10.3) num Linux com
+JDK 21 e um PostgreSQL 16 descartável, e publica como artefatos a cobertura (`cobertura-jacoco` e
+`cobertura-jacoco-ui`) e as capturas das telas (`capturas-telas`). Ele usa o fuso `America/Sao_Paulo` e o idioma pt-BR, como no computador da loja, e uma tela
 virtual (`xvfb-run -a`) para os testes que abrem o JavaFX. O banco do CI aceita conexão sem senha (`trust`), então
 nenhuma senha real vai para o repositório.
 
@@ -558,6 +619,32 @@ Para ativar, quando o repositório estiver no GitHub:
 
 Nada precisa ser cadastrado em *Secrets*: a senha do banco do CI é um valor qualquer, que o `trust` ignora.
 
+### 10.3 Testes de interface
+
+```bash
+mvn -Pui verify
+```
+
+Roda só os testes de interface (`*TelaIT`, em `src/test/java/br/com/varesync/tela`), que abrem o sistema inteiro
+sobre o banco `varesync_test`:
+
+- **primeiro acesso e login**, começando pela tela de conexão com "Testar conexão";
+- **venda completa no PDV**, com cancelamento de item, desconto, pagamento no PIX e em dinheiro com troco, e depois o
+  cancelamento da venda;
+- **inventário** até a aplicação;
+- **relatório** R01 gerado e exportado em CSV e PDF;
+- **varredura de cortes:** todas as telas do menu, com as abas, o PDV e o pagamento, em 1280×720, no claro a 100% e no
+  escuro a 130%. Nenhum texto pode sair com "…" fora das células, nenhum controle pode passar da borda da janela, e
+  nenhuma tabela pode esconder colunas sem rolagem.
+
+Os testes **não usam o teclado nem o mouse do sistema**: acionam os componentes do JavaFX direto, com as janelas fora
+da tela e transparentes, e conferem por capturas, gravadas em `target/telas/<teste>/`. Dá para continuar usando o
+computador enquanto rodam (cerca de 5 minutos). A pasta de usuário é `target/ui-home`: a configuração temporária, com a
+senha do banco de teste, e os logs ficam lá, e o `~/.varesync` de verdade não é tocado. Antes de abrir o sistema, o
+teste confere que a configuração aponta para o `varesync_test`; se não apontar, para sem abrir nada. A cobertura das
+telas fica em `target/site/jacoco-ui` (sem meta). Rode o `-Pui` sozinho, não junto com outro `mvn` que use o banco de
+teste.
+
 ## 11. Estrutura
 
 ```
@@ -570,6 +657,8 @@ src/main/resources/
 ├── db/migration/   V1 (esquema), V2 (dados de referência), V3 (horários da aplicação) — não editar; mudanças em V4…
 ├── fxml/ css/ reports/ logback.xml
 ├── versao.properties  versão e data do build (preenchidos pelo Maven)
+src/test/java/br/com/varesync/
+├── tela/           testes de interface (perfil ui, seção 10.3)
 config/checkstyle.xml  regras do Checkstyle (perfil qualidade)
 .github/workflows/     integração contínua (seção 10.2)
 ```

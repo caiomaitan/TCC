@@ -57,12 +57,16 @@ jobs:
           sudo locale-gen pt_BR.UTF-8
           sudo update-locale LANG=pt_BR.UTF-8
 
-      # Os testes que abrem o JavaFX precisam de tela: no Linux do CI, uma tela virtual (xvfb-run -a)
-      - name: Build e testes (mvn verify)
-        run: xvfb-run -a mvn -B verify "-Dtestes.jvm=${TESTES_JVM}"
-
-      - name: Cobertura e análise estática (mvn -Pqualidade verify)
+      # Os testes que abrem o JavaFX precisam de tela: no Linux do CI, uma tela virtual (xvfb-run -a).
+      # Uma rodada só: o perfil qualidade roda o build e todos os testes (unitários e de integração), com a cobertura,
+      # o SpotBugs e o Checkstyle; um "mvn verify" separado repetiria os mesmos testes.
+      - name: Build, testes, cobertura e análise estática (mvn -Pqualidade verify)
         run: xvfb-run -a mvn -B -Pqualidade verify "-Dtestes.jvm=${TESTES_JVM}"
+
+      # Testes de interface (F11.3): só os *TelaIT, com a pasta de usuário temporária target/ui-home, janelas fora da
+      # tela e sem o robô do sistema operacional. Sem "clean": reaproveita a compilação do passo anterior.
+      - name: Testes de interface (mvn -Pui verify)
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" mvn -B -Pui verify "-Dtestes.jvm=${TESTES_JVM}"
 
       - name: Relatório de cobertura
         if: always()
@@ -70,6 +74,22 @@ jobs:
         with:
           name: cobertura-jacoco
           path: target/site/jacoco
+          if-no-files-found: warn
+
+      - name: Cobertura dos testes de interface
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-jacoco-ui
+          path: target/site/jacoco-ui
+          if-no-files-found: warn
+
+      - name: Capturas dos testes de interface
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-telas
+          path: target/telas
           if-no-files-found: warn
 
       - name: Relatórios do SpotBugs e do Checkstyle

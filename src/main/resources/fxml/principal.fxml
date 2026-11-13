@@ -42,7 +42,8 @@
     </center>
 
     <bottom>
-        <HBox styleClass="barra-status" spacing="12" alignment="CENTER_LEFT">
+        <!-- Espaço de 8 px: a 130% cabe o caixa aberto ("Caixa: aberto (nº 1234)") com a versão (F11.3) -->
+        <HBox styleClass="barra-status" spacing="8" alignment="CENTER_LEFT">
             <padding><Insets top="4" right="12" bottom="4" left="12"/></padding>
             <Label fx:id="statusUsuario"/>
             <Separator orientation="VERTICAL"/>

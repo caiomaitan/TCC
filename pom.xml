@@ -40,6 +40,8 @@
         <argLine/>
         <!-- Opções extras da JVM dos testes; o CI passa o fuso e o idioma da loja (F11.4) -->
         <testes.jvm/>
+        <!-- Repetições de cada cenário do ConcorrenciaIT (F11.8); o aceite usa 20 -->
+        <concorrencia.repeticoes>3</concorrencia.repeticoes>
 
         <jacoco.version>0.8.16</jacoco.version>
         <spotbugs.version>4.10.5</spotbugs.version>
@@ -272,6 +274,13 @@
                 <version>3.5.6</version>
                 <configuration>
                     <argLine>@{argLine} ${testes.jvm} -Dfile.encoding=UTF-8</argLine>
+                    <!-- Os testes de interface (*TelaIT) só rodam no perfil ui (F11.3) -->
+                    <excludes>
+                        <exclude>**/*TelaIT.java</exclude>
+                    </excludes>
+                    <systemPropertyVariables>
+                        <concorrencia.repeticoes>${concorrencia.repeticoes}</concorrencia.repeticoes>
+                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>
@@ -425,6 +434,68 @@
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            mvn -Pui verify   (F11.3)
+            Só os testes de interface (*TelaIT, pacote tela): os 4 fluxos e a varredura de cortes, sem o robô do sistema
+            operacional (eventos nos componentes, janelas fora da tela, capturas em target/telas). Os unitários e os de
+            integração ficam para o verify comum e o -Pqualidade. A pasta de usuário é target/ui-home (a configuração
+            temporária e os logs ficam lá) e o JaCoCo mede a interface em target/site/jacoco-ui, sem meta.
+            Rodar sozinho, não junto com o -Pqualidade (cada um mede a sua cobertura).
+        -->
+        <profile>
+            <id>ui</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skipTests>true</skipTests>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco.version}</version>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-ui.exec</destFile>
+                            <dataFile>${project.build.directory}/jacoco-ui.exec</dataFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>agente-ui</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>relatorio-ui</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.reporting.outputDirectory}/jacoco-ui</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <argLine>@{argLine} ${testes.jvm} -Dfile.encoding=UTF-8 -Duser.home=${project.build.directory}/ui-home -Dtelas.saida=${project.build.directory}/telas</argLine>
+                            <includes combine.self="override">
+                                <include>**/*TelaIT.java</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                            <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>

@@ -221,6 +221,8 @@
             </Tab>
 
             <Tab fx:id="abaLgpd" text="LGPD">
+                <!-- Com rolagem, como o Cadastro: a 130% os textos quebram inteiros em vez de virar "…" (F11.3) -->
+                <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
                 <VBox spacing="10">
                     <padding><Insets top="12" right="4" bottom="4" left="4"/></padding>
                     <Label text="Dados pessoais do cliente" styleClass="titulo-secao"/>
@@ -238,6 +240,7 @@
                         <Button fx:id="botaoAnonimizar" text="Anonimizar…" onAction="#anonimizar"/>
                     </HBox>
                 </VBox>
+                </ScrollPane>
             </Tab>
         </TabPane>
 

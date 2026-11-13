@@ -21,7 +21,7 @@ public abstract class IntegracaoBase {
     }
 
     @AfterEach
-    void estoqueContinuaConsistente() throws Exception {
+    protected void estoqueContinuaConsistente() throws Exception {
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_estoque_inconsistente"))
                     .as("vw_estoque_inconsistente deve estar vazia")

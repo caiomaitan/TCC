@@ -2,6 +2,7 @@ package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
 import br.com.varesync.config.Banco;
+import br.com.varesync.config.ConexaoTestada;
 import br.com.varesync.config.FalhaConexaoException;
 import br.com.varesync.ui.Tarefas;
 import br.com.varesync.util.Textos;
@@ -17,7 +18,10 @@ import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Tela "Conexão com o banco": URL, usuário, senha, Testar e Salvar. */
+/**
+ * Tela "Conexão com o banco": URL, usuário, senha, Testar conexão (com a versão do servidor e o tempo de resposta,
+ * F11.5) e Salvar.
+ */
 public class ConexaoController {
 
     private static final Logger log = LoggerFactory.getLogger(ConexaoController.class);
@@ -77,14 +81,14 @@ public class ConexaoController {
     }
 
     private void executar(AppConfig informado, boolean salvarDepois) {
-        Task<Void> tarefa = new Task<>() {
+        Task<ConexaoTestada> tarefa = new Task<>() {
             @Override
-            protected Void call() {
-                Banco.testarConexao(informado);
+            protected ConexaoTestada call() {
+                ConexaoTestada testada = Banco.testarConexao(informado);
                 if (salvarDepois) {
                     informado.salvar();
                 }
-                return null;
+                return testada;
             }
         };
         formulario.setDisable(true);
@@ -95,7 +99,7 @@ public class ConexaoController {
                 mostrar("Configuração salva.", ESTILO_SUCESSO);
                 aoSalvar.accept(informado);
             } else {
-                mostrar("Conexão bem-sucedida.", ESTILO_SUCESSO);
+                mostrar(tarefa.getValue().descricao(), ESTILO_SUCESSO); // versão do servidor e tempo (F11.5)
             }
         });
         tarefa.setOnFailed(e -> {

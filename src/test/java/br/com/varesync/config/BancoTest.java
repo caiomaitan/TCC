@@ -17,6 +17,19 @@ class BancoTest {
     }
 
     @Test
+    void versaoDoServidorSemOTextoDoEmpacotamento() {
+        assertThat(Banco.versaoCurta("16.4 (Debian 16.4-1.pgdg120+1)")).isEqualTo("16.4");
+        assertThat(Banco.versaoCurta(" 16.10 ")).isEqualTo("16.10");
+        assertThat(Banco.versaoCurta(null)).isEqualTo("?");
+    }
+
+    @Test
+    void testarConexaoMostraVersaoETempo() {
+        assertThat(new ConexaoTestada("16.4", 12).descricao())
+                .isEqualTo("Conexão bem-sucedida: PostgreSQL 16.4, resposta em 12 ms.");
+    }
+
+    @Test
     void recusaEnderecoForaDoPadrao() {
         assertThatThrownBy(() -> Banco.testarConexao("localhost:5432/varesync", "varesync", ""))
                 .isInstanceOf(FalhaConexaoException.class)

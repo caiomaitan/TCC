@@ -28,7 +28,7 @@
         </columnConstraints>
 
         <Label text="Endereço *" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-        <TextField fx:id="campoUrl" promptText="jdbc:postgresql://localhost:5432/varesync"
+        <TextField fx:id="campoUrl" promptText="jdbc:postgresql://192.168.0.10:5432/varesync"
                    GridPane.rowIndex="0" GridPane.columnIndex="1"/>
 
         <Label text="Usuário *" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
@@ -45,7 +45,7 @@
     <HBox spacing="10" alignment="CENTER_RIGHT">
         <Button text="Sair" cancelButton="true" onAction="#sair"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="botaoTestar" text="Testar" onAction="#testar"/>
+        <Button fx:id="botaoTestar" text="Testar conexão" onAction="#testar"/>
         <Button fx:id="botaoSalvar" text="Salvar" defaultButton="true" onAction="#salvar" styleClass="botao-primario"/>
     </HBox>
 </VBox>

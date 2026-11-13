@@ -521,6 +521,25 @@ public final class Aparencia {
         Object politica = minimas > util ? TableView.UNCONSTRAINED_RESIZE_POLICY : original;
         if (tabela.getColumnResizePolicy() != politica) {
             tabela.setColumnResizePolicy((javafx.util.Callback) politica);
+        } else if (politica != TableView.UNCONSTRAINED_RESIZE_POLICY) {
+            reajustar(tabela);
+        }
+    }
+
+    /**
+     * A política "constrained" só reparte a largura quando a tabela muda de tamanho: se uma coluna ganhou largura
+     * mínima depois ({@link ColunasDeValor}), a última coluna passaria da borda, sem rolagem. Aqui a largura é
+     * repartida de novo (F11.3: achado pela varredura de cortes).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void reajustar(TableView tabela) {
+        double colunas = 0;
+        for (Object coluna : tabela.getVisibleLeafColumns()) {
+            colunas += ((TableColumnBase<?, ?>) coluna).getWidth();
+        }
+        double largura = tabela.getWidth() - tabela.snappedLeftInset() - tabela.snappedRightInset();
+        if (colunas > largura - BARRA_VERTICAL) {
+            tabela.getColumnResizePolicy().call(new TableView.ResizeFeatures(tabela, null, 0.0));
         }
     }
 
