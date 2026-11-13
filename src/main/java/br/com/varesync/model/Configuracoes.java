@@ -9,9 +9,11 @@ import java.util.Optional;
 /**
  * Acesso tipado aos parâmetros da tabela {@code configuracao} (5.2). As chaves e os valores padrão são os da V2 (e da
  * V4 e da V5: {@code seguranca.*}, F10.2 e F10.6; da V7: {@code fidelidade.*}, F12.5; e da V8:
- * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14; e da V12: {@code financeiro.integrar_caixa}, F15.1;
- * e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias}, F17; e da V16: {@code etiqueta.*}, F18.1; e da V17: {@code balanca.pasta_carga}, F18.2; e da V18: {@code empresa.regime_tributario}, {@code empresa.uf} e {@code empresa.ie}, F19.1; e da V22: {@code assistente.*}, F21.4); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta
- * ao padrão em {@link #de(Map)}.
+ * {@code devolucao.prazo_dias}, F13.2; e da V10: {@code crediario.*}, F14; e da V12:
+ * {@code financeiro.integrar_caixa}, F15.1; e da V13: {@code compras.*}, F16.2; e da V15: {@code validade.alerta_dias},
+ * F17; e da V16: {@code etiqueta.*}, F18.1; e da V17: {@code balanca.pasta_carga}, F18.2; e da V18:
+ * {@code empresa.regime_tributario}, {@code empresa.uf} e {@code empresa.ie}, F19.1; e da V22: {@code assistente.*},
+ * F21.4); uma chave que falta ou tem valor inválido (alterada fora do sistema) volta ao padrão em {@link #de(Map)}.
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
  * Configurações grava um novo retrato inteiro ({@code ConfiguracaoService.salvar}).

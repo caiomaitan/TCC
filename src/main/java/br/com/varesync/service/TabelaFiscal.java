@@ -47,7 +47,7 @@ public final class TabelaFiscal {
     public record LeituraNcm(List<CodigoNcm> codigos, String formato, int pulados) {
     }
 
-    /** Lê o NCM do CSV ou do JSON (reconhecido pelo primeiro caractere: {@code {} ou {@code [}). */
+    /** Lê o NCM do CSV ou do JSON (reconhecido pelo primeiro caractere: chave ou colchete). */
     public static LeituraNcm lerNcm(byte[] conteudo) {
         String texto = texto(conteudo);
         String inicio = texto.stripLeading();

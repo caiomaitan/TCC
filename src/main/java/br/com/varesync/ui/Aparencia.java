@@ -83,6 +83,8 @@ public final class Aparencia {
     private static Preferencias atual = Preferencias.PADRAO;
     private static String urlFolha;
     private static String css;
+    // Cache que se preenche durante o uso, não uma constante: o nome segue o das outras variáveis da classe.
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final Map<TamanhoFonte, String> folhas = new EnumMap<>(TamanhoFonte.class);
 
     private Aparencia() {

@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * R07 — Curva ABC (7.1, 7.3, A.9), de {@code vw_resultado_item} (vendas − devoluções): produtos do período ordenados por receita ou lucro, do maior para o menor. Classe
- * pelo % acumulado <b>antes</b> do produto: &lt; 80% → A; &lt; 95% → B; senão C. A coluna "% acumulado" mostra o
- * acumulado já com o produto (A até 80%, B até 95%).
+ * R07 — Curva ABC (7.1, 7.3, A.9), de {@code vw_resultado_item} (vendas − devoluções): produtos do período ordenados
+ * por receita ou lucro, do maior para o menor. Classe pelo % acumulado <b>antes</b> do produto: &lt; 80% → A;
+ * &lt; 95% → B; senão C. A coluna "% acumulado" mostra o acumulado já com o produto (A até 80%, B até 95%).
  *
  * <p>Por lucro, a base do % é a soma dos lucros positivos; produto com lucro zero ou negativo fica no fim, classe C,
  * sem % acumulado (ele não contribui para o lucro).

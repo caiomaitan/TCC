@@ -45,7 +45,6 @@ import br.com.varesync.ui.Atalhos;
 import br.com.varesync.ui.Atalhos.Tecla;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**

@@ -14,8 +14,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * R02 — Produtos mais vendidos (7.3), de {@code vw_resultado_item} (vendas − devoluções): ranking por quantidade, receita ou lucro, com o % de cada produto na receita
- * do período (de todos os produtos do filtro, não só dos que entraram no top N).
+ * R02 — Produtos mais vendidos (7.3), de {@code vw_resultado_item} (vendas − devoluções): ranking por quantidade,
+ * receita ou lucro, com o % de cada produto na receita do período (de todos os produtos do filtro, não só dos que entraram no top N).
  */
 public final class RelMaisVendidos implements Relatorio<RelMaisVendidos.Linha> {
 

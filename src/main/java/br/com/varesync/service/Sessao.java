@@ -156,7 +156,10 @@ public final class Sessao {
             return null;
         }
         if (liberacao == null) {
+            // Sem a permissão (conferido acima), exigirNaSessao lança PermissaoNegadaException. O throw abaixo deixa
+            // isso explícito para quem lê (e para o SpotBugs, que via um null possível na linha seguinte).
             atual.exigirNaSessao(permissao);
+            throw new IllegalStateException("A permissão " + permissao + " deveria ter sido recusada.");
         }
         if (liberacao.permissao() != permissao) {
             throw new PermissaoNegadaException("A liberação recebida não vale para " + permissao.rotulo() + ".");

@@ -24,7 +24,6 @@ import br.com.varesync.dao.MovimentoEstoqueDAO;
 import br.com.varesync.dao.PainelDAO;
 import br.com.varesync.dao.PedidoCompraDAO;
 import br.com.varesync.dao.PerfilTributarioDAO;
-import br.com.varesync.dao.PerfilTributarioDAO;
 import br.com.varesync.dao.ProdutoDAO;
 import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PreferenciaDAO;

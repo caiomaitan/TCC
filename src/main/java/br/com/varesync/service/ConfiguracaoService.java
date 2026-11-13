@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 
 /**
  * Configurações (6.13, só supervisor): dados da loja, parâmetros de venda, margem mínima, dias sem giro, balança,
- * bloqueio por inatividade (F10.2), fidelidade (F12.5) e formas de pagamento. Toda alteração é auditada ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor
- * anterior e o novo.
+ * bloqueio por inatividade (F10.2), fidelidade (F12.5) e formas de pagamento. Toda alteração é auditada
+ * ({@code CONFIGURACAO_ALTERADA}) na mesma transação, com o valor anterior e o novo.
  */
 public class ConfiguracaoService {
 

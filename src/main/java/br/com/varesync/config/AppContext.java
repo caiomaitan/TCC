@@ -123,7 +123,8 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == PrincipalController.class) {
             // As telas abertas pelo menu recebem a sessão do momento (trocada quando o acesso muda, F10.1).
-            return new PrincipalController(config, clock, s.acesso(), s.preferencias(), s.caixa(), backup, fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()),
+            return new PrincipalController(config, clock, s.acesso(), s.preferencias(), s.caixa(), backup,
+                    fechamentoPdf, navegacao, sessao, t -> criarController(t, navegacao, navegacao.sessaoAtual()),
                     s.busca(), new AcoesBusca(s.vendas(), s.devolucoes(), s.clientes(), s.acesso(), comprovantePdf,
                             impressaoComprovante));
         }

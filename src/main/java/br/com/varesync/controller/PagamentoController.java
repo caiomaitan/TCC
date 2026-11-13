@@ -41,7 +41,8 @@ import javafx.stage.Stage;
 /**
  * Pagamento da venda (F10, 6.6): várias formas, total, pago, falta e troco; finaliza quando pago ≥ total. Com cliente
  * identificado, mostra o crédito disponível para a forma "Crédito do cliente" (F12.4). Na forma "Crediário" (F14.2),
- * pede as parcelas e o vencimento da primeira e, passando do limite, a liberação. A finalização é do {@link VendaService}: se falhar, nada é gravado, a mensagem aparece aqui e o carrinho continua.
+ * pede as parcelas e o vencimento da primeira e, passando do limite, a liberação. A finalização é do
+ * {@link VendaService}: se falhar, nada é gravado, a mensagem aparece aqui e o carrinho continua.
  */
 public class PagamentoController {
 

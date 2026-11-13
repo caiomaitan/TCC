@@ -472,7 +472,28 @@ Gera a pasta `VareSync` com `VareSync.exe` e o Java embutido (app-image do `jpac
 4. Copie a pasta inteira `VareSync` para o computador da loja (seção 3.1). Ela não depende de nada do projeto nem do
    Java instalado.
 
-A versão mostrada pelo Windows nas propriedades do `.exe` vem da propriedade `app.versao` do perfil, no `pom.xml`.
+A versão mostrada pelo Windows nas propriedades do `.exe` é a do `pom.xml` sem o `-SNAPSHOT` (`2.0.0-SNAPSHOT` →
+`2.0.0`), porque o `jpackage` só aceita números.
+
+### 9.1 Versão do sistema
+
+A versão aparece no fim da barra de status da janela principal ("v2.0.0-SNAPSHOT"). Um clique nela, ou **Sobre o
+VareSync…** na Ajuda (F1), abre a tela **Sobre**: versão, commit e data do build, e as versões do Java e do JavaFX.
+O commit vem do Git na hora do build (plugin git-commit-id); compilado fora de um repositório Git, aparece
+"desconhecido". A versão entregue ao TCC é a da tag `tcc-entrega`.
+
+### 9.2 Instalador MSI (opcional)
+
+Com o [WiX Toolset](https://wixtoolset.org/) 3.x instalado e no PATH (o `jpackage` do JDK 21 usa o `candle.exe` e o
+`light.exe` dele), o perfil `instalador` transforma a pasta do item 9 num instalador do Windows:
+
+```bash
+mvn -Pempacotar,instalador clean package
+```
+
+O resultado fica em `target\instalador\VareSync-2.0.0.msi`: pergunta a pasta, cria o atalho na área de trabalho e no
+Menu Iniciar e atualiza uma instalação anterior do VareSync. Sem o WiX, o `jpackage` para com a mensagem de que não o
+encontrou e nada é gerado; a pasta do item 9 continua sendo o jeito de instalar.
 
 Se o `mvn clean` disser "Failed to delete …\VareSync.exe", feche o VareSync aberto a partir de `target\dist` e rode
 de novo; logo depois de abrir o `.exe`, o antivírus do Windows pode segurar o arquivo por alguns segundos.
@@ -502,6 +523,41 @@ terminal (ou o editor) **novo** para ele enxergar a variável.
 O script de integridade também roda à mão: `psql -d varesync -v ON_ERROR_STOP=1 -f scripts/teste_integridade_banco.sql`,
 ou no DBeaver com *Executar script* (Alt+X) — a aba Output mostra "OK 1" a "OK 15".
 
+### 10.1 Cobertura e análise estática
+
+```bash
+mvn -Pqualidade verify
+```
+
+Roda os mesmos testes e, junto:
+
+- **cobertura** (JaCoCo), contando os unitários e os de integração juntos: o relatório fica em
+  `target/site/jacoco/index.html`, e o build falha abaixo de 80% das linhas em `util` ou de 70% em `service`;
+- **SpotBugs**: o build falha com qualquer ocorrência de prioridade alta (relatório em `target/spotbugsXml.xml`);
+- **Checkstyle** com as regras do projeto (`config/checkstyle.xml`): o build falha com qualquer erro, mostrado no
+  console (relatório em `target/checkstyle-result.xml`).
+
+Um falso positivo é suprimido no próprio código, com o motivo ao lado (`@SuppressWarnings("checkstyle:…")`).
+
+### 10.2 Integração contínua (GitHub Actions)
+
+O arquivo `.github/workflows/ci.yml` roda, a cada push e pull request, `mvn -B verify` e `mvn -B -Pqualidade verify`
+num Linux com JDK 21 e um PostgreSQL 16 descartável, e publica o relatório de cobertura como artefato
+(`cobertura-jacoco`). Ele usa o fuso `America/Sao_Paulo` e o idioma pt-BR, como no computador da loja, e uma tela
+virtual (`xvfb-run -a`) para os testes que abrem o JavaFX. O banco do CI aceita conexão sem senha (`trust`), então
+nenhuma senha real vai para o repositório.
+
+Para ativar, quando o repositório estiver no GitHub:
+
+1. Envie o projeto ao GitHub com a pasta `.github` (ela já está no repositório).
+2. Em **Settings › Actions › General**, deixe as Actions permitidas ("Allow all actions" ou ao menos as do GitHub:
+   `actions/checkout`, `actions/setup-java` e `actions/upload-artifact`).
+3. Faça um push: a execução aparece na aba **Actions**. O relatório de cobertura fica no fim da página da execução,
+   em *Artifacts*.
+4. Opcional: em **Settings › Branches**, exija o CI verde antes de juntar um pull request.
+
+Nada precisa ser cadastrado em *Secrets*: a senha do banco do CI é um valor qualquer, que o `trust` ignora.
+
 ## 11. Estrutura
 
 ```
@@ -513,6 +569,9 @@ src/main/java/br/com/varesync/
 src/main/resources/
 ├── db/migration/   V1 (esquema), V2 (dados de referência), V3 (horários da aplicação) — não editar; mudanças em V4…
 ├── fxml/ css/ reports/ logback.xml
+├── versao.properties  versão e data do build (preenchidos pelo Maven)
+config/checkstyle.xml  regras do Checkstyle (perfil qualidade)
+.github/workflows/     integração contínua (seção 10.2)
 ```
 
 Arquitetura: `controller` (JavaFX) → `service` (regras e transação) → `dao` (SQL). Detalhes na seção 4 da

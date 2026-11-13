@@ -1,6 +1,10 @@
 package br.com.varesync.controller;
 
 import br.com.varesync.config.AppConfig;
+import br.com.varesync.config.VersaoSistema;
+import br.com.varesync.ui.DialogoSobre;
+import javafx.scene.control.Hyperlink;
+import javafx.scene.control.Tooltip;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ItemBusca;
 import br.com.varesync.model.PrimeirosPassos;
@@ -104,6 +108,9 @@ public class PrincipalController {
     @FXML private Label statusCaixa;
     @FXML private Label statusDataHora;
     @FXML private Label statusConexao;
+    @FXML private Hyperlink statusVersao;
+    /** Versão, commit e data deste build (F11.6), lidos uma vez dos recursos. */
+    private final VersaoSistema versao = VersaoSistema.doBuild();
 
     public PrincipalController(AppConfig config, Clock clock, AcessoService acessoService,
                                PreferenciaService preferenciaService, CaixaService caixaService, BackupService backupService, FechamentoCaixaPdf fechamentoPdf,
@@ -134,6 +141,8 @@ public class PrincipalController {
         atualizarCaixa();
         statusConexao.setText("Banco: conectado (" + descreverBanco(config.url()) + ")");
         atualizarDataHora();
+        statusVersao.setText(versao.textoBarraDeStatus());
+        statusVersao.setTooltip(new Tooltip(versao.dicaBarraDeStatus()));
         relogio = new Timeline(new KeyFrame(Duration.seconds(1), e -> atualizarDataHora()));
         relogio.setCycleCount(Animation.INDEFINITE);
         relogio.play();
@@ -283,6 +292,7 @@ public class PrincipalController {
                 abrir(ItemMenu.PAINEL);
             });
         }
+        painelAjuda.adicionarLink("Sobre o VareSync…", this::sobre); // F11.6, também pela versão na barra de status
         if (!conteudo.getChildren().contains(painelAjuda)) {
             conteudo.getChildren().add(painelAjuda);
         }
@@ -507,6 +517,12 @@ public class PrincipalController {
     private void minhasPreferencias() {
         DialogoPreferencias.mostrar(Aparencia.atual(), escolhidas -> preferenciaService.salvar(sessao, escolhidas))
                 .ifPresent(Aparencia::aplicar);
+    }
+
+    /** Tela Sobre (F11.6): versão, commit e data do build. */
+    @FXML
+    private void sobre() {
+        DialogoSobre.mostrar(raiz.getScene().getWindow(), versao);
     }
 
     @FXML

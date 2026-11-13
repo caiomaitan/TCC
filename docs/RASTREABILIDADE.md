@@ -540,3 +540,15 @@ Casos do roteiro manual: CT-F21-09 a CT-F21-16 (pela tela em 2026-11-11) e CT-F2
 | RNF12 / F21.5 Entrada a 100% | `compras.fxml` (linha de inclusão) | Pela tela (uma linha só no claro de 100%) |
 
 Casos do roteiro manual: CT-F21-18 a CT-F21-30 (pela tela em 2026-11-12) e CT-F21-31 e CT-F21-32 (pendentes: impressora térmica, teclado e mouse de verdade).
+
+## Fase 11 — Engenharia de software, parte A (RNF10)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| RNF10 / F11.1 Cobertura | `pom.xml`, perfil `qualidade`: `jacoco-maven-plugin` (`prepare-agent` com um `jacoco.exec` para `*Test` e `*IT`, `report` em `target/site/jacoco`, `check` com `util` ≥ 80% e `service` ≥ 70% das linhas); `@{argLine}` no surefire e no failsafe | `mvn -Pqualidade verify` (medido: `util` 98,4%, `service` 94,4%); regra conferida com a meta em 99% (falha) |
+| RNF10 / F11.2 Análise estática | Perfil `qualidade`: `spotbugs-maven-plugin` (limite High) e `maven-checkstyle-plugin` com `config/checkstyle.xml`; correções em `Sessao.exigirOuLiberado`, `Servicos`, `ComprasController`, `PedidosController` (imports), `AppContext`, `PagamentoController`, `Configuracoes`, `RelCurvaAbc`, `RelMaisVendidos`, `ConfiguracaoService`, `TabelaFiscal` (comentários); supressões com o motivo em `Aparencia.folhas` e `Notificacao.abertas` | `mvn -Pqualidade verify` (0 ocorrências de prioridade alta, 0 erros); todos os testes verdes depois das correções (`SessaoTest`, `SessaoRevalidadaIT` cobrem a liberação) |
+| RNF10 / F11.4 Integração contínua | `.github/workflows/ci.yml` (JDK 21, PostgreSQL 16 em `trust`, `xvfb-run -a`, `TZ`, pt-BR, artefatos); propriedade `testes.jvm` do pom; README 10.2 | Ainda não rodou (repositório fora do GitHub); roteiro CT-F11-04 |
+| RNF10 / F11.6 Versão do sistema | `pom.xml` (2.0.0-SNAPSHOT, `git-commit-id-maven-plugin`, `build-helper-maven-plugin`, `versao.properties` filtrado, `app.versao` sem `-SNAPSHOT`); `config.VersaoSistema`; `ui.DialogoSobre`; `principal.fxml` + `PrincipalController` (versão na barra de status, "Sobre o VareSync…" na Ajuda); `app.css` (`.hyperlink.versao`); README 9.1 | `VersaoSistemaTest` (6); pela tela (barra e Sobre no escuro de 130% e no claro de 100%); roteiro CT-F11-01 a CT-F11-03 |
+| RNF10 / F11.7 Instalador MSI | `pom.xml`, perfil `instalador` (`jpackage --type msi` a partir da pasta do `empacotar`); README 9.2 | Não executado (sem WiX nesta máquina); roteiro CT-F11-06 |
+
+Casos do roteiro manual: CT-F11-01 a CT-F11-03 (pela tela em 2026-11-12), CT-F11-05 (2026-11-12) e CT-F11-04 e CT-F11-06 (pendentes: GitHub e WiX).

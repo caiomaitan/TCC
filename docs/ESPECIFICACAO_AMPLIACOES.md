@@ -288,21 +288,22 @@ Pendência das Fases 5 e 6.
 
 ### F11.3 Testes de interface versionados
 
-- Ficam no perfil `-Pui`.
-- **Ferramenta:** TestFX só em modo headless com Monocle (`testfx.headless=true`, `glass.platform=Monocle`, `monocle.platform=Headless`). **É proibido o robô do sistema operacional.**
-  - Se o Monocle não funcionar com o JavaFX 21.0.12, não usar TestFX. Nesse caso, versionar os testes no padrão dos roteiros (eventos direto nos componentes, janelas fora da tela, snapshot) e registrar a decisão.
+- Ficam no perfil `-Pui`, dentro do repositório (em `src/test`), e seguem as regras do roteiro de tela do projeto: só o banco `varesync_test`, pasta de usuário temporária, configuração sem BOM e trava de URL.
+- **Ferramenta:** o padrão dos roteiros usados nas fases 10 a 21 (eventos direto nos componentes do JavaFX, janelas fora da tela, captura por snapshot), que já funciona nesta máquina. Até aqui esses roteiros ficavam fora do repositório; agora entram nele. O TestFX com Monocle headless só entra se funcionar com o JavaFX 21.0.12 sem esforço; senão, registrar a decisão. **É proibido o robô do sistema operacional.**
 - **Fluxos cobertos:**
   - primeiro acesso e login;
   - venda completa no PDV, com desconto, pagamento misto e cancelamento;
   - inventário até a aplicação;
-  - geração e exportação de um relatório.
+  - geração e exportação de um relatório;
+  - **varredura de cortes:** todas as telas do menu, no claro a 100% e no escuro a 130% (F21), sem texto cortado com "…" fora das células e sem controle passando da borda da janela de 1280×720.
+- As capturas ficam em `target/` e não entram no repositório.
 
 ### F11.4 Integração contínua
 
 - Arquivo `.github/workflows/ci.yml`:
   - JDK 21;
   - PostgreSQL 16 como serviço, com `POSTGRES_USER=varesync`, `POSTGRES_DB=varesync_test` e `POSTGRES_HOST_AUTH_METHOD=trust` (banco descartável; nenhuma senha real no repositório). `VARESYNC_DB_SENHA` recebe um valor qualquer, que o `trust` ignora;
-  - roda `mvn -B verify` e `-Pqualidade`;
+  - roda `mvn -B verify`, `-Pqualidade` e `-Pui`;
   - como o Linux do CI não tem tela, os testes que abrem o JavaFX rodam com tela virtual (`xvfb-run -a`);
   - usa o fuso `America/Sao_Paulo` e o idioma pt-BR, como no computador da loja;
   - publica o relatório de cobertura como artefato.
@@ -323,7 +324,7 @@ Pendência das Fases 5 e 6.
 
 ### F11.6 Versão do sistema
 
-- O pom passa para `1.1.0-SNAPSHOT`. A versão do TCC é a marcada pela tag `tcc-entrega`.
+- O pom passa para `2.0.0-SNAPSHOT`: a versão entregue ao TCC é a da tag `tcc-entrega`, e as fases 10 a 21 a ampliaram com módulos inteiros.
 - Tela **Sobre** (menu ou rodapé): versão, commit (plugin git-commit-id; "desconhecido" sem Git) e data do build. A versão também aparece na barra de status.
 - O `jpackage` usa a versão do pom, sem `-SNAPSHOT`.
 
@@ -341,13 +342,16 @@ Testes de integração com duas conexões simultâneas:
 | Duas sangrias juntas | não passam do dinheiro esperado |
 | Dois terminais incluindo o mesmo produto em inventários diferentes | só um consegue |
 | Duas confirmações da mesma entrada | só uma vale |
+| Duas vendas do mesmo produto com controle de validade (F17) | não tiram do mesmo lote, e nenhum lote com código fica negativo |
+| Duas vendas usando o crédito do mesmo cliente (F12) | o saldo de crédito nunca fica negativo |
+| Dois recebimentos da mesma parcela do crediário (F14) | só um vale |
 
 ### Aceite F11
 
 - `mvn -Pqualidade verify` passa e gera os relatórios dentro das metas.
-- `mvn -Pui verify` roda os 4 fluxos sem abrir janela visível.
+- `mvn -Pui verify` roda os 4 fluxos e a varredura de cortes sem abrir janela visível.
 - O workflow de CI está pronto: verde, se o repositório já estiver no GitHub.
-- Os 4 testes de concorrência passam repetidos 20 vezes seguidas.
+- Os 7 testes de concorrência passam repetidos 20 vezes seguidas.
 - O README tem a instalação em rede.
 - A tela Sobre mostra a versão e o commit.
 

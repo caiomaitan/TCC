@@ -1,0 +1,83 @@
+# Integração contínua do VareSync (F11.4).
+# Banco descartável: PostgreSQL 16 em "trust", sem senha real no repositório. VARESYNC_DB_SENHA recebe um valor
+# qualquer, que o trust ignora (os testes de integração só exigem que a variável exista).
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: varesync
+          POSTGRES_DB: varesync_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U varesync -d varesync_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      VARESYNC_DB_USUARIO: varesync
+      VARESYNC_DB_SENHA: ci-sem-senha
+      VARESYNC_DB_TESTE_URL: jdbc:postgresql://localhost:5432/varesync_test
+      # Fuso e idioma do computador da loja
+      TZ: America/Sao_Paulo
+      LANG: pt_BR.UTF-8
+      LC_ALL: pt_BR.UTF-8
+      # A JVM dos testes recebe o mesmo fuso e idioma de forma explícita (propriedade testes.jvm do pom)
+      TESTES_JVM: -Duser.timezone=America/Sao_Paulo -Duser.language=pt -Duser.country=BR
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Idioma pt-BR e tela virtual
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends locales xvfb libgtk-3-0 libxtst6 libxxf86vm1 libgl1
+          sudo locale-gen pt_BR.UTF-8
+          sudo update-locale LANG=pt_BR.UTF-8
+
+      # Os testes que abrem o JavaFX precisam de tela: no Linux do CI, uma tela virtual (xvfb-run -a)
+      - name: Build e testes (mvn verify)
+        run: xvfb-run -a mvn -B verify "-Dtestes.jvm=${TESTES_JVM}"
+
+      - name: Cobertura e análise estática (mvn -Pqualidade verify)
+        run: xvfb-run -a mvn -B -Pqualidade verify "-Dtestes.jvm=${TESTES_JVM}"
+
+      - name: Relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-jacoco
+          path: target/site/jacoco
+          if-no-files-found: warn
+
+      - name: Relatórios do SpotBugs e do Checkstyle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analise-estatica
+          path: |
+            target/spotbugsXml.xml
+            target/checkstyle-result.xml
+          if-no-files-found: ignore

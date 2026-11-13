@@ -28,6 +28,8 @@ public final class Notificacao {
     static final Duration MAXIMO = Duration.seconds(9);
     private static final double MARGEM = 24;
     private static final double LARGURA_MAXIMA = 520;
+    // Estado das notificações abertas, que muda durante o uso; não é uma constante.
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final Map<Window, Popup> abertas = new WeakHashMap<>();
 
     private Notificacao() {

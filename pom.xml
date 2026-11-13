@@ -6,7 +6,8 @@
 
     <groupId>br.com.varesync</groupId>
     <artifactId>varesync</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <!-- F11.6: 2.0.0, porque as fases 10 a 21 ampliaram com módulos inteiros a versão entregue ao TCC (tag tcc-entrega) -->
+    <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>VareSync</name>
@@ -31,6 +32,19 @@
         <jackson.version>2.18.8</jackson.version>
 
         <main.class>br.com.varesync.Launcher</main.class>
+
+        <!-- Data do build (F11.6), em UTC; a tela Sobre mostra no fuso do computador -->
+        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+        <build.data>${maven.build.timestamp}</build.data>
+        <!-- Vazio sem o perfil qualidade; com ele, o JaCoCo põe aqui o agente que mede a cobertura (F11.1) -->
+        <argLine/>
+        <!-- Opções extras da JVM dos testes; o CI passa o fuso e o idioma da loja (F11.4) -->
+        <testes.jvm/>
+
+        <jacoco.version>0.8.16</jacoco.version>
+        <spotbugs.version>4.10.5</spotbugs.version>
+        <spotbugs.plugin.version>4.10.5.0</spotbugs.plugin.version>
+        <checkstyle.version>14.4.0</checkstyle.version>
     </properties>
 
     <dependencyManagement>
@@ -150,7 +164,70 @@
     </dependencies>
 
     <build>
+        <!-- Só o versao.properties é filtrado: os FXML têm expressões ${...} que não podem ser trocadas -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>versao.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>versao.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
+            <!-- Commit do build para a tela Sobre (F11.6): target/classes/git.properties; sem Git, o build segue -->
+            <plugin>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <version>10.0.1</version>
+                <executions>
+                    <execution>
+                        <id>commit-do-build</id>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
+                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties</generateGitPropertiesFilename>
+                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
+                    <failOnUnableToExtractRepoInfo>false</failOnUnableToExtractRepoInfo>
+                    <offline>true</offline>
+                    <includeOnlyProperties>
+                        <includeOnlyProperty>^git\.commit\.id\.abbrev$</includeOnlyProperty>
+                        <includeOnlyProperty>^git\.commit\.id\.full$</includeOnlyProperty>
+                        <includeOnlyProperty>^git\.dirty$</includeOnlyProperty>
+                    </includeOnlyProperties>
+                    <commitIdGenerationMode>full</commitIdGenerationMode>
+                </configuration>
+            </plugin>
+            <!-- Versão sem -SNAPSHOT para o jpackage (F11.6): ${versao.numerica} = 2.0.0 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.8.0</version>
+                <executions>
+                    <execution>
+                        <id>versao-numerica</id>
+                        <goals>
+                            <goal>parse-version</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <propertyPrefix>versao</propertyPrefix>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -185,7 +262,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.6</version>
                 <configuration>
-                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <argLine>@{argLine} ${testes.jvm} -Dfile.encoding=UTF-8</argLine>
                 </configuration>
             </plugin>
             <!-- Testes de integração: *IT, banco varesync_test -->
@@ -194,7 +271,7 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.5.6</version>
                 <configuration>
-                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <argLine>@{argLine} ${testes.jvm} -Dfile.encoding=UTF-8</argLine>
                 </configuration>
                 <executions>
                     <execution>
@@ -225,7 +302,8 @@
         <profile>
             <id>empacotar</id>
             <properties>
-                <app.versao>0.1.0</app.versao>
+                <!-- A versão do pom sem -SNAPSHOT (F11.6), lida pelo build-helper na fase initialize -->
+                <app.versao>${versao.majorVersion}.${versao.minorVersion}.${versao.incrementalVersion}</app.versao>
                 <empacotar.entrada>${project.build.directory}/empacotar</empacotar.entrada>
             </properties>
             <build>
@@ -294,6 +372,195 @@
                                         <argument>${project.build.directory}/dist</argument>
                                     </arguments>
                                 </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            mvn -Pempacotar,instalador clean package   (F11.7, opcional)
+            Depois da pasta do empacotar, gera target/instalador/VareSync-<versão>.msi. Precisa do WiX Toolset
+            (3.x, ou 4/5 a partir do JDK 24) no PATH; sem ele, o jpackage para com erro e nada é gerado.
+        -->
+        <profile>
+            <id>instalador</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.1</version>
+                        <executions>
+                            <execution>
+                                <id>jpackage-msi</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/jpackage</executable>
+                                    <arguments>
+                                        <argument>--type</argument>
+                                        <argument>msi</argument>
+                                        <argument>--app-image</argument>
+                                        <argument>${project.build.directory}/dist/VareSync</argument>
+                                        <argument>--name</argument>
+                                        <argument>VareSync</argument>
+                                        <argument>--app-version</argument>
+                                        <argument>${versao.majorVersion}.${versao.minorVersion}.${versao.incrementalVersion}</argument>
+                                        <argument>--vendor</argument>
+                                        <argument>VareSync</argument>
+                                        <argument>--description</argument>
+                                        <argument>${project.description}</argument>
+                                        <argument>--win-dir-chooser</argument>
+                                        <argument>--win-menu</argument>
+                                        <argument>--win-shortcut</argument>
+                                        <argument>--win-upgrade-uuid</argument>
+                                        <argument>6f0c9a63-2c1e-4f5b-9d8e-0b7a1e5f2d41</argument>
+                                        <argument>--dest</argument>
+                                        <argument>${project.build.directory}/instalador</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            mvn -Pqualidade verify   (F11.1 e F11.2)
+            Cobertura dos *Test e *IT juntos (JaCoCo, target/site/jacoco), SpotBugs sem ocorrência de prioridade alta
+            e Checkstyle sem erros (config/checkstyle.xml).
+        -->
+        <profile>
+            <id>qualidade</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco.version}</version>
+                        <configuration>
+                            <!-- Um arquivo só: os unitários e os de integração somam na mesma conta -->
+                            <destFile>${project.build.directory}/jacoco.exec</destFile>
+                            <dataFile>${project.build.directory}/jacoco.exec</dataFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>agente</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                                <configuration>
+                                    <append>true</append>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>relatorio</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>metas</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <rule>
+                                            <element>PACKAGE</element>
+                                            <includes>
+                                                <include>br.com.varesync.util</include>
+                                            </includes>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>0.80</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                        <rule>
+                                            <element>PACKAGE</element>
+                                            <includes>
+                                                <include>br.com.varesync.service</include>
+                                            </includes>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>0.70</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <version>${spotbugs.plugin.version}</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.github.spotbugs</groupId>
+                                <artifactId>spotbugs</artifactId>
+                                <version>${spotbugs.version}</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <threshold>High</threshold>
+                            <effort>Max</effort>
+                            <failOnError>true</failOnError>
+                            <includeTests>false</includeTests>
+                            <xmlOutput>true</xmlOutput>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>spotbugs</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-checkstyle-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.puppycrawl.tools</groupId>
+                                <artifactId>checkstyle</artifactId>
+                                <version>${checkstyle.version}</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <configLocation>config/checkstyle.xml</configLocation>
+                            <consoleOutput>true</consoleOutput>
+                            <failOnViolation>true</failOnViolation>
+                            <violationSeverity>error</violationSeverity>
+                            <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                            <inputEncoding>UTF-8</inputEncoding>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>checkstyle</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
                             </execution>
                         </executions>
                     </plugin>
