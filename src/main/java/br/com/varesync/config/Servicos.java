@@ -31,6 +31,7 @@ import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.dao.RecebivelDAO;
 import br.com.varesync.dao.TituloReceberDAO;
+import br.com.varesync.dao.TributoVendaDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
@@ -74,6 +75,7 @@ import br.com.varesync.service.SugestaoCompraService;
 import br.com.varesync.service.Transacao;
 import br.com.varesync.service.UnidadeService;
 import br.com.varesync.service.UsuarioService;
+import br.com.varesync.service.TributosVendaService;
 import br.com.varesync.service.VendaService;
 import br.com.varesync.util.RelogioAjustavel;
 import java.time.Clock;
@@ -130,7 +132,8 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         TituloReceberDAO tituloDAO = new TituloReceberDAO();
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO, produtoDAO), auditoria, new ClienteDAO(),
-                creditoDAO, credito, tituloDAO, recebiveis, clock);
+                creditoDAO, credito, tituloDAO, recebiveis,
+                new TributosVendaService(new TributoVendaDAO(), configuracaoDAO), clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();

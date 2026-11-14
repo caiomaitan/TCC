@@ -63,25 +63,32 @@
                 <Label text="Redução da base (%)" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
                 <TextField fx:id="campoReducao" promptText="CST 20 e 70" maxWidth="90" styleClass="campo-numero"
                            GridPane.rowIndex="4" GridPane.columnIndex="1"/>
-                <Label text="PIS: CST * e alíquota (%)" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
-                <HBox spacing="8" GridPane.rowIndex="5" GridPane.columnIndex="1">
+                <Label text="FCP (%)" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+                <TextField fx:id="campoFcp" promptText="CST 00 e 20" maxWidth="90" styleClass="campo-numero"
+                           GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                <Label text="PIS: CST * e alíquota (%)" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+                <HBox spacing="8" GridPane.rowIndex="6" GridPane.columnIndex="1">
                     <TextField fx:id="campoCstPis" promptText="01" prefWidth="60"/>
                     <TextField fx:id="campoAliquotaPis" promptText="0,00" prefWidth="80" styleClass="campo-numero"/>
                 </HBox>
-                <Label text="COFINS: CST * e alíquota (%)" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
-                <HBox spacing="8" GridPane.rowIndex="6" GridPane.columnIndex="1">
+                <Label text="COFINS: CST * e alíquota (%)" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+                <HBox spacing="8" GridPane.rowIndex="7" GridPane.columnIndex="1">
                     <TextField fx:id="campoCstCofins" promptText="01" prefWidth="60"/>
                     <TextField fx:id="campoAliquotaCofins" promptText="0,00" prefWidth="80" styleClass="campo-numero"/>
                 </HBox>
-                <Label text="Código de benefício" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+                <Label text="Código de benefício" GridPane.rowIndex="8" GridPane.columnIndex="0"/>
                 <TextField fx:id="campoBeneficio" promptText="Ex.: SP010360 ou SEM CBENEF" maxWidth="220"
-                           GridPane.rowIndex="7" GridPane.columnIndex="1"/>
-                <Label text="CST do IBS e da CBS" GridPane.rowIndex="8" GridPane.columnIndex="0"/>
-                <TextField fx:id="campoCstIbsCbs" promptText="000" maxWidth="90" GridPane.rowIndex="8" GridPane.columnIndex="1"/>
-                <Label text="cClassTrib" GridPane.rowIndex="9" GridPane.columnIndex="0"/>
-                <TextField fx:id="campoCclassTrib" promptText="000001" maxWidth="110" GridPane.rowIndex="9" GridPane.columnIndex="1"/>
+                           GridPane.rowIndex="8" GridPane.columnIndex="1"/>
+                <Label text="CST do IBS e da CBS" GridPane.rowIndex="9" GridPane.columnIndex="0"/>
+                <TextField fx:id="campoCstIbsCbs" promptText="000" maxWidth="90" GridPane.rowIndex="9" GridPane.columnIndex="1"/>
+                <Label text="cClassTrib" GridPane.rowIndex="10" GridPane.columnIndex="0"/>
+                <TextField fx:id="campoCclassTrib" promptText="000001" maxWidth="110" GridPane.rowIndex="10" GridPane.columnIndex="1"/>
+                <Label text="Redução da alíquota do IBS e da CBS (%)" wrapText="true" minHeight="-Infinity"
+                       GridPane.rowIndex="11" GridPane.columnIndex="0"/>
+                <TextField fx:id="campoReducaoIbsCbs" promptText="Sem redução" maxWidth="110" styleClass="campo-numero"
+                           GridPane.rowIndex="11" GridPane.columnIndex="1"/>
                 <CheckBox fx:id="campoPerfilAtivo" text="Ativo (oferecido para os produtos)" selected="true"
-                          GridPane.rowIndex="10" GridPane.columnIndex="1"/>
+                          GridPane.rowIndex="12" GridPane.columnIndex="1"/>
             </GridPane>
             <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Só o formato de cada campo é conferido. Combinações erradas (CSOSN no regime normal, CFOP 5405 sem ST, alíquota numa situação isenta...) aparecem no relatório de inconsistências fiscais. O IBS e a CBS (reforma tributária) são opcionais: aqui só se cadastra e se confere o formato."/>
         </VBox>

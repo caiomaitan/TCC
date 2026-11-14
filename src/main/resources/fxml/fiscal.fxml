@@ -7,6 +7,7 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableColumn?>
@@ -115,7 +116,8 @@
         <Tab fx:id="abaPerfis" text="Perfis tributários">
             <fx:include fx:id="perfis" source="perfis-tributarios.fxml"/>
         </Tab>
-        <Tab fx:id="abaTabelas" text="Tabelas NCM e CEST">
+        <Tab fx:id="abaTabelas" text="Tabelas NCM, CEST e IBPT">
+            <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
             <VBox spacing="12" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
                 <Label wrapText="true" minHeight="-Infinity" text="Sem tabela importada, o sistema confere só o formato do NCM (8 dígitos) e do CEST (7 dígitos). Com a tabela, o código também tem de existir nela. Importar de novo troca a tabela inteira."/>
@@ -129,11 +131,17 @@
                     <Button fx:id="botaoImportarCest" text="Importar tabela CEST (CSV)…" onAction="#importarCest"/>
                     <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="CSV com cest;ncm;descrição. O NCM pode ser o começo do código (ex.: 2203) ou vários, separados por vírgula."/>
                 </HBox>
+                <Label fx:id="situacaoIbpt" wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button fx:id="botaoImportarIbpt" text="Importar tabela IBPT (CSV)…" onAction="#importarIbpt"/>
+                    <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O CSV que o IBPT fornece por UF (&quot;De Olho no Imposto&quot;, TabelaIBPTax…). Dá os tributos aproximados da venda (Lei 12.741/2012); só entram as linhas de NCM."/>
+                </HBox>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <ProgressIndicator fx:id="progresso" visible="false" prefWidth="24" prefHeight="24"/>
                     <Label fx:id="mensagemTabelas" wrapText="true" minHeight="-Infinity"/>
                 </HBox>
             </VBox>
+            </ScrollPane>
         </Tab>
     </TabPane>
 

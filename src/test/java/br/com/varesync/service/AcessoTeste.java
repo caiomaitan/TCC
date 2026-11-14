@@ -27,6 +27,7 @@ import br.com.varesync.dao.ProdutoFornecedorDAO;
 import br.com.varesync.dao.PromocaoDAO;
 import br.com.varesync.dao.RecebimentoDAO;
 import br.com.varesync.dao.TituloReceberDAO;
+import br.com.varesync.dao.TributoVendaDAO;
 import br.com.varesync.dao.UnidadeMedidaDAO;
 import br.com.varesync.dao.UsuarioDAO;
 import br.com.varesync.dao.VendaDAO;
@@ -119,7 +120,8 @@ final class AcessoTeste {
         credito = new CreditoService(transacao, new CreditoClienteDAO(), new ClienteDAO(), auditoria, relogio);
         vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
                 new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO(), produtoDAO), auditoria,
-                new ClienteDAO(), new CreditoClienteDAO(), credito, new TituloReceberDAO(), recebiveis, relogio);
+                new ClienteDAO(), new CreditoClienteDAO(), credito, new TituloReceberDAO(), recebiveis,
+                new TributosVendaService(new TributoVendaDAO(), new ConfiguracaoDAO()), relogio);
         inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO, categoriaDAO, new EstoqueDAO(),
                 estoque, auditoria, relogio);
         fornecedores = new FornecedorService(transacao, new FornecedorDAO(), relogio);
@@ -179,7 +181,15 @@ final class AcessoTeste {
             // TRUNCATE não aciona triggers de linha: razão e saldo das contas saem juntos e o saldo zero volta abaixo.
             st.executeUpdate("TRUNCATE usuario, fornecedor, conta_saldo CASCADE");
             // F19.3: as tabelas de apoio não dependem de usuário.
-            st.executeUpdate("TRUNCATE ncm, cest");
+            st.executeUpdate("TRUNCATE ncm, cest, ibpt"); // F22.3: a tabela IBPT também
+            // F22.1: o tPag volta ao da V23 (o tipo; o Vale-alimentação da V2 é 10).
+            st.executeUpdate("""
+                    UPDATE forma_pagamento
+                       SET tpag = CASE tipo WHEN 'DINHEIRO' THEN '01' WHEN 'CARTAO_CREDITO' THEN '03'
+                                            WHEN 'CARTAO_DEBITO' THEN '04' WHEN 'CREDIARIO' THEN '05'
+                                            WHEN 'PIX' THEN '20' WHEN 'CREDITO_CLIENTE' THEN '21'
+                                            ELSE CASE WHEN descricao = 'Vale-alimentação' THEN '10' ELSE '99' END END
+                    """);
             st.executeUpdate("UPDATE forma_pagamento SET taxa_pct = 0, dias_recebimento = 0, conta_destino_id = "
                     + "CASE WHEN tipo IN ('DINHEIRO', 'CREDITO_CLIENTE', 'CREDIARIO') THEN NULL ELSE "
                     + "(SELECT id FROM conta_financeira WHERE nome = 'Banco') END");

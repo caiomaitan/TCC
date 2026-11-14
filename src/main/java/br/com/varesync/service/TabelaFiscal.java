@@ -2,13 +2,19 @@ package br.com.varesync.service;
 
 import br.com.varesync.model.CodigoCest;
 import br.com.varesync.model.CodigoNcm;
+import br.com.varesync.model.LinhaIbpt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -204,6 +210,154 @@ public final class TabelaFiscal {
             throw new NegocioException("O arquivo não tem nenhum CEST (cest;ncm;descrição).");
         }
         return List.copyOf(linhas);
+    }
+
+    // ----- Tabela IBPT (F22.3) -----
+
+    private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/uuuu")
+            .withResolverStyle(ResolverStyle.STRICT);
+    private static final Pattern UF_NO_ARQUIVO = Pattern.compile("(?i)TabelaIBPTax([A-Z]{2})");
+    private static final List<String> COLUNAS_IBPT_OBRIGATORIAS = List.of("codigo", "tipo", "nacionalfederal",
+            "importadosfederal", "estadual", "municipal", "vigenciainicio", "vigenciafim");
+    private static final int ESCALA_ALIQUOTA_IBPT = 4;
+    private static final int TAMANHO_EX = 3;
+
+    /**
+     * Linhas de NCM lidas do arquivo do IBPT.
+     *
+     * @param puladas linhas de serviço (NBS e LC 116, tipo diferente de 0), que ficam de fora
+     * @param versao  versão da primeira linha
+     * @param inicio  menor início de vigência
+     * @param fim     maior fim de vigência
+     */
+    public record LeituraIbpt(List<LinhaIbpt> linhas, int puladas, String versao, LocalDate inicio, LocalDate fim,
+                              String fonte) {
+    }
+
+    /**
+     * Lê o CSV que o IBPT fornece por UF ("De Olho no Imposto"): as colunas pelo nome do cabeçalho, separador
+     * {@code ;}, UTF-8 (com ou sem BOM) ou ISO-8859-1, decimal com ponto ou vírgula e datas dd/mm/aaaa. Só as linhas
+     * de tipo 0 (NCM). Uma linha com erro recusa o arquivo inteiro.
+     */
+    public static LeituraIbpt lerIbpt(byte[] conteudo) {
+        List<Registro> registros = registros(texto(conteudo)).stream().filter(r -> !r.vazio()).toList();
+        if (registros.isEmpty()) {
+            throw new NegocioException("O arquivo está vazio.");
+        }
+        Map<String, Integer> coluna = new LinkedHashMap<>();
+        List<String> cabecalho = registros.get(0).campos();
+        for (int i = 0; i < cabecalho.size(); i++) {
+            coluna.putIfAbsent(cabecalho.get(i).strip().toLowerCase(java.util.Locale.ROOT), i);
+        }
+        List<String> faltam = COLUNAS_IBPT_OBRIGATORIAS.stream().filter(c -> !coluna.containsKey(c)).toList();
+        if (!faltam.isEmpty()) {
+            throw new NegocioException("O arquivo não está no leiaute da tabela do IBPT: falta"
+                    + (faltam.size() == 1 ? " a coluna " : "m as colunas ") + String.join(", ", faltam)
+                    + " no cabeçalho (codigo;ex;tipo;descricao;nacionalfederal;importadosfederal;estadual;municipal;"
+                    + "vigenciainicio;vigenciafim;chave;versao;fonte).");
+        }
+        Map<String, Integer> linhaDaChave = new LinkedHashMap<>();
+        List<LinhaIbpt> linhas = new ArrayList<>();
+        List<String> erros = new ArrayList<>();
+        int puladas = 0;
+        for (Registro r : registros.subList(1, registros.size())) {
+            java.util.function.Function<String, String> campo = nome -> coluna.containsKey(nome)
+                    ? r.campo(coluna.get(nome)) : "";
+            if (!"0".equals(campo.apply("tipo"))) {
+                puladas++;
+                continue;
+            }
+            List<String> errosDaLinha = new ArrayList<>();
+            String codigo = ValidacaoFiscal.semSeparadores(campo.apply("codigo"));
+            if (codigo == null || codigo.length() != 8) {
+                errosDaLinha.add("NCM \"" + campo.apply("codigo") + "\" não tem 8 dígitos");
+            }
+            String ex = campo.apply("ex");
+            if (!ex.isEmpty() && (ex.length() > TAMANHO_EX || !ex.chars().allMatch(Character::isDigit))) {
+                errosDaLinha.add("ex \"" + ex + "\" inválido");
+            }
+            BigDecimal nacional = aliquotaIbpt(campo.apply("nacionalfederal"), "nacionalfederal", errosDaLinha);
+            BigDecimal importados = aliquotaIbpt(campo.apply("importadosfederal"), "importadosfederal", errosDaLinha);
+            BigDecimal estadual = aliquotaIbpt(campo.apply("estadual"), "estadual", errosDaLinha);
+            BigDecimal municipal = aliquotaIbpt(campo.apply("municipal"), "municipal", errosDaLinha);
+            LocalDate inicio = data(campo.apply("vigenciainicio"), "vigenciainicio", errosDaLinha);
+            LocalDate fim = data(campo.apply("vigenciafim"), "vigenciafim", errosDaLinha);
+            if (inicio != null && fim != null && fim.isBefore(inicio)) {
+                errosDaLinha.add("vigência termina antes de começar");
+            }
+            if (errosDaLinha.isEmpty()) {
+                Integer anterior = linhaDaChave.putIfAbsent(codigo + "|" + ex, r.linha());
+                if (anterior != null) {
+                    errosDaLinha.add("o NCM " + ValidacaoFiscal.formatarNcm(codigo) + (ex.isEmpty() ? "" : " ex " + ex)
+                            + " repete o da linha " + anterior);
+                }
+            }
+            if (!errosDaLinha.isEmpty()) {
+                erros.add("linha " + r.linha() + ": " + String.join(", ", errosDaLinha));
+                continue;
+            }
+            linhas.add(new LinhaIbpt(codigo, ex, descricao(campo.apply("descricao")), nacional, importados, estadual,
+                    municipal, inicio, fim, limitar(campo.apply("chave"), 20), limitar(campo.apply("versao"), 20),
+                    limitar(campo.apply("fonte"), 100)));
+        }
+        recusarSeHouverErros(erros);
+        if (linhas.isEmpty()) {
+            throw new NegocioException("O arquivo não tem nenhuma linha de NCM (tipo 0).");
+        }
+        LocalDate inicio = linhas.stream().map(LinhaIbpt::vigenciaInicio).min(LocalDate::compareTo).orElseThrow();
+        LocalDate fim = linhas.stream().map(LinhaIbpt::vigenciaFim).max(LocalDate::compareTo).orElseThrow();
+        return new LeituraIbpt(List.copyOf(linhas), puladas, linhas.get(0).versao(), inicio, fim,
+                linhas.get(0).fonte());
+    }
+
+    /** A UF no nome do arquivo do IBPT (TabelaIBPTaxSP25.2.A.csv → SP); vazia se o nome não trouxer uma UF. */
+    public static java.util.Optional<String> ufDoArquivo(String nomeArquivo) {
+        if (nomeArquivo == null) {
+            return java.util.Optional.empty();
+        }
+        java.util.regex.Matcher m = UF_NO_ARQUIVO.matcher(nomeArquivo);
+        if (!m.find()) {
+            return java.util.Optional.empty();
+        }
+        String uf = m.group(1).toUpperCase(java.util.Locale.ROOT);
+        try {
+            return java.util.Optional.ofNullable(ValidacaoFiscal.uf(uf)).filter(u -> !u.isEmpty());
+        } catch (NegocioException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /** Percentual de 0 a 100, com ponto ou vírgula decimal, até 4 casas. */
+    private static BigDecimal aliquotaIbpt(String texto, String nome, List<String> erros) {
+        String t = texto.strip();
+        if (t.contains(",")) {
+            t = t.replace(".", "").replace(',', '.');
+        }
+        try {
+            BigDecimal v = new BigDecimal(t);
+            if (v.signum() < 0 || v.compareTo(BigDecimal.valueOf(100)) > 0
+                    || v.stripTrailingZeros().scale() > ESCALA_ALIQUOTA_IBPT) {
+                erros.add(nome + " \"" + texto + "\" fora de 0 a 100 ou com mais de 4 casas");
+                return null;
+            }
+            return v.setScale(ESCALA_ALIQUOTA_IBPT, java.math.RoundingMode.HALF_UP);
+        } catch (NumberFormatException e) {
+            erros.add(nome + " \"" + texto + "\" não é número");
+            return null;
+        }
+    }
+
+    private static LocalDate data(String texto, String nome, List<String> erros) {
+        try {
+            return LocalDate.parse(texto.strip(), DATA);
+        } catch (DateTimeParseException e) {
+            erros.add(nome + " \"" + texto + "\" não é data dd/mm/aaaa");
+            return null;
+        }
+    }
+
+    private static String limitar(String texto, int tamanho) {
+        return texto.length() > tamanho ? texto.substring(0, tamanho) : texto;
     }
 
     /** Sem marcações HTML, sem os traços do começo ("-- Reprodutores" → "Reprodutores") e sem espaços duplos. */

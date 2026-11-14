@@ -3,6 +3,7 @@ package br.com.varesync.controller;
 import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.MeioPagamentoNfce;
 import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.InconsistenciaAbatimento;
 import br.com.varesync.model.InconsistenciaConta;
@@ -182,7 +183,7 @@ public class ConfiguracoesController {
     @FXML private ListView<String> listaLotes;
     @FXML private TextField campoDiasMedia;
     @FXML private TextField campoCobertura;
-    @FXML private HBox painelRecebimento;
+    @FXML private javafx.scene.layout.VBox painelRecebimento;
     @FXML private TextField campoTaxaForma;
     @FXML private TextField campoDiasForma;
     @FXML private ComboBox<ContaFinanceira> campoContaForma;
@@ -211,6 +212,13 @@ public class ConfiguracoesController {
     @FXML private TableColumn<FormaPagamentoCadastro, String> colunaFormaDescricao;
     @FXML private TableColumn<FormaPagamentoCadastro, String> colunaFormaTipo;
     @FXML private TableColumn<FormaPagamentoCadastro, String> colunaFormaSituacao;
+    @FXML private TableColumn<FormaPagamentoCadastro, String> colunaFormaTpag;
+    @FXML private javafx.scene.layout.HBox painelTpag;
+    @FXML private ComboBox<MeioPagamentoNfce> campoTpagForma;
+    @FXML private TextField campoAliquotaCbs;
+    @FXML private TextField campoAliquotaIbsUf;
+    @FXML private TextField campoAliquotaIbsMun;
+    @FXML private CheckBox campoExcluirIcms;
     @FXML private Button botaoSituacaoForma;
     @FXML private TextField campoNovaForma;
     @FXML private ComboBox<TipoFormaPagamento> campoTipoForma;
@@ -322,6 +330,9 @@ public class ConfiguracoesController {
         colunaFormaTipo.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().tipo().rotulo()));
         colunaFormaSituacao.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().ativa() ? "Ativa"
                 : "Desativada"));
+        colunaFormaTpag.setCellValueFactory(c -> new ReadOnlyStringWrapper(MeioPagamentoNfce.rotulo(c.getValue().tpag())));
+        campoTpagForma.getItems().setAll(MeioPagamentoNfce.TODOS);
+        painelTpag.setDisable(true);
         tabelaFormas.setRowFactory(t -> new TableRow<>() {
             @Override
             protected void updateItem(FormaPagamentoCadastro f, boolean vazio) {
@@ -419,6 +430,10 @@ public class ConfiguracoesController {
         campoFormasRevisadas.setSelected(c.assistente().formasRevisadas());
         campoSoEuUso.setSelected(c.assistente().usuariosDispensado());
         campoSemBalanca.setSelected(c.assistente().balancaDispensada());
+        campoAliquotaCbs.setText(Formatos.numero(c.tributos().aliquotaCbs(), Dinheiro.ESCALA_PERCENTUAL));
+        campoAliquotaIbsUf.setText(Formatos.numero(c.tributos().aliquotaIbsUf(), Dinheiro.ESCALA_PERCENTUAL));
+        campoAliquotaIbsMun.setText(Formatos.numero(c.tributos().aliquotaIbsMun(), Dinheiro.ESCALA_PERCENTUAL));
+        campoExcluirIcms.setSelected(c.tributos().excluirIcmsBasePisCofins());
         atualizarBalanca();
     }
 
@@ -457,7 +472,10 @@ public class ConfiguracoesController {
                         inteiro(campoEtiquetaLinhas, "Linhas por folha"), campoModeloTermica.getText(),
                         campoImpressoraTermica.getEditor().getText()),
                 new Configuracoes.Assistente(campoFormasRevisadas.isSelected(), campoSoEuUso.isSelected(),
-                        campoSemBalanca.isSelected()));
+                        campoSemBalanca.isSelected()),
+                new Configuracoes.Tributos(numero(campoAliquotaCbs, "Alíquota da CBS"),
+                        numero(campoAliquotaIbsUf, "Alíquota do IBS da UF"),
+                        numero(campoAliquotaIbsMun, "Alíquota do IBS do município"), campoExcluirIcms.isSelected()));
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -830,6 +848,8 @@ public class ConfiguracoesController {
     /** Mostra como a forma selecionada recebe (F15.2); dinheiro, crédito e crediário não têm recebimento. */
     private void mostrarRecebimento(FormaPagamentoCadastro f) {
         painelRecebimento.setDisable(f == null || !f.aceitaContaDestino());
+        painelTpag.setDisable(f == null);
+        campoTpagForma.setValue(f == null ? null : MeioPagamentoNfce.doCodigo(f.tpag()).orElse(null));
         campoTaxaForma.setText(f == null ? "" : Formatos.numero(f.taxaPct(), Dinheiro.ESCALA_PERCENTUAL));
         campoDiasForma.setText(f == null ? "" : String.valueOf(f.diasRecebimento()));
         campoContaForma.getItems().setAll(configuracaoService.contasAtivas(sessao));
@@ -855,6 +875,25 @@ public class ConfiguracoesController {
             carregarFormas(forma.id());
             Mensagem.sucesso(mensagemFormas, "Recebimento de \"" + forma.descricao() + "\" salvo. Vale para os próximos "
                     + "pagamentos.");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagemFormas, e.getMessage());
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mostrar(e);
+        }
+    }
+
+    @FXML
+    void salvarTpagForma() {
+        FormaPagamentoCadastro forma = tabelaFormas.getSelectionModel().getSelectedItem();
+        if (forma == null) {
+            return;
+        }
+        try {
+            MeioPagamentoNfce meio = campoTpagForma.getValue();
+            configuracaoService.alterarTpagForma(sessao, forma.id(), meio == null ? null : meio.codigo());
+            carregarFormas(forma.id());
+            Mensagem.sucesso(mensagemFormas, "Meio de pagamento na NFC-e de \"" + forma.descricao() + "\": " + meio
+                    + ".");
         } catch (NegocioException e) {
             Mensagem.erro(mensagemFormas, e.getMessage());
         } catch (RuntimeException e) {

@@ -144,6 +144,24 @@ public final class ValidacaoFiscal {
         return valor.setScale(Dinheiro.ESCALA_PERCENTUAL, Dinheiro.ARREDONDAMENTO);
     }
 
+    /**
+     * Redução das alíquotas do IBS e da CBS em % (F22.1): nula ou zero = sem redução; senão maior que 0 e até 100
+     * (100 = alíquota zero), até 2 casas.
+     */
+    public static BigDecimal reducaoAliquotaIbsCbs(BigDecimal valor) {
+        if (valor == null || valor.signum() == 0) {
+            return null;
+        }
+        if (valor.signum() < 0 || valor.compareTo(CEM) > 0) {
+            throw new NegocioException("A redução da alíquota do IBS e da CBS deve ser maior que 0 e no máximo 100%.");
+        }
+        if (ValidacaoProduto.casas(valor) > Dinheiro.ESCALA_PERCENTUAL) {
+            throw new NegocioException("A redução da alíquota do IBS e da CBS pode ter no máximo "
+                    + Dinheiro.ESCALA_PERCENTUAL + " casas decimais.");
+        }
+        return valor.setScale(Dinheiro.ESCALA_PERCENTUAL, Dinheiro.ARREDONDAMENTO);
+    }
+
     /** Origem da mercadoria: nula ou de 0 a 8. */
     public static Integer origem(Integer valor) {
         if (valor != null && (valor < 0 || valor > 8)) {

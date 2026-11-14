@@ -163,7 +163,9 @@ public class FiscalService {
                 ValidacaoFiscal.cstPisCofins(d.cstCofins(), "COFINS"),
                 ValidacaoFiscal.aliquota(d.aliquotaCofins(), "da COFINS"),
                 ValidacaoFiscal.codigoBeneficio(d.codigoBeneficio()), ValidacaoFiscal.cstIbsCbs(d.cstIbsCbs()),
-                ValidacaoFiscal.cclassTrib(d.cclassTrib()), d.ativo());
+                ValidacaoFiscal.cclassTrib(d.cclassTrib()), d.ativo(),
+                ValidacaoFiscal.aliquota(d.aliquotaFcp(), "do FCP"),
+                ValidacaoFiscal.reducaoAliquotaIbsCbs(d.reducaoAliquotaIbsCbs()));
     }
 
     /** Todos os campos, para a auditoria da criação. */
@@ -173,6 +175,8 @@ public class FiscalService {
                 + (p.codigoBeneficio() == null ? "" : " · cBenef " + p.codigoBeneficio())
                 + (p.cstIbsCbs() == null ? "" : " · CST IBS/CBS " + p.cstIbsCbs())
                 + (p.cclassTrib() == null ? "" : " · cClassTrib " + p.cclassTrib())
+                + (p.reducaoAliquotaIbsCbs() == null ? "" : " · redução do IBS e da CBS "
+                + br.com.varesync.util.Formatos.percentual(p.reducaoAliquotaIbsCbs()))
                 + (p.ativo() ? "" : " · inativo");
     }
 
@@ -190,6 +194,9 @@ public class FiscalService {
         comparar(m, "código de benefício", a.codigoBeneficio(), n.codigoBeneficio());
         comparar(m, "CST do IBS e da CBS", a.cstIbsCbs(), n.cstIbsCbs());
         comparar(m, "cClassTrib", a.cclassTrib(), n.cclassTrib());
+        comparar(m, "alíquota do FCP", pct(a.aliquotaFcp()), pct(n.aliquotaFcp()));
+        comparar(m, "redução da alíquota do IBS e da CBS", pct(a.reducaoAliquotaIbsCbs()),
+                pct(n.reducaoAliquotaIbsCbs()));
         if (a.ativo() != n.ativo()) {
             m.add(n.ativo() ? "ativado" : "inativado");
         }
@@ -413,6 +420,46 @@ public class FiscalService {
                     "Tabela CEST importada (" + nomeArquivo + "): " + codigos + " CEST em " + linhas.size()
                             + " pares CEST × NCM");
             return new Importacao("CEST", (int) codigos, 0, "CSV");
+        });
+    }
+
+    // ----- Tabela IBPT (F22.3) -----
+
+    /**
+     * Situação da tabela IBPT: linhas de NCM, versão, vigência e fonte; {@code vencida} quando a vigência acabou antes
+     * de hoje ("Baixe a tabela nova no site do IBPT").
+     */
+    public record SituacaoIbpt(long linhas, String versao, java.time.LocalDate inicio, java.time.LocalDate fim,
+                               String fonte, boolean vencida) {
+    }
+
+    public SituacaoIbpt situacaoIbpt(Sessao sessao) {
+        sessao.exigir(Permissao.FISCAL);
+        return transacao.executar(con -> {
+            FiscalDAO.SituacaoIbpt s = fiscalDAO.situacaoIbpt(con);
+            boolean vencida = s.fim() != null && s.fim().isBefore(java.time.LocalDate.now(clock));
+            return new SituacaoIbpt(s.linhas(), s.versao(), s.inicio(), s.fim(), s.fonte(), vencida);
+        });
+    }
+
+    /**
+     * Troca a tabela IBPT inteira pela do arquivo (só as linhas de NCM), numa transação e com auditoria. Nada muda se
+     * o arquivo tiver erro. A confirmação da UF do nome do arquivo é da tela ({@link TabelaFiscal#ufDoArquivo}).
+     */
+    public Importacao importarIbpt(Sessao sessao, byte[] arquivo, String nomeArquivo) {
+        sessao.exigir(Permissao.FISCAL);
+        TabelaFiscal.LeituraIbpt leitura = TabelaFiscal.lerIbpt(arquivo);
+        return transacao.executar(con -> {
+            fiscalDAO.substituirIbpt(con, leitura.linhas());
+            auditoria.registrar(con, sessao, AcaoAuditoria.TABELA_FISCAL_IMPORTADA, ENTIDADE_TABELA, null,
+                    "Tabela IBPT importada (" + nomeArquivo + "): versão "
+                            + (leitura.versao().isEmpty() ? "(sem versão)" : leitura.versao()) + ", vigência de "
+                            + br.com.varesync.util.Formatos.data(leitura.inicio()) + " a "
+                            + br.com.varesync.util.Formatos.data(leitura.fim()) + ", " + leitura.linhas().size()
+                            + (leitura.linhas().size() == 1 ? " linha de NCM" : " linhas de NCM")
+                            + (leitura.puladas() == 0 ? "" : leitura.puladas() == 1 ? " (1 linha de serviço fora)"
+                            : " (" + leitura.puladas() + " linhas de serviço fora)"));
+            return new Importacao("IBPT", leitura.linhas().size(), leitura.puladas(), "CSV");
         });
     }
 

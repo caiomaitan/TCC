@@ -36,6 +36,7 @@
     <ListView fx:id="secoes" styleClass="lista-secoes" prefWidth="200" minWidth="170"/>
     <TabPane fx:id="abas" tabClosingPolicy="UNAVAILABLE" HBox.hgrow="ALWAYS" styleClass="abas-ocultas">
         <Tab fx:id="abaLoja" text="Loja">
+            <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
                 <Label wrapText="true" minHeight="-Infinity" text="Dados que aparecem no comprovante não fiscal, nos relatórios e no título do sistema."/>
@@ -66,7 +67,30 @@
                                GridPane.columnIndex="1"/>
                 </GridPane>
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O regime, a UF e a IE preparam o cadastro fiscal (Produtos › Fiscal…): no Simples Nacional a situação do ICMS é o CSOSN; no regime normal, o CST. O sistema não emite documento fiscal."/>
+                <Label text="Tributos da venda" styleClass="titulo-secao"/>
+                <Label wrapText="true" minHeight="-Infinity" text="Ao finalizar a venda, o sistema calcula e guarda os tributos de cada item pelo perfil tributário do produto (Produtos › Fiscal…). O cálculo só registra: o valor da venda não muda."/>
+                <Label text="IBS e CBS (reforma tributária)" styleClass="titulo-secao"/>
+                <GridPane hgap="12" vgap="10" maxWidth="720">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="230"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="Alíquota da CBS (%)" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoAliquotaCbs" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="0"
+                               GridPane.columnIndex="1"/>
+                    <Label text="Alíquota do IBS da UF (%)" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoAliquotaIbsUf" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="1"
+                               GridPane.columnIndex="1"/>
+                    <Label text="Alíquota do IBS do município (%)" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoAliquotaIbsMun" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="2"
+                               GridPane.columnIndex="1"/>
+                </GridPane>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Valem só no regime normal e para os perfis com o CST do IBS e da CBS. Os valores iniciais são as alíquotas de teste de 2026 (CBS 0,9%, IBS da UF 0,1% e do município 0); mude-os quando a lei mudar. A redução de alíquota de cada perfil é aplicada sobre estes valores."/>
+                <Label text="PIS e COFINS" styleClass="titulo-secao"/>
+                <CheckBox fx:id="campoExcluirIcms" text="Excluir o ICMS da base do PIS e da COFINS"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Marcado (recomendado), segue o Tema 69 do STF: a base do PIS e da COFINS (CST 01 e 02) é o valor do item menos o ICMS dele. Desmarcado, a base é o valor do item."/>
             </VBox>
+            </ScrollPane>
         </Tab>
         <Tab fx:id="abaVenda" text="Venda">
             <VBox spacing="10" styleClass="painel-formulario">
@@ -247,31 +271,43 @@
             </VBox>
         </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
+            <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
                 <Label wrapText="true" minHeight="-Infinity" text="Formas que aparecem no pagamento do PDV. Desativar não apaga as vendas já pagas com a forma; sempre fica ao menos uma ativa. Só o tipo Dinheiro aceita troco e entra no dinheiro da gaveta."/>
-                <TableView fx:id="tabelaFormas" VBox.vgrow="ALWAYS" maxWidth="720">
+                <TableView fx:id="tabelaFormas" VBox.vgrow="ALWAYS" maxWidth="720" prefHeight="260" minHeight="200">
                     <columns>
                         <TableColumn fx:id="colunaFormaDescricao" text="Descrição" prefWidth="280"/>
-                        <TableColumn fx:id="colunaFormaTipo" text="Tipo" prefWidth="180"/>
-                        <TableColumn fx:id="colunaFormaSituacao" text="Situação" prefWidth="120"/>
+                        <TableColumn fx:id="colunaFormaTipo" text="Tipo" prefWidth="160"/>
+                        <TableColumn fx:id="colunaFormaTpag" text="Na NFC-e (tPag)" prefWidth="190"/>
+                        <TableColumn fx:id="colunaFormaSituacao" text="Situação" prefWidth="100"/>
                     </columns>
                     <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
                 </TableView>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Button fx:id="botaoSituacaoForma" text="Desativar" onAction="#alternarForma"/>
                 </HBox>
-                <HBox fx:id="painelRecebimento" spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Recebimento:"/>
-                    <Label text="Taxa (%)"/>
-                    <TextField fx:id="campoTaxaForma" prefWidth="70" styleClass="campo-numero"/>
-                    <Label text="Dias para receber"/>
-                    <TextField fx:id="campoDiasForma" prefWidth="60" styleClass="campo-numero"/>
-                    <Label text="Conta de destino"/>
-                    <ComboBox fx:id="campoContaForma" prefWidth="180" promptText="Sem conta"/>
-                    <Button text="Limpar conta" onAction="#limparContaForma"/>
-                    <Button text="Salvar recebimento" onAction="#salvarRecebimentoForma"/>
+                <VBox fx:id="painelRecebimento" spacing="8">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Recebimento:" minWidth="-Infinity"/>
+                        <Label text="Taxa (%)" minWidth="-Infinity"/>
+                        <TextField fx:id="campoTaxaForma" prefWidth="70" minWidth="60" styleClass="campo-numero"/>
+                        <Label text="Dias para receber" minWidth="-Infinity"/>
+                        <TextField fx:id="campoDiasForma" prefWidth="60" minWidth="50" styleClass="campo-numero"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Conta de destino" minWidth="-Infinity"/>
+                        <ComboBox fx:id="campoContaForma" prefWidth="180" promptText="Sem conta"/>
+                        <Button text="Limpar conta" onAction="#limparContaForma" minWidth="-Infinity"/>
+                        <Button text="Salvar recebimento" onAction="#salvarRecebimentoForma" minWidth="-Infinity"/>
+                    </HBox>
+                </VBox>
+                <HBox fx:id="painelTpag" spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Na NFC-e (tPag):" minWidth="-Infinity"/>
+                    <ComboBox fx:id="campoTpagForma" prefWidth="250" minWidth="120" visibleRowCount="12"/>
+                    <Button text="Salvar tPag" onAction="#salvarTpagForma" minWidth="-Infinity"/>
                 </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O código da tabela oficial que vai para a NFC-e. O PIX vem como estático (20); se o PIX é gerado pela maquininha, troque para 17 (dinâmico)."/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Label text="Nova forma:"/>
                     <TextField fx:id="campoNovaForma" promptText="Descrição *" prefWidth="260" onAction="#criarForma"/>
@@ -280,6 +316,7 @@
                 </HBox>
                 <Label fx:id="mensagemFormas" wrapText="true" minHeight="-Infinity" styleClass="mensagem"/>
             </VBox>
+            </ScrollPane>
         </Tab>
         <Tab fx:id="abaBackup" text="Backup">
             <VBox spacing="10" styleClass="painel-formulario">

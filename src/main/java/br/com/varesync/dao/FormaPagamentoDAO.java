@@ -29,7 +29,7 @@ public class FormaPagamentoDAO {
     /** Todas, ativas e desativadas, na ordem de cadastro. */
     public List<FormaPagamentoCadastro> listar(Connection con) throws SQLException {
         String sql = """
-                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id
+                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id, tpag
                   FROM forma_pagamento
                  ORDER BY id
                 """;
@@ -45,7 +45,7 @@ public class FormaPagamentoDAO {
     /** Trava todas as formas: ativar/desativar confere "ao menos uma ativa" sem corrida entre dois computadores. */
     public List<FormaPagamentoCadastro> travar(Connection con) throws SQLException {
         String sql = """
-                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id
+                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id, tpag
                   FROM forma_pagamento
                  ORDER BY id
                    FOR UPDATE
@@ -62,7 +62,7 @@ public class FormaPagamentoDAO {
     /** Forma com a mesma descrição, sem diferenciar maiúsculas. */
     public Optional<FormaPagamentoCadastro> buscarPorDescricao(Connection con, String descricao) throws SQLException {
         String sql = """
-                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id
+                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id, tpag
                   FROM forma_pagamento
                  WHERE lower(descricao) = lower(?)
                 """;
@@ -97,7 +97,7 @@ public class FormaPagamentoDAO {
     /** Forma com o recebimento (taxa, dias e conta de destino, F15.2). */
     public Optional<FormaPagamentoCadastro> buscar(Connection con, int id) throws SQLException {
         String sql = """
-                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id
+                SELECT id, descricao, tipo, ativa, taxa_pct, dias_recebimento, conta_destino_id, tpag
                   FROM forma_pagamento
                  WHERE id = ?
                 """;
@@ -121,9 +121,19 @@ public class FormaPagamentoDAO {
         }
     }
 
+    /** Meio de pagamento da NFC-e (F22.1). */
+    public void alterarTpag(Connection con, int id, String tpag) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("UPDATE forma_pagamento SET tpag = ? WHERE id = ?")) {
+            ps.setString(1, tpag);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
     private static FormaPagamentoCadastro ler(ResultSet rs) throws SQLException {
         return new FormaPagamentoCadastro(rs.getInt("id"), rs.getString("descricao"),
                 TipoFormaPagamento.valueOf(rs.getString("tipo")), rs.getBoolean("ativa"),
-                rs.getBigDecimal("taxa_pct"), rs.getInt("dias_recebimento"), Jdbc.lerLong(rs, "conta_destino_id"));
+                rs.getBigDecimal("taxa_pct"), rs.getInt("dias_recebimento"), Jdbc.lerLong(rs, "conta_destino_id"),
+                rs.getString("tpag"));
     }
 }

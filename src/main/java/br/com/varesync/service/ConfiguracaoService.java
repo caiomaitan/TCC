@@ -8,6 +8,7 @@ import br.com.varesync.model.AcaoAuditoria;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.FormaPagamentoCadastro;
+import br.com.varesync.model.MeioPagamentoNfce;
 import br.com.varesync.model.ParametrosVenda;
 import br.com.varesync.model.PoliticaSenha;
 import br.com.varesync.model.TipoFormaPagamento;
@@ -207,6 +208,28 @@ public class ConfiguracaoService {
         });
     }
 
+    /**
+     * Meio de pagamento da forma na NFC-e (tPag, F22.1), um dos códigos de {@link MeioPagamentoNfce}. Vale para as
+     * notas que forem emitidas; não muda nada nas vendas.
+     */
+    public void alterarTpagForma(Sessao sessao, int id, String tpag) {
+        sessao.exigirSupervisor();
+        MeioPagamentoNfce meio = MeioPagamentoNfce.doCodigo(tpag == null ? null : tpag.strip())
+                .orElseThrow(() -> new NegocioException("Escolha o meio de pagamento da NFC-e na lista."));
+        transacao.executar(con -> {
+            FormaPagamentoCadastro forma = formaPagamentoDAO.buscar(con, id)
+                    .orElseThrow(() -> new NegocioException("Forma de pagamento não encontrada."));
+            if (forma.tpag().equals(meio.codigo())) {
+                return null;
+            }
+            formaPagamentoDAO.alterarTpag(con, id, meio.codigo());
+            auditoria.registrar(con, sessao, AcaoAuditoria.CONFIGURACAO_ALTERADA, ENTIDADE_FORMA_PAGAMENTO, (long) id,
+                    "Forma de pagamento \"" + forma.descricao() + "\": meio de pagamento da NFC-e de "
+                            + MeioPagamentoNfce.rotulo(forma.tpag()) + " para " + meio);
+            return null;
+        });
+    }
+
     private static boolean exigeCliente(TipoFormaPagamento tipo) {
         return tipo == TipoFormaPagamento.CREDITO_CLIENTE || tipo == TipoFormaPagamento.CREDIARIO;
     }
@@ -275,7 +298,14 @@ public class ConfiguracaoService {
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
                 crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()),
-                c.assistente() == null ? Configuracoes.Assistente.PADRAO : c.assistente());
+                c.assistente() == null ? Configuracoes.Assistente.PADRAO : c.assistente(), tributos(c.tributos()));
+    }
+
+    /** Tributos da venda (F22.2, seção 0.4): alíquotas do IBS e da CBS de 0 a 100%, com até 2 casas. */
+    static Configuracoes.Tributos tributos(Configuracoes.Tributos t) {
+        return new Configuracoes.Tributos(percentual(t.aliquotaCbs(), "A alíquota da CBS", true),
+                percentual(t.aliquotaIbsUf(), "A alíquota do IBS da UF", true),
+                percentual(t.aliquotaIbsMun(), "A alíquota do IBS do município", true), t.excluirIcmsBasePisCofins());
     }
 
 
@@ -511,6 +541,14 @@ public class ConfiguracaoService {
                 n.assistente().usuariosDispensado() ? "sim" : "não");
         comparar(m, "não uso balança (primeiros passos)", a.assistente().balancaDispensada() ? "sim" : "não",
                 n.assistente().balancaDispensada() ? "sim" : "não");
+        comparar(m, "alíquota da CBS", Formatos.percentual(a.tributos().aliquotaCbs()),
+                Formatos.percentual(n.tributos().aliquotaCbs()));
+        comparar(m, "alíquota do IBS da UF", Formatos.percentual(a.tributos().aliquotaIbsUf()),
+                Formatos.percentual(n.tributos().aliquotaIbsUf()));
+        comparar(m, "alíquota do IBS do município", Formatos.percentual(a.tributos().aliquotaIbsMun()),
+                Formatos.percentual(n.tributos().aliquotaIbsMun()));
+        comparar(m, "ICMS na base do PIS e da COFINS", a.tributos().excluirIcmsBasePisCofins() ? "excluído"
+                : "incluído", n.tributos().excluirIcmsBasePisCofins() ? "excluído" : "incluído");
         if (!a.etiquetas().modeloTermica().equals(n.etiquetas().modeloTermica())) {
             m.add(n.etiquetas().modeloTermica().isEmpty() ? "modelo da impressora térmica apagado"
                     : "modelo da impressora térmica alterado (" + n.etiquetas().modeloTermica().length()

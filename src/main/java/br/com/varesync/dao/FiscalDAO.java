@@ -279,6 +279,62 @@ public class FiscalDAO {
         }
     }
 
+    // ----- Tabela IBPT (F22.3) -----
+
+    /** Situação da tabela IBPT importada: linhas, versão, vigência e fonte (vazia sem tabela). */
+    public record SituacaoIbpt(long linhas, String versao, java.time.LocalDate inicio, java.time.LocalDate fim,
+                               String fonte) {
+    }
+
+    public SituacaoIbpt situacaoIbpt(Connection con) throws SQLException {
+        String sql = """
+                SELECT count(*), min(vigencia_inicio), max(vigencia_fim),
+                       (SELECT versao FROM ibpt ORDER BY codigo, ex LIMIT 1),
+                       (SELECT fonte FROM ibpt ORDER BY codigo, ex LIMIT 1)
+                  FROM ibpt
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return new SituacaoIbpt(rs.getLong(1), rs.getString(4), rs.getObject(2, java.time.LocalDate.class),
+                    rs.getObject(3, java.time.LocalDate.class), rs.getString(5));
+        }
+    }
+
+    /** Troca a tabela IBPT inteira pelas linhas lidas. */
+    public void substituirIbpt(Connection con, List<br.com.varesync.model.LinhaIbpt> linhas) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("DELETE FROM ibpt")) {
+            ps.executeUpdate();
+        }
+        String sql = """
+                INSERT INTO ibpt (codigo, ex, descricao, aliquota_nacional_federal, aliquota_importados_federal,
+                                  aliquota_estadual, aliquota_municipal, vigencia_inicio, vigencia_fim, chave, versao,
+                                  fonte)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            int n = 0;
+            for (br.com.varesync.model.LinhaIbpt l : linhas) {
+                ps.setString(1, l.codigo());
+                ps.setString(2, l.ex());
+                ps.setString(3, l.descricao());
+                ps.setBigDecimal(4, l.nacionalFederal());
+                ps.setBigDecimal(5, l.importadosFederal());
+                ps.setBigDecimal(6, l.estadual());
+                ps.setBigDecimal(7, l.municipal());
+                ps.setObject(8, l.vigenciaInicio());
+                ps.setObject(9, l.vigenciaFim());
+                ps.setString(10, l.chave());
+                ps.setString(11, l.versao());
+                ps.setString(12, l.fonte());
+                ps.addBatch();
+                if (++n % LOTE == 0) {
+                    ps.executeBatch();
+                }
+            }
+            ps.executeBatch();
+        }
+    }
+
     private static long contar(Connection con, String sql) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
             rs.next();

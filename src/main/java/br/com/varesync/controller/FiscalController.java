@@ -13,6 +13,8 @@ import br.com.varesync.service.ValidacaoFiscal;
 import br.com.varesync.ui.Dialogos;
 import br.com.varesync.ui.Mensagem;
 import br.com.varesync.ui.Tarefas;
+import br.com.varesync.util.Formatos;
+import br.com.varesync.util.Textos;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -104,6 +106,8 @@ public class FiscalController {
     @FXML private Label situacaoCest;
     @FXML private Button botaoImportarNcm;
     @FXML private Button botaoImportarCest;
+    @FXML private Button botaoImportarIbpt;
+    @FXML private Label situacaoIbpt;
     @FXML private ProgressIndicator progresso;
     @FXML private Label mensagemTabelas;
     @FXML private Label mensagem;
@@ -411,6 +415,12 @@ public class FiscalController {
                 : "Tabela NCM: " + t.ncm() + " códigos de 8 dígitos.");
         situacaoCest.setText(t.cest() == 0 ? "Tabela CEST: não importada (só o formato é conferido)."
                 : "Tabela CEST: " + t.cest() + " códigos.");
+        FiscalService.SituacaoIbpt ibpt = service.situacaoIbpt(sessao);
+        situacaoIbpt.setText(textoIbpt(ibpt));
+        situacaoIbpt.getStyleClass().remove("mensagem-erro");
+        if (ibpt.vencida()) {
+            situacaoIbpt.getStyleClass().add("mensagem-erro");
+        }
     }
 
     @FXML
@@ -427,6 +437,43 @@ public class FiscalController {
         if (arquivo != null) {
             importarCest(arquivo.toPath());
         }
+    }
+
+    @FXML
+    private void importarIbpt() {
+        File arquivo = escolher("Tabela IBPT", "CSV da tabela do IBPT", "*.csv", "*.txt");
+        if (arquivo != null) {
+            importarIbpt(arquivo.toPath());
+        }
+    }
+
+    /**
+     * Importa a tabela IBPT do arquivo, em {@link Task}. Quando o nome do arquivo traz uma UF diferente da UF da loja
+     * (F22.3), pede confirmação antes.
+     */
+    void importarIbpt(Path arquivo) {
+        String nome = arquivo.getFileName().toString();
+        String ufLoja = service.empresa(sessao).uf();
+        java.util.Optional<String> ufArquivo = br.com.varesync.service.TabelaFiscal.ufDoArquivo(nome);
+        if (ufArquivo.isPresent() && !ufLoja.isEmpty() && !ufArquivo.get().equals(ufLoja)
+                && !Dialogos.confirmar(abas.getScene().getWindow(), "O arquivo " + nome + " é da tabela do IBPT de "
+                + ufArquivo.get() + ", e a loja é de " + ufLoja + " (Configurações › Loja). Os tributos estaduais "
+                + "aproximados mudam de uma UF para outra.\n\nImportar mesmo assim?")) {
+            return;
+        }
+        importar(arquivo, conteudo -> service.importarIbpt(sessao, conteudo, nome));
+    }
+
+    /** "Tabela IBPT: versão 25.2.A, vigência de 01/10/2026 a 31/12/2026, 10.512 linhas de NCM (fonte IBPT)." */
+    static String textoIbpt(FiscalService.SituacaoIbpt s) {
+        if (s.linhas() == 0) {
+            return "Tabela IBPT: não importada (a venda sai sem os tributos aproximados).";
+        }
+        String texto = "Tabela IBPT: versão " + (Textos.vazio(s.versao()) ? "(sem versão)" : s.versao())
+                + ", vigência de " + Formatos.data(s.inicio()) + " a " + Formatos.data(s.fim()) + ", " + s.linhas()
+                + (s.linhas() == 1 ? " linha de NCM" : " linhas de NCM")
+                + (Textos.vazio(s.fonte()) ? "" : " (fonte: " + s.fonte() + ")") + ".";
+        return s.vencida() ? texto + " A vigência acabou: baixe a tabela nova no site do IBPT." : texto;
     }
 
     private File escolher(String titulo, String descricao, String... extensoes) {
@@ -456,13 +503,12 @@ public class FiscalController {
         };
         botaoImportarNcm.setDisable(true);
         botaoImportarCest.setDisable(true);
+        botaoImportarIbpt.setDisable(true);
         progresso.setVisible(true);
         tarefa.setOnSucceeded(e -> {
             terminarImportacao();
             FiscalService.Importacao r = tarefa.getValue();
-            Mensagem.sucesso(mensagemTabelas, "Tabela " + r.tabela() + " importada de " + arquivo.getFileName() + ": "
-                    + r.linhas() + " códigos" + (r.pulados() == 0 ? "" : r.pulados() == 1
-                    ? " (1 nível intermediário pulado)" : " (" + r.pulados() + " níveis intermediários pulados)") + ".");
+            Mensagem.sucesso(mensagemTabelas, resultado(r, arquivo.getFileName().toString()));
         });
         tarefa.setOnFailed(e -> {
             terminarImportacao();
@@ -479,9 +525,22 @@ public class FiscalController {
         Tarefas.executar("importacao-fiscal", tarefa);
     }
 
+    /** Mensagem do fim da importação: os níveis pulados da NCM, ou as linhas de serviço da IBPT. */
+    static String resultado(FiscalService.Importacao r, String arquivo) {
+        if ("IBPT".equals(r.tabela())) {
+            return "Tabela IBPT importada de " + arquivo + ": " + r.linhas() + (r.linhas() == 1 ? " linha de NCM"
+                    : " linhas de NCM") + (r.pulados() == 0 ? "" : r.pulados() == 1 ? " (1 linha de serviço ficou de fora)"
+                    : " (" + r.pulados() + " linhas de serviço ficaram de fora)") + ".";
+        }
+        return "Tabela " + r.tabela() + " importada de " + arquivo + ": " + r.linhas() + " códigos"
+                + (r.pulados() == 0 ? "" : r.pulados() == 1 ? " (1 nível intermediário pulado)"
+                : " (" + r.pulados() + " níveis intermediários pulados)") + ".";
+    }
+
     private void terminarImportacao() {
         botaoImportarNcm.setDisable(false);
         botaoImportarCest.setDisable(false);
+        botaoImportarIbpt.setDisable(false);
         progresso.setVisible(false);
         carregarTabelas();
     }

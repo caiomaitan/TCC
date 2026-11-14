@@ -84,6 +84,7 @@ public class VendaService {
     private final CreditoService creditoService;
     private final TituloReceberDAO tituloDAO;
     private final RecebivelService recebivelService;
+    private final TributosVendaService tributos;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
@@ -109,7 +110,8 @@ public class VendaService {
                         EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
                         AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
                         CreditoService creditoService, TituloReceberDAO tituloDAO, RecebivelService recebivelService,
-                        Clock clock) {
+                        TributosVendaService tributos, Clock clock) {
+        this.tributos = tributos;
         this.recebivelService = recebivelService;
         this.tituloDAO = tituloDAO;
         this.transacao = transacao;
@@ -670,6 +672,7 @@ public class VendaService {
                     movimentar.add(new Vendido(item, itemId));
                 }
             }
+            tributos.registrar(con, vendaId, LocalDate.now(clock)); // F22.2: só registra, a venda não muda
             Map<Long, Recebimento.Parcela> pagamentosGravados = new LinkedHashMap<>();
             for (Recebimento.Parcela p : pagamentos) {
                 pagamentosGravados.put(vendaDAO.inserirPagamento(con, vendaId, p.forma().id(), p.valor()), p);

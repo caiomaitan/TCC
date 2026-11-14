@@ -85,6 +85,14 @@ public final class DadosTela {
         }
     }
 
+    /** NCM, origem e o perfil tributário (pelo nome) do produto, pelo cadastro fiscal (F19.2). */
+    public void dadosFiscais(long produtoId, String ncm, int origem, String perfil) {
+        long perfilId = t.fiscal.perfis(sessao(), true).stream().filter(p -> p.nome().equals(perfil)).findFirst()
+                .orElseThrow().id();
+        t.fiscal.salvarDadosFiscais(sessao(), produtoId, new br.com.varesync.model.DadosFiscais(ncm, null, origem,
+                perfilId));
+    }
+
     public void configurar(String chave, String valor) throws SQLException {
         executar("UPDATE configuracao SET valor = ? WHERE chave = ?", valor, chave);
     }

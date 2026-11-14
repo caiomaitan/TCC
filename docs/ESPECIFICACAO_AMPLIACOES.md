@@ -1,10 +1,10 @@
-# VareSync — Especificação das ampliações (Fases 10 a 21)
+# VareSync — Especificação das ampliações (Fases 10 a 23)
 
 Complementa `docs/ESPECIFICACAO.md`, que continua valendo inteira: arquitetura em camadas, uma transação por operação, `BigDecimal` com HALF_UP, `Clock`, auditoria na mesma transação, permissão conferida no service, constraints nomeadas traduzidas pelo `TradutorErros`, interface em pt-BR e testes. Valem também as decisões registradas em `docs/PROGRESSO.md`.
 
 Este documento descreve só o que é novo. Para as funcionalidades novas, vale o que está aqui.
 
-Sumário: 0 Regras gerais · F10 Robustez e segurança · F11 Engenharia de software · F12 Clientes, crédito e cashback · F13 Devoluções e trocas · F14 Crediário e contas a receber · F15 Financeiro · F16 Compras: fornecedor do produto, sugestão e pedido · F17 Validade e lotes · F18 Etiquetas e carga de balança · F19 Cadastro fiscal · F20 Embalagens e preço de atacado · F21 Usabilidade · Fora do escopo
+Sumário: 0 Regras gerais · F10 Robustez e segurança · F11 Engenharia de software · F12 Clientes, crédito e cashback · F13 Devoluções e trocas · F14 Crediário e contas a receber · F15 Financeiro · F16 Compras: fornecedor do produto, sugestão e pedido · F17 Validade e lotes · F18 Etiquetas e carga de balança · F19 Cadastro fiscal · F20 Embalagens e preço de atacado · F21 Usabilidade · F22 Tributos da venda · F23 NFC-e em homologação · Fora do escopo
 
 ---
 
@@ -28,12 +28,15 @@ Cada parte cabe numa sessão do agente e termina com `mvn -q verify` verde e com
 | F19 | Cadastro fiscal e consistência | — | F19.1 a F19.3 | F19.4, F19.5 |
 | F20 | Embalagens e preço de atacado | — | F20.1, F20.2 | F20.3 |
 | F21 | Usabilidade e acessibilidade | as fases que forem feitas | F21.1, F21.2 | F21.3 (parte B); F21.4, F21.5 (parte C) |
+| F22 | Tributos da venda | F19, F20 | F22.1 a F22.3 | F22.4, F22.5 |
+| F23 | NFC-e em homologação | F22 | F23.1 a F23.3 | F23.4, F23.5 (parte B); F23.6, F23.7 (parte C); F23.8 a F23.10 (parte D) |
 
 Ordem sugerida:
 1. F10 e F11 primeiro: reforçam o que já existe e fecham riscos registrados no PROGRESSO.
 2. F12 a F15: núcleo comercial e financeiro.
 3. F16 a F20, em qualquer ordem.
-4. F21 por último.
+4. F21 por último entre as fases do primeiro plano.
+5. F22 e F23, acrescentadas depois, nessa ordem: a F23 usa o cálculo da F22.
 
 ### 0.2 Banco
 
@@ -64,7 +67,7 @@ Ordem sugerida:
 | FINANCEIRO | Contas financeiras, contas a pagar, fluxo de caixa e DRE | F15 |
 | FISCAL | Cadastro tributário e consistência fiscal | F19 |
 
-As permissões existentes cobrem o resto: pedidos e sugestão de compra (COMPRAS), lotes (ESTOQUE), etiquetas, carga de balança e embalagens (PRODUTOS).
+As permissões existentes cobrem o resto: pedidos e sugestão de compra (COMPRAS), lotes (ESTOQUE), etiquetas, carga de balança e embalagens (PRODUTOS). A F22 e a F23 usam a FISCAL (tabela IBPT e notas fiscais); o cancelamento da venda com NFC-e continua com CANCELAR_VENDA.
 
 ### 0.4 Configurações novas (chave = padrão)
 
@@ -80,6 +83,10 @@ As permissões existentes cobrem o resto: pedidos e sugestão de compra (COMPRAS
 | F18 | `etiqueta.colunas` = 3 · `etiqueta.linhas` = 8 · `etiqueta.modelo_termica` = (vazio) · `etiqueta.impressora_termica` = (vazio) · `balanca.pasta_carga` = (vazio) |
 | F19 | `empresa.regime_tributario` = SIMPLES (SIMPLES ou NORMAL) · `empresa.uf` = (vazio) · `empresa.ie` = (vazio) |
 | F21 | `assistente.formas_revisadas` = false · `assistente.usuarios_dispensado` = false · `assistente.balanca_dispensada` = false |
+| F22 | `fiscal.aliquota_cbs` = 0.9 · `fiscal.aliquota_ibs_uf` = 0.1 · `fiscal.aliquota_ibs_mun` = 0 (alíquotas de teste de 2026; mudam quando a lei mudar) · `fiscal.excluir_icms_base_pis_cofins` = true |
+| F23 | `empresa.razao_social`, `empresa.logradouro`, `empresa.numero`, `empresa.complemento`, `empresa.bairro`, `empresa.cep`, `empresa.municipio` e `empresa.codigo_municipio` = (vazio) · `nfce.ativa` = false · `nfce.serie` = 1 · `nfce.prazo_cancelamento_minutos` = 30 · `nfce.timeout_segundos` = 10 · `nfce.retransmitir_minutos` = 5 · `nfce.valor_identificacao` = 10000 · `nfce.valor_maximo` = 200000 · `nfce.via_estabelecimento` = true · `nfce.alerta_certificado_dias` = 30 · `nfce.url_qrcode` e `nfce.url_consulta` = (vazio = os da biblioteca) · `nfce.resp_tecnico_cnpj`, `nfce.resp_tecnico_contato`, `nfce.resp_tecnico_email` e `nfce.resp_tecnico_fone` = (vazio) |
+
+Na F23, o certificado é do terminal e fica fora do banco, no `~/.varesync/config.properties`: `nfce.certificado` e `nfce.certificado.senha` (F23.2).
 
 Todas entram na classe `Configuracoes` e são editadas na tela de Configurações, na aba da área (existente ou nova), com validação e auditoria `CONFIGURACAO_ALTERADA`.
 
@@ -90,11 +97,13 @@ Todas entram na classe `Configuracoes` e são editadas na tela de Configuraçõe
 
   | Tela | O que entra |
   |---|---|
-  | Caixa e PDV | recebimento do crediário (F14) |
+  | Caixa e PDV | recebimento do crediário (F14); "CPF/CNPJ na nota" no pagamento e o DANFE no lugar do comprovante, com a NFC-e ligada (F23) |
   | Compras | abas Pedidos e Sugestão de compra (F16) |
   | Estoque | aba Lotes (F17) |
   | Produtos | Unidades (F10); Etiquetas, Carga de balança e Fiscal, como botões ou abas (F18, F19) |
-  | Configurações | uma aba por área com configuração nova (seção 0.4) e o Diagnóstico com as views novas |
+  | Configurações | uma aba por área com configuração nova (seção 0.4) e o Diagnóstico com as views novas; na F23, a seção NFC-e e, em Loja, o bloco "Endereço para a NFC-e" |
+  | Fiscal (janela Cadastro fiscal) | importação da tabela IBPT (F22) e a aba Notas fiscais (F23) |
+  | Formas de pagamento (Configurações) | o tPag de cada forma (F22) |
 
 - **Atalhos novos no PDV:**
   - F11 identifica o cliente (F12);
@@ -110,6 +119,7 @@ Todas entram na classe `Configuracoes` e são editadas na tela de Configuraçõe
   - só para testes: TestFX com Monocle headless (`org.testfx:openjfx-monocle` 21.0.2, feito para o JavaFX 21).
 - **F18:** ZXing (`com.google.zxing:core`), para desenhar códigos de barras e, nos testes, lê-los de volta.
 - **F19:** Jackson (`com.fasterxml.jackson.core:jackson-databind`), só para ler o JSON oficial da tabela NCM.
+- **F23:** Java_NFe (`br.com.swconsultoria:java-nfe`, 4.3.0 ou a 4.x mais nova), para o leiaute, a assinatura, a validação e a transmissão da NFC-e, sem as dependências de impressão dela (F23.3).
 - **Qualquer outra:** registrar a decisão no PROGRESSO antes, como manda a regra do projeto.
 
 ### 0.7 Requisitos novos (para a rastreabilidade)
@@ -134,10 +144,14 @@ Todas entram na classe `Configuracoes` e são editadas na tela de Configuraçõe
 | RF29 | Cadastro tributário | F19 |
 | RF30 | Relatório de inconsistências fiscais | F19 |
 | RF31 | Embalagens de venda e preço por quantidade | F20 |
+| RF32 | Tributos da venda por item e tributos aproximados (Lei 12.741/2012) | F22 |
+| RF33 | Emissão de NFC-e em homologação, com contingência off-line e DANFE | F23 |
+| RF34 | Cancelamento, inutilização e acompanhamento das NFC-e | F23 |
 | RNF09 | Segurança da sessão | F10 |
 | RNF10 | Qualidade verificável: cobertura, análise estática, testes de interface, concorrência e integração contínua | F11 |
 | RNF11 | Implantação em rede local | F11 |
 | RNF12 | Usabilidade e acessibilidade | F21 |
+| RNF13 | Guarda do certificado digital e dos XML fiscais | F23 |
 
 As demais entregas da F10 entram nos requisitos existentes: unidades em RF01, kardex em RF09 e backup em RNF01.
 
@@ -152,6 +166,8 @@ As demais entregas da F10 entram nos requisitos existentes: unidades em RF01, ka
 | F16 | R26 Sugestão de compra · R27 Pedidos pendentes · R28 Cobertura e ruptura |
 | F17 | R29 Validade |
 | F19 | R30 Inconsistências fiscais |
+| F22 | R31 Impostos das vendas |
+| F23 | R32 NFC-e emitidas |
 
 Todos usam a infraestrutura `Relatorio<T>`, com tela, CSV e PDF. Totais agregados sempre como soma ÷ soma.
 
@@ -1066,7 +1082,7 @@ Mensal, com a coluna do mês anterior e o percentual de cada linha sobre a recei
 
 ## F19 — Cadastro fiscal e consistência (RF29, RF30)
 
-Preparação para uma emissão fiscal futura. Esta fase não emite documento fiscal.
+Base dos tributos da venda (F22) e da NFC-e (F23). Esta fase não emite documento fiscal.
 
 ### F19.1 Empresa
 
@@ -1124,7 +1140,7 @@ Preparação para uma emissão fiscal futura. Esta fase não emite documento fis
 
 ### Fora desta fase
 
-- Emissão de NFC-e e NF-e. Exige certificado digital A1, CSC e homologação na SEFAZ. Pode ser feita no futuro integrando um emissor, como o ACBr.
+- Emissão de NFC-e: é a F23, só em homologação. A NF-e (modelo 55) fica fora do escopo.
 
 ### Aceite F19
 
@@ -1271,9 +1287,340 @@ A fase tem três partes: A (preferências, tema escuro, fonte e cortes), B (ajud
 
 ---
 
+## F22 — Tributos da venda (RF32)
+
+A F19 cadastrou a tributação; esta fase calcula os tributos de cada item vendido e mostra ao consumidor os tributos aproximados (Lei 12.741/2012). É a base da NFC-e (F23), mas vale também com a NFC-e desligada. Duas partes: A (banco, cálculo e tabela IBPT) e B (ST retido pela NF-e de compra, comprovante, R31, regras novas do R30 e gerador).
+
+### F22.1 Banco (parte A)
+
+A migration da parte A já cria também as colunas que a parte B usa.
+
+- **`venda_item_tributo`:** uma linha por item não cancelado cujo produto tinha, na venda, NCM, origem e perfil tributário ativo (chave = `venda_item_id`), com:
+  - cópia do cadastro: `ncm`, `cest`, `origem`, `cfop`, `cst_icms` ou `csosn`, `codigo_beneficio`, `cst_pis`, `cst_cofins`, `cst_ibs_cbs` e `cclass_trib`;
+  - ICMS: `base_icms`, `aliquota_icms`, `reducao_base_icms`, `valor_icms`, `aliquota_fcp` e `valor_fcp`;
+  - ST retido (CST 60 e CSOSN 500): `base_st_retido`, `aliquota_st`, `icms_substituto` e `icms_st_retido`, nulos sem o dado;
+  - PIS e COFINS: a base, a alíquota e o valor de cada um;
+  - IBS e CBS: `base_ibs_cbs`, as alíquotas da CBS, do IBS da UF e do IBS do município, a redução de alíquota e os três valores, nulos quando não se aplicam;
+  - tributos aproximados: `trib_federal`, `trib_estadual`, `trib_municipal` e `ibpt_versao`, nulos sem a tabela IBPT para o NCM.
+
+  As vendas anteriores à migration ficam sem linhas, e o R31 as mostra como "sem tributação calculada".
+- **`perfil_tributario`:** `aliquota_fcp` (Fundo de Combate à Pobreza, padrão 0, só nos CST 00 e 20) e `reducao_aliquota_ibs_cbs` (percentual; nulo = sem redução).
+- **`produto`**, preenchidos pela NF-e de compra (parte B): `st_base_unitaria`, `st_aliquota`, `st_icms_substituto_unitario` e `st_icms_retido_unitario`, por unidade de venda, com 4 casas.
+- **`ibpt`:** `codigo` (NCM), `ex`, `descricao`, `aliquota_nacional_federal`, `aliquota_importados_federal`, `aliquota_estadual`, `aliquota_municipal`, `vigencia_inicio`, `vigencia_fim`, `chave`, `versao` e `fonte`, com chave primária (`codigo`, `ex`).
+- **`forma_pagamento.tpag`:** o meio de pagamento da NFC-e, preenchido pelo tipo:
+
+  | Tipo | tPag |
+  |---|---|
+  | DINHEIRO | 01 |
+  | CARTAO_CREDITO | 03 |
+  | CARTAO_DEBITO | 04 |
+  | CREDIARIO | 05 (cartão da loja e crediários) |
+  | PIX | 20 (PIX estático; quem usa o PIX gerado pela maquininha troca para 17) |
+  | CREDITO_CLIENTE | 21 (crédito em loja) |
+  | OUTROS | 99 (a forma "Vale-alimentação" da V2 vira 10) |
+
+  O CHECK aceita os códigos da tabela oficial que servem para a NFC-e (01 a 05, 10 a 24 e 99), e o cadastro de formas de pagamento mostra o código com a descrição oficial.
+- **Configurações (0.4):** as alíquotas do IBS e da CBS de 2026, o ano de teste (CBS 0,9%, IBS da UF 0,1% e do município 0), e a exclusão do ICMS da base do PIS e da COFINS.
+
+### F22.2 Cálculo (parte A)
+
+- **Quando:** ao finalizar a venda, na mesma transação. A regra fica numa classe sem banco (`CalculoTributos`), com testes unitários. O cálculo só registra: nenhum valor da venda muda.
+- **Base:** o valor líquido do item (`valor_bruto − desconto − desconto_rateado`).
+- **Arredondamento:** cada valor de cada item em 2 casas, HALF_UP. O total da venda é sempre a soma dos itens, nunca a alíquota aplicada ao total, porque a SEFAZ confere que o total é a soma dos itens.
+- **ICMS no regime NORMAL (CST):**
+  - 00: base = valor líquido; ICMS = base × alíquota; FCP = base × `aliquota_fcp`;
+  - 20: base = valor líquido × (1 − redução ÷ 100), em 2 casas; ICMS e FCP sobre essa base;
+  - 40 e 41: sem base e sem valor;
+  - 60: sem ICMS próprio; o ST retido do produto (F22.4) × a quantidade, em 2 casas, quando o produto o tem;
+  - outros CST (10, 30, 51, 70, 90): ficam sem valores, e a NFC-e desta versão não os aceita (regra 14 do R30 e bloqueio no PDV da F23).
+- **ICMS no SIMPLES (CSOSN):** 102, 103, 300 e 400 sem valores; 500 com o ST retido, como o CST 60; os outros CSOSN, como os outros CST. Sem FCP.
+- **PIS e COFINS:**
+  - CST 01 e 02: base = valor líquido menos o ICMS do item, com `fiscal.excluir_icms_base_pis_cofins` = true, que segue o Tema 69 do STF (com false, a base é o valor líquido); valor = base × alíquota;
+  - nos outros CST, base e valor zero.
+- **IBS e CBS** (só no regime NORMAL e com o CST do IBS e da CBS no perfil):
+  - base = valor líquido − ICMS − FCP − PIS − COFINS;
+  - alíquota efetiva = alíquota da configuração × (1 − `reducao_aliquota_ibs_cbs` ÷ 100);
+  - CBS, IBS da UF e IBS do município = base × a alíquota efetiva de cada um;
+  - a fórmula da base segue a NT 2025.002 (RTC): no começo da parte A, confira na versão vigente e registre no PROGRESSO a versão consultada; se mudar, ajuste o aceite;
+  - no SIMPLES não calcula: quem não optou pelo regime regular do IBS e da CBS não informa o grupo (NT 2026.005).
+- **Tributos aproximados (Lei 12.741/2012):** pela linha da tabela IBPT do NCM com `ex` vazio, vigente na data da venda:
+  - federal = valor líquido × a alíquota nacional federal, ou a de importados federal quando a origem é 1, 2, 6 ou 7 (mercadoria estrangeira);
+  - estadual e municipal = valor líquido × a alíquota de cada um;
+  - cada um em 2 casas; sem linha vigente para o NCM, os três ficam nulos.
+
+### F22.3 Tabela IBPT (parte A)
+
+- Importada na janela Cadastro fiscal, na aba em que se importam a NCM e a CEST (permissão FISCAL), pelo arquivo CSV que o IBPT fornece por UF ("De Olho no Imposto").
+- **Leitura:**
+  - as colunas pelo nome do cabeçalho: `codigo`, `ex`, `tipo`, `descricao`, `nacionalfederal`, `importadosfederal`, `estadual`, `municipal`, `vigenciainicio`, `vigenciafim`, `chave`, `versao` e `fonte`;
+  - separador `;`; UTF-8 (com ou sem BOM) ou ISO-8859-1; decimal com ponto ou vírgula; datas dd/mm/aaaa;
+  - só as linhas de `tipo` 0 (NCM); as de serviço (NBS e LC 116) ficam de fora.
+- A importação troca a tabela inteira numa transação, com auditoria (versão, vigência e quantidade de linhas).
+- Quando o nome do arquivo traz a UF (como em TabelaIBPTaxSP…) e ela é diferente de `empresa.uf`, pede confirmação.
+- A tela mostra a versão e a vigência e avisa quando a vigência acabou: "Baixe a tabela nova no site do IBPT".
+
+### F22.4 ST retido pela NF-e de compra (parte B)
+
+- **Na importação do XML da NF-e:**
+  - dos grupos ICMS60 e ICMSSN500 do item: `vBCSTRet`, `pST`, `vICMSSubstituto` e `vICMSSTRet`;
+  - dos grupos ICMS10 e ICMS70, em que o fornecedor é o substituto: `vBCST`, `pICMSST`, o `vICMS` próprio e `vICMSST`, nos mesmos quatro campos.
+- Os valores são divididos pela quantidade em unidades de venda (com o fator da embalagem ou do vínculo, como o custo) e gravados por unidade, com 4 casas. O FCP retido fica de fora.
+- Atualizam o produto a cada entrada, pelo mesmo diálogo dos dados fiscais da NF-e (F19.3), mesmo quando o produto já tem valores, porque o ST muda a cada compra.
+- Na NFC-e (F23), o ST retido entra quando existe. Sem ele, o grupo do ICMS sai sem esses campos, que são opcionais no leiaute; a regra 16 do R30 avisa, porque algumas UFs os exigem.
+
+### F22.5 Comprovante, relatórios, R30 e gerador (parte B)
+
+- **Comprovante:** a linha "Tributos aproximados: Federal R$ x · Estadual R$ y · Municipal R$ z (Fonte: IBPT)", com a soma dos itens, quando ao menos um item tem os valores. A segunda via lê dos tributos gravados na venda, então não muda com uma tabela nova. O DANFE da F23 usa a mesma linha.
+- **R31 Impostos das vendas** (RELATORIOS ou FISCAL, como o R30):
+  - por período, agrupado por CFOP, situação do ICMS (CST ou CSOSN) e alíquota do ICMS;
+  - colunas: valor líquido, base e valor do ICMS, FCP, PIS, COFINS, CBS, IBS e tributos aproximados;
+  - uma linha à parte, "Itens sem tributação calculada", com a quantidade e o valor dos itens sem linha em `venda_item_tributo`;
+  - vendas canceladas não entram; devoluções também não, porque não há nota de devolução.
+- **R30, regras novas** (o agente mostra a tabela no plano e espera a confirmação, como na F19):
+
+  | # | Regra |
+  |---|---|
+  | 14 | Situação do ICMS que a NFC-e desta versão não aceita: CST fora de 00, 20, 40, 41 e 60; CSOSN fora de 102, 103, 300, 400 e 500 |
+  | 15 | NCM de produto ativo sem linha vigente na tabela IBPT importada (aviso; só com a tabela importada) |
+  | 16 | Produto ativo com CST 60 ou CSOSN 500 sem o ST retido (aviso) |
+
+- **Gerador:** uma tabela IBPT de demonstração só com os NCM do catálogo (fonte "Demonstração", com alíquotas plausíveis) e o ST retido em alguns produtos com ST. As vendas geradas passam pelo mesmo cálculo, e o R31 tem o que mostrar.
+
+### Aceite F22
+
+- **Simples, CSOSN 102:** o item de R$ 10,00 sai sem ICMS, PIS e COFINS. Com a linha IBPT de nacional federal 13,45%, estadual 18,00% e municipal 0, os tributos aproximados são R$ 1,35, R$ 1,80 e R$ 0,00 (R$ 3,15). Com a origem 2 e importados federal de 15,45%, o federal é R$ 1,55.
+- **Normal, CST 00:** 2 × R$ 5,00 com R$ 0,50 de desconto rateado, ICMS de 18%, PIS de 1,65% e COFINS de 7,6% (CST 01):
+  - base de R$ 9,50 e ICMS de R$ 1,71;
+  - base do PIS e da COFINS de R$ 7,79, PIS de R$ 0,13 e COFINS de R$ 0,59;
+  - base do IBS e da CBS de R$ 7,07, CBS de R$ 0,06, IBS da UF de R$ 0,01 e IBS do município de R$ 0,00.
+- **CST 20:** base de R$ 100,00 com redução de 33,33% e ICMS de 18%: base de R$ 66,67 e ICMS de R$ 12,00.
+- **Arredondamento:** três itens de R$ 0,25 com ICMS de 18% dão R$ 0,05 cada e R$ 0,15 no total, e não R$ 0,14.
+- **IBPT:** um arquivo no leiaute do IBPT (ISO-8859-1, `;`) é importado; a linha de NBS fica de fora; reimportar troca a tabela inteira.
+- **ST retido:** uma NF-e com ICMS60 de 12 un, `vBCSTRet` de 60,00 e `vICMSSTRet` de 3,60 grava R$ 5,0000 e R$ 0,3000 por unidade; vender 2 un registra R$ 10,00 e R$ 0,60.
+- **Sem dados fiscais:** o item de produto sem perfil fica sem linha de tributos e aparece no R31 em "Itens sem tributação calculada".
+- **Consistência:** a soma dos tributos dos itens bate com o total do R31 no período, também nos dados do gerador, e as vendas canceladas não entram.
+
+---
+
+## F23 — NFC-e em homologação (RF33, RF34, RNF13)
+
+Emite a NFC-e (modelo 65) só no ambiente de homologação da SEFAZ, em que a nota não tem valor fiscal. A emissão em produção fica fora desta versão.
+
+Tudo é testado sem certificado de verdade: um certificado autoassinado gerado pelo próprio teste, uma SEFAZ falsa atrás de uma interface e a validação pelo XSD oficial. Com um certificado A1 de verdade, a mesma tela transmite para a homologação da SEFAZ da UF, como caso de teste manual.
+
+Quatro partes: A (banco, emitente, certificado e XML), B (comunicação, contingência e transmissor), C (PDV e DANFE) e D (cancelamento, inutilização, aba Notas fiscais, painel e relatório).
+
+### F23.1 Banco (parte A)
+
+A migration da parte A cria todas as tabelas e colunas da fase.
+
+- **`nfce_numeracao`:** `serie` (0 a 889) e `proximo_numero` (1 a 999.999.999).
+- **`nfce`:**
+  - `venda_id`, `serie`, `numero`, `codigo_numerico` (cNF), `chave` (44 dígitos, única), `tipo_emissao` (1 normal ou 9 contingência off-line), `ambiente` (CHECK = 2, homologação) e `emitida_em` (dhEmi);
+  - `status` (tabela abaixo), `cstat`, `motivo`, `protocolo` e `autorizada_em`;
+  - `xml` (o assinado e, depois da autorização, o `nfeProc`, com o protocolo) e `qrcode`, nulos até a montagem;
+  - `substituta_id`: a NFC-e de contingência que tomou o lugar desta;
+  - `transmitindo_ate` e `transmitindo_por` (a trava da transmissão, F23.5) e `tentativas`;
+  - únicos: (`serie`, `numero`) e, por venda, no máximo uma NFC-e PENDENTE, AUTORIZADA, CONTINGENCIA ou REJEITADA (índice único parcial).
+- **`nfce_evento`:** `nfce_id`, `tipo` (CANCELAMENTO, o evento 110111, ou CANCELAMENTO_SUBSTITUICAO, o 110112), `justificativa`, `cstat`, `motivo`, `protocolo`, `xml`, `registrado_em` e `usuario_id` (nulo quando é o transmissor).
+- **`nfce_inutilizacao`:** `serie`, `numero_inicial`, `numero_final`, `ano`, `justificativa`, `cstat`, `motivo`, `protocolo`, `xml`, `registrada_em` e `usuario_id`.
+- **`venda.consumidor_documento`:** o CPF ou o CNPJ na nota, só dígitos, nulo.
+- **`vw_nfce_inconsistente`**, que precisa ficar vazia (no Diagnóstico e no fim dos testes de integração): NFC-e AUTORIZADA de venda cancelada e NFC-e CANCELADA de venda finalizada.
+- As configurações da seção 0.4 e as ações de auditoria novas.
+- Os XML ficam no banco e entram no backup: a lei manda guardar as notas pelo prazo decadencial (5 anos).
+
+| Situação | Quer dizer | Pode ir para |
+|---|---|---|
+| PENDENTE | número reservado na venda, ainda sem resposta | AUTORIZADA, REJEITADA, DENEGADA, SEM_RESPOSTA ou CONTINGENCIA |
+| AUTORIZADA | autorizada (cStat 100 ou 150) | CANCELADA |
+| REJEITADA | recusada pela SEFAZ ou pela validação local; não existe na SEFAZ | PENDENTE (corrigir e reenviar) ou INUTILIZADA (venda cancelada) |
+| DENEGADA | uso denegado (cStat 110 e 301 a 303); o número fica gasto | — |
+| SEM_RESPOSTA | enviada sem resposta, ou largada no meio: pode existir ou não na SEFAZ; a venda recebe outra NFC-e, em contingência | SUBSTITUIDA ou INUTILIZADA |
+| CONTINGENCIA | emitida em contingência off-line, a transmitir | AUTORIZADA, REJEITADA ou DENEGADA |
+| CANCELADA | cancelada pelo evento 110111 | — |
+| SUBSTITUIDA | chegou a ser autorizada e foi cancelada pelo evento 110112, porque a de contingência ficou no lugar | — |
+| INUTILIZADA | número inutilizado | — |
+
+### F23.2 Emitente e certificado (parte A)
+
+- **Configurações › Loja**, num bloco "Endereço para a NFC-e": razão social, logradouro, número, complemento, bairro, CEP, município e código IBGE do município (7 dígitos, e os 2 primeiros são o código da UF de `empresa.uf`). O nome da loja vira o nome fantasia, e o endereço livre continua no comprovante não fiscal.
+- **Configurações › NFC-e** (seção nova): série, prazos, valores, via do estabelecimento, responsável técnico (CNPJ, contato, e-mail e telefone; vazio = grupo omitido, mas algumas UFs o exigem), endereços do QR Code e da consulta (vazio = os da biblioteca) e o certificado deste terminal. O "NFC-e ligada" é da parte C.
+- **Para a NFC-e:** `empresa.documento` tem de ser um CNPJ válido, e a IE é obrigatória (não vale ISENTO). O CRT sai do regime: SIMPLES = 1 e NORMAL = 3. MEI e Simples com excesso de sublimite ficam fora.
+- **Certificado A1 (arquivo .pfx ou .p12):**
+  - o caminho e a senha ficam no `~/.varesync/config.properties` do terminal (`nfce.certificado` e `nfce.certificado.senha`), como a senha do banco; a variável de ambiente `VARESYNC_CERT_SENHA`, se existir, vale no lugar da senha do arquivo;
+  - nunca no banco, no repositório, no log ou em mensagem de erro;
+  - a tela mostra o titular, o CNPJ (no CN, depois do ":"), o vencimento e se a raiz do CNPJ (8 dígitos) bate com a da loja;
+  - certificado A3 (cartão ou token) fica fora.
+- **Nos testes:** o certificado é autoassinado e gerado pelo próprio teste, com o `keytool` do JDK, numa pasta temporária (CN "EMPRESA TESTE LTDA:12345678000195"). Nenhum arquivo de certificado vai para o repositório, e o `.gitignore` ganha `*.pfx` e `*.p12`.
+
+### F23.3 XML, assinatura, QR Code e numeração (parte A)
+
+- **Biblioteca:** Java_NFe (`br.com.swconsultoria:java-nfe`, 4.3.0 ou a 4.x mais nova), para as classes do leiaute (com o grupo IBSCBS), a assinatura, a validação pelo XSD e, na parte B, a transmissão. No começo da parte A, confira:
+  - que compila e roda no Java 21 e que o `mvn dependency:tree` não tem conflito com as bibliotecas do projeto (JasperReports 7, Jackson, ZXing, SLF4J e Logback). As dependências de impressão da biblioteca (Jasper antigo, Thymeleaf e openhtmltopdf) ficam excluídas, porque o DANFE é do VareSync;
+  - que os XSD do pacote que ela usa (PL_010, com o IBSCBS) vão para `src/main/resources` e são copiados para uma pasta do usuário na validação.
+
+  Se a biblioteca não servir, pare e mostre o motivo antes de seguir por outro caminho.
+- **Montagem** (classe sem banco, com testes unitários, a partir da venda, dos tributos da F22 e do emitente):
+  - **identificação:** código da UF; cNF aleatório, de 8 dígitos e diferente do número; natureza "VENDA"; modelo 65; série e número; dhEmi com o fuso; tpImp 4; tpEmis; tpAmb 2; finNFe 1; indFinal 1; indPres 1; indIntermed 0; procEmi 0; verProc com a versão do sistema; em contingência, dhCont e xJust;
+  - **emitente:** CNPJ, razão social, nome fantasia, endereço, IE e CRT;
+  - **destinatário:** só o CPF ou o CNPJ de `venda.consumidor_documento`, sem nome; sem documento, não há destinatário;
+  - **itens não cancelados:**
+    - código interno e descrição;
+    - cEAN = o código de barras principal, se for um GTIN válido que não comece por 2; senão, "SEM GTIN" (os que começam por 2 são de uso interno, como os da balança);
+    - NCM, CEST e CFOP dos tributos gravados (F22), unidade e quantidade;
+    - vUnCom = valor bruto ÷ quantidade, com 10 casas. Com o preço da embalagem (F20), o preço unitário de 2 casas × a quantidade não bate com o valor do item, e a SEFAZ recusa;
+    - valor bruto; desconto = o desconto do item + o rateado; os mesmos valores nos campos tributáveis;
+  - **homologação:** a descrição do 1º item é "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL", exigência da SEFAZ; o DANFE mostra a descrição de verdade;
+  - **impostos do item**, pelos tributos gravados: o grupo do ICMS pelo CST ou CSOSN, PIS, COFINS, IBSCBS (só no regime NORMAL) e vTotTrib;
+  - **totais:** a soma dos itens; vNF = o total da venda;
+  - **transporte:** sem frete (modFrete 9);
+  - **pagamentos:**
+    - um detPag por pagamento, com o tPag da forma (F22.1) e, no 99, a descrição;
+    - o grupo `card`, com tpIntegra 2 (sem integração), no 03, no 04 e no 17;
+    - no dinheiro, o valor entregue, com o troco em vTroco;
+  - **responsável técnico**, quando configurado.
+- **Chave de acesso:** UF (2) + AAMM (4) + CNPJ (14) + 65 + série (3) + número (9) + tpEmis (1) + cNF (8) + DV. O DV é o módulo 11 com pesos de 2 a 9, e resto 0 ou 1 dá 0.
+- **Assinatura e validação:** a nota é assinada com o certificado e validada pelo XSD antes de gravar. Erro de validação deixa a NFC-e REJEITADA, com a mensagem, sem ir à SEFAZ: é defeito do cadastro ou do sistema.
+- **QR Code versão 3** (NT 2025.001; dispensa o CSC):
+  - emissão normal: `<url do QR Code>?p=<chave>|3|2` (o 2 é o tpAmb);
+  - contingência: `<url>?p=<chave>|3|2|<dia da emissão, 2 dígitos>|<vNF com ponto>|<tipo do destinatário: 1 CNPJ, 2 CPF ou vazio>|<CPF ou CNPJ, ou vazio>|<assinatura>`;
+  - a assinatura é a assinatura RSA-SHA1 dos 7 primeiros parâmetros, com os separadores, feita com o certificado da NFC-e e escrita em Base64;
+  - vai em infNFeSupl, com a URL de consulta pela chave (urlChave);
+  - a versão 2 (com CSC) fica fora; se a SEFAZ da UF a exigir, é trabalho futuro.
+- **Numeração:** a reserva trava a linha da série (`FOR UPDATE`), devolve o número e soma 1; a série é criada no primeiro uso. Na venda (parte C), a reserva é a última trava, depois dos recebíveis.
+
+### F23.4 Comunicação com a SEFAZ (parte B)
+
+- **Interface `Sefaz`:**
+  - status do serviço;
+  - autorização síncrona: lote de uma nota com indSinc 1, porque a SEFAZ recusa resposta assíncrona para uma nota só (rejeição 452);
+  - consulta pela chave;
+  - eventos 110111 e 110112;
+  - inutilização.
+- **Sem comunicação** (sem conexão, tempo esgotado em `nfce.timeout_segundos` ou erro HTTP) é uma exceção própria. Serviço paralisado (cStat 108 e 109) conta como sem comunicação.
+- **Duas implementações:**
+  - `SefazHomologacao`, pela biblioteca: só tpAmb 2, e recusa produção no código, além do CHECK do banco. O mapeamento das respostas da biblioteca tem teste com respostas de exemplo;
+  - `SefazFalsa`, só nos testes: confere a assinatura e o XSD do que recebe e responde conforme o roteiro do teste (autoriza, rejeita com um cStat, não responde, fica paralisada, volta).
+- **Log:** só o cStat e o motivo; nunca o certificado, a senha ou o XML inteiro.
+
+### F23.5 Emissão, contingência e transmissor (parte B)
+
+- **Emitir** (fora da transação da venda, numa `Task`):
+  1. pegar a NFC-e com a trava (`transmitindo_ate` = agora + 2 minutos, pelo `Clock`); quem não consegue a trava deixa a nota para quem conseguiu;
+  2. montar, assinar, validar e gravar o XML e o QR Code;
+  3. enviar e gravar a resposta:
+     - 100 ou 150: AUTORIZADA, com o protocolo e o `nfeProc`;
+     - uso denegado: DENEGADA;
+     - rejeição: REJEITADA, com o cStat e o motivo;
+  4. sem comunicação: a NFC-e fica SEM_RESPOSTA, e a venda recebe outra NFC-e, com número novo (a primeira pode ter chegado à SEFAZ), em contingência off-line → CONTINGENCIA. Ela sai com tpEmis 9, dhEmi e dhCont = agora, xJust "SEFAZ indisponivel - sem resposta da autorizacao" e o QR Code de contingência, e o terminal entra no modo contingência.
+- **Modo contingência** (do terminal, em memória): as vendas seguintes já saem em contingência, sem tentar a autorização e sem SEM_RESPOSTA, com o próprio número reservado e dhCont = o início do modo, até o transmissor conseguir falar com a SEFAZ (status 107). A entrada e a saída do modo vão para a auditoria.
+- **Transmissor:** com `nfce.ativa`, roda em segundo plano em todo terminal com alguém logado, a cada `nfce.retransmitir_minutos`, e também pelo botão "Transmitir agora" (parte D). É tarefa do sistema: usa a sessão de quem está logado sem exigir permissão, e a auditoria diz "automático". Para cada nota, com a trava:
+  - **CONTINGENCIA:** envia; o resultado é o do passo 3, e, sem comunicação, ela continua em contingência;
+  - **SEM_RESPOSTA**, depois que a de contingência da mesma venda foi autorizada: consulta pela chave;
+    - autorizada: evento 110112, com a chave da de contingência → SUBSTITUIDA;
+    - não consta (cStat 217): inutiliza o número → INUTILIZADA;
+    - sem comunicação: tenta de novo depois;
+  - **PENDENTE** reservada há mais de 2 minutos e sem trava válida (o sistema caiu no meio): segue o passo 4;
+  - **REJEITADA de venda cancelada** (parte D): inutiliza o número.
+- **Prazo da contingência:** transmitir até o primeiro dia útil seguinte à emissão (Ajuste SINIEF 19/16); o painel avisa (parte D).
+
+### F23.6 PDV (parte C)
+
+- **"NFC-e ligada"** (`nfce.ativa`, em Configurações › NFC-e): só liga com os dados do emitente completos e com o certificado deste terminal carregado e na validade.
+- **Com a NFC-e ligada:**
+  - o PDV só começa uma venda com o certificado deste terminal carregado e na validade; sem isso, explica e pede o supervisor;
+  - o produto sem dados fiscais completos (NCM, origem, perfil ativo com situação aceita e CEST quando há ST) é recusado ao registrar, com o que falta;
+  - no pagamento, o campo "CPF/CNPJ na nota" (opcional), já preenchido com o documento do cliente identificado (F11) e conferido pelo dígito. A partir de `nfce.valor_identificacao` ele é obrigatório; a partir de `nfce.valor_maximo`, a venda não fecha, porque exige NF-e, que o sistema não emite;
+  - ao finalizar, na mesma transação da venda: os tributos (F22) e a reserva do número, com a NFC-e PENDENTE;
+  - depois do commit, a emissão (F23.5) numa `Task`, com o aviso "Emitindo NFC-e…";
+  - AUTORIZADA ou CONTINGENCIA: imprime o DANFE; em contingência, também a via do estabelecimento, se `nfce.via_estabelecimento`;
+  - REJEITADA ou DENEGADA: a venda continua registrada; a tela mostra o motivo e orienta a corrigir em Fiscal › Notas fiscais (parte D); o comprovante não fiscal sai só se o operador pedir;
+  - na janela do F9, "Reimprimir" imprime o DANFE.
+- **Com a NFC-e desligada:** nada muda.
+- **"Testar comunicação"** (em Configurações › NFC-e): consulta o status do serviço com o certificado deste terminal e mostra o cStat e o motivo, ou o problema em linguagem simples (sem certificado, senha errada, certificado vencido, CNPJ diferente, sem internet).
+
+### F23.7 DANFE NFC-e (parte C)
+
+- Bobina de 80 mm, pelo mesmo caminho do comprovante (JasperReports, na impressora padrão do Windows ou em PDF), com o leiaute do "Manual de Especificações Técnicas do DANFE NFC-e e QR Code":
+  - cabeçalho: razão social, CNPJ, IE e endereço do emitente;
+  - "Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica";
+  - itens: código, descrição, quantidade, unidade, valor unitário e valor total;
+  - totais: quantidade de itens, valor total, descontos, valor a pagar, formas de pagamento com os valores e o troco;
+  - "Consulte pela Chave de Acesso em <url>" e a chave em 11 grupos de 4 dígitos;
+  - consumidor: "CPF/CNPJ: …" ou "CONSUMIDOR NÃO IDENTIFICADO";
+  - "NFC-e nº … Série … <data e hora>" e o protocolo de autorização, com a data e a hora (em contingência, sem protocolo);
+  - QR Code (ZXing, correção de erro M, UTF-8, com pelo menos 25 mm);
+  - tributos aproximados (F22.5);
+  - homologação: "EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO – SEM VALOR FISCAL", na área de mensagem fiscal;
+  - contingência: "EMITIDA EM CONTINGÊNCIA" e, na linha de baixo, "Pendente de autorização", em destaque, abaixo do cabeçalho e abaixo da identificação da NFC-e; na via do estabelecimento, "Via do Estabelecimento" ao lado da data.
+- **Teste:** o QR Code da página gerada (a imagem pelo Jasper) é lido de volta pelo ZXing e bate com o do XML.
+
+### F23.8 Cancelamento (parte D)
+
+- **Venda com NFC-e AUTORIZADA**, cancelada pelo F9 (CANCELAR_VENDA ou liberação) dentro de `nfce.prazo_cancelamento_minutos`, contados da autorização (30, o prazo nacional; a UF pode reduzir):
+  - primeiro, fora da transação, o evento 110111, com o motivo do cancelamento como justificativa (de 15 a 255 caracteres);
+  - depois, numa transação: a NFC-e CANCELADA, o evento gravado e a venda cancelada como hoje;
+  - se a SEFAZ recusar ou não responder, a venda não é cancelada, e a tela diz por quê;
+  - se, num novo pedido, a SEFAZ responder duplicidade de evento (cStat 573), conta como cancelada: o primeiro pedido chegou, mas a gravação falhou.
+- **Fora do prazo:** recusa, com "A NFC-e foi autorizada há mais de 30 minutos e não pode mais ser cancelada. Registre uma devolução." A devolução continua sem documento fiscal (fora do escopo).
+- **NFC-e PENDENTE ou em CONTINGENCIA:** recusa até a nota ser autorizada (na contingência, "Transmitir agora").
+- **NFC-e REJEITADA:** a venda é cancelada, e o transmissor inutiliza o número.
+- **NFC-e DENEGADA:** a venda é cancelada sem evento, porque o número já está gasto.
+
+### F23.9 Aba Notas fiscais (parte D)
+
+- Na janela Cadastro fiscal (menu Fiscal, permissão FISCAL), com filtro por período, situação e número:
+  - colunas: número, série, data e hora, valor, consumidor, situação, protocolo e mensagem;
+  - **Ver DANFE** (imprimir ou PDF) e **Salvar XML**;
+  - **Transmitir agora:** roda o transmissor na hora;
+  - **Corrigir e reenviar** (REJEITADA): refaz a nota com os dados atuais do cadastro, no mesmo número.
+    - Na de emissão normal, a data de emissão passa a ser agora e os tributos são recalculados, porque a nota não existe na SEFAZ.
+    - Na de contingência, a lei manda manter número, série, data de emissão e valores (Ajuste SINIEF 19/16): só os códigos (NCM, CEST, CFOP, CST e CSOSN) são relidos. Se a correção mudar algum valor de imposto, o reenvio é recusado, com a explicação;
+  - **Inutilizar números:** série, faixa e justificativa (de 15 a 255 caracteres), só para números sem NFC-e; o pedido vai até o dia 10 do mês seguinte;
+  - **Exportar XML do mês:** um ZIP com as notas autorizadas e canceladas, os eventos e as inutilizações, para o contador.
+- **Auditoria:** cancelamento, inutilização, reenvio, contingência (entrada e saída) e troca do certificado.
+
+### F23.10 Painel, relatório e gerador (parte D)
+
+- **Painel** (para quem tem FISCAL); o clique abre a aba Notas fiscais já filtrada:
+  - "N NFC-e a transmitir" (em contingência ou sem resposta), em vermelho quando alguma é de um dia anterior;
+  - "N NFC-e rejeitadas a corrigir";
+  - "O certificado vence em N dias" (a partir de `nfce.alerta_certificado_dias`) e "O certificado está vencido".
+- **R32 NFC-e emitidas** (RELATORIOS ou FISCAL): por período, número, série, data, valor, situação, chave e protocolo, com os totais por situação.
+- **Gerador:** não emite nem cria NFC-e e deixa a NFC-e desligada.
+- **README:** como ligar a NFC-e e testar na homologação com um certificado A1.
+
+### Fora desta fase
+
+- Emissão em produção; NF-e (modelo 55), inclusive a de devolução; SAT.
+- Certificado A3; QR Code versão 2 (com CSC); contingência EPEC; CNPJ alfanumérico.
+- MEI e Simples com excesso de sublimite; o grupo próprio do Simples da NT 2026.005.
+- Entrega em domicílio; integração TEF.
+
+### Aceite F23
+
+- **Parte A:**
+  - **chave:** com UF 35, emissão em novembro de 2026, CNPJ 12.345.678/0001-95, série 1, nº 123, tpEmis 1 e cNF 87654321, a chave é 35261112345678000195650010000001231876543214; com o nº 124 e tpEmis 9, é 35261112345678000195650010000001249876543217;
+  - a NFC-e de uma venda com desconto, item de balança, embalagem com preço próprio e dois pagamentos (dinheiro com troco e cartão) valida no XSD; a assinatura confere com a chave pública do certificado de teste; os totais batem com a venda; vUnCom × quantidade bate com o valor de cada item;
+  - em homologação, o 1º item sai com a descrição exigida;
+  - o QR Code normal termina em `?p=<chave>|3|2`; o de contingência tem 8 parâmetros, e a assinatura confere com o certificado;
+  - duas reservas de número ao mesmo tempo recebem números diferentes e seguidos (8ª situação do `ConcorrenciaIT`);
+  - o certificado, a senha e a chave privada não aparecem no log nem em mensagem.
+- **Parte B** (com a SEFAZ falsa):
+  - autoriza (AUTORIZADA, com protocolo e `nfeProc`) e rejeita (REJEITADA, com cStat e motivo);
+  - sem resposta: a venda fica com a original SEM_RESPOSTA e outra, de número seguinte, em CONTINGENCIA; a venda seguinte do terminal já sai em contingência, sem tentar;
+  - com a SEFAZ de volta, o transmissor autoriza as de contingência e, pela consulta, cancela a original por substituição (se ela tinha chegado) ou a inutiliza (se não consta);
+  - duas transmissões ao mesmo tempo não enviam a mesma nota duas vezes;
+  - produção é recusada.
+- **Parte C:** com a NFC-e ligada, o produto sem dados fiscais é recusado no PDV; o CPF inválido é recusado; a venda de R$ 10.000,00 sem CPF não fecha; a venda autorizada imprime o DANFE com a chave, o protocolo, o QR Code (lido de volta) e o texto de homologação; em contingência, o DANFE sai com os textos de contingência, sem protocolo e com a via do estabelecimento.
+- **Parte D:** cancelar a venda aos 29 minutos da autorização cancela a NFC-e e depois a venda; aos 31 minutos, recusa; a venda com nota em contingência não cancela; a rejeitada é corrigida e reenviada no mesmo número; a inutilização de faixa funciona; o ZIP do mês tem os XML; o painel mostra os alertas; o R32 bate com a aba Notas fiscais; e a `vw_nfce_inconsistente` fica vazia.
+- **Manual, com um certificado A1 de verdade (quando houver):** "Testar comunicação" responde 107; uma venda é autorizada na homologação da SEFAZ da UF e aparece na consulta pela chave no portal da NFC-e; ela é cancelada dentro do prazo.
+
+---
+
 ## Fora do escopo (trabalhos futuros)
 
-- Emissão de NFC-e, NF-e e SAT.
+- Emissão de NFC-e em produção, NF-e (inclusive a de devolução) e SAT. A F23 emite a NFC-e só em homologação.
 - Integração TEF com as maquininhas de cartão.
 - Multi-loja (estoque e caixa por loja, transferências entre lojas).
 - Kits e produtos compostos.

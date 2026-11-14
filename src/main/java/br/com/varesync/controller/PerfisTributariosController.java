@@ -55,6 +55,7 @@ public class PerfisTributariosController {
     @FXML private TextField campoSituacaoIcms;
     @FXML private TextField campoAliquotaIcms;
     @FXML private TextField campoReducao;
+    @FXML private TextField campoFcp;
     @FXML private TextField campoCstPis;
     @FXML private TextField campoAliquotaPis;
     @FXML private TextField campoCstCofins;
@@ -62,6 +63,7 @@ public class PerfisTributariosController {
     @FXML private TextField campoBeneficio;
     @FXML private TextField campoCstIbsCbs;
     @FXML private TextField campoCclassTrib;
+    @FXML private TextField campoReducaoIbsCbs;
     @FXML private CheckBox campoPerfilAtivo;
     @FXML private Button botaoSalvarPerfil;
     @FXML private Label mensagemPerfil;
@@ -127,6 +129,7 @@ public class PerfisTributariosController {
         campoSituacaoIcms.setText("");
         campoAliquotaIcms.setText("");
         campoReducao.setText("");
+        campoFcp.setText("");
         campoCstPis.setText("");
         campoAliquotaPis.setText("");
         campoCstCofins.setText("");
@@ -134,6 +137,7 @@ public class PerfisTributariosController {
         campoBeneficio.setText("");
         campoCstIbsCbs.setText("");
         campoCclassTrib.setText("");
+        campoReducaoIbsCbs.setText("");
         campoPerfilAtivo.setSelected(true);
         botaoExcluirPerfil.setDisable(true);
         Mensagem.limpar(mensagemPerfil);
@@ -150,6 +154,7 @@ public class PerfisTributariosController {
         campoSituacaoIcms.setText(p.usaCsosn() ? p.csosn() : p.cstIcms());
         campoAliquotaIcms.setText(percentual(p.aliquotaIcms()));
         campoReducao.setText(percentual(p.reducaoBaseIcms()));
+        campoFcp.setText(p.aliquotaFcp().signum() == 0 ? "" : percentual(p.aliquotaFcp()));
         campoCstPis.setText(p.cstPis());
         campoAliquotaPis.setText(percentual(p.aliquotaPis()));
         campoCstCofins.setText(p.cstCofins());
@@ -157,6 +162,7 @@ public class PerfisTributariosController {
         campoBeneficio.setText(p.codigoBeneficio() == null ? "" : p.codigoBeneficio());
         campoCstIbsCbs.setText(p.cstIbsCbs() == null ? "" : p.cstIbsCbs());
         campoCclassTrib.setText(p.cclassTrib() == null ? "" : p.cclassTrib());
+        campoReducaoIbsCbs.setText(percentual(p.reducaoAliquotaIbsCbs()));
         campoPerfilAtivo.setSelected(p.ativo());
         botaoExcluirPerfil.setDisable(false);
         Mensagem.limpar(mensagemPerfil);
@@ -187,7 +193,8 @@ public class PerfisTributariosController {
                     numero(campoAliquotaIcms, "Alíquota do ICMS"), numero(campoReducao, "Redução da base"),
                     campoCstPis.getText(), numero(campoAliquotaPis, "Alíquota do PIS"), campoCstCofins.getText(),
                     numero(campoAliquotaCofins, "Alíquota da COFINS"), campoBeneficio.getText(),
-                    campoCstIbsCbs.getText(), campoCclassTrib.getText(), campoPerfilAtivo.isSelected());
+                    campoCstIbsCbs.getText(), campoCclassTrib.getText(), campoPerfilAtivo.isSelected(),
+                    numero(campoFcp, "FCP"), numero(campoReducaoIbsCbs, "Redução da alíquota do IBS e da CBS"));
             boolean novo = editando == null;
             long id = service.salvarPerfil(sessao, novo ? null : editando.id(), dados);
             carregar(id);

@@ -2,6 +2,60 @@
 
 ## Fase atual
 
+**Fase 22 — Tributos da venda, parte A** concluída em 2026-11-14 (F22.1, F22.2 e F22.3). Migration nova
+**V23__tributos_da_venda.sql** (Decisões):
+- **F22.1 Banco:** `venda_item_tributo` (uma linha por item não cancelado cujo produto tinha NCM, origem e perfil
+  ativo); FCP e redução de alíquota do IBS e da CBS no perfil (na tela do perfil); o ST retido no produto (preenchido
+  pela NF-e na parte B); a tabela `ibpt`; o tPag das formas de pagamento (Configurações › Formas de pagamento, coluna
+  e "Salvar tPag"); as quatro chaves `fiscal.*` (Configurações › Loja, bloco "Tributos da venda").
+- **F22.2 Cálculo:** `CalculoTributos` (sem banco), chamado pelo `VendaService.finalizar` na mesma transação, por
+  `TributosVendaService`; só registra, nenhum valor da venda muda.
+- **F22.3 Tabela IBPT:** importada na aba "Tabelas NCM, CEST e IBPT" do Cadastro fiscal, trocando a tabela inteira, com
+  auditoria; confirmação quando a UF do nome do arquivo é outra; versão, vigência e aviso de tabela vencida.
+- **NT 2025.002-RTC conferida (2026-11-14):** a versão vigente é a **v1.53** (30/10/2026). A base do IBS e da CBS
+  (campo UB16, `vBC`) é o valor do item − desconto − PIS − COFINS − ICMS − FCP (mais frete, seguro e outras despesas,
+  que o PDV não tem); as v1.52 (01/10/2026) e v1.53 só mexeram em devolução e na data do grupo IBS/CBS em produção, e
+  não na base. Bate com a F22.2: o aceite não mudou. Fontes: Portal Nacional da NF-e e resumos de terceiros (o PDF da
+  v1.53 não foi lido inteiro; a fórmula vem da v1.50/v1.51).
+- **Defeito antigo achado pela captura e corrigido:** a aba Formas de pagamento de Configurações passava da borda desde
+  a F15 (a linha "Recebimento" cortava "Salvar recebimento" e o texto de cima), sem a varredura acusar, porque o
+  conteúdo da aba é recortado e não sai da janela. O recebimento passou a duas linhas, e a aba, a Loja e a aba das
+  tabelas fiscais ficaram numa área com rolagem.
+
+`mvn -q verify` passa: 591 testes unitários e 547 de integração; `mvn -q -Pui verify`, com o `TributosTelaIT` novo, 6
+testes de interface (a varredura: 90 telas, 0 cortes). Próxima: Fase 22, parte B (F22.4 ST retido pela NF-e, F22.5
+comprovante, R31, regras 14 a 16 do R30 e gerador), com a tabela das regras novas mostrada no plano.
+
+Antes de começar (pedido do usuário): `git status` só com `.cursor/rules/varesync.mdc`, `COMO_CONTINUAR.md` e
+`docs/ESPECIFICACAO_AMPLIACOES.md` (ajustes do usuário para a F22), que entraram no commit desta parte.
+
+Critérios de aceite da F22 que dependem desta parte (teste; tela = `TributosTelaIT`, números das capturas):
+- **Simples, CSOSN 102:** sem ICMS, PIS e COFINS; IBPT de 13,45/18,00/0 → R$ 1,35, R$ 1,80 e R$ 0,00 (R$ 3,15); com a
+  origem 2 e importados de 15,45%, R$ 1,55: `CalculoTributosTest.simplesCsosn102…`, `origemEstrangeira…`,
+  `TributosVendaIT.simplesCsosn102ComATabelaIbpt`; pela tela, a venda no PDV grava "102;0.00;1.35;1.80;0.00;26.2.A"
+  (captura `06`).
+- **Normal, CST 00:** 2 × R$ 5,00 com R$ 0,50 rateado: base R$ 9,50 e ICMS R$ 1,71; PIS e COFINS sobre R$ 7,79 (R$ 0,13
+  e R$ 0,59); IBS e CBS sobre R$ 7,07 (CBS R$ 0,06, IBS da UF R$ 0,01, do município R$ 0,00):
+  `CalculoTributosTest.normalCst00ComDescontoRateado…`, `TributosVendaIT.normalCst00ComDescontoRateado` (pelo F5 de
+  verdade, venda de R$ 9,50).
+- **CST 20:** R$ 100,00 com 33,33% e 18% → base R$ 66,67 e ICMS R$ 12,00: `cst20ReduzABaseEmDuasCasas`.
+- **Arredondamento:** três itens de R$ 0,25 a 18% → R$ 0,05 cada, R$ 0,15: `arredondamentoPorItem…`.
+- **IBPT:** arquivo ISO-8859-1 com `;` importado, a NBS de fora, reimportar troca tudo: `TabelaIbptTest`,
+  `TributosVendaIT.importarIbptTrocaATabelaInteiraComAuditoria`; pela tela, a confirmação da UF (MG × SP) e a situação
+  com a versão (capturas `04` e `05`).
+- **ST retido (lado da venda):** produto com R$ 5,0000 e R$ 0,3000 por unidade; vender 2 grava R$ 10,00 e R$ 0,60:
+  `TributosVendaIT.cst60ComOStRetidoDoProduto` (o ST gravado direto no banco). A leitura da NF-e é da parte B.
+- **Sem dados fiscais:** o item sem perfil (ou sem NCM, sem origem, com perfil inativo, cancelado) fica sem linha:
+  `soOsItensComNcmOrigemEPerfilAtivoGanhamTributos`. A linha do R31 é da parte B.
+- **Consistência (R31 × itens, canceladas fora):** parte B (o R31). Aqui: a venda cancelada continua com os tributos
+  gravados (`vendaCanceladaContinuaComOsTributosGravados`), para o R31 a deixar de fora pelo status.
+
+Conferência pela tela: o `TributosTelaIT`, versionado no `-Pui` (sem teclado nem mouse do sistema, janelas fora da
+tela, banco `varesync_test` com a trava de URL, pasta de usuário `target/ui-home`, configuração sem BOM). Capturas em
+`target/telas/TributosTelaIT`: Loja com os tributos, formas com o tPag 17, perfil com FCP e redução, confirmação da
+UF, IBPT importada e a venda finalizada. A varredura passou por Loja, Formas de pagamento e as três abas do Cadastro
+fiscal no claro a 100% e no escuro a 130%. Os bancos `varesync` e `varesync_demo` não foram abertos.
+
 **Fase 11 — Engenharia de software concluída** em 2026-11-12. Parte B (F11.3, F11.5 e F11.8), sem migration nova e
 sem mudança de regra de negócio (Decisões):
 - **F11.3 Testes de interface versionados:** o padrão dos roteiros das fases 10 a 21 foi para o repositório, em
@@ -815,6 +869,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-12 | 21 — Usabilidade e acessibilidade, parte C (fase concluída) | **F21.4**: migration V22 (`assistente.*`), `Configuracoes.Assistente`, `PrimeirosPassos`, `PrimeirosPassosDAO`, `PrimeirosPassosService`, quadro no Painel (`PrimeirosPassosPainel`), "Primeiros passos…" na Ajuda, seção Primeiros passos em Configurações. **F21.5**: `ui.Notificacao` (e `Mensagem.sucesso`), confirmação em Inativar categoria, foco inicial em Financeiro, Relatórios e Configurações, Configurações em lista lateral, aviso do resultado do mês, linha de atacado nos exemplos da térmica (`ModeloTermica.semLinhasDeAtacado`), `ui.ColunasDeValor`, telas divididas com 5 linhas, rodapés e barra do PDV pelo registro (`Atalhos.curto`/`preencherDicas`), busca de venda com 1 dígito, linha de inclusão da entrada a 100% | 566 unitários e 526 de integração (novos: `PrimeirosPassosServiceIT`, `ConfiguracoesTest.assistenteDaV22`, `ModeloTermicaTest` (2), `AtalhosTest.dicaDoRodapeSaiDoRegistro`, `AjudaTest.rodapesDeAtalhosSaemDoRegistro`, `BuscaGlobalIT.vendaNumeroSeteComUmDigito`); roteiro de tela com 100 verificações |
 | 2026-11-12 | 11 — Engenharia de software, parte A | **F11.1/F11.2**: perfil `qualidade` no pom (JaCoCo 0.8.16 com um `jacoco.exec` para `*Test` e `*IT` e metas por pacote; SpotBugs 4.10.5 com limite High; Checkstyle 14.4.0 com `config/checkstyle.xml`); `@{argLine}` no surefire e no failsafe; correções pequenas em `Sessao`, `Servicos`, `ComprasController`, `PedidosController`, `AppContext`, `PagamentoController`, `Configuracoes`, `RelCurvaAbc`, `RelMaisVendidos`, `ConfiguracaoService`, `TabelaFiscal`, `Aparencia` e `Notificacao`. **F11.4**: `.github/workflows/ci.yml`; propriedade `testes.jvm`. **F11.6**: versão 2.0.0-SNAPSHOT; `git-commit-id-maven-plugin`, `build-helper-maven-plugin`, `versao.properties` filtrado; `config.VersaoSistema`, `ui.DialogoSobre`, versão na barra de status (`principal.fxml`, `PrincipalController`, `app.css`) e "Sobre o VareSync…" na Ajuda. **F11.7**: perfil `instalador` (MSI). README (9.1, 9.2, 10.1, 10.2). Sem migration nova. | Unitários: 572 (+6, `VersaoSistemaTest`). Integração: 526. Todos verdes, também com `-Pqualidade` (cobertura `util` 98,4%, `service` 94,4%). |
 | 2026-11-12 | 11 — Engenharia de software, parte B (fase concluída) | **F11.3**: perfil `ui` no pom (só os `*TelaIT`, `-Duser.home=target/ui-home`, capturas em `target/telas`, JaCoCo em `target/site/jacoco-ui`) e `excludes` dos `*TelaIT` no `verify` comum; pacote de teste `tela` (`TelaBase`, `Cortes`, `PrimeiroAcessoTelaIT`, `VendaPdvTelaIT`, `InventarioTelaIT`, `RelatorioTelaIT`, `VarreduraCortesTelaIT`); `service.DadosTela`. Correções achadas pela varredura: `principal.fxml` (barra de status com 8 px), `clientes.fxml` (aba LGPD com rolagem), `Aparencia.reajustar`. **F11.5**: `config.ConexaoTestada`, `Banco.testarConexao` com a versão e o tempo, `Banco.versaoCurta`; `ConexaoController` e `conexao.fxml` ("Testar conexão"); README 5.1. **F11.8**: `ConcorrenciaIT` (7 situações); propriedade `concorrencia.repeticoes`; `IntegracaoBase.estoqueContinuaConsistente` protegido. **CI**: `-Pqualidade verify` numa rodada só e o passo `-Pui verify`, com dois artefatos novos. README (5.1, 10, 10.2, 10.3, 11). Sem migration nova. | Unitários: 574 (+2, `BancoTest`). Integração: 535 (+9: `ConcorrenciaIT` 7, `BancoIT` 2). Interface: 5 (`-Pui`). Todos verdes, também com `-Pqualidade`; `ConcorrenciaIT` verde com 20 repetições. |
+| 2026-11-14 | 22 — Tributos da venda, parte A | Migration V23 (`venda_item_tributo`, FCP e redução do IBS e da CBS no perfil, ST retido no produto, tabela `ibpt`, `forma_pagamento.tpag`, chaves `fiscal.*`); `CalculoTributos` (ICMS por CST e CSOSN, FCP, ST retido, PIS e COFINS com o Tema 69, IBS e CBS pela NT 2025.002-RTC v1.53, tributos aproximados) chamado na finalização da venda; importação da tabela IBPT na janela Cadastro fiscal; tPag em Configurações › Formas de pagamento; tributos em Configurações › Loja. | Unitários: 591 (+17: `CalculoTributosTest` 12, `TabelaIbptTest` 4, `ConfiguracoesTest` 1). Integração: 547 (+12: `TributosVendaIT`). Interface (`-Pui`): 6 (+1: `TributosTelaIT`). Todos verdes. |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1287,8 +1342,44 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-12 | **`ConcorrenciaIT`: duas threads largando de um `CyclicBarrier`, cada uma na sua conexão do pool; dois terminais (`CAIXA-TESTE` e `CAIXA-TESTE-2`, cada um com o seu caixa) quando a situação é de dois computadores**; as duas sangrias usam o mesmo caixa. A perdedora tem de ser recusada por `NegocioException` com a mensagem da regra (deadlock ou erro do banco viram `ErroInesperadoException` e falham o teste). | Com um terminal só, a trava do caixa enfileiraria as duas vendas antes de chegar aos saldos, e o teste de deadlock não testaria nada. As 7 situações passaram sem mudar o código de produção: as travas já existiam (Fases 4 a 17). |
 | 2026-11-12 | **Repetições do `ConcorrenciaIT` pela propriedade `concorrencia.repeticoes`** (3 no `verify`, passada à JVM pelo `systemPropertyVariables` do failsafe), com o banco limpo e as views de inconsistência conferidas a cada repetição (`IntegracaoBase.estoqueContinuaConsistente` passou a `protected`). | 20 repetições custam cerca de 2 minutos; o aceite roda com 20, e o `verify` de todo dia com 3. Um `@RepeatedTest` exigiria um número fixo no código. |
 | 2026-11-12 | **"Testar conexão" mede da abertura da conexão até a resposta de `SHOW server_version`** e mostra só o número da versão ("16.15", sem o texto do empacotamento). O botão "Testar" passou a "Testar conexão"; o exemplo do endereço mostra um IP de rede. | F11.5. Uma consulta de verdade mede a ida e volta pela rede, não só o aperto de mão. |
+| 2026-11-14 | **Migration V23__tributos_da_venda.sql** (próxima versão livre): `venda_item_tributo` (PK = `venda_item_id`, FK para o item; `ck_vit_origem`, `ck_vit_icms` = exatamente um entre CST e CSOSN, `ck_vit_valores` não negativos, `ck_vit_ibs_cbs` e `ck_vit_aproximados` = os grupos nulos juntos); `perfil_tributario.aliquota_fcp` (0 a 100, padrão 0) e `reducao_aliquota_ibs_cbs` (nula ou maior que 0 e até 100); `produto.st_base_unitaria`, `st_aliquota`, `st_icms_substituto_unitario` e `st_icms_retido_unitario` (NUMERIC(14,4), nulos, `ck_produto_st`); tabela `ibpt` (PK `codigo, ex`, `ex` vazio no lugar de nulo para entrar na chave; alíquotas NUMERIC(7,4) de 0 a 100; `ck_ibpt_vigencia`); `forma_pagamento.tpag` NOT NULL com `ck_fp_tpag`; as quatro chaves `fiscal.*`. Linhas antigas: vendas sem tributos, perfis com FCP 0 e sem redução, produtos sem ST, formas com o tPag do tipo. | F22.1 inteira numa migration, com as colunas da parte B (0.1: "a migration da parte A já cria também as colunas que a parte B usa"). |
+| 2026-11-14 | **tPag das formas novas por trigger** (`fn_forma_pagamento_tpag`, BEFORE INSERT, só quando o tPag vem nulo), com o mesmo mapa da atualização das linhas antigas; `MeioPagamentoNfce.padrao` repete o mapa no Java (testado contra o CHECK). | A coluna é NOT NULL; com o trigger, todo INSERT existente (o cadastro de formas e os testes que conferem os índices únicos do crediário e do crédito do cliente) continua valendo sem informar o tPag, e o Vale-alimentação da V2 vira 10 pela descrição só na migration. |
+| 2026-11-14 | **Códigos de tPag aceitos**: 01 a 05, 10 a 24 e 99, com as descrições dos Informes Técnicos 2024.002 (17 PIX dinâmico, 20 PIX estático, 21 crédito em loja, 22 pagamento eletrônico não informado) e 2026.001 (23 PIX automático, 24 TEF "book transfer"); o 90 (sem pagamento) fica de fora. A forma escolhe o código numa lista ("17 — PIX dinâmico"); trocar é auditado (`CONFIGURACAO_ALTERADA`). | F22.1 ("01 a 05, 10 a 24 e 99"). As descrições de 23 e 24 vêm de resumos de terceiros: conferir com a tabela oficial antes da F23. |
+| 2026-11-14 | **Configurações fiscais em Configurações › Loja** (bloco "Tributos da venda", com a seção inteira numa área com rolagem), e não numa seção nova. | A primeira versão tinha a seção "Tributos"; com 18 seções, a lista lateral voltava a rolar a 130% em 1280×720, o que a F21.5 tinha resolvido. A Loja já tem o regime, a UF e a IE (0.4: "na aba da área, existente ou nova"). |
+| 2026-11-14 | **Alíquotas do IBS e da CBS** de 0 a 100% com até 2 casas, como os outros percentuais das configurações; a exclusão do ICMS é uma caixa de marcar. Auditoria "alíquota da CBS de 0,90% para 8,80%", "ICMS na base do PIS e da COFINS de excluído para incluído". | 0.4 e as escalas do projeto (percentual 2). |
+| 2026-11-14 | **Onde o cálculo mora**: `CalculoTributos` (classe pura, entrada `model.ItemTributavel`, saída `model.TributoItem`), `TributoVendaDAO` (lê os itens com o cadastro e a linha IBPT numa consulta; grava e lê `venda_item_tributo`) e `TributosVendaService.registrar(con, vendaId, data)`, que o `VendaService.finalizar` chama depois de inserir os itens, na mesma transação e sem conferir permissão (como o `EstoqueService.movimentar`). A data da linha IBPT é `LocalDate.now(clock)`. | F22.2 ("ao finalizar a venda, na mesma transação; a regra numa classe sem banco"). Os registros de entrada ficam no `model` para o DAO não depender do `service`. |
+| 2026-11-14 | **Quem ganha linha**: item não cancelado cujo produto tem, na hora da finalização, NCM, origem e perfil **ativo**; o cadastro é lido dentro da transação. O perfil inativo conta como sem perfil. | F22.1 ("perfil tributário ativo"). |
+| 2026-11-14 | **Detalhes do ICMS**: a situação vem do perfil (CST ou CSOSN), não do regime da loja; no CST 20 a base é round(líquido × (100 − redução) ÷ 100, 2), e sem redução cadastrada vale o líquido; a alíquota e a redução do perfil são copiadas mesmo quando não se aplicam (ex.: CST 40 com 18%), para a cópia do cadastro ser fiel; a alíquota do FCP copiada é zero fora dos CST 00 e 20. O ST retido entra só no CST 60 e no CSOSN 500, cada campo × a quantidade em 2 casas, nulo quando o produto não tem o dado. | F22.2. O regime da loja só decide o IBS e a CBS. O R30 já acusa CST no Simples e CSOSN no normal (regra 4). |
+| 2026-11-14 | **IBS e CBS**: base = líquido − ICMS − FCP − PIS − COFINS em 2 casas (nunca negativa); alíquota efetiva = alíquota × (100 − redução) ÷ 100 em 4 casas (sem redução, a própria alíquota); valor = round(base × efetiva ÷ 100, 2). Grava as alíquotas da configuração e a redução, não as efetivas. Qualquer CST do IBS e da CBS no perfil calcula. | F22.2 e a NT 2025.002-RTC (`pAliqEfet` com 4 casas). A especificação não separa os CST de imunidade ou suspensão (410 e outros): ficou como pendência. |
+| 2026-11-14 | **Tributos aproximados**: a linha IBPT com `ex` vazio e `vigencia_inicio ≤ data ≤ vigencia_fim`; federal de importados nas origens 1, 2, 6 e 7; os três nulos (e a versão) sem a linha. | F22.2. |
+| 2026-11-14 | **Leitura do arquivo do IBPT** (`TabelaFiscal.lerIbpt`): colunas pelo nome do cabeçalho, sem diferenciar maiúsculas e em qualquer ordem; obrigatórias `codigo`, `tipo`, as quatro alíquotas e as duas datas (`ex`, `descricao`, `chave`, `versao` e `fonte` podem faltar); só o tipo 0; NCM de 8 dígitos (pontos aceitos); `ex` até 3 dígitos; alíquota de 0 a 100 com até 4 casas, decimal com ponto ou vírgula; datas estritas dd/mm/aaaa; a vigência não pode terminar antes de começar; NCM e `ex` repetidos recusam. Qualquer erro recusa o arquivo inteiro (até 5 erros na mensagem, com a linha), como a NCM. A versão mostrada é a da primeira linha, e a vigência vai do menor início ao maior fim. | F22.3. O mesmo padrão de leitura e de recusa da F19.3. |
+| 2026-11-14 | **UF do nome do arquivo**: `TabelaIBPTax` seguido de uma das 27 siglas, sem diferenciar maiúsculas; a confirmação é da tela (antes da `Task`), e só quando a loja tem UF. Auditoria `TABELA_FISCAL_IMPORTADA` com o arquivo, a versão, a vigência e as linhas (e as de serviço deixadas de fora). A tabela vencida (fim antes de hoje) aparece em vermelho com "baixe a tabela nova no site do IBPT"; as vendas seguem sem os tributos aproximados até a tabela nova. | F22.3. |
+| 2026-11-14 | **Configurações › Formas de pagamento com rolagem**: o recebimento em duas linhas e a aba numa área com rolagem; a tabela das formas com altura de 260 (mínima 200). O mesmo na aba "Tabelas NCM, CEST e IBPT" do Cadastro fiscal. | Defeito antigo (F15) achado pela captura desta parte: a linha do recebimento era mais larga que a área, e a aba cortava a direita. A varredura não pega, porque o recorte é do próprio conteúdo da aba. |
 
 ## Pendências e riscos
+
+- **Fase 22, parte A (2026-11-14).**
+  - **O cálculo não foi conferido por um contador**, como as regras do R30. Os vetores são os da especificação; os
+    casos fora deles (CST 10, 30, 51, 70 e 90 sem valores; FCP; redução do IBS e da CBS; ST retido) seguem a F22.2 ao pé
+    da letra.
+  - **IBS e CBS com qualquer CST:** a F22.2 só pede "o CST do IBS e da CBS no perfil". Um perfil com CST de imunidade,
+    suspensão ou diferimento (410, 510, 550…) calcula valores mesmo assim; a regra 12 do R30 não acusa isso. Vale
+    rever junto com a F23 (o leiaute da NFC-e decide o que vai em cada CST).
+  - **NT 2025.002-RTC:** a fórmula da base veio dos resumos da v1.50/v1.51 e das notas de mudança da v1.52 e da v1.53;
+    o PDF da v1.53 não foi lido inteiro. As descrições dos tPag 23 e 24 também vêm de resumos (Informe Técnico
+    2026.001). Conferir os dois na tabela oficial antes da F23.
+  - **Sem comprovante nem relatório ainda:** até a parte B, os tributos só aparecem no banco (`venda_item_tributo`); os
+    casos CT-F22-05 a CT-F22-08 pedem SQL. A parte B traz o comprovante, a segunda via, o R31 e as regras 14 a 16.
+  - **O gerador de demonstração não mexe nos tributos nesta parte:** as vendas geradas passam pelo cálculo (o gerador
+    usa o `VendaService`), mas sem tabela IBPT os tributos aproximados ficam nulos. A tabela de demonstração e o ST
+    retido são da parte B (F22.5).
+  - O IBPT de verdade não foi baixado: o leiaute foi conferido com a documentação e com arquivos de teste no mesmo
+    formato.
+  - Configurações › Formas de pagamento a 130% em 1280×720 rola de lado e para baixo (antes cortava); as células de
+    texto longo saem com "…" e o texto inteiro na dica.
+  - A falha intermitente da F11B (o segundo login da varredura sem a janela principal, cena 0×0) apareceu uma vez nesta
+    parte; a rodada seguinte passou (90 telas, 0 cortes).
+  Falta a pessoa executar CT-F22-01 a CT-F22-08.
 
 - **Fase 11, parte B (2026-11-12).**
   - **Uma falha intermitente:** numa rodada da varredura sozinha, o segundo login (depois do log off, para o escuro de

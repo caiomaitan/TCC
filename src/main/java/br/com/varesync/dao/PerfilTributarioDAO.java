@@ -19,13 +19,27 @@ public class PerfilTributarioDAO {
     public record Gravacao(String nome, String cfop, String cstIcms, String csosn, BigDecimal aliquotaIcms,
                            BigDecimal reducaoBaseIcms, String cstPis, BigDecimal aliquotaPis, String cstCofins,
                            BigDecimal aliquotaCofins, String codigoBeneficio, String cstIbsCbs, String cclassTrib,
-                           boolean ativo) {
+                           boolean ativo, BigDecimal aliquotaFcp, BigDecimal reducaoAliquotaIbsCbs) {
+
+        public Gravacao {
+            aliquotaFcp = aliquotaFcp == null ? BigDecimal.ZERO : aliquotaFcp;
+        }
+
+        /** Sem FCP e sem redução de alíquota do IBS e da CBS. */
+        public Gravacao(String nome, String cfop, String cstIcms, String csosn, BigDecimal aliquotaIcms,
+                        BigDecimal reducaoBaseIcms, String cstPis, BigDecimal aliquotaPis, String cstCofins,
+                        BigDecimal aliquotaCofins, String codigoBeneficio, String cstIbsCbs, String cclassTrib,
+                        boolean ativo) {
+            this(nome, cfop, cstIcms, csosn, aliquotaIcms, reducaoBaseIcms, cstPis, aliquotaPis, cstCofins,
+                    aliquotaCofins, codigoBeneficio, cstIbsCbs, cclassTrib, ativo, BigDecimal.ZERO, null);
+        }
     }
 
     private static final String COLUNAS = """
             SELECT t.id, t.nome, t.cfop, t.cst_icms, t.csosn, t.aliquota_icms, t.reducao_base_icms, t.cst_pis,
                    t.aliquota_pis, t.cst_cofins, t.aliquota_cofins, t.codigo_beneficio, t.cst_ibs_cbs, t.cclass_trib,
-                   t.ativo, (SELECT count(*) FROM produto p WHERE p.perfil_tributario_id = t.id) AS produtos
+                   t.ativo, t.aliquota_fcp, t.reducao_aliquota_ibs_cbs,
+                   (SELECT count(*) FROM produto p WHERE p.perfil_tributario_id = t.id) AS produtos
               FROM perfil_tributario t
             """;
 
@@ -80,9 +94,10 @@ public class PerfilTributarioDAO {
         String sql = """
                 INSERT INTO perfil_tributario (nome, cfop, cst_icms, csosn, aliquota_icms, reducao_base_icms, cst_pis,
                                                aliquota_pis, cst_cofins, aliquota_cofins, codigo_beneficio,
-                                               cst_ibs_cbs, cclass_trib, ativo, criado_em, criado_por,
+                                               cst_ibs_cbs, cclass_trib, ativo, aliquota_fcp,
+                                               reducao_aliquota_ibs_cbs, criado_em, criado_por,
                                                atualizado_em, atualizado_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -104,7 +119,8 @@ public class PerfilTributarioDAO {
                 UPDATE perfil_tributario
                    SET nome = ?, cfop = ?, cst_icms = ?, csosn = ?, aliquota_icms = ?, reducao_base_icms = ?,
                        cst_pis = ?, aliquota_pis = ?, cst_cofins = ?, aliquota_cofins = ?, codigo_beneficio = ?,
-                       cst_ibs_cbs = ?, cclass_trib = ?, ativo = ?, atualizado_em = ?, atualizado_por = ?
+                       cst_ibs_cbs = ?, cclass_trib = ?, ativo = ?, aliquota_fcp = ?,
+                       reducao_aliquota_ibs_cbs = ?, atualizado_em = ?, atualizado_por = ?
                  WHERE id = ?
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -139,6 +155,8 @@ public class PerfilTributarioDAO {
         texto(ps, i++, g.cstIbsCbs());
         texto(ps, i++, g.cclassTrib());
         ps.setBoolean(i++, g.ativo());
+        ps.setBigDecimal(i++, g.aliquotaFcp());
+        ps.setBigDecimal(i++, g.reducaoAliquotaIbsCbs());
         return i;
     }
 
@@ -156,6 +174,6 @@ public class PerfilTributarioDAO {
                 rs.getBigDecimal("reducao_base_icms"), rs.getString("cst_pis"), rs.getBigDecimal("aliquota_pis"),
                 rs.getString("cst_cofins"), rs.getBigDecimal("aliquota_cofins"), rs.getString("codigo_beneficio"),
                 rs.getString("cst_ibs_cbs"), rs.getString("cclass_trib"), rs.getBoolean("ativo"),
-                rs.getLong("produtos"));
+                rs.getLong("produtos"), rs.getBigDecimal("aliquota_fcp"), rs.getBigDecimal("reducao_aliquota_ibs_cbs"));
     }
 }

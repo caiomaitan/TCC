@@ -54,6 +54,10 @@ class ConfiguracoesTest {
         m.put("assistente.formas_revisadas", "false"); // V22 (F21.4)
         m.put("assistente.usuarios_dispensado", "false");
         m.put("assistente.balanca_dispensada", "false");
+        m.put("fiscal.aliquota_cbs", "0.9"); // V23 (F22.1)
+        m.put("fiscal.aliquota_ibs_uf", "0.1");
+        m.put("fiscal.aliquota_ibs_mun", "0");
+        m.put("fiscal.excluir_icms_base_pis_cofins", "true");
         m.put("balanca.pasta_carga", ""); // V17 (F18.2)
         m.put("empresa.regime_tributario", "SIMPLES"); // V18 (F19.1)
         m.put("empresa.uf", "");
@@ -191,6 +195,21 @@ class ConfiguracoesTest {
                 .containsEntry("assistente.formas_revisadas", "false")
                 .containsEntry("assistente.usuarios_dispensado", "true")
                 .containsEntry("assistente.balanca_dispensada", "true");
+    }
+
+    /** V23 (F22.1): as alíquotas do IBS e da CBS e a exclusão do ICMS; valor inválido volta ao padrão. */
+    @Test
+    void tributosDaV23() {
+        Map<String, String> m = v2();
+        m.put("fiscal.aliquota_cbs", "8,8");
+        m.put("fiscal.aliquota_ibs_uf", "101");
+        m.put("fiscal.excluir_icms_base_pis_cofins", "false");
+        Configuracoes c = Configuracoes.de(m);
+        assertThat(c.tributos().aliquotaCbs()).isEqualByComparingTo("8.8");
+        assertThat(c.tributos().aliquotaIbsUf()).as("fora de 0 a 100").isEqualByComparingTo("0.1");
+        assertThat(c.tributos().excluirIcmsBasePisCofins()).isFalse();
+        assertThat(c.paraMapa()).containsEntry("fiscal.aliquota_cbs", "8.8")
+                .containsEntry("fiscal.excluir_icms_base_pis_cofins", "false");
     }
 
     @Test
