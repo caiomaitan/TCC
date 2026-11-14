@@ -20,7 +20,8 @@ import javafx.stage.Window;
 
 /**
  * Confirmação dos dados fiscais da NF-e (F19.3): depois de gerar a entrada, os produtos da nota com NCM, CEST ou
- * origem vazios, com o que a nota traz para cada um. Cada produto marcado (todos, de início) recebe os campos vazios.
+ * origem vazios, com o que a nota traz para cada um, e o ST retido por unidade (F22.4). Cada produto marcado (todos,
+ * de início) recebe os campos vazios e o ST.
  */
 public final class DialogoFiscalNota {
 
@@ -41,9 +42,10 @@ public final class DialogoFiscalNota {
         dialogo.getDialogPane().getButtonTypes().addAll(preencher,
                 new ButtonType("Agora não", ButtonBar.ButtonData.CANCEL_CLOSE));
 
-        Label explicacao = new Label("A nota traz NCM, CEST ou origem para " + (sugestoes.size() == 1 ? "1 produto"
-                : sugestoes.size() + " produtos") + " com esses campos vazios no cadastro. Só os campos vazios são "
-                + "preenchidos; o que já está no cadastro não muda. A origem 1 do fornecedor (importação direta) "
+        Label explicacao = new Label("A nota traz dados fiscais para " + (sugestoes.size() == 1 ? "1 produto"
+                : sugestoes.size() + " produtos") + ". NCM, CEST e origem só preenchem os campos vazios; o que já está "
+                + "no cadastro não muda. O ST retido, por unidade de venda, substitui o do cadastro, porque muda a cada "
+                + "compra. A origem 1 do fornecedor (importação direta) "
                 + "entra como 2, e a 6 como 7: a loja compra a mercadoria estrangeira no mercado interno.");
         explicacao.setWrapText(true);
         explicacao.setMaxWidth(720);
@@ -92,6 +94,9 @@ public final class DialogoFiscalNota {
         }
         if (s.origem() != null) {
             campos.add("origem " + OrigemMercadoria.rotulo(s.origem()));
+        }
+        if (s.st() != null) {
+            campos.add("ST retido por unidade: " + br.com.varesync.service.FiscalService.descreverSt(s.st()));
         }
         return s.produtoNome() + " (código " + s.produtoId() + "), " + (s.itens().contains(",") ? "itens " : "item ")
                 + s.itens() + ": " + String.join(" · ", campos);

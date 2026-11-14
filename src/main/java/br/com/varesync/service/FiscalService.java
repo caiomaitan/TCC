@@ -475,15 +475,28 @@ public class FiscalService {
      * @param escolhidos número do item → produto escolhido à mão na conferência
      */
     public List<SugestaoFiscal> sugestoesDaNota(Sessao sessao, byte[] xml, Map<Integer, Long> escolhidos) {
+        return sugestoesDaNota(sessao, xml, escolhidos, Map.of());
+    }
+
+    /**
+     * Como {@link #sugestoesDaNota(Sessao, byte[], Map)}, com os fatores escolhidos à mão na conferência, e o ST retido
+     * por unidade de venda (F22.4): os totais do primeiro item do produto que traz o ST, divididos pela quantidade em
+     * unidades de venda (com o fator da embalagem ou do vínculo, como o custo), em 4 casas; a alíquota em 2 casas.
+     *
+     * @param fatores número do item → fator escolhido à mão (sem ele, 1)
+     */
+    public List<SugestaoFiscal> sugestoesDaNota(Sessao sessao, byte[] xml, Map<Integer, Long> escolhidos,
+                                                Map<Integer, java.math.BigDecimal> fatores) {
         sessao.exigir(Permissao.FISCAL);
         LeitorNfe.Nota nota = LeitorNfe.ler(xml);
         return transacao.executar(con -> {
             Map<Long, List<LeitorNfe.Item>> itensDoProduto = new LinkedHashMap<>();
-            Map<Integer, Long> produtoDoItem = nfe.produtosDaNota(con, nota, escolhidos);
+            Map<Integer, ImportacaoNfeService.ItemVinculado> produtoDoItem = nfe.vinculosDaNota(con, nota, escolhidos,
+                    fatores);
             for (LeitorNfe.Item item : nota.itens()) {
-                Long produtoId = produtoDoItem.get(item.numero());
-                if (produtoId != null) {
-                    itensDoProduto.computeIfAbsent(produtoId, k -> new ArrayList<>()).add(item);
+                ImportacaoNfeService.ItemVinculado vinculo = produtoDoItem.get(item.numero());
+                if (vinculo != null) {
+                    itensDoProduto.computeIfAbsent(vinculo.produtoId(), k -> new ArrayList<>()).add(item);
                 }
             }
             boolean comNcm = fiscalDAO.contarNcm(con) > 0;
@@ -497,10 +510,15 @@ public class FiscalService {
                 String ncm = null;
                 String cest = null;
                 Integer origem = null;
+                br.com.varesync.model.ItemTributavel.StRetido st = null;
                 List<Integer> usados = new ArrayList<>();
                 for (LeitorNfe.Item item : e.getValue()) {
                     LeitorNfe.Fiscal f = item.fiscal();
                     boolean usou = false;
+                    if (st == null && f.st() != null) {
+                        st = stPorUnidade(f.st(), produtoDoItem.get(item.numero()).quantidade());
+                        usou = st != null;
+                    }
                     if (p.ncm() == null && ncm == null && f.ncm() != null
                             && (!comNcm || fiscalDAO.ncmExiste(con, f.ncm()))) {
                         ncm = f.ncm();
@@ -520,13 +538,41 @@ public class FiscalService {
                     }
                 }
                 SugestaoFiscal s = new SugestaoFiscal(p.id(), p.nome(), usados.stream().map(String::valueOf)
-                        .reduce((a, b) -> a + ", " + b).orElse(""), ncm, cest, origem);
+                        .reduce((a, b) -> a + ", " + b).orElse(""), ncm, cest, origem, st);
                 if (!s.vazia()) {
                     sugestoes.add(s);
                 }
             }
             return sugestoes;
         });
+    }
+
+    /** Totais do ST do item ÷ a quantidade em unidades de venda, 4 casas (alíquota em 2); nulo sem quantidade. */
+    static br.com.varesync.model.ItemTributavel.StRetido stPorUnidade(LeitorNfe.StNota st,
+                                                                      java.math.BigDecimal quantidade) {
+        if (st == null || quantidade == null || quantidade.signum() <= 0) {
+            return null;
+        }
+        java.util.function.Function<java.math.BigDecimal, java.math.BigDecimal> unitario = v -> v == null ? null
+                : v.divide(quantidade, br.com.varesync.util.Dinheiro.ESCALA_CUSTO, java.math.RoundingMode.HALF_UP);
+        return new br.com.varesync.model.ItemTributavel.StRetido(unitario.apply(st.base()),
+                st.aliquota() == null ? null : st.aliquota().setScale(2, java.math.RoundingMode.HALF_UP),
+                unitario.apply(st.icmsSubstituto()), unitario.apply(st.icmsRetido()));
+    }
+
+    /** "base R$ 5,0000, 18,00%, ICMS próprio R$ 0,4000, retido R$ 0,3000" ou "(vazio)" (auditoria e diálogo). */
+    public static String descreverSt(br.com.varesync.model.ItemTributavel.StRetido st) {
+        if (st == null || (st.baseUnitaria() == null && st.aliquota() == null && st.icmsSubstitutoUnitario() == null
+                && st.icmsRetidoUnitario() == null)) {
+            return "(vazio)";
+        }
+        return "base " + custo(st.baseUnitaria()) + ", alíquota "
+                + (st.aliquota() == null ? "—" : br.com.varesync.util.Formatos.percentual(st.aliquota()))
+                + ", ICMS próprio " + custo(st.icmsSubstitutoUnitario()) + ", retido " + custo(st.icmsRetidoUnitario());
+    }
+
+    private static String custo(java.math.BigDecimal valor) {
+        return valor == null ? "—" : "R$ " + br.com.varesync.util.Formatos.numero(valor, 4);
     }
 
     /**
@@ -554,11 +600,22 @@ public class FiscalService {
                 comparar(m, "CEST", formatado(p.cest(), false), formatado(cest, false));
                 comparar(m, "origem", p.origem() == null ? null : OrigemMercadoria.rotulo(p.origem()),
                         origem == null ? null : OrigemMercadoria.rotulo(origem));
+                // F22.4: o ST da nota substitui o do produto, porque muda a cada compra.
+                br.com.varesync.model.ItemTributavel.StRetido stAntes = fiscalDAO.stDoProduto(con, p.id());
+                boolean mudaSt = s.st() != null && !descreverSt(stAntes).equals(descreverSt(s.st()));
+                if (mudaSt) {
+                    m.add("ST retido por unidade: " + descreverSt(stAntes) + " → " + descreverSt(s.st()));
+                }
                 if (m.isEmpty()) {
                     continue;
                 }
-                fiscalDAO.gravar(con, p.id(), ncm, cest, origem, p.perfilId(), sessao.usuarioId(),
-                        OffsetDateTime.now(clock));
+                OffsetDateTime agora = OffsetDateTime.now(clock);
+                if (mudaSt) {
+                    fiscalDAO.gravarComSt(con, p.id(), ncm, cest, origem, p.perfilId(), s.st(), sessao.usuarioId(),
+                            agora);
+                } else {
+                    fiscalDAO.gravar(con, p.id(), ncm, cest, origem, p.perfilId(), sessao.usuarioId(), agora);
+                }
                 auditoria.registrar(con, sessao, AcaoAuditoria.DADOS_FISCAIS_ALTERADOS,
                         AuditoriaService.ENTIDADE_PRODUTO, p.id(), "Dados fiscais de "
                                 + ProdutoService.descrever(p.id(), p.nome()) + " pela NF-e"

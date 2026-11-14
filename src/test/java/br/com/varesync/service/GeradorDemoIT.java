@@ -675,11 +675,56 @@ class GeradorDemoIT extends IntegracaoBase {
         assertThat(r30.linhas().stream().map(RelInconsistenciasFiscais.Linha::produto).distinct().toList())
                 .containsExactlyInAnyOrderElementsOf(FiscalDemo.COM_INCONSISTENCIA);
         assertThat(r30.linhas()).extracting(RelInconsistenciasFiscais.Linha::regra)
-                .containsExactlyInAnyOrder(1, 1, 4, 5, 9, 10, 11, 11, 13, 13);
-        assertThat(r30.linhas()).filteredOn(l -> !l.erro()).extracting(RelInconsistenciasFiscais.Linha::produto)
+                .containsExactlyInAnyOrder(1, 1, 4, 5, 9, 10, 11, 11, 13, 13, 16, 16);
+        // Os produtos só com avisos (o energético tem o erro da regra 9 e o aviso da 16, F22.5).
+        java.util.Set<String> comErro = r30.linhas().stream().filter(RelInconsistenciasFiscais.Linha::erro)
+                .map(RelInconsistenciasFiscais.Linha::produto).collect(java.util.stream.Collectors.toSet());
+        assertThat(r30.linhas().stream().map(RelInconsistenciasFiscais.Linha::produto).distinct()
+                .filter(p -> !comErro.contains(p)).toList())
                 .containsExactlyInAnyOrderElementsOf(FiscalDemo.SO_AVISO);
         assertThat(hoje.painel().carregar(admin).alertas().inconsistenciasFiscais())
                 .isEqualTo(FiscalDemo.COM_INCONSISTENCIA.size() - FiscalDemo.SO_AVISO.size()).isEqualTo(6);
+    }
+
+    /**
+     * F22.5: a tabela IBPT de demonstração com os NCM do catálogo, o ST retido em 4 produtos com ST, as vendas com os
+     * tributos calculados, e o R31 do período batendo com a soma dos itens, sem as vendas canceladas.
+     */
+    @Test
+    void tributosDaVendaNosDadosDeDemonstracao() throws Exception {
+        assertThat(contar("SELECT count(*) FROM ibpt WHERE fonte = 'Demonstração'"))
+                .isEqualTo(contar("SELECT count(DISTINCT ncm) FROM produto WHERE ncm IS NOT NULL"));
+        assertThat(contar("SELECT count(*) FROM produto WHERE st_icms_retido_unitario IS NOT NULL")).isEqualTo(4);
+        assertThat(contar("SELECT count(*) FROM venda_item_tributo")).isPositive();
+        assertThat(contar("SELECT count(*) FROM venda_item_tributo WHERE trib_federal IS NULL"))
+                .as("todo NCM do catálogo está na tabela").isZero();
+        assertThat(contar("SELECT count(*) FROM venda_item_tributo WHERE icms_st_retido IS NOT NULL")).isPositive();
+
+        Servicos hoje = Servicos.montar(BancoTeste.dataSource(), HOJE, AcessoTeste.TERMINAL,
+                new Senhas(AcessoTeste.CUSTO_BCRYPT_TESTE));
+        Periodo periodo = new Periodo(resultado.inicio(), resultado.fim());
+        ResultadoRelatorio<br.com.varesync.report.RelImpostosVendas.Linha> r31 = hoje.relatorios().gerar(admin,
+                new br.com.varesync.report.RelImpostosVendas(), Filtros.vazios().comPeriodo(periodo));
+        BigDecimal aproximados = r31.linhas().stream().map(br.com.varesync.report.RelImpostosVendas.Linha::aproximados)
+                .filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(aproximados).isEqualByComparingTo(umValor("""
+                SELECT sum(t.trib_federal + t.trib_estadual + t.trib_municipal)
+                  FROM venda_item_tributo t JOIN venda_item vi ON vi.id = t.venda_item_id AND NOT vi.cancelado
+                  JOIN venda v ON v.id = vi.venda_id WHERE v.status = 'FINALIZADA'"""));
+        assertThat(umValor("""
+                SELECT sum(t.trib_federal + t.trib_estadual + t.trib_municipal)
+                  FROM venda_item_tributo t JOIN venda_item vi ON vi.id = t.venda_item_id
+                  JOIN venda v ON v.id = vi.venda_id WHERE v.status = 'CANCELADA'""")).as("as canceladas existem")
+                .isPositive();
+        BigDecimal liquido = r31.linhas().stream().map(br.com.varesync.report.RelImpostosVendas.Linha::valorLiquido)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(liquido).as("R31 inteiro = receita bruta dos itens vendidos").isEqualByComparingTo(umValor("""
+                SELECT sum(vi.valor_liquido) FROM venda_item vi JOIN venda v ON v.id = vi.venda_id
+                 WHERE v.status = 'FINALIZADA' AND NOT vi.cancelado"""));
+        // O guarda-chuva (sem NCM) e a pilha (sem perfil) caem em "Itens sem tributação calculada", se vendidos.
+        assertThat(r31.linhas()).filteredOn(br.com.varesync.report.RelImpostosVendas.Linha::semTributacao)
+                .allSatisfy(l -> assertThat(l.situacao()).isEqualTo(
+                        br.com.varesync.report.RelImpostosVendas.SEM_TRIBUTACAO));
     }
 
     /** F18.3: as etiquetas de todos os produtos e uma carga de balança sem arquivo, na véspera do primeiro dia. */

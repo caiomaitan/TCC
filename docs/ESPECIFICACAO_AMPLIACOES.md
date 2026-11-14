@@ -1337,11 +1337,14 @@ A migration da parte A já cria também as colunas que a parte B usa.
 - **PIS e COFINS:**
   - CST 01 e 02: base = valor líquido menos o ICMS do item, com `fiscal.excluir_icms_base_pis_cofins` = true, que segue o Tema 69 do STF (com false, a base é o valor líquido); valor = base × alíquota;
   - nos outros CST, base e valor zero.
-- **IBS e CBS** (só no regime NORMAL e com o CST do IBS e da CBS no perfil):
-  - base = valor líquido − ICMS − FCP − PIS − COFINS;
-  - alíquota efetiva = alíquota da configuração × (1 − `reducao_aliquota_ibs_cbs` ÷ 100);
-  - CBS, IBS da UF e IBS do município = base × a alíquota efetiva de cada um;
-  - a fórmula da base segue a NT 2025.002 (RTC): no começo da parte A, confira na versão vigente e registre no PROGRESSO a versão consultada; se mudar, ajuste o aceite;
+- **IBS e CBS** (só no regime NORMAL), pelo CST do IBS e da CBS do perfil:
+  - 000 (tributação integral) e 200 (alíquota reduzida) calculam:
+    - base = valor líquido − ICMS − FCP − PIS − COFINS;
+    - alíquota efetiva = alíquota da configuração × (1 − `reducao_aliquota_ibs_cbs` ÷ 100), com a redução só no 200 (no 000 ela é ignorada; no 200 sem redução, vale a alíquota cheia, e a regra 17 do R30 acusa);
+    - CBS, IBS da UF e IBS do município = base × a alíquota efetiva de cada um;
+  - 410 (imunidade e não incidência): sem base e sem valores;
+  - sem CST, ou com outro CST (isenção, diferimento, suspensão, monofásica e os demais): sem valores, e a NFC-e desta versão não os aceita (regra 17 do R30 e bloqueio no PDV da F23);
+  - a fórmula da base segue a NT 2025.002 (RTC), conferida na v1.53 na parte A;
   - no SIMPLES não calcula: quem não optou pelo regime regular do IBS e da CBS não informa o grupo (NT 2026.005).
 - **Tributos aproximados (Lei 12.741/2012):** pela linha da tabela IBPT do NCM com `ex` vazio, vigente na data da venda:
   - federal = valor líquido × a alíquota nacional federal, ou a de importados federal quando a origem é 1, 2, 6 ou 7 (mercadoria estrangeira);
@@ -1383,6 +1386,7 @@ A migration da parte A já cria também as colunas que a parte B usa.
   | 14 | Situação do ICMS que a NFC-e desta versão não aceita: CST fora de 00, 20, 40, 41 e 60; CSOSN fora de 102, 103, 300, 400 e 500 |
   | 15 | NCM de produto ativo sem linha vigente na tabela IBPT importada (aviso; só com a tabela importada) |
   | 16 | Produto ativo com CST 60 ou CSOSN 500 sem o ST retido (aviso) |
+  | 17 | Só no regime NORMAL: CST do IBS e da CBS que a NFC-e desta versão não aceita (fora de 000, 200 e 410) e CST 200 sem a redução de alíquota; redução preenchida fora do CST 200 (aviso) |
 
 - **Gerador:** uma tabela IBPT de demonstração só com os NCM do catálogo (fonte "Demonstração", com alíquotas plausíveis) e o ST retido em alguns produtos com ST. As vendas geradas passam pelo mesmo cálculo, e o R31 tem o que mostrar.
 
@@ -1392,7 +1396,8 @@ A migration da parte A já cria também as colunas que a parte B usa.
 - **Normal, CST 00:** 2 × R$ 5,00 com R$ 0,50 de desconto rateado, ICMS de 18%, PIS de 1,65% e COFINS de 7,6% (CST 01):
   - base de R$ 9,50 e ICMS de R$ 1,71;
   - base do PIS e da COFINS de R$ 7,79, PIS de R$ 0,13 e COFINS de R$ 0,59;
-  - base do IBS e da CBS de R$ 7,07, CBS de R$ 0,06, IBS da UF de R$ 0,01 e IBS do município de R$ 0,00.
+  - base do IBS e da CBS de R$ 7,07, CBS de R$ 0,06, IBS da UF de R$ 0,01 e IBS do município de R$ 0,00 (CST 000).
+- **IBS e CBS por CST:** o mesmo item com CST 200 e redução de 60% tem alíquota efetiva da CBS de 0,36%, CBS de R$ 0,03 e IBS da UF de R$ 0,00; com CST 410, fica sem IBS e CBS; com CST 550, também, e a regra 17 acusa.
 - **CST 20:** base de R$ 100,00 com redução de 33,33% e ICMS de 18%: base de R$ 66,67 e ICMS de R$ 12,00.
 - **Arredondamento:** três itens de R$ 0,25 com ICMS de 18% dão R$ 0,05 cada e R$ 0,15 no total, e não R$ 0,14.
 - **IBPT:** um arquivo no leiaute do IBPT (ISO-8859-1, `;`) é importado; a linha de NBS fica de fora; reimportar troca a tabela inteira.
@@ -1444,7 +1449,7 @@ A migration da parte A cria todas as tabelas e colunas da fase.
 ### F23.2 Emitente e certificado (parte A)
 
 - **Configurações › Loja**, num bloco "Endereço para a NFC-e": razão social, logradouro, número, complemento, bairro, CEP, município e código IBGE do município (7 dígitos, e os 2 primeiros são o código da UF de `empresa.uf`). O nome da loja vira o nome fantasia, e o endereço livre continua no comprovante não fiscal.
-- **Configurações › NFC-e** (seção nova): série, prazos, valores, via do estabelecimento, responsável técnico (CNPJ, contato, e-mail e telefone; vazio = grupo omitido, mas algumas UFs o exigem), endereços do QR Code e da consulta (vazio = os da biblioteca) e o certificado deste terminal. O "NFC-e ligada" é da parte C.
+- **Configurações › NFC-e** (seção nova; a lista lateral já tem 17 seções e não pode voltar a rolar a 130% em 1280×720, como manda a F21.5: se não couber, junte seções afins ou reorganize a lista, com a decisão no PROGRESSO): série, prazos, valores, via do estabelecimento, responsável técnico (CNPJ, contato, e-mail e telefone; vazio = grupo omitido, mas algumas UFs o exigem), endereços do QR Code e da consulta (vazio = os da biblioteca) e o certificado deste terminal. O "NFC-e ligada" é da parte C.
 - **Para a NFC-e:** `empresa.documento` tem de ser um CNPJ válido, e a IE é obrigatória (não vale ISENTO). O CRT sai do regime: SIMPLES = 1 e NORMAL = 3. MEI e Simples com excesso de sublimite ficam fora.
 - **Certificado A1 (arquivo .pfx ou .p12):**
   - o caminho e a senha ficam no `~/.varesync/config.properties` do terminal (`nfce.certificado` e `nfce.certificado.senha`), como a senha do banco; a variável de ambiente `VARESYNC_CERT_SENHA`, se existir, vale no lugar da senha do arquivo;
@@ -1471,7 +1476,7 @@ A migration da parte A cria todas as tabelas e colunas da fase.
     - vUnCom = valor bruto ÷ quantidade, com 10 casas. Com o preço da embalagem (F20), o preço unitário de 2 casas × a quantidade não bate com o valor do item, e a SEFAZ recusa;
     - valor bruto; desconto = o desconto do item + o rateado; os mesmos valores nos campos tributáveis;
   - **homologação:** a descrição do 1º item é "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL", exigência da SEFAZ; o DANFE mostra a descrição de verdade;
-  - **impostos do item**, pelos tributos gravados: o grupo do ICMS pelo CST ou CSOSN, PIS, COFINS, IBSCBS (só no regime NORMAL) e vTotTrib;
+  - **impostos do item**, pelos tributos gravados: o grupo do ICMS pelo CST ou CSOSN, PIS, COFINS, vTotTrib e, só no regime NORMAL, o grupo IBSCBS com o CST e o cClassTrib (o subgrupo dos valores só nos CST 000 e 200; no 200, com a redução);
   - **totais:** a soma dos itens; vNF = o total da venda;
   - **transporte:** sem frete (modFrete 9);
   - **pagamentos:**
@@ -1529,7 +1534,7 @@ A migration da parte A cria todas as tabelas e colunas da fase.
 - **"NFC-e ligada"** (`nfce.ativa`, em Configurações › NFC-e): só liga com os dados do emitente completos e com o certificado deste terminal carregado e na validade.
 - **Com a NFC-e ligada:**
   - o PDV só começa uma venda com o certificado deste terminal carregado e na validade; sem isso, explica e pede o supervisor;
-  - o produto sem dados fiscais completos (NCM, origem, perfil ativo com situação aceita e CEST quando há ST) é recusado ao registrar, com o que falta;
+  - o produto sem dados fiscais completos (NCM, origem, perfil ativo com a situação do ICMS e o CST do IBS e da CBS aceitos pelas regras 14 e 17 do R30, e CEST quando há ST) é recusado ao registrar, com o que falta;
   - no pagamento, o campo "CPF/CNPJ na nota" (opcional), já preenchido com o documento do cliente identificado (F11) e conferido pelo dígito. A partir de `nfce.valor_identificacao` ele é obrigatório; a partir de `nfce.valor_maximo`, a venda não fecha, porque exige NF-e, que o sistema não emite;
   - ao finalizar, na mesma transação da venda: os tributos (F22) e a reserva do número, com a NFC-e PENDENTE;
   - depois do commit, a emissão (F23.5) numa `Task`, com o aviso "Emitindo NFC-e…";

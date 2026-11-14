@@ -281,16 +281,42 @@ public class ImportacaoNfeService {
      */
     Map<Integer, Long> produtosDaNota(Connection con, LeitorNfe.Nota nota, Map<Integer, Long> escolhidos)
             throws SQLException {
-        Long fornecedorId = fornecedor(con, documento(nota.emitente())).map(Fornecedor::id).orElse(null);
         Map<Integer, Long> produtos = new LinkedHashMap<>();
+        vinculosDaNota(con, nota, escolhidos, Map.of()).forEach((numero, v) -> produtos.put(numero, v.produtoId()));
+        return produtos;
+    }
+
+    /**
+     * Produto de um item da nota e a quantidade dele em unidades de venda, como a entrada a lança (F22.4).
+     *
+     * @param quantidade {@code qTrib} (ou {@code qCom}) sem fator; {@code qCom} × fator pelo vínculo, pela embalagem ou
+     *                   pelo fator escolhido à mão
+     */
+    record ItemVinculado(long produtoId, BigDecimal quantidade) {
+    }
+
+    /**
+     * Como {@link #produtosDaNota}, com a quantidade em unidades de venda de cada item: o mesmo fator da geração da
+     * entrada (o escolhido à mão na conferência, sem ele 1; o do vínculo ou da embalagem).
+     */
+    Map<Integer, ItemVinculado> vinculosDaNota(Connection con, LeitorNfe.Nota nota, Map<Integer, Long> escolhidos,
+                                              Map<Integer, BigDecimal> fatores) throws SQLException {
+        Long fornecedorId = fornecedor(con, documento(nota.emitente())).map(Fornecedor::id).orElse(null);
+        Map<Integer, ItemVinculado> produtos = new LinkedHashMap<>();
         for (LeitorNfe.Item item : nota.itens()) {
             Long produtoId = escolhidos == null ? null : escolhidos.get(item.numero());
-            if (produtoId == null) {
+            BigDecimal fator = null;
+            if (produtoId != null) {
+                fator = fatorEscolhido(fatores == null ? null : fatores.get(item.numero()), item);
+            } else {
                 ItemPrevia vinculo = vincular(con, fornecedorId, item);
                 produtoId = vinculo.produto() == null ? null : vinculo.produto().id();
+                fator = vinculo.fator();
             }
             if (produtoId != null) {
-                produtos.put(item.numero(), produtoId);
+                BigDecimal quantidade = fator == null ? item.quantidade()
+                        : item.comercial().quantidade().multiply(fator);
+                produtos.put(item.numero(), new ItemVinculado(produtoId, quantidade));
             }
         }
         return produtos;

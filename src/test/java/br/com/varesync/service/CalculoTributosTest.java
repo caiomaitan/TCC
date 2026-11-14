@@ -172,6 +172,38 @@ class CalculoTributosTest {
     }
 
     @Test
+    void ibsECbsPorCstSo000E200CalculamEAReducaoSoNo200() {
+        // Aceite: o item do CST 00 (R$ 9,50 líquidos, base do IBS e da CBS R$ 7,07) com CST 200 e 60% de redução.
+        TributoItem cst200 = CalculoTributos.calcular(item("2", "9.50", 0, normal("00", "18", null, "0", "200", "60"),
+                null, null), RegimeTributario.NORMAL, CONFIG);
+        assertThat(cst200.baseIbsCbs()).isEqualByComparingTo("7.07");
+        assertThat(CalculoTributos.efetiva(cst200.aliquotaCbs(), cst200.reducaoAliquotaIbsCbs()))
+                .isEqualByComparingTo("0.36");
+        assertThat(cst200.valorCbs()).isEqualByComparingTo("0.03");
+        assertThat(cst200.valorIbsUf()).isEqualByComparingTo("0.00");
+        assertThat(cst200.reducaoAliquotaIbsCbs()).isEqualByComparingTo("60");
+
+        TributoItem cst200SemReducao = CalculoTributos.calcular(item("2", "9.50", 0,
+                normal("00", "18", null, "0", "200", null), null, null), RegimeTributario.NORMAL, CONFIG);
+        assertThat(cst200SemReducao.valorCbs()).as("alíquota cheia; a regra 17 acusa").isEqualByComparingTo("0.06");
+
+        TributoItem cst000ComReducao = CalculoTributos.calcular(item("2", "9.50", 0,
+                normal("00", "18", null, "0", "000", "60"), null, null), RegimeTributario.NORMAL, CONFIG);
+        assertThat(cst000ComReducao.valorCbs()).as("a redução só vale no 200").isEqualByComparingTo("0.06");
+        assertThat(cst000ComReducao.reducaoAliquotaIbsCbs()).isNull();
+
+        for (String cst : List.of("410", "550", "510", "620")) {
+            TributoItem t = CalculoTributos.calcular(item("2", "9.50", 0, normal("00", "18", null, "0", cst, null),
+                    null, null), RegimeTributario.NORMAL, CONFIG);
+            assertThat(t.baseIbsCbs()).as(cst).isNull();
+            assertThat(t.valorCbs()).as(cst).isNull();
+            assertThat(t.valorIbsUf()).as(cst).isNull();
+            assertThat(t.valorIbsMun()).as(cst).isNull();
+            assertThat(t.cstIbsCbs()).as("o CST é copiado").isEqualTo(cst);
+        }
+    }
+
+    @Test
     void cst60ECsosn500ComOStRetidoDoProdutoVezesAQuantidade() {
         ItemTributavel.StRetido st = new ItemTributavel.StRetido(v("5.0000"), v("18.00"), v("0.5000"), v("0.3000"));
         TributoItem cst60 = CalculoTributos.calcular(item("2", "12.00", 0, normal("60", "0", null, "0", null, null),

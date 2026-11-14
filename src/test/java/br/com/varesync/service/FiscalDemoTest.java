@@ -37,7 +37,7 @@ class FiscalDemoTest {
         assertThat(FiscalDemo.perfis()).allSatisfy(FiscalService::validar);
     }
 
-    /** As regras sobre o catálogo, no Simples com UF SP, como o R30 os vê (sem tabelas importadas). */
+    /** As regras sobre o catálogo, no Simples com UF SP, como o R30 os vê (sem as tabelas NCM e CEST importadas). */
     @Test
     void soOsProdutosDePropositoTemInconsistencia() {
         Map<String, PerfilTributario> perfis = new HashMap<>();
@@ -61,7 +61,9 @@ class FiscalDemoTest {
                     : perfisDoNcm.get(ncm).stream().filter(p -> !Objects.equals(p, d.perfil())).toList();
             List<Inconsistencia> i = RegrasFiscais.verificar(new ItemFiscal(1, nome, null, ncm,
                     ValidacaoFiscal.cest(d.cest()), d.origem(), d.perfil() == null ? null : perfis.get(d.perfil()),
-                    null, null, null, outros), contexto);
+                    null, null, null, outros,
+                    // F22.5: a tabela IBPT de demonstração tem todos os NCM do catálogo; o ST retido, os 4 produtos.
+                    ncm == null ? null : Boolean.TRUE, FiscalDemo.stRetido().containsKey(nome)), contexto);
             if (!i.isEmpty()) {
                 achados.put(nome, i);
             }

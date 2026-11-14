@@ -1021,7 +1021,7 @@ public class VendaService {
                 : new Comprovante.Cliente(c.clienteNome(), CpfCnpj.ocultar(c.clienteCpfCnpj())), credito,
                 tituloDAO.daVenda(con, vendaId, false).stream().filter(t -> t.status() != StatusTitulo.CANCELADO)
                         .map(t -> new Comprovante.ParcelaCrediario(t.parcela(), t.totalParcelas(), t.vencimento(),
-                                t.valor())).toList());
+                                t.valor())).toList(), tributos.aproximados(con, vendaId));
     }
 
     private static String descrever(ItemCarrinho item) {

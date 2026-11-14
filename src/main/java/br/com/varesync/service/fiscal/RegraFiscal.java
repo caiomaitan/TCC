@@ -16,7 +16,7 @@ public interface RegraFiscal {
     /** CSOSN sem destaque do ICMS (regra 6). */
     Set<String> CSOSN_SEM_DESTAQUE = Set.of("102", "103", "300", "400", "500");
 
-    /** 1 a 13. */
+    /** 1 a 17. */
     int numero();
 
     /** Título curto, para o filtro do R30. */

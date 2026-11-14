@@ -130,6 +130,59 @@ public class FiscalDAO {
         }
     }
 
+    /** ST retido do produto por unidade de venda (F22.4); os campos sem dado ficam nulos. */
+    public br.com.varesync.model.ItemTributavel.StRetido stDoProduto(Connection con, long produtoId)
+            throws SQLException {
+        String sql = """
+                SELECT st_base_unitaria, st_aliquota, st_icms_substituto_unitario, st_icms_retido_unitario
+                  FROM produto WHERE id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, produtoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return br.com.varesync.model.ItemTributavel.StRetido.NENHUM;
+                }
+                return new br.com.varesync.model.ItemTributavel.StRetido(rs.getBigDecimal(1), rs.getBigDecimal(2),
+                        rs.getBigDecimal(3), rs.getBigDecimal(4));
+            }
+        }
+    }
+
+    /**
+     * Como {@link #gravar}, com o ST retido por unidade (F22.4) no lugar do que o produto tinha, num UPDATE só (um
+     * segundo UPDATE no mesmo instante do {@code Clock} faria o trigger gravar {@code now()}, V3).
+     */
+    public void gravarComSt(Connection con, long produtoId, String ncm, String cest, Integer origem, Long perfilId,
+                            br.com.varesync.model.ItemTributavel.StRetido st, long usuarioId, OffsetDateTime agora)
+            throws SQLException {
+        String sql = """
+                UPDATE produto
+                   SET ncm = ?, cest = ?, origem = ?, perfil_tributario_id = ?, st_base_unitaria = ?, st_aliquota = ?,
+                       st_icms_substituto_unitario = ?, st_icms_retido_unitario = ?, atualizado_por = ?,
+                       atualizado_em = ?
+                 WHERE id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            texto(ps, 1, ncm);
+            texto(ps, 2, cest);
+            if (origem == null) {
+                ps.setNull(3, Types.SMALLINT);
+            } else {
+                ps.setInt(3, origem);
+            }
+            Jdbc.definirLong(ps, 4, perfilId);
+            ps.setBigDecimal(5, st.baseUnitaria());
+            ps.setBigDecimal(6, st.aliquota());
+            ps.setBigDecimal(7, st.icmsSubstitutoUnitario());
+            ps.setBigDecimal(8, st.icmsRetidoUnitario());
+            ps.setLong(9, usuarioId);
+            ps.setObject(10, agora);
+            ps.setLong(11, produtoId);
+            ps.executeUpdate();
+        }
+    }
+
     // ----- Aplicação em lote -----
 
     /** Produtos do alvo (já normalizado: NCM só com dígitos): quantos são e quantos já têm o perfil. */

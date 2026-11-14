@@ -8,12 +8,12 @@ import org.junit.jupiter.api.Test;
 class RegrasFiscaisTest {
 
     @Test
-    void trezeRegrasNaOrdemDosNumeros() {
+    void dezesseteRegrasNaOrdemDosNumeros() {
         assertThat(RegrasFiscais.todas()).extracting(RegraFiscal::numero)
-                .containsExactlyElementsOf(IntStream.rangeClosed(1, 13).boxed().toList());
+                .containsExactlyElementsOf(IntStream.rangeClosed(1, 17).boxed().toList());
         assertThat(RegrasFiscais.todas()).allSatisfy(r -> assertThat(r.titulo()).isNotBlank());
         assertThat(RegrasFiscais.regra(5)).get().extracting(RegraFiscal::rotulo).isEqualTo("5 — CFOP");
-        assertThat(RegrasFiscais.regra(14)).isEmpty();
+        assertThat(RegrasFiscais.regra(18)).isEmpty();
     }
 
     @Test

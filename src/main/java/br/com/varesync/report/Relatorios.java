@@ -15,7 +15,7 @@ public final class Relatorios {
             new RelCancelamentos(), new RelComprasFornecedor(), new RelClientes(), new RelSaldosCredito(),
             new RelDevolucoes(), new RelTitulosReceber(), new RelRecebimentos(), new RelContasPagar(),
             new RelFluxoCaixa(), new RelDre(), new RelSugestaoCompra(), new RelPedidosPendentes(),
-            new RelCoberturaRuptura(), new RelValidade(), new RelInconsistenciasFiscais());
+            new RelCoberturaRuptura(), new RelValidade(), new RelInconsistenciasFiscais(), new RelImpostosVendas());
 
     private Relatorios() {
     }

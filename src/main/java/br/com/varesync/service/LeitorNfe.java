@@ -75,9 +75,27 @@ public final class LeitorNfe {
      * nulo quando falta ou não tem o formato (NCM de 8 dígitos, CEST de 7, origem de 0 a 8): nesse caso a nota não
      * preenche o campo do produto.
      */
-    public record Fiscal(String ncm, String cest, Integer origem) {
+    public record Fiscal(String ncm, String cest, Integer origem, StNota st) {
 
-        public static final Fiscal VAZIO = new Fiscal(null, null, null);
+        public static final Fiscal VAZIO = new Fiscal(null, null, null, null);
+
+        /** Sem o ST da nota. */
+        public Fiscal(String ncm, String cest, Integer origem) {
+            this(ncm, cest, origem, null);
+        }
+    }
+
+    /**
+     * ST do item, no total do item (F22.4): dos grupos ICMS60 e ICMSSN500, {@code vBCSTRet}, {@code pST},
+     * {@code vICMSSubstituto} e {@code vICMSSTRet}; dos grupos ICMS10 e ICMS70 (o fornecedor é o substituto),
+     * {@code vBCST}, {@code pICMSST}, o {@code vICMS} próprio e {@code vICMSST}. Campo ausente fica nulo; o FCP retido
+     * fica de fora.
+     */
+    public record StNota(BigDecimal base, BigDecimal aliquota, BigDecimal icmsSubstituto, BigDecimal icmsRetido) {
+
+        public boolean vazio() {
+            return base == null && aliquota == null && icmsSubstituto == null && icmsRetido == null;
+        }
     }
 
     /**
@@ -171,6 +189,7 @@ public final class LeitorNfe {
         String ncm = texto(prod, "NCM");
         String cest = texto(prod, "CEST");
         Integer origem = null;
+        StNota st = null;
         Element imposto = primeiro(det, "imposto");
         Element icms = imposto == null ? null : primeiro(imposto, "ICMS");
         if (icms != null) {
@@ -180,11 +199,30 @@ public final class LeitorNfe {
                     if (orig.length() == 1 && orig.charAt(0) >= '0' && orig.charAt(0) <= '8') {
                         origem = orig.charAt(0) - '0';
                     }
+                    st = st(grupo);
                     break;
                 }
             }
         }
-        return new Fiscal(digitos(ncm, 8), digitos(cest, 7), origem);
+        return new Fiscal(digitos(ncm, 8), digitos(cest, 7), origem, st);
+    }
+
+    /** ST do grupo do ICMS (F22.4); nulo fora dos grupos ICMS60, ICMSSN500, ICMS10 e ICMS70 ou sem nenhum valor. */
+    static StNota st(Element grupo) {
+        String nome = grupo.getLocalName() == null ? grupo.getNodeName() : grupo.getLocalName();
+        StNota st = switch (nome) {
+            case "ICMS60", "ICMSSN500" -> new StNota(opcional(grupo, "vBCSTRet"), opcional(grupo, "pST"),
+                    opcional(grupo, "vICMSSubstituto"), opcional(grupo, "vICMSSTRet"));
+            case "ICMS10", "ICMS70" -> new StNota(opcional(grupo, "vBCST"), opcional(grupo, "pICMSST"),
+                    opcional(grupo, "vICMS"), opcional(grupo, "vICMSST"));
+            default -> null;
+        };
+        return st == null || st.vazio() ? null : st;
+    }
+
+    /** Número do campo, nulo se faltar ou estiver vazio. */
+    private static BigDecimal opcional(Element pai, String nome) {
+        return texto(pai, nome).isEmpty() ? null : numero(pai, nome);
     }
 
     private static String digitos(String texto, int tamanho) {

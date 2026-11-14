@@ -38,4 +38,10 @@ public class TributosVendaService {
         }
         return registrados;
     }
+
+    /** Soma dos tributos aproximados gravados na venda (comprovante e segunda via, F22.5); nula sem nenhum. */
+    public br.com.varesync.model.Comprovante.TributosAproximados aproximados(Connection con, long vendaId)
+            throws SQLException {
+        return tributoDAO.aproximadosDaVenda(con, vendaId).orElse(null);
+    }
 }

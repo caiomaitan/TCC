@@ -39,6 +39,7 @@ final class Fiscais {
         String beneficio;
         String cstIbsCbs;
         String cclassTrib;
+        BigDecimal reducaoIbsCbs;
 
         Perfil nome(String v) {
             nome = v;
@@ -96,9 +97,15 @@ final class Fiscais {
             return this;
         }
 
+        Perfil reducaoIbsCbs(String v) {
+            reducaoIbsCbs = v == null ? null : new BigDecimal(v);
+            return this;
+        }
+
         PerfilTributario montar() {
             return new PerfilTributario(1, nome, cfop, cst, csosn, aliquotaIcms, reducao, cstPis, aliquotaPis,
-                    cstCofins, aliquotaCofins, beneficio, cstIbsCbs, cclassTrib, true, 1);
+                    cstCofins, aliquotaCofins, beneficio, cstIbsCbs, cclassTrib, true, 1, BigDecimal.ZERO,
+                    reducaoIbsCbs);
         }
     }
 
@@ -111,6 +118,8 @@ final class Fiscais {
         Boolean cestNaTabela;
         Boolean corresponde;
         List<String> outros = List.of();
+        Boolean ibptVigente;
+        boolean stRetido;
 
         Item ncm(String v) {
             ncm = v;
@@ -144,6 +153,16 @@ final class Fiscais {
             return this;
         }
 
+        Item ibpt(Boolean vigente) {
+            ibptVigente = vigente;
+            return this;
+        }
+
+        Item comStRetido() {
+            stRetido = true;
+            return this;
+        }
+
         Item outrosPerfis(String... nomes) {
             outros = List.of(nomes);
             return this;
@@ -151,7 +170,7 @@ final class Fiscais {
 
         ItemFiscal montar() {
             return new ItemFiscal(1, "Cerveja pilsen lata 350 ml", "Bebidas", ncm, cest, origem, perfil, ncmNaTabela,
-                    cestNaTabela, corresponde, outros);
+                    cestNaTabela, corresponde, outros, ibptVigente, stRetido);
         }
     }
 }

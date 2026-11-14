@@ -111,8 +111,10 @@ class InconsistenciasFiscaisIT extends IntegracaoBase {
                 tuple("Azeite 500 ml", 11, Gravidade.ERRO),
                 tuple("Carvão 3 kg", 5, Gravidade.ERRO),
                 tuple("Cerveja pilsen", 13, Gravidade.AVISO),
+                tuple("Cerveja pilsen", 16, Gravidade.AVISO),
                 tuple("Cerveja puro malte", 13, Gravidade.AVISO),
                 tuple("Energético 250 ml", 9, Gravidade.ERRO),
+                tuple("Energético 250 ml", 16, Gravidade.AVISO),
                 tuple("Guarda-chuva", 1, Gravidade.ERRO));
         assertThat(r.linhas()).extracting(Linha::produtoId).doesNotContain(certo); // e o inativo não entra
         Linha cerveja = r.linhas().get(4);
@@ -121,7 +123,7 @@ class InconsistenciasFiscaisIT extends IntegracaoBase {
         assertThat(cerveja.regraRotulo()).isEqualTo("13 — Mesmo NCM em perfis diferentes");
         assertThat(cerveja.mensagem()).contains("no perfil \"Simples tributado\"");
         assertThat(r.linhas().get(3).mensagem()).contains("CFOP 5405", "CSOSN 102");
-        assertThat(r.totais()).contains("6 produtos", "8 inconsistências (6 erros, 2 avisos)");
+        assertThat(r.totais()).contains("6 produtos", "10 inconsistências (6 erros, 4 avisos)");
         assertThat(r.relatorio().descreverFiltros(r.filtros())).isEqualTo("Regra: todas");
     }
 
@@ -132,7 +134,9 @@ class InconsistenciasFiscaisIT extends IntegracaoBase {
         assertThat(gerar(7)).isEmpty();
         assertThat(t.relatorios.gerar(admin, r30, Filtros.vazios().comRegraFiscal(5)).filtros()
                 .descrever(r30.filtros())).isEqualTo("Regra: 5 — CFOP");
-        assertThatThrownBy(() -> gerar(14)).isInstanceOf(NegocioException.class).hasMessageContaining("de 1 a 13");
+        assertThatThrownBy(() -> gerar(18)).isInstanceOf(NegocioException.class).hasMessageContaining("de 1 a 17");
+        // F22.5: CSOSN 500 sem o ST retido (aviso).
+        assertThat(gerar(16)).extracting(Linha::produtoId).containsExactly(pilsen, energetico);
     }
 
     /** F19.5: o painel conta só os produtos com erro (as duas cervejas só têm aviso). */
@@ -142,7 +146,9 @@ class InconsistenciasFiscaisIT extends IntegracaoBase {
         fiscal.salvarDadosFiscais(admin, semNcm, new DadosFiscais("6601.91.00", null, 0, tributado));
         fiscal.salvarDadosFiscais(admin, energetico, new DadosFiscais("2202.99.00", "03.005.00", 0, st));
         assertThat(alerta(admin)).isEqualTo(2);
-        assertThat(gerar(null)).extracting(Linha::produtoId).doesNotContain(semNcm, energetico);
+        assertThat(gerar(null)).extracting(Linha::produtoId).doesNotContain(semNcm);
+        assertThat(gerar(null)).filteredOn(l -> l.produtoId() == energetico).extracting(Linha::regra)
+                .as("só o aviso do ST retido (F22.5)").containsExactly(16);
     }
 
     @Test
@@ -211,6 +217,6 @@ class InconsistenciasFiscaisIT extends IntegracaoBase {
                 "inicial1", "inicial1");
         Sessao contador = t.acesso.entrar("contador", "inicial1");
         assertThat(t.relatorios.disponiveis(contador)).anyMatch(r -> r instanceof RelInconsistenciasFiscais);
-        assertThat(t.relatorios.gerar(contador, r30, Filtros.vazios()).linhas()).hasSize(8);
+        assertThat(t.relatorios.gerar(contador, r30, Filtros.vazios()).linhas()).hasSize(10);
     }
 }

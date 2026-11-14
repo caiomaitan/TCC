@@ -360,7 +360,8 @@ que a entrada recebe; o pedido da próxima entrega de cada fornecedor fica pende
 laticínios e Padaria controlam validade: cada entrada semanal vira um lote, a sobra vencida vira perda por vencimento
 e, no fim, há lotes vencendo nos próximos dias e lotes vencidos da última semana com saldo (no painel e no R29). No
 cadastro fiscal, põe a UF SP, cinco perfis tributários do Simples e o NCM e a origem de cada produto, com oito produtos
-com inconsistências de propósito (o R30 lista os oito; o painel conta os seis com erro). Ele **recusa** um banco que já tenha vendas ou
+com inconsistências de propósito (o R30 lista os oito; o painel conta os seis com erro), uma tabela IBPT de demonstração
+com os NCM do catálogo (os tributos aproximados das vendas e o R31) e o ST retido nos refrigerantes e nas águas. Ele **recusa** um banco que já tenha vendas ou
 movimentos nas contas. Use um banco separado:
 
 1. Conectado ao PostgreSQL como `postgres`, crie o banco (o usuário `varesync` já existe):
@@ -495,19 +496,28 @@ todas as impressoras.
 normal ou CSOSN no Simples, alíquota e redução de base, PIS, COFINS, código de benefício e, opcionais, o CST do IBS e
 da CBS e o cClassTrib); só o formato de cada campo é conferido. Na aba **Produtos**, informe NCM, CEST, origem e perfil
 de cada produto, ou aplique um perfil de uma vez aos selecionados, a uma categoria inteira ou a um NCM. Na aba
-**Tabelas NCM e CEST**, importe a tabela NCM (um CSV `código;descrição` ou o JSON oficial da tabela NCM, baixado do
+**Tabelas NCM, CEST e IBPT**, importe a tabela NCM (um CSV `código;descrição` ou o JSON oficial da tabela NCM, baixado do
 portal do Siscomex) e, se quiser, a tabela CEST (CSV `cest;ncm;descrição`): com elas, o código digitado tem de existir
-na tabela. Ao gerar uma entrada pelo XML da NF-e, quem tem a permissão confirma o NCM, o CEST e a origem do fornecedor
-nos produtos em que esses campos estão vazios (a origem 1 do fornecedor, importação direta, entra como 2, e a 6 como
+na tabela; e a tabela do IBPT (o CSV "De Olho no Imposto" da UF da loja, baixado do site do IBPT), que dá os
+tributos aproximados de cada item vendido (Lei 12.741/2012) e precisa ser trocada quando a vigência acaba (a tela
+avisa). Ao gerar uma entrada pelo XML da NF-e, quem tem a permissão confirma o NCM, o CEST e a origem do fornecedor
+nos produtos em que esses campos estão vazios e o ST retido por unidade (que muda a cada compra) (a origem 1 do fornecedor, importação direta, entra como 2, e a 6 como
 7: a loja compra a mercadoria estrangeira no mercado interno).
 
 O relatório **R30 Inconsistências fiscais** (Relatórios, com as permissões Relatórios e Cadastro fiscal) confere os
-produtos ativos em 13 regras: sem NCM ou sem perfil, NCM e CEST fora do formato ou fora das tabelas importadas, CSOSN
+produtos ativos em 17 regras: sem NCM ou sem perfil, NCM e CEST fora do formato ou fora das tabelas importadas, CSOSN
 no regime normal ou CST no Simples, CFOP, alíquota e redução de base do ICMS, código de benefício, ST sem CEST, origem
-ausente, PIS e COFINS, IBS e CBS (só no regime normal) e o mesmo NCM em perfis diferentes. Cada linha diz se é erro ou
+ausente, PIS e COFINS, IBS e CBS (só no regime normal), o mesmo NCM em perfis diferentes e, para a NFC-e, a situação do
+ICMS e o CST do IBS e da CBS aceitos, o NCM sem linha vigente na tabela IBPT e o produto com ST sem o ST retido. Cada linha diz se é erro ou
 aviso; o filtro escolhe uma regra, e **Abrir produto…** (ou o duplo clique) abre o produto no Cadastro fiscal. O painel
 mostra "N produtos com inconsistência fiscal" a quem tem a permissão, contando só os erros.
 
+Ao finalizar a venda, o sistema calcula e guarda os tributos de cada item pelo perfil (ICMS, FCP, ST retido, PIS,
+COFINS, IBS e CBS no regime normal e os tributos aproximados); a venda não muda. As alíquotas do IBS e da CBS ficam
+em Configurações › Loja ("Tributos da venda"), e o meio de pagamento da NFC-e (tPag) em Configurações › Formas de
+pagamento. O comprovante mostra "Tributos aproximados: Federal … · Estadual … · Municipal … (Fonte: IBPT)", e o
+relatório **R31 Impostos das vendas** (permissões Relatórios e Cadastro fiscal) soma os tributos por CFOP e situação do
+ICMS, com os itens sem tributação calculada à parte.
 ## 9. Empacotamento (jpackage)
 
 Gera a pasta `VareSync` com `VareSync.exe` e o Java embutido (app-image do `jpackage`, sem instalador). Precisa do JDK

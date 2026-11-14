@@ -148,7 +148,7 @@ public class PainelService {
         AlertasPainel.Lotes lotes = sessao.pode(Permissao.ESTOQUE)
                 ? loteDAO.contarAlertas(con, hoje, configuracaoDAO.carregar(con).validadeAlertaDias()) : null;
         Integer fiscal = sessao.pode(Permissao.FISCAL) ? RelInconsistenciasFiscais.produtosComErro(con,
-                ContextoFiscal.da(configuracaoDAO.carregar(con).loja())) : null;
+                ContextoFiscal.da(configuracaoDAO.carregar(con).loja(), LocalDate.now(clock))) : null;
         return new AlertasPainel(abaixo, custo, caixa, inventarios, sessao.supervisor() ? backupAtrasado(con) : null,
                 vencidos, pagarVencidas, pagarHoje, negativas, rupturas, lotes, etiquetas, carga, fiscal);
     }

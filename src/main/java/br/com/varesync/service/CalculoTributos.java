@@ -22,9 +22,10 @@ import java.util.Set;
  *   <li><b>ICMS (CSOSN):</b> 500 com o ST retido; os outros sem valores. Sem FCP.</li>
  *   <li><b>PIS e COFINS:</b> CST 01 e 02 sobre o valor líquido menos o ICMS (com a exclusão ligada, Tema 69 do STF);
  *       os outros CST com base e valor zero.</li>
- *   <li><b>IBS e CBS:</b> só no regime normal e com o CST no perfil: base = valor líquido − ICMS − FCP − PIS − COFINS
+ *   <li><b>IBS e CBS:</b> só no regime normal e nos CST 000 e 200 (o 410, os outros CST e o perfil sem CST ficam sem
+ *       valores): base = valor líquido − ICMS − FCP − PIS − COFINS
  *       (NT 2025.002-RTC, campo UB16); alíquota efetiva = alíquota × (1 − redução ÷ 100), em 4 casas (como o
- *       {@code pAliqEfet} da NT).</li>
+ *       {@code pAliqEfet} da NT), com a redução só no CST 200.</li>
  *   <li><b>Tributos aproximados (Lei 12.741/2012):</b> valor líquido × as alíquotas da linha IBPT vigente do NCM; o
  *       federal de importados quando a origem é estrangeira (1, 2, 6 ou 7).</li>
  * </ul>
@@ -36,6 +37,9 @@ public final class CalculoTributos {
     private static final int ESCALA_ALIQUOTA_EFETIVA = 4;
     private static final Set<Integer> ORIGENS_ESTRANGEIRAS = Set.of(1, 2, 6, 7);
     private static final Set<String> CST_PIS_COFINS_TRIBUTADOS = Set.of("01", "02");
+    /** CST do IBS e da CBS que calculam (F22.2): 000 tributação integral e 200 alíquota reduzida. */
+    static final Set<String> CST_IBS_CBS_CALCULADOS = Set.of("000", "200");
+    static final String CST_IBS_CBS_REDUZIDO = "200";
 
     private CalculoTributos() {
     }
@@ -76,7 +80,7 @@ public final class CalculoTributos {
         BigDecimal valorCofins = CST_PIS_COFINS_TRIBUTADOS.contains(p.cstCofins())
                 ? percentual(baseCofins, p.aliquotaCofins()) : zero;
 
-        // IBS e CBS (regime normal, com o CST no perfil)
+        // IBS e CBS (regime normal, CST 000 e 200; a redução só no 200)
         BigDecimal baseIbsCbs = null;
         BigDecimal aliquotaCbs = null;
         BigDecimal aliquotaIbsUf = null;
@@ -85,13 +89,14 @@ public final class CalculoTributos {
         BigDecimal valorCbs = null;
         BigDecimal valorIbsUf = null;
         BigDecimal valorIbsMun = null;
-        if (regime == RegimeTributario.NORMAL && p.cstIbsCbs() != null) {
+        if (regime == RegimeTributario.NORMAL && p.cstIbsCbs() != null
+                && CST_IBS_CBS_CALCULADOS.contains(p.cstIbsCbs())) {
             baseIbsCbs = arredondar(liquido.subtract(valorIcms).subtract(valorFcp).subtract(valorPis)
                     .subtract(valorCofins)).max(zero);
             aliquotaCbs = config.aliquotaCbs();
             aliquotaIbsUf = config.aliquotaIbsUf();
             aliquotaIbsMun = config.aliquotaIbsMun();
-            reducao = p.reducaoAliquotaIbsCbs();
+            reducao = CST_IBS_CBS_REDUZIDO.equals(p.cstIbsCbs()) ? p.reducaoAliquotaIbsCbs() : null;
             valorCbs = percentual(baseIbsCbs, efetiva(aliquotaCbs, reducao));
             valorIbsUf = percentual(baseIbsCbs, efetiva(aliquotaIbsUf, reducao));
             valorIbsMun = percentual(baseIbsCbs, efetiva(aliquotaIbsMun, reducao));

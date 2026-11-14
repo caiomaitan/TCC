@@ -540,6 +540,7 @@ public class ComprasController {
             return;
         }
         Map<Integer, Long> escolhidosNaConferencia = new LinkedHashMap<>();
+        Map<Integer, java.math.BigDecimal> fatoresNaConferencia = new LinkedHashMap<>();
         DialogoNfe.conferir(previa, new DialogoNfe.Acoes(
                 termo -> entradaService.pesquisarProdutos(sessao, termo),
                 id -> entradaService.produtoPorCodigo(sessao, String.valueOf(id)),
@@ -547,29 +548,32 @@ public class ComprasController {
                 (escolhidos, fatores) -> {
                     long id = importacaoNfe.gerarEntrada(sessao, xml, escolhidos, fatores);
                     escolhidosNaConferencia.putAll(escolhidos);
+                    fatoresNaConferencia.putAll(fatores);
                     return id;
                 }))
                 .ifPresent(id -> {
                     tabelaEntradas.getItems().setAll(entradaService.listar(sessao, filtroConfirmadas.isSelected()));
                     selecionar(id);
-                    String fiscal = preencherDadosFiscais(xml, escolhidosNaConferencia, previa.nota().numero());
+                    String fiscal = preencherDadosFiscais(xml, escolhidosNaConferencia, fatoresNaConferencia,
+                            previa.nota().numero());
                     Mensagem.sucesso(mensagem, "Entrada nº " + id + " gerada pelo XML da NF-e. Confira os itens e "
                             + "confirme a entrada." + fiscal);
                 });
     }
 
     /**
-     * F19.3: depois de gerar a entrada, quem tem FISCAL confirma o NCM, o CEST e a origem da nota nos produtos com
-     * esses campos vazios. Falha aqui não desfaz a entrada (já gravada): só vira mensagem.
+     * F19.3 e F22.4: depois de gerar a entrada, quem tem FISCAL confirma o NCM, o CEST e a origem da nota nos produtos
+     * com esses campos vazios e o ST retido por unidade. Falha aqui não desfaz a entrada (já gravada): só vira mensagem.
      *
      * @return complemento da mensagem de sucesso ("" se nada foi preenchido)
      */
-    private String preencherDadosFiscais(byte[] xml, Map<Integer, Long> escolhidos, String numeroNota) {
+    private String preencherDadosFiscais(byte[] xml, Map<Integer, Long> escolhidos,
+                                         Map<Integer, java.math.BigDecimal> fatores, String numeroNota) {
         if (!sessao.pode(Permissao.FISCAL)) {
             return "";
         }
         try {
-            List<SugestaoFiscal> sugestoes = fiscalService.sugestoesDaNota(sessao, xml, escolhidos);
+            List<SugestaoFiscal> sugestoes = fiscalService.sugestoesDaNota(sessao, xml, escolhidos, fatores);
             if (sugestoes.isEmpty()) {
                 return "";
             }

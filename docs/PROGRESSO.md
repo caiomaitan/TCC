@@ -2,6 +2,47 @@
 
 ## Fase atual
 
+**Fase 22 — Tributos da venda concluída** em 2026-11-14. Parte B (F22.4 e F22.5), sem migration nova (Decisões):
+- **Correção da parte A (F22.2, pedida pelo usuário):** o IBS e a CBS só calculam nos CST 000 e 200, com a redução só
+  no 200; o 410, os outros CST e o perfil sem CST ficam sem valores.
+- **F22.4 ST retido pela NF-e:** o XML traz o ST dos grupos ICMS60, ICMSSN500, ICMS10 e ICMS70; dividido pela quantidade
+  em unidades de venda (com o fator da embalagem, do vínculo ou o escolhido na conferência), 4 casas, e gravado pelo
+  diálogo "Dados fiscais da NF-e", mesmo quando o produto já tinha.
+- **F22.5:** a linha dos tributos aproximados no comprovante (e na segunda via, pelo que foi gravado); o **R31 Impostos
+  das vendas**; as regras **14 a 17** do R30, com a tabela confirmada pelo usuário (o perfil sem CST do IBS e da CBS
+  fica só com a regra 12); o gerador com a tabela IBPT de demonstração e o ST retido em quatro produtos.
+- **Pendências da parte A resolvidas:** o IBS e a CBS por CST e as descrições do tPag 23 e 24 (conferidas pelo usuário
+  no Informe Técnico 2026.001).
+
+`mvn -q verify` passa: 604 testes unitários e 554 de integração; `mvn -q -Pui verify`, com o
+`TributosParteBTelaIT` novo, 7 testes de interface (a varredura: 90 telas, 0 cortes). Próxima: Fase 23 — NFC-e
+em homologação, parte A (F23.1 a F23.3).
+
+Antes de começar (pedido do usuário): `git status` só com `COMO_CONTINUAR.md` e `docs/ESPECIFICACAO_AMPLIACOES.md`
+(ajustes do usuário para a parte B: o IBS e a CBS por CST, a regra 17 e o aceite novo), que entraram no commit.
+
+Critérios de aceite da F22 (teste; tela = `TributosTelaIT` da parte A e `TributosParteBTelaIT`, números das capturas):
+- **Simples, CSOSN 102:** parte A (R$ 1,35, R$ 1,80 e R$ 0,00; origem 2, R$ 1,55); pela tela, a venda no PDV e, na
+  parte B, o comprovante com a linha dos tributos (captura `03`).
+- **Normal, CST 00:** parte A (`CalculoTributosTest`, `TributosVendaIT.normalCst00ComDescontoRateado`), com o CST 000.
+- **IBS e CBS por CST:** CST 200 com 60%: efetiva 0,36%, CBS R$ 0,03 e IBS da UF R$ 0,00; 410 e 550 sem valores, e a
+  regra 17 acusa o 550: `CalculoTributosTest.ibsECbsPorCstSo000E200CalculamEAReducaoSoNo200`,
+  `Regra17CstIbsCbsTest`, `TributosParteBIT.r30ComAsRegras14A17`.
+- **CST 20 e arredondamento:** parte A.
+- **IBPT:** parte A.
+- **ST retido:** a NF-e com ICMS60 de 12 un, `vBCSTRet` 60,00 e `vICMSSTRet` 3,60 grava R$ 5,0000 e R$ 0,3000; vender
+  2 un registra R$ 10,00 e R$ 0,60: `LeitorNfeStTest`, `TributosParteBIT.notaComIcms60GravaOStPorUnidadeEAVendaUsa`;
+  pela tela, a importação em Compras, o diálogo com o ST (capturas `01` e `02`) e a venda no PDV.
+- **Sem dados fiscais:** o item sem perfil fica sem linha e aparece no R31 em "Itens sem tributação calculada":
+  `TributosParteBIT.r31BateComASomaDosItensSemCanceladasEComOsItensSemTributacao`.
+- **Consistência:** a soma dos itens bate com o R31 no período, sem as canceladas: o mesmo teste e, nos dados do
+  gerador, `GeradorDemoIT.tributosDaVendaNosDadosDeDemonstracao`; pela tela, o R31 (captura `04`).
+
+Conferência pela tela: o `TributosParteBTelaIT`, versionado no `-Pui` (sem teclado nem mouse do sistema, janelas fora
+da tela, banco `varesync_test` com a trava de URL, pasta `target/ui-home`, configuração sem BOM). O XML entra pelo
+método que o botão chama depois do "Abrir" (a janela de arquivos é nativa). Capturas em
+`target/telas/TributosParteBTelaIT`. Os bancos `varesync` e `varesync_demo` não foram abertos.
+
 **Fase 22 — Tributos da venda, parte A** concluída em 2026-11-14 (F22.1, F22.2 e F22.3). Migration nova
 **V23__tributos_da_venda.sql** (Decisões):
 - **F22.1 Banco:** `venda_item_tributo` (uma linha por item não cancelado cujo produto tinha NCM, origem e perfil
@@ -870,6 +911,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-12 | 11 — Engenharia de software, parte A | **F11.1/F11.2**: perfil `qualidade` no pom (JaCoCo 0.8.16 com um `jacoco.exec` para `*Test` e `*IT` e metas por pacote; SpotBugs 4.10.5 com limite High; Checkstyle 14.4.0 com `config/checkstyle.xml`); `@{argLine}` no surefire e no failsafe; correções pequenas em `Sessao`, `Servicos`, `ComprasController`, `PedidosController`, `AppContext`, `PagamentoController`, `Configuracoes`, `RelCurvaAbc`, `RelMaisVendidos`, `ConfiguracaoService`, `TabelaFiscal`, `Aparencia` e `Notificacao`. **F11.4**: `.github/workflows/ci.yml`; propriedade `testes.jvm`. **F11.6**: versão 2.0.0-SNAPSHOT; `git-commit-id-maven-plugin`, `build-helper-maven-plugin`, `versao.properties` filtrado; `config.VersaoSistema`, `ui.DialogoSobre`, versão na barra de status (`principal.fxml`, `PrincipalController`, `app.css`) e "Sobre o VareSync…" na Ajuda. **F11.7**: perfil `instalador` (MSI). README (9.1, 9.2, 10.1, 10.2). Sem migration nova. | Unitários: 572 (+6, `VersaoSistemaTest`). Integração: 526. Todos verdes, também com `-Pqualidade` (cobertura `util` 98,4%, `service` 94,4%). |
 | 2026-11-12 | 11 — Engenharia de software, parte B (fase concluída) | **F11.3**: perfil `ui` no pom (só os `*TelaIT`, `-Duser.home=target/ui-home`, capturas em `target/telas`, JaCoCo em `target/site/jacoco-ui`) e `excludes` dos `*TelaIT` no `verify` comum; pacote de teste `tela` (`TelaBase`, `Cortes`, `PrimeiroAcessoTelaIT`, `VendaPdvTelaIT`, `InventarioTelaIT`, `RelatorioTelaIT`, `VarreduraCortesTelaIT`); `service.DadosTela`. Correções achadas pela varredura: `principal.fxml` (barra de status com 8 px), `clientes.fxml` (aba LGPD com rolagem), `Aparencia.reajustar`. **F11.5**: `config.ConexaoTestada`, `Banco.testarConexao` com a versão e o tempo, `Banco.versaoCurta`; `ConexaoController` e `conexao.fxml` ("Testar conexão"); README 5.1. **F11.8**: `ConcorrenciaIT` (7 situações); propriedade `concorrencia.repeticoes`; `IntegracaoBase.estoqueContinuaConsistente` protegido. **CI**: `-Pqualidade verify` numa rodada só e o passo `-Pui verify`, com dois artefatos novos. README (5.1, 10, 10.2, 10.3, 11). Sem migration nova. | Unitários: 574 (+2, `BancoTest`). Integração: 535 (+9: `ConcorrenciaIT` 7, `BancoIT` 2). Interface: 5 (`-Pui`). Todos verdes, também com `-Pqualidade`; `ConcorrenciaIT` verde com 20 repetições. |
 | 2026-11-14 | 22 — Tributos da venda, parte A | Migration V23 (`venda_item_tributo`, FCP e redução do IBS e da CBS no perfil, ST retido no produto, tabela `ibpt`, `forma_pagamento.tpag`, chaves `fiscal.*`); `CalculoTributos` (ICMS por CST e CSOSN, FCP, ST retido, PIS e COFINS com o Tema 69, IBS e CBS pela NT 2025.002-RTC v1.53, tributos aproximados) chamado na finalização da venda; importação da tabela IBPT na janela Cadastro fiscal; tPag em Configurações › Formas de pagamento; tributos em Configurações › Loja. | Unitários: 591 (+17: `CalculoTributosTest` 12, `TabelaIbptTest` 4, `ConfiguracoesTest` 1). Integração: 547 (+12: `TributosVendaIT`). Interface (`-Pui`): 6 (+1: `TributosTelaIT`). Todos verdes. |
+| 2026-11-14 | 22 — Tributos da venda, parte B (fase concluída) | Sem migration. IBS e CBS só nos CST 000 e 200 (correção da parte A); ST retido pela NF-e (ICMS60, ICMSSN500, ICMS10 e ICMS70, por unidade de venda, pelo diálogo dos dados fiscais); tributos aproximados no comprovante e na segunda via; R31 Impostos das vendas; regras 14 a 17 do R30; gerador com a tabela IBPT de demonstração e o ST retido. | Unitários: 604 (+13: `LeitorNfeStTest` 3, testes das regras 14 a 17 9, `CalculoTributosTest` 1). Integração: 554 (+7: `TributosParteBIT` 6, `GeradorDemoIT` 1). Interface (`-Pui`): 7 (+1: `TributosParteBTelaIT`). Todos verdes. |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1355,24 +1397,46 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-14 | **Leitura do arquivo do IBPT** (`TabelaFiscal.lerIbpt`): colunas pelo nome do cabeçalho, sem diferenciar maiúsculas e em qualquer ordem; obrigatórias `codigo`, `tipo`, as quatro alíquotas e as duas datas (`ex`, `descricao`, `chave`, `versao` e `fonte` podem faltar); só o tipo 0; NCM de 8 dígitos (pontos aceitos); `ex` até 3 dígitos; alíquota de 0 a 100 com até 4 casas, decimal com ponto ou vírgula; datas estritas dd/mm/aaaa; a vigência não pode terminar antes de começar; NCM e `ex` repetidos recusam. Qualquer erro recusa o arquivo inteiro (até 5 erros na mensagem, com a linha), como a NCM. A versão mostrada é a da primeira linha, e a vigência vai do menor início ao maior fim. | F22.3. O mesmo padrão de leitura e de recusa da F19.3. |
 | 2026-11-14 | **UF do nome do arquivo**: `TabelaIBPTax` seguido de uma das 27 siglas, sem diferenciar maiúsculas; a confirmação é da tela (antes da `Task`), e só quando a loja tem UF. Auditoria `TABELA_FISCAL_IMPORTADA` com o arquivo, a versão, a vigência e as linhas (e as de serviço deixadas de fora). A tabela vencida (fim antes de hoje) aparece em vermelho com "baixe a tabela nova no site do IBPT"; as vendas seguem sem os tributos aproximados até a tabela nova. | F22.3. |
 | 2026-11-14 | **Configurações › Formas de pagamento com rolagem**: o recebimento em duas linhas e a aba numa área com rolagem; a tabela das formas com altura de 260 (mínima 200). O mesmo na aba "Tabelas NCM, CEST e IBPT" do Cadastro fiscal. | Defeito antigo (F15) achado pela captura desta parte: a linha do recebimento era mais larga que a área, e a aba cortava a direita. A varredura não pega, porque o recorte é do próprio conteúdo da aba. |
+| 2026-11-14 | **Sem migration na parte B.** A V23 já criou as colunas do ST retido no produto e a tabela `venda_item_tributo`; o comprovante, o R31 e as regras 14 a 17 só leem. | 0.1 ("a migration da parte A já cria também as colunas que a parte B usa"). |
+| 2026-11-14 | **IBS e CBS por CST** (correção da parte A, pedida pelo usuário e escrita na F22.2): só os CST 000 e 200 calculam; a redução de alíquota só vale no 200 (no 000 é ignorada e não é gravada no item); o 410, os outros CST e o perfil sem CST ficam sem base e sem valores, com o CST copiado. Substitui a decisão da parte A de "qualquer CST calcula". | F22.2 e o aceite novo (CST 200 com 60%: CBS R$ 0,03 e IBS da UF R$ 0,00; 410 e 550 sem valores). |
+| 2026-11-14 | **tPag 23 e 24**: as descrições ("PIX automático" e "TEF (book transfer)") foram conferidas pelo usuário no Informe Técnico 2026.001; sai a ressalva da parte A. | Pedido do usuário na parte B. |
+| 2026-11-14 | **ST pela NF-e (F22.4)**: `LeitorNfe.Fiscal` ganhou `StNota` (totais do item; campo ausente = nulo) lido do primeiro grupo do ICMS: ICMS60 e ICMSSN500 (`vBCSTRet`, `pST`, `vICMSSubstituto`, `vICMSSTRet`), ICMS10 e ICMS70 (`vBCST`, `pICMSST`, `vICMS`, `vICMSST`). `ImportacaoNfeService.vinculosDaNota` dá a quantidade em unidades de venda do item com o mesmo fator da geração da entrada (o escolhido à mão na conferência, o do vínculo ou da embalagem); `FiscalService.sugestoesDaNota` (com os fatores, chamado pela tela de Compras) divide os totais por ela em 4 casas (a alíquota em 2) e `preencherDaNota` grava o ST mesmo quando o produto já tem, no mesmo UPDATE dos outros dados fiscais (`FiscalDAO.gravarComSt`), com a auditoria "ST retido por unidade: (antes) → (depois)". | F22.4. Um UPDATE só porque um segundo UPDATE do produto no mesmo instante do `Clock` faria o `fn_set_atualizado_em` gravar `now()` (V3). |
+| 2026-11-14 | **Diálogo "Dados fiscais da NF-e"**: o produto aparece também quando a nota só traz o ST (os campos vazios continuam só nos vazios); a linha mostra "ST retido por unidade: base R$ 5,0000, alíquota 18,00%, ICMS próprio R$ 0,2000, retido R$ 0,3000". Nota sem ST não mexe no ST do produto. | F22.4 ("pelo mesmo diálogo dos dados fiscais da NF-e"). |
+| 2026-11-14 | **Comprovante (F22.5)**: `Comprovante.tributos` (`TributosAproximados`: a soma dos itens não cancelados que têm os valores, lida de `venda_item_tributo` por `TributoVendaDAO.aproximadosDaVenda`); a linha depois do troco, com o texto da F22.5 quebrado entre as palavras em linhas de 48 colunas. Nenhum item com os valores = sem a linha. A segunda via lê o gravado. | F22.5. O comprovante corta o que passa de 48 colunas; quebrar mantém o texto inteiro. |
+| 2026-11-14 | **R31 Impostos das vendas** (`RelImpostosVendas`): filtro de período; vendas `FINALIZADA` e itens não cancelados; grupos por CFOP, situação ("CST 00", "CSOSN 102") e alíquota do ICMS, com itens, valor líquido, base e valor do ICMS, FCP, PIS, COFINS, CBS, IBS (UF + município) e tributos aproximados (federal + estadual + municipal); a linha "Itens sem tributação calculada" (CFOP vazio) por último, só com itens e valor líquido. Pede RELATORIOS e FISCAL (`permissoesExtras`), como o R30. | F22.5 ("RELATORIOS ou FISCAL, como o R30"): o R30 pede as duas desde a F19; seguir o mesmo mecanismo evita uma regra de permissão nova na tela de relatórios. |
+| 2026-11-14 | **Regras 14 a 17 do R30**, com a tabela confirmada pelo usuário: 14 erro (CST fora de 00, 20, 40, 41 e 60; CSOSN fora de 102, 103, 300, 400 e 500); 15 aviso (NCM sem linha vigente hoje, `ex` vazio, só com a tabela IBPT importada e o NCM no formato); 16 aviso (CST 60 ou CSOSN 500 sem `st_icms_retido_unitario`); 17 só no normal: erro para CST fora de 000, 200 e 410 e para o 200 sem redução, aviso para a redução fora do 200; o perfil sem CST fica com a regra 12. `ContextoFiscal` ganhou `hoje` (pelo `Clock`: `parametros.hoje()` no R30 e `LocalDate.now(clock)` no painel); sem ele, a 15 não confere. `ItemFiscal` ganhou `ibptVigente` e `stRetido`; a consulta do R30 lê também o FCP e a redução do perfil. | F22.5 e a confirmação do usuário (sem CST = só a regra 12). |
+| 2026-11-14 | **Gerador (F22.5)**: na véspera, às 9h55, a tabela IBPT de demonstração (`FiscalDemo.tabelaIbpt`: os NCM do catálogo, fonte "Demonstração", versão "DEMO.1", vigente da véspera a um ano depois; capítulos 07, 08 e ovos a 4,20% federal e sem estadual; bebidas a 17,30% e 25%; alimentos a 7,85% e 18%; o resto a 13,45% e 18%; importados = nacional + 2; municipal zero), pelo `FiscalService.importarIbpt`; às 9h56, o ST retido dos refrigerantes e das águas (`FiscalDemo.stRetido`) pelo `preencherDaNota`, como viria da NF-e. A cerveja pilsen e o energético ficam sem o ST (regra 16). Sem semente nova (nada é sorteado). O R30 dos dados de demonstração passa a 12 linhas (as duas da regra 16); o painel continua com 6. | F22.5 ("uma tabela IBPT de demonstração só com os NCM do catálogo… e o ST retido em alguns produtos com ST"). |
 
 ## Pendências e riscos
+
+- **Fase 22, parte B (2026-11-14).** Resolvidas da parte A: o IBS e a CBS por CST (só 000 e 200 calculam), as
+  descrições do tPag 23 e 24 (conferidas pelo usuário no Informe Técnico 2026.001), o comprovante e o R31 (os tributos
+  já não ficam só no banco) e o gerador sem a tabela IBPT.
+  - **O cálculo e as regras 14 a 17 não foram conferidos por um contador**, como as regras do R30. Os NCM, as
+    alíquotas da tabela IBPT de demonstração e o ST retido do gerador são plausíveis, sem conferência.
+  - **ST retido:** vale o primeiro item da nota com ST para cada produto (como o NCM, F19.3); uma nota com o mesmo
+    produto em dois itens com ST diferente fica com o do primeiro. O ST é gravado mesmo quando o produto já tinha
+    (muda a cada compra), mas só pelo diálogo dos dados fiscais, que só aparece para quem tem FISCAL: a entrada de quem
+    não tem FISCAL não atualiza o ST.
+  - **ST pelo XML:** só os grupos ICMS60, ICMSSN500, ICMS10 e ICMS70 do primeiro grupo do ICMS do item; o FCP retido
+    fica de fora (F22.4). O CSOSN 201, 202 e 203 (Simples com ST de saída) não é lido: o ST deles não é retido
+    anteriormente.
+  - **R31:** agrupa pela alíquota do ICMS gravada no item; com muitos perfis, as linhas podem ser muitas. O IBS é a
+    soma do IBS da UF e do município. A tabela tem 13 colunas e rola de lado em 1280×720.
+  - **Comprovante:** a linha dos tributos aproximados é quebrada em linhas de 48 colunas (a largura do comprovante); o
+    texto é o da F22.5. A F23 (DANFE) usa `Comprovante.TributosAproximados.texto()`.
+  - **Regra 17:** o perfil sem CST do IBS e da CBS no regime normal continua só com o aviso da regra 12 (decisão do
+    usuário); com a NFC-e (F23), ele passa pelo bloqueio do PDV.
+  Falta a pessoa executar CT-F22-09 a CT-F22-16 (e os da parte A).
 
 - **Fase 22, parte A (2026-11-14).**
   - **O cálculo não foi conferido por um contador**, como as regras do R30. Os vetores são os da especificação; os
     casos fora deles (CST 10, 30, 51, 70 e 90 sem valores; FCP; redução do IBS e da CBS; ST retido) seguem a F22.2 ao pé
     da letra.
-  - **IBS e CBS com qualquer CST:** a F22.2 só pede "o CST do IBS e da CBS no perfil". Um perfil com CST de imunidade,
-    suspensão ou diferimento (410, 510, 550…) calcula valores mesmo assim; a regra 12 do R30 não acusa isso. Vale
-    rever junto com a F23 (o leiaute da NFC-e decide o que vai em cada CST).
+  - ~~IBS e CBS com qualquer CST~~: resolvido na parte B (só 000 e 200 calculam).
   - **NT 2025.002-RTC:** a fórmula da base veio dos resumos da v1.50/v1.51 e das notas de mudança da v1.52 e da v1.53;
-    o PDF da v1.53 não foi lido inteiro. As descrições dos tPag 23 e 24 também vêm de resumos (Informe Técnico
-    2026.001). Conferir os dois na tabela oficial antes da F23.
-  - **Sem comprovante nem relatório ainda:** até a parte B, os tributos só aparecem no banco (`venda_item_tributo`); os
-    casos CT-F22-05 a CT-F22-08 pedem SQL. A parte B traz o comprovante, a segunda via, o R31 e as regras 14 a 16.
-  - **O gerador de demonstração não mexe nos tributos nesta parte:** as vendas geradas passam pelo cálculo (o gerador
-    usa o `VendaService`), mas sem tabela IBPT os tributos aproximados ficam nulos. A tabela de demonstração e o ST
-    retido são da parte B (F22.5).
+    o PDF da v1.53 não foi lido inteiro. (As descrições dos tPag 23 e 24 foram conferidas pelo usuário no Informe
+    Técnico 2026.001, na parte B.)
   - O IBPT de verdade não foi baixado: o leiaute foi conferido com a documentação e com arquivos de teste no mesmo
     formato.
   - Configurações › Formas de pagamento a 130% em 1280×720 rola de lado e para baixo (antes cortava); as células de

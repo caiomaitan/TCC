@@ -19,8 +19,11 @@ import java.util.Set;
  * <li>energético com ST sem CEST (regra 9);</li>
  * <li>carvão no "Simples ST (revisar)", CFOP 5405 com CSOSN 102 (regra 5);</li>
  * <li>azeite no "Tributado regime normal (revisar)", CST 00 e PIS e COFINS com alíquota no Simples (regras 4 e 11);</li>
- * <li>as duas cervejas com o mesmo NCM em perfis diferentes (regra 13, só aviso).</li>
+ * <li>as duas cervejas com o mesmo NCM em perfis diferentes (regra 13, só aviso);</li>
+ * <li>F22.5: a cerveja pilsen e o energético, com ST, sem o ST retido (regra 16, só aviso).</li>
  * </ul>
+ * A tabela IBPT de demonstração ({@link #tabelaIbpt}) tem todos os NCM do catálogo, e os refrigerantes e as águas têm
+ * o ST retido ({@link #stRetido}).
  */
 final class FiscalDemo {
 
@@ -152,6 +155,70 @@ final class FiscalDemo {
         t(m, "Fósforo pacote com 10", "3605.00.00");
         t(m, "Vela branca pacote com 8", "3406.00.00");
         m.put("Guarda-chuva dobrável", new Dados(null, null, 0, TRIBUTADO));
+        return m;
+    }
+
+    /** Fonte da tabela IBPT de demonstração (F22.5). */
+    static final String FONTE_IBPT = "Demonstração";
+    static final String VERSAO_IBPT = "DEMO.1";
+
+    /**
+     * Tabela IBPT de demonstração (F22.5), no leiaute do IBPT, só com os NCM do catálogo e alíquotas plausíveis (sem
+     * conferência): alimentos dos capítulos 01 a 21 com federal de 7,85%, hortifrúti e ovos com 4,20% e estadual zero,
+     * bebidas (capítulo 22) com 17,30% e estadual de 25%, o resto com 13,45% e estadual de 18%; importados = nacional +
+     * 2 pontos; municipal zero.
+     */
+    static byte[] tabelaIbpt(java.time.LocalDate inicio, java.time.LocalDate fim) {
+        java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        StringBuilder csv = new StringBuilder("codigo;ex;tipo;descricao;nacionalfederal;importadosfederal;estadual;"
+                + "municipal;vigenciainicio;vigenciafim;chave;versao;fonte\n");
+        java.util.Set<String> ncms = new java.util.TreeSet<>();
+        produtos().values().forEach(d -> {
+            if (d.ncm() != null) {
+                ncms.add(d.ncm().replace(".", ""));
+            }
+        });
+        for (String ncm : ncms) {
+            int capitulo = Integer.parseInt(ncm.substring(0, 2));
+            BigDecimal nacional;
+            BigDecimal estadual;
+            if (capitulo == 7 || capitulo == 8 || ncm.startsWith("0407")) {
+                nacional = new BigDecimal("4.20");
+                estadual = BigDecimal.ZERO;
+            } else if (capitulo == 22) {
+                nacional = new BigDecimal("17.30");
+                estadual = new BigDecimal("25.00");
+            } else if (capitulo <= 21) {
+                nacional = new BigDecimal("7.85");
+                estadual = new BigDecimal("18.00");
+            } else {
+                nacional = new BigDecimal("13.45");
+                estadual = new BigDecimal("18.00");
+            }
+            csv.append(ncm).append(";;0;NCM ").append(ncm).append(" (demonstração);")
+                    .append(nacional.toPlainString().replace('.', ',')).append(';')
+                    .append(nacional.add(BigDecimal.valueOf(2)).toPlainString().replace('.', ',')).append(';')
+                    .append(estadual.toPlainString().replace('.', ',')).append(";0,00;").append(inicio.format(f))
+                    .append(';').append(fim.format(f)).append(";DEMO;").append(VERSAO_IBPT).append(';')
+                    .append(FONTE_IBPT).append('\n');
+        }
+        return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /**
+     * ST retido por unidade (F22.5) em parte dos produtos com ST (os refrigerantes e as águas), como viria da NF-e de
+     * compra; a cerveja pilsen e o energético ficam sem, para a regra 16 do R30 avisar.
+     */
+    static Map<String, br.com.varesync.model.ItemTributavel.StRetido> stRetido() {
+        Map<String, br.com.varesync.model.ItemTributavel.StRetido> m = new LinkedHashMap<>();
+        br.com.varesync.model.ItemTributavel.StRetido refrigerante = new br.com.varesync.model.ItemTributavel.StRetido(
+                new BigDecimal("9.2000"), new BigDecimal("18.00"), new BigDecimal("0.8000"), new BigDecimal("0.8560"));
+        br.com.varesync.model.ItemTributavel.StRetido agua = new br.com.varesync.model.ItemTributavel.StRetido(
+                new BigDecimal("2.4000"), new BigDecimal("18.00"), new BigDecimal("0.2000"), new BigDecimal("0.2320"));
+        m.put("Refrigerante cola PET 2 L", refrigerante);
+        m.put("Refrigerante guaraná PET 2 L", refrigerante);
+        m.put("Água mineral sem gás 500 ml", agua);
+        m.put("Água mineral com gás 500 ml", agua);
         return m;
     }
 

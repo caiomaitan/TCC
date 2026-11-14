@@ -1329,6 +1329,22 @@ public class GeradorDemo {
             fiscal.salvarDadosFiscais(supervisor, produtoIds.get(i), new DadosFiscais(d.ncm(), d.cest(), d.origem(),
                     d.perfil() == null ? null : perfis.get(d.perfil())));
         }
+        // F22.5: tabela IBPT de demonstração (vigente da véspera a um ano depois) e o ST retido de alguns produtos com
+        // ST, como viria da NF-e; as vendas geradas passam pelo mesmo cálculo e o R31 tem o que mostrar.
+        posicionar(vespera, LocalTime.of(9, 55), zona);
+        fiscal.importarIbpt(supervisor, FiscalDemo.tabelaIbpt(vespera, vespera.plusYears(1)),
+                "TabelaIBPTaxSP-demonstracao.csv");
+        Map<String, br.com.varesync.model.ItemTributavel.StRetido> st = FiscalDemo.stRetido();
+        List<br.com.varesync.model.SugestaoFiscal> comSt = new ArrayList<>();
+        for (int i = 0; i < catalogo.size(); i++) {
+            br.com.varesync.model.ItemTributavel.StRetido s = st.get(catalogo.get(i).nome());
+            if (s != null) {
+                comSt.add(new br.com.varesync.model.SugestaoFiscal(produtoIds.get(i), catalogo.get(i).nome(), "1",
+                        null, null, null, s));
+            }
+        }
+        posicionar(vespera, LocalTime.of(9, 56), zona);
+        fiscal.preencherDaNota(supervisor, comSt, null);
         return perfis.size();
     }
 

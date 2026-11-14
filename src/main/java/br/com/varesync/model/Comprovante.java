@@ -16,12 +16,15 @@ import java.util.List;
  * @param cliente    cliente identificado (F12.2), ou nulo
  * @param credito    cashback gerado e saldo de crédito atual do cliente (F12.5), ou nulo
  * @param crediario  parcelas do crediário (F14.2); vazia sem crediário e na venda cancelada
+ * @param tributos   soma dos tributos aproximados gravados nos itens (F22.5, Lei 12.741/2012); nulo quando nenhum item
+ *                   os tem
  */
 public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
                           StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento,
                           List<Item> itens, BigDecimal valorBruto, BigDecimal descontoItens,
                           BigDecimal descontoVenda, BigDecimal total, List<Pagamento> pagamentos, BigDecimal troco,
-                          String rodape, Cliente cliente, Credito credito, List<ParcelaCrediario> crediario)
+                          String rodape, Cliente cliente, Credito credito, List<ParcelaCrediario> crediario,
+                          TributosAproximados tributos)
         implements ComprovanteImpresso {
 
     public static final String NAO_FISCAL = "NÃO É DOCUMENTO FISCAL";
@@ -65,6 +68,16 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
     public record Pagamento(String forma, BigDecimal valor) {
     }
 
+    /** Tributos aproximados da venda (F22.5): a soma dos itens que têm os valores da tabela IBPT. */
+    public record TributosAproximados(BigDecimal federal, BigDecimal estadual, BigDecimal municipal) {
+
+        /** "Tributos aproximados: Federal R$ 1,35 · Estadual R$ 1,80 · Municipal R$ 0,00 (Fonte: IBPT)". */
+        public String texto() {
+            return "Tributos aproximados: Federal " + Formatos.moeda(federal) + " · Estadual " + Formatos.moeda(estadual)
+                    + " · Municipal " + Formatos.moeda(municipal) + " (Fonte: IBPT)";
+        }
+    }
+
     /** Uma parcela do crediário: número, total de parcelas, vencimento e valor (no comprovante da devolução, o em aberto). */
     public record ParcelaCrediario(int parcela, int totalParcelas, LocalDate vencimento, BigDecimal valor) {
 
@@ -78,6 +91,16 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         itens = List.copyOf(itens);
         pagamentos = List.copyOf(pagamentos);
         crediario = List.copyOf(crediario);
+    }
+
+    /** Sem os tributos aproximados. */
+    public Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, String operador, String terminal,
+                       StatusVenda status, OffsetDateTime canceladaEm, String motivoCancelamento, List<Item> itens,
+                       BigDecimal valorBruto, BigDecimal descontoItens, BigDecimal descontoVenda, BigDecimal total,
+                       List<Pagamento> pagamentos, BigDecimal troco, String rodape, Cliente cliente, Credito credito,
+                       List<ParcelaCrediario> crediario) {
+        this(loja, vendaId, dataHora, operador, terminal, status, canceladaEm, motivoCancelamento, itens, valorBruto,
+                descontoItens, descontoVenda, total, pagamentos, troco, rodape, cliente, credito, crediario, null);
     }
 
     /** Venda sem crediário. */
@@ -158,6 +181,10 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         if (troco.signum() > 0) {
             linhas.add(LinhaComprovante.negrito("Troco", Formatos.moeda(troco)));
         }
+        if (tributos != null) {
+            linhas.add(LinhaComprovante.separador());
+            quebrar(tributos.texto(), COLUNAS).forEach(t -> linhas.add(LinhaComprovante.texto(t)));
+        }
         if (!crediario.isEmpty()) {
             linhas.add(LinhaComprovante.separador());
             linhas.add(LinhaComprovante.texto("Parcelas do crediário:"));
@@ -206,6 +233,26 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
     private static String centralizar(String texto, int colunas) {
         String t = texto.length() > colunas ? texto.substring(0, colunas) : texto;
         return " ".repeat((colunas - t.length()) / 2) + t;
+    }
+
+    /** O texto em linhas de até {@code colunas}, quebradas entre as palavras. */
+    static List<String> quebrar(String texto, int colunas) {
+        List<String> linhas = new ArrayList<>();
+        StringBuilder atual = new StringBuilder();
+        for (String palavra : texto.split(" ")) {
+            if (atual.length() > 0 && atual.length() + 1 + palavra.length() > colunas) {
+                linhas.add(atual.toString());
+                atual.setLength(0);
+            }
+            if (atual.length() > 0) {
+                atual.append(' ');
+            }
+            atual.append(palavra);
+        }
+        if (atual.length() > 0) {
+            linhas.add(atual.toString());
+        }
+        return linhas;
     }
 
     /** Texto à esquerda e valor à direita; o texto é cortado se não couber. */

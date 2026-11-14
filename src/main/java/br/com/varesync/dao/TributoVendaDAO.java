@@ -112,6 +112,30 @@ public class TributoVendaDAO {
         }
     }
 
+    /**
+     * Soma dos tributos aproximados gravados nos itens não cancelados da venda (F22.5); vazio quando nenhum item os
+     * tem. Lê só o gravado: a segunda via não muda com uma tabela IBPT nova.
+     */
+    public Optional<br.com.varesync.model.Comprovante.TributosAproximados> aproximadosDaVenda(Connection con,
+                                                                                         long vendaId)
+            throws SQLException {
+        String sql = """
+                SELECT count(t.trib_federal), sum(t.trib_federal), sum(t.trib_estadual), sum(t.trib_municipal)
+                  FROM venda_item vi
+                  JOIN venda_item_tributo t ON t.venda_item_id = vi.id
+                 WHERE vi.venda_id = ? AND NOT vi.cancelado
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, vendaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1) == 0 ? Optional.empty()
+                        : Optional.of(new br.com.varesync.model.Comprovante.TributosAproximados(rs.getBigDecimal(2),
+                        rs.getBigDecimal(3), rs.getBigDecimal(4)));
+            }
+        }
+    }
+
     /** Tributos gravados do item (segunda via, R31 e testes). */
     public Optional<TributoItem> buscar(Connection con, long vendaItemId) throws SQLException {
         String sql = """

@@ -93,6 +93,28 @@ public final class DadosTela {
                 perfilId));
     }
 
+    /** Perfil do Simples (PIS e COFINS 49), pelo cadastro fiscal (F19.2). */
+    public void perfilSimples(String nome, String cfop, String csosn) {
+        t.fiscal.salvarPerfil(sessao(), null, new br.com.varesync.model.DadosPerfil(nome, cfop, true, csosn, null, null,
+                "49", null, "49", null, null, null, null, true));
+    }
+
+    /** Tabela IBPT pelo cadastro fiscal (F22.3). */
+    public void importarIbpt(byte[] arquivo, String nome) {
+        t.fiscal.importarIbpt(sessao(), arquivo, nome);
+    }
+
+    /** Código de barras de embalagem (F20.1) num produto já cadastrado, como o cadastro grava. */
+    public void embalagem(long produtoId, String codigo, int quantidade) throws SQLException {
+        try (Connection con = dataSource.getConnection(); PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO produto_codigo_barras (produto_id, codigo, principal, quantidade) VALUES (?, ?, FALSE, ?)")) {
+            ps.setLong(1, produtoId);
+            ps.setString(2, codigo);
+            ps.setInt(3, quantidade);
+            ps.executeUpdate();
+        }
+    }
+
     public void configurar(String chave, String valor) throws SQLException {
         executar("UPDATE configuracao SET valor = ? WHERE chave = ?", valor, chave);
     }

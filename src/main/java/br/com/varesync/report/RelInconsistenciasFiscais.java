@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * R30 — Inconsistências fiscais (F19.4): as 13 regras de {@link RegrasFiscais} em cada produto ativo, com o perfil
+ * R30 — Inconsistências fiscais (F19.4 e F22.5): as 17 regras de {@link RegrasFiscais} em cada produto ativo, com o perfil
  * tributário dele e a empresa (regime e UF). A existência do NCM e do CEST nas tabelas importadas é conferida no banco;
  * o resto, no Java. Uma linha por inconsistência, na ordem do produto e da regra. Pede também a permissão FISCAL. O
  * painel (F19.5) usa {@link #produtosComErro} com a mesma consulta.
@@ -66,7 +66,7 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
 
     @Override
     public List<Linha> consultar(Connection con, Filtros filtros, ParametrosRelatorio parametros) throws SQLException {
-        List<Linha> linhas = inconsistencias(con, ContextoFiscal.da(parametros.loja()));
+        List<Linha> linhas = inconsistencias(con, ContextoFiscal.da(parametros.loja(), parametros.hoje()));
         return filtros.regraFiscal() == null ? linhas
                 : linhas.stream().filter(l -> l.regra() == filtros.regraFiscal()).toList();
     }
@@ -74,7 +74,7 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
     /** Todas as inconsistências dos produtos ativos. */
     public static List<Linha> inconsistencias(Connection con, ContextoFiscal contexto) throws SQLException {
         List<Linha> linhas = new ArrayList<>();
-        for (ItemFiscal item : itens(con)) {
+        for (ItemFiscal item : itens(con, contexto.hoje())) {
             for (Inconsistencia i : RegrasFiscais.verificar(item, contexto)) {
                 linhas.add(new Linha(item.produtoId(), item.produto(), item.categoria(), item.ncm(),
                         item.perfil() == null ? null : item.perfil().nome(), i.regra(),
@@ -95,13 +95,20 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
      * Os produtos ativos com o perfil e o que o banco confere nas tabelas importadas. Os outros perfis do mesmo NCM
      * (regra 13) são calculados aqui, entre os produtos ativos com perfil.
      */
-    static List<ItemFiscal> itens(Connection con) throws SQLException {
+    static List<ItemFiscal> itens(Connection con, java.time.LocalDate hoje) throws SQLException {
         String sql = """
-                WITH tabelas AS (SELECT EXISTS (SELECT 1 FROM ncm) AS com_ncm, EXISTS (SELECT 1 FROM cest) AS com_cest)
+                WITH tabelas AS (SELECT EXISTS (SELECT 1 FROM ncm) AS com_ncm, EXISTS (SELECT 1 FROM cest) AS com_cest,
+                                       EXISTS (SELECT 1 FROM ibpt) AS com_ibpt)
                 SELECT p.id, p.nome, c.nome AS categoria, p.ncm, p.cest, p.origem,
                        t.id AS perfil_id, t.nome AS perfil_nome, t.cfop, t.cst_icms, t.csosn, t.aliquota_icms,
                        t.reducao_base_icms, t.cst_pis, t.aliquota_pis, t.cst_cofins, t.aliquota_cofins,
-                       t.codigo_beneficio, t.cst_ibs_cbs, t.cclass_trib, t.ativo AS perfil_ativo,
+                       t.codigo_beneficio, t.cst_ibs_cbs, t.cclass_trib, t.ativo AS perfil_ativo, t.aliquota_fcp,
+                       t.reducao_aliquota_ibs_cbs, p.st_icms_retido_unitario IS NOT NULL AS st_retido,
+                       CASE WHEN CAST(? AS date) IS NULL OR NOT tb.com_ibpt OR p.ncm IS NULL OR p.ncm !~ '^[0-9]{8}$'
+                            THEN NULL
+                            ELSE EXISTS (SELECT 1 FROM ibpt i WHERE i.codigo = p.ncm AND i.ex = ''
+                                            AND i.vigencia_inicio <= CAST(? AS date) AND i.vigencia_fim >= CAST(? AS date))
+                       END AS ibpt_vigente,
                        CASE WHEN NOT tb.com_ncm OR p.ncm IS NULL OR p.ncm !~ '^[0-9]{8}$' THEN NULL
                             ELSE EXISTS (SELECT 1 FROM ncm n WHERE n.codigo = p.ncm) END AS ncm_na_tabela,
                        CASE WHEN NOT tb.com_cest OR p.cest IS NULL OR p.cest !~ '^[0-9]{7}$' THEN NULL
@@ -118,10 +125,15 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
                  ORDER BY p.nome_busca, p.id
                 """;
         record Lido(long id, String nome, String categoria, String ncm, String cest, Integer origem,
-                    PerfilTributario perfil, Boolean ncmNaTabela, Boolean cestNaTabela, Boolean cestDoNcm) {
+                    PerfilTributario perfil, Boolean ncmNaTabela, Boolean cestNaTabela, Boolean cestDoNcm,
+                    Boolean ibptVigente, boolean stRetido) {
         }
         List<Lido> lidos = new ArrayList<>();
-        try (PreparedStatement ps = con.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setObject(1, hoje);
+            ps.setObject(2, hoje);
+            ps.setObject(3, hoje);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 long perfilId = rs.getLong("perfil_id");
                 PerfilTributario perfil = rs.wasNull() ? null : new PerfilTributario(perfilId,
@@ -129,13 +141,16 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
                         rs.getString("csosn"), rs.getBigDecimal("aliquota_icms"), rs.getBigDecimal("reducao_base_icms"),
                         rs.getString("cst_pis"), rs.getBigDecimal("aliquota_pis"), rs.getString("cst_cofins"),
                         rs.getBigDecimal("aliquota_cofins"), rs.getString("codigo_beneficio"),
-                        rs.getString("cst_ibs_cbs"), rs.getString("cclass_trib"), rs.getBoolean("perfil_ativo"), 0);
+                        rs.getString("cst_ibs_cbs"), rs.getString("cclass_trib"), rs.getBoolean("perfil_ativo"), 0,
+                        rs.getBigDecimal("aliquota_fcp"), rs.getBigDecimal("reducao_aliquota_ibs_cbs"));
                 int origem = rs.getInt("origem");
                 Integer origemOuNula = rs.wasNull() ? null : origem;
                 lidos.add(new Lido(rs.getLong("id"), rs.getString("nome"), rs.getString("categoria"),
                         rs.getString("ncm"), rs.getString("cest"), origemOuNula, perfil,
                         (Boolean) rs.getObject("ncm_na_tabela"), (Boolean) rs.getObject("cest_na_tabela"),
-                        (Boolean) rs.getObject("cest_do_ncm")));
+                        (Boolean) rs.getObject("cest_do_ncm"), (Boolean) rs.getObject("ibpt_vigente"),
+                        rs.getBoolean("st_retido")));
+            }
             }
         }
         // NCM → perfis (id → nome) dos produtos ativos com perfil, para a regra 13.
@@ -152,7 +167,7 @@ public final class RelInconsistenciasFiscais implements Relatorio<RelInconsisten
                     .filter(e -> !Objects.equals(e.getKey(), l.perfil().id())).map(Map.Entry::getValue).sorted()
                     .toList();
             itens.add(new ItemFiscal(l.id(), l.nome(), l.categoria(), l.ncm(), l.cest(), l.origem(), l.perfil(),
-                    l.ncmNaTabela(), l.cestNaTabela(), l.cestDoNcm(), outros));
+                    l.ncmNaTabela(), l.cestNaTabela(), l.cestDoNcm(), outros, l.ibptVigente(), l.stRetido()));
         }
         return itens;
     }
