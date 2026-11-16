@@ -32,7 +32,7 @@ public class NfceDAO {
 
     private static final String COLUNAS = """
             id, venda_id, serie, numero, codigo_numerico, chave, tipo_emissao, emitida_em, contingencia_em, status,
-            cstat, motivo, protocolo, xml, qrcode
+            cstat, motivo, protocolo, xml, qrcode, autorizada_em, substituta_id
             """;
     private static final String BUSCAR = "SELECT " + COLUNAS + " FROM nfce WHERE id = ?";
     private static final String BUSCAR_TRAVANDO = "SELECT " + COLUNAS + " FROM nfce WHERE id = ? FOR UPDATE";
@@ -92,7 +92,253 @@ public class NfceDAO {
                 rs.getString("codigo_numerico"), rs.getString("chave"), TipoEmissaoNfce.de(rs.getInt("tipo_emissao")),
                 rs.getObject("emitida_em", OffsetDateTime.class), rs.getObject("contingencia_em", OffsetDateTime.class),
                 StatusNfce.valueOf(rs.getString("status")), rs.getString("cstat"), rs.getString("motivo"),
-                rs.getString("protocolo"), rs.getString("xml"), rs.getString("qrcode"));
+                rs.getString("protocolo"), rs.getString("xml"), rs.getString("qrcode"),
+                rs.getObject("autorizada_em", OffsetDateTime.class), rs.getObject("substituta_id", Long.class));
+    }
+
+    // ----- Transmissão (F23.5) -----
+
+    /**
+     * Pega a trava da transmissão: {@code transmitindo_ate} = {@code ate}, se ninguém tem uma trava válida. Um UPDATE só
+     * (atômico): de duas tentativas ao mesmo tempo, uma pega e a outra recebe vazio.
+     */
+    public Optional<NfceGravada> travar(Connection con, long id, String dono, OffsetDateTime agora,
+                                        OffsetDateTime ate) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET transmitindo_ate = ?, transmitindo_por = ?, tentativas = tentativas + 1,
+                                atualizado_em = ?
+                 WHERE id = ? AND status IN ('PENDENTE', 'CONTINGENCIA', 'SEM_RESPOSTA', 'REJEITADA')
+                   AND (transmitindo_ate IS NULL OR transmitindo_ate <= ?)
+                """)) {
+            ps.setObject(1, ate);
+            ps.setString(2, dono);
+            ps.setObject(3, agora);
+            ps.setLong(4, id);
+            ps.setObject(5, agora);
+            if (ps.executeUpdate() == 0) {
+                return Optional.empty();
+            }
+        }
+        return buscar(con, id, false);
+    }
+
+    /** Solta a trava, se ainda é de quem a pegou. */
+    public void soltar(Connection con, long id, String dono, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET transmitindo_ate = NULL, transmitindo_por = NULL, atualizado_em = ?
+                 WHERE id = ? AND transmitindo_por = ?
+                """)) {
+            ps.setObject(1, agora);
+            ps.setLong(2, id);
+            ps.setString(3, dono);
+            ps.executeUpdate();
+        }
+    }
+
+    /** AUTORIZADA (cStat 100 ou 150), com o protocolo e o {@code nfeProc}. */
+    public void autorizar(Connection con, long id, String cstat, String motivo, String protocolo,
+                          OffsetDateTime autorizadaEm, String nfeProc, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET status = 'AUTORIZADA', cstat = ?, motivo = ?, protocolo = ?, autorizada_em = ?,
+                                xml = ?, atualizado_em = ?
+                 WHERE id = ?
+                """)) {
+            ps.setString(1, cstat);
+            ps.setString(2, motivo);
+            ps.setString(3, protocolo);
+            ps.setObject(4, autorizadaEm);
+            ps.setString(5, nfeProc);
+            ps.setObject(6, agora);
+            ps.setLong(7, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /** A resposta da SEFAZ com a situação nova (REJEITADA, DENEGADA) ou a mesma (só registra o cStat e o motivo). */
+    public void responder(Connection con, long id, StatusNfce status, String cstat, String motivo,
+                          OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET status = ?, cstat = ?, motivo = ?, atualizado_em = ? WHERE id = ?
+                """)) {
+            ps.setString(1, status.name());
+            ps.setString(2, cstat);
+            ps.setString(3, motivo);
+            ps.setObject(4, agora);
+            ps.setLong(5, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /** SEM_RESPOSTA: enviada sem resposta, ou largada no meio; pode existir ou não na SEFAZ. */
+    public void semResposta(Connection con, long id, String motivo, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET status = 'SEM_RESPOSTA', cstat = NULL, motivo = ?, atualizado_em = ? WHERE id = ?
+                """)) {
+            ps.setString(1, motivo);
+            ps.setObject(2, agora);
+            ps.setLong(3, id);
+            ps.executeUpdate();
+        }
+    }
+
+    public void ligarSubstituta(Connection con, long id, long substitutaId, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET substituta_id = ?, atualizado_em = ? WHERE id = ?
+                """)) {
+            ps.setLong(1, substitutaId);
+            ps.setObject(2, agora);
+            ps.setLong(3, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * A PENDENTE vira contingência off-line no mesmo número (modo contingência): tpEmis 9, a chave nova, dhEmi e dhCont;
+     * o XML e o QR Code são refeitos.
+     */
+    public void paraContingencia(Connection con, long id, String chave, OffsetDateTime emitidaEm,
+                                 OffsetDateTime contingenciaEm, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET tipo_emissao = 9, chave = ?, emitida_em = ?, contingencia_em = ?,
+                                status = 'CONTINGENCIA', xml = NULL, qrcode = NULL, atualizado_em = ?
+                 WHERE id = ? AND status = 'PENDENTE'
+                """)) {
+            ps.setString(1, chave);
+            ps.setObject(2, emitidaEm);
+            ps.setObject(3, contingenciaEm);
+            ps.setObject(4, agora);
+            ps.setLong(5, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * SUBSTITUIDA: chegou a ser autorizada (protocolo e data da consulta) e foi cancelada pelo evento 110112.
+     */
+    public void substituida(Connection con, long id, String protocolo, OffsetDateTime autorizadaEm, String cstat,
+                            String motivo, OffsetDateTime agora) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                UPDATE nfce SET status = 'SUBSTITUIDA', protocolo = ?, autorizada_em = ?, cstat = ?, motivo = ?,
+                                atualizado_em = ?
+                 WHERE id = ?
+                """)) {
+            ps.setString(1, protocolo);
+            ps.setObject(2, autorizadaEm);
+            ps.setString(3, cstat);
+            ps.setString(4, motivo);
+            ps.setObject(5, agora);
+            ps.setLong(6, id);
+            ps.executeUpdate();
+        }
+    }
+
+    public void inutilizada(Connection con, long id, String cstat, String motivo, OffsetDateTime agora)
+            throws SQLException {
+        responder(con, id, StatusNfce.INUTILIZADA, cstat, motivo, agora);
+    }
+
+    /** Evento da NFC-e ({@code tipo} = CANCELAMENTO ou CANCELAMENTO_SUBSTITUICAO); usuário nulo = o transmissor. */
+    public long inserirEvento(Connection con, long nfceId, String tipo, String justificativa, String cstat,
+                              String motivo, String protocolo, String xml, OffsetDateTime agora, Long usuarioId)
+            throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                INSERT INTO nfce_evento (nfce_id, tipo, justificativa, cstat, motivo, protocolo, xml, registrado_em,
+                                         usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """)) {
+            ps.setLong(1, nfceId);
+            ps.setString(2, tipo);
+            ps.setString(3, justificativa);
+            ps.setString(4, cstat);
+            ps.setString(5, motivo);
+            ps.setString(6, protocolo);
+            ps.setString(7, xml);
+            ps.setObject(8, agora);
+            ps.setObject(9, usuarioId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        }
+    }
+
+    /** Faixa de números inutilizados (ano com 2 dígitos); usuário nulo = o transmissor. */
+    public long inserirInutilizacao(Connection con, int serie, int inicial, int fim, int ano, String justificativa,
+                                    String cstat, String motivo, String protocolo, String xml, OffsetDateTime agora,
+                                    Long usuarioId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                INSERT INTO nfce_inutilizacao (serie, numero_inicial, numero_final, ano, justificativa, cstat, motivo,
+                                               protocolo, xml, registrada_em, usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """)) {
+            ps.setInt(1, serie);
+            ps.setInt(2, inicial);
+            ps.setInt(3, fim);
+            ps.setInt(4, ano);
+            ps.setString(5, justificativa);
+            ps.setString(6, cstat);
+            ps.setString(7, motivo);
+            ps.setString(8, protocolo);
+            ps.setString(9, xml);
+            ps.setObject(10, agora);
+            ps.setObject(11, usuarioId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        }
+    }
+
+    // ----- Filas do transmissor (F23.5) -----
+
+    /** PENDENTE reservada antes de {@code limite} e sem trava válida: o sistema caiu no meio da emissão. */
+    public List<Long> pendentesAbandonadas(Connection con, OffsetDateTime limite, OffsetDateTime agora)
+            throws SQLException {
+        return ids(con, """
+                SELECT id FROM nfce
+                 WHERE status = 'PENDENTE' AND criado_em < ? AND (transmitindo_ate IS NULL OR transmitindo_ate <= ?)
+                 ORDER BY id
+                """, limite, agora);
+    }
+
+    /** As de contingência, a transmitir (as mais antigas primeiro). */
+    public List<Long> emContingencia(Connection con) throws SQLException {
+        return ids(con, "SELECT id FROM nfce WHERE status = 'CONTINGENCIA' ORDER BY id");
+    }
+
+    /** SEM_RESPOSTA cuja substituta (a de contingência da mesma venda) já foi autorizada. */
+    public List<Long> semRespostaComSubstitutaAutorizada(Connection con) throws SQLException {
+        return ids(con, """
+                SELECT n.id FROM nfce n JOIN nfce s ON s.id = n.substituta_id
+                 WHERE n.status = 'SEM_RESPOSTA' AND s.status = 'AUTORIZADA'
+                 ORDER BY n.id
+                """);
+    }
+
+    /** REJEITADA de venda cancelada: o número é inutilizado. */
+    public List<Long> rejeitadasDeVendaCancelada(Connection con) throws SQLException {
+        return ids(con, """
+                SELECT n.id FROM nfce n JOIN venda v ON v.id = n.venda_id
+                 WHERE n.status = 'REJEITADA' AND v.status = 'CANCELADA'
+                 ORDER BY n.id
+                """);
+    }
+
+    private static List<Long> ids(Connection con, String sql, Object... parametros) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            for (int i = 0; i < parametros.length; i++) {
+                ps.setObject(i + 1, parametros[i]);
+            }
+            List<Long> ids = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getLong(1));
+                }
+            }
+            return ids;
+        }
     }
 
     /** O XML assinado e validado e o QR Code (a situação não muda). */

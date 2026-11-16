@@ -53,6 +53,12 @@ import br.com.varesync.dao.NumeracaoNfceDAO;
 import br.com.varesync.dao.TributoVendaDAO;
 import br.com.varesync.service.CertificadoService;
 import br.com.varesync.service.NfceService;
+import br.com.varesync.service.EmissaoNfceService;
+import br.com.varesync.service.ModoContingencia;
+import br.com.varesync.service.TransmissorAgendado;
+import br.com.varesync.service.TransmissorNfce;
+import br.com.varesync.service.nfce.Sefaz;
+import br.com.varesync.service.nfce.SefazHomologacao;
 import br.com.varesync.service.nfce.AssinaturaNfce;
 import br.com.varesync.service.nfce.GeracaoNfce;
 import br.com.varesync.service.nfce.MontagemNfce;
@@ -83,6 +89,9 @@ public final class AppContext implements AutoCloseable {
     private final FechamentoCaixaPdf fechamentoPdf = new FechamentoCaixaPdf();
     private final CertificadoService certificados;
     private final NfceService nfce;
+    private final EmissaoNfceService emissaoNfce;
+    private final TransmissorNfce transmissorNfce;
+    private final TransmissorAgendado transmissorAgendado;
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -101,10 +110,21 @@ public final class AppContext implements AutoCloseable {
                 new CertificadoNoArquivo(config.arquivo()), clock);
         ZoneId fuso = ZoneId.systemDefault();
         ValidacaoXsd validacao = new ValidacaoXsd(AppConfig.pastaPadrao().resolve("schemas"));
+        AssinaturaNfce assinatura = new AssinaturaNfce(
+                AppConfig.pastaPadrao().resolve("schemas").resolve(ValidacaoXsd.VERSAO_PACOTE), fuso);
         this.nfce = new NfceService(s.transacao(), new NfceDAO(), new NumeracaoNfceDAO(), new TributoVendaDAO(),
-                new ConfiguracaoDAO(), new GeracaoNfce(new MontagemNfce(fuso), new AssinaturaNfce(
-                        AppConfig.pastaPadrao().resolve("schemas").resolve(ValidacaoXsd.VERSAO_PACOTE), fuso),
-                        validacao), certificados, VersaoSistema.doBuild().versao(), new SecureRandom(), clock, fuso);
+                new ConfiguracaoDAO(), new GeracaoNfce(new MontagemNfce(fuso), assinatura, validacao), certificados,
+                VersaoSistema.doBuild().versao(), new SecureRandom(), clock, fuso);
+        // F23.4 e F23.5: a SEFAZ de homologação, o modo contingência deste terminal, a emissão e o transmissor.
+        AuditoriaService auditoriaNfce = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
+        Sefaz sefaz = new SefazHomologacao(assinatura);
+        this.emissaoNfce = new EmissaoNfceService(s.transacao(), new NfceDAO(), nfce, certificados,
+                new ConfiguracaoDAO(), sefaz, new ModoContingencia(), auditoriaNfce, clock, fuso, config.terminalId());
+        this.transmissorNfce = new TransmissorNfce(s.transacao(), new NfceDAO(), emissaoNfce, certificados, sefaz,
+                auditoriaNfce, clock, config.terminalId());
+        ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
+        this.transmissorAgendado = new TransmissorAgendado(
+                () -> s.transacao().executar(configuracaoDAO::carregar).nfce(), transmissorNfce::transmitir, clock);
     }
 
     /** Banco do backup, pela URL da configuração local; URL fora do padrão deixa o backup indisponível (com aviso). */
@@ -263,12 +283,26 @@ public final class AppContext implements AutoCloseable {
         return certificados;
     }
 
+    public EmissaoNfceService emissaoNfceService() {
+        return emissaoNfce;
+    }
+
+    public TransmissorNfce transmissorNfce() {
+        return transmissorNfce;
+    }
+
+    /** O transmissor em segundo plano (F23.5): o App liga no login e desliga no log off. */
+    public TransmissorAgendado transmissorAgendado() {
+        return transmissorAgendado;
+    }
+
     public NfceService nfceService() {
         return nfce;
     }
 
     @Override
     public void close() {
+        transmissorAgendado.close();
         dataSource.close();
     }
 }

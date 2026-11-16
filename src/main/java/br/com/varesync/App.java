@@ -58,7 +58,8 @@ public class App extends Application implements Navegacao {
     private AppContext contexto;
     private PrincipalController principal;
     /** Usuário logado; nulo fora da janela principal e da troca de senha. */
-    private Sessao sessao;
+    /** Lida também pelo transmissor das NFC-e, fora da thread do JavaFX (F23.5). */
+    private volatile Sessao sessao;
     /** Bloqueio por inatividade da janela principal e do PDV (F10.2); nulo fora da janela principal. */
     private BloqueioInatividade bloqueio;
 
@@ -125,6 +126,7 @@ public class App extends Application implements Navegacao {
             Aparencia.aplicar(preferenciasDe(novaSessao));
             principal = (PrincipalController) mostrar("/fxml/principal.fxml", LARGURA_MINIMA, ALTURA_MINIMA, true);
             ligarBloqueio();
+            contexto.transmissorAgendado().iniciar(this::sessaoAtual); // F23.5
         }
     }
 
@@ -307,6 +309,9 @@ public class App extends Application implements Navegacao {
 
     private void encerrarPrincipal() {
         desligarBloqueio();
+        if (contexto != null) {
+            contexto.transmissorAgendado().parar(); // F23.5
+        }
         if (principal != null) {
             principal.encerrar();
             principal = null;

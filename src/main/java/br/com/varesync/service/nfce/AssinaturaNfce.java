@@ -33,7 +33,18 @@ import org.slf4j.LoggerFactory;
 public final class AssinaturaNfce {
 
     private static final Logger LOG = LoggerFactory.getLogger(AssinaturaNfce.class);
-    private static final Object TRAVA = new Object();
+    /** A biblioteca guarda a chave e o certificado em campos estáticos: assinatura e chamadas à SEFAZ, uma por vez. */
+    static final Object TRAVA = new Object();
+    /**
+     * O log da biblioteca (java.util.logging) grava o XML inteiro em INFO: fica só a partir de WARNING (F23.4). A
+     * referência forte impede que o nível se perca com o coletor de lixo.
+     */
+    private static final java.util.logging.Logger LOG_BIBLIOTECA = java.util.logging.Logger.getLogger(
+            "br.com.swconsultoria");
+
+    static {
+        LOG_BIBLIOTECA.setLevel(java.util.logging.Level.WARNING);
+    }
 
     private final Path pastaSchemas;
     private final ZoneId fuso;

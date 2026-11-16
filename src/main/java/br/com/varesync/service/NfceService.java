@@ -38,6 +38,8 @@ public class NfceService {
     private static final Logger LOG = LoggerFactory.getLogger(NfceService.class);
     /** xJust da contingência off-line (F23.5). */
     public static final String JUSTIFICATIVA_CONTINGENCIA = "SEFAZ indisponivel - sem resposta da autorizacao";
+    /** Entidade da auditoria das NFC-e. */
+    public static final String ENTIDADE = "nfce";
 
     private final Transacao transacao;
     private final NfceDAO nfceDAO;
@@ -104,6 +106,23 @@ public class NfceService {
                 numero, tipo.codigo(), codigoNumerico);
         return nfceDAO.inserir(con, vendaId, serie, numero, codigoNumerico, chave, tipo, emitidaEm, contingenciaEm,
                 contingencia ? StatusNfce.CONTINGENCIA : StatusNfce.PENDENTE, OffsetDateTime.now(clock));
+    }
+
+    /**
+     * Modo contingência (F23.5): a PENDENTE vira contingência off-line no mesmo número reservado, sem tentar a
+     * autorização: chave com o tpEmis 9 (o cNF continua), dhEmi = agora e dhCont = o início do modo. O XML é refeito.
+     */
+    public void paraContingencia(Connection con, NfceGravada nfce, OffsetDateTime contingenciaEm)
+            throws SQLException {
+        Configuracoes config = configuracaoDAO.carregar(con);
+        int codigoUf = CodigoUf.de(config.loja().uf()).orElseThrow(() -> new NegocioException(
+                "Para a NFC-e, informe a UF da loja em Configurações › Loja."));
+        OffsetDateTime agora = OffsetDateTime.now(clock);
+        String chave = ChaveAcesso.montar(codigoUf, YearMonth.from(agora.atZoneSameInstant(fuso)),
+                config.loja().documento(), nfce.serie(), nfce.numero(), TipoEmissaoNfce.CONTINGENCIA_OFFLINE.codigo(),
+                nfce.codigoNumerico());
+        OffsetDateTime dhCont = contingenciaEm.isAfter(agora) ? agora : contingenciaEm;
+        nfceDAO.paraContingencia(con, nfce.id(), chave, agora, dhCont, agora);
     }
 
     /** cNF aleatório de 8 dígitos e diferente do número da nota (os 8 últimos dígitos dele). */

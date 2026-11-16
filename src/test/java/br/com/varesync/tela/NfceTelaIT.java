@@ -49,6 +49,7 @@ class NfceTelaIT extends TelaBase {
         dados.abrirCaixa("100.00");
         Path pfx = CertificadoTeste.arquivo();
 
+        LogCapturado log = LogCapturado.iniciar();
         Scene principal = abrirEEntrar(DadosTela.LOGIN_SUPERVISOR, DadosTela.SENHA_SUPERVISOR);
         Parent r = principal.getRoot();
         abrirTela(principal, ItemMenu.CONFIGURACOES);
@@ -150,11 +151,9 @@ class NfceTelaIT extends TelaBase {
         capturar(principal, "diagnostico_nfce");
 
         // ----- Sigilo: nem a senha nem o caminho do certificado no log ou na auditoria -----
-        Path log = AppConfig.pastaPadrao().resolve("logs").resolve("varesync.log");
-        if (Files.exists(log)) {
-            String textoLog = Files.readString(log, StandardCharsets.UTF_8);
-            assertThat(textoLog).doesNotContain(CertificadoTeste.SENHA, pfx.toString(), pfx.getFileName().toString());
-        }
+        assertThat(log.textos()).as("log do sistema e da biblioteca")
+                .contains("Login de admin") // a captura pegou o log da sessão
+                .doesNotContain(CertificadoTeste.SENHA, pfx.toString(), pfx.getFileName().toString());
         assertThat(contar("SELECT count(*) FROM auditoria WHERE descricao LIKE '%" + CertificadoTeste.SENHA
                 + "%' OR descricao LIKE '%.pfx%'")).isZero();
     }

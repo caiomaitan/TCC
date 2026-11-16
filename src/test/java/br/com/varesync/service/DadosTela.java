@@ -140,6 +140,56 @@ public final class DadosTela {
         return nfce.prepararXml(id);
     }
 
+    /** O certificado de teste no {@code config.properties} temporário (como a tela grava em Configurações › NFC-e). */
+    public void gravarCertificadoDeTeste() {
+        new br.com.varesync.config.CertificadoNoArquivo(br.com.varesync.config.AppConfig.arquivoPadrao()).gravar(
+                br.com.varesync.service.nfce.CertificadoTeste.arquivo().toString(),
+                br.com.varesync.service.nfce.CertificadoTeste.SENHA);
+    }
+
+    /**
+     * NFC-e, parte B (F23.5), com a SEFAZ falsa: a emissão e o transmissor montados como no sistema (certificado do
+     * {@code config.properties} temporário, relógio de verdade), mas falando com a SEFAZ falsa.
+     */
+    public record EmissaoTela(EmissaoNfceService emissao, TransmissorNfce transmissor, NfceService nfce,
+                              Transacao transacao, Sessao sessao) {
+
+        /** Reserva o número da venda (PENDENTE) e emite. */
+        public EmissaoNfceService.Resultado emitirVenda(long vendaId) {
+            long id = transacao.executar(con -> nfce.reservar(con, vendaId,
+                    br.com.varesync.model.TipoEmissaoNfce.NORMAL, java.time.OffsetDateTime.now(), null));
+            return emissao.emitir(sessao, id);
+        }
+
+        public TransmissorNfce.Resumo transmitir() {
+            return transmissor.transmitir(sessao);
+        }
+    }
+
+    public EmissaoTela emissaoNfce(br.com.varesync.service.nfce.Sefaz sefaz) {
+        java.time.ZoneId fuso = java.time.ZoneId.systemDefault();
+        Clock relogio = Clock.systemDefaultZone();
+        Transacao transacao = new Transacao(dataSource);
+        AuditoriaService auditoria = new AuditoriaService(new br.com.varesync.dao.AuditoriaDAO(), relogio, TERMINAL);
+        CertificadoService certificados = new CertificadoService(transacao, new br.com.varesync.dao.ConfiguracaoDAO(),
+                auditoria, new br.com.varesync.config.CertificadoNoArquivo(
+                        br.com.varesync.config.AppConfig.arquivoPadrao()), relogio);
+        br.com.varesync.service.nfce.ValidacaoXsd validacao = new br.com.varesync.service.nfce.ValidacaoXsd(
+                br.com.varesync.config.AppConfig.pastaPadrao().resolve("schemas"));
+        br.com.varesync.dao.NfceDAO dao = new br.com.varesync.dao.NfceDAO();
+        NfceService nfce = new NfceService(transacao, dao, new br.com.varesync.dao.NumeracaoNfceDAO(),
+                new br.com.varesync.dao.TributoVendaDAO(), new br.com.varesync.dao.ConfiguracaoDAO(),
+                new br.com.varesync.service.nfce.GeracaoNfce(new br.com.varesync.service.nfce.MontagemNfce(fuso),
+                        new br.com.varesync.service.nfce.AssinaturaNfce(validacao.pasta(), fuso), validacao),
+                certificados, "2.0.0-SNAPSHOT", new java.security.SecureRandom(), relogio, fuso);
+        EmissaoNfceService emissao = new EmissaoNfceService(transacao, dao, nfce, certificados,
+                new br.com.varesync.dao.ConfiguracaoDAO(), sefaz, new ModoContingencia(), auditoria, relogio, fuso,
+                TERMINAL);
+        TransmissorNfce transmissor = new TransmissorNfce(transacao, dao, emissao, certificados, sefaz, auditoria,
+                relogio, TERMINAL);
+        return new EmissaoTela(emissao, transmissor, nfce, transacao, sessao());
+    }
+
     public void configurar(String chave, String valor) throws SQLException {
         executar("UPDATE configuracao SET valor = ? WHERE chave = ?", valor, chave);
     }

@@ -2,6 +2,59 @@
 
 ## Fase atual
 
+**Fase 23 — NFC-e em homologação, parte B** concluída em 2026-11-16 (F23.4 e F23.5), **sem migration nova** (a V24
+já tem a trava, as tentativas, a substituta, os eventos e as inutilizações; Decisões):
+- **F23.4 Comunicação:** interface `Sefaz` (status, autorização síncrona com indSinc 1, consulta pela chave, eventos
+  110111 e 110112, inutilização), com `ContextoSefaz`, `RespostaSefaz` e `SemComunicacaoException`. `SefazHomologacao`,
+  pela Java_NFe: só tpAmb 2 (a configuração da biblioteca é sempre de homologação, e a nota de produção é recusada antes
+  de qualquer envio); sem conexão, tempo esgotado em `nfce.timeout_segundos`, erro HTTP e os cStat 108 e 109 viram
+  "sem comunicação"; as respostas são traduzidas pela `RespostasSefaz`, testada com respostas de exemplo. O log da
+  biblioteca (que grava o XML inteiro) fica só a partir de WARNING; o do sistema leva só o cStat e o motivo. A
+  `SefazFalsa` dos testes confere a assinatura e o XSD do que recebe e responde conforme o roteiro.
+- **F23.5 Emissão e contingência:** `EmissaoNfceService.emitir` (trava de 2 minutos pelo `Clock`; montagem, se falta;
+  envio; AUTORIZADA com o `nfeProc`, REJEITADA ou DENEGADA; sem resposta → a original SEM_RESPOSTA e outra NFC-e da
+  venda, com número novo, em contingência off-line, e o terminal no `ModoContingencia`, com auditoria). No modo, a
+  PENDENTE vira contingência no próprio número, sem tentar.
+- **Transmissor:** `TransmissorNfce.transmitir` (status 107 encerra o modo; PENDENTE largada há mais de 2 minutos;
+  envio das de contingência; consulta da SEM_RESPOSTA e evento 110112 ou inutilização; inutilização da REJEITADA de
+  venda cancelada), com a auditoria "automático". O `TransmissorAgendado` roda em segundo plano a cada
+  `nfce.retransmitir_minutos` com a NFC-e ligada e alguém logado; o `App` liga no login e desliga no log off. Nada de
+  tela nova: o PDV que emite é a parte C, e o "Transmitir agora", a parte D.
+
+`mvn -q verify` passa: 657 testes unitários e 580 de integração; `mvn -q -Pui
+verify`, com o `NfceParteBTelaIT` novo, 9 testes de interface (a varredura: 90 telas, 0 cortes).
+Próxima: Fase 23, parte C (F23.6 PDV e F23.7 DANFE NFC-e).
+
+Antes de começar: `git status` limpo (a parte A estava no commit `5ebf1a6`).
+
+Critérios de aceite da parte B (com a SEFAZ falsa; `EmissaoNfceIT`, salvo indicação):
+- **Autoriza e rejeita:** AUTORIZADA com o protocolo, a data e o `nfeProc` (a assinatura continua conferindo dentro
+  dele); REJEITADA com o cStat e o motivo; DENEGADA no uso denegado: `autorizaComProtocoloENfeProc`,
+  `rejeitaComCstatEMotivoEDenegaGastandoONumero`; a tradução das respostas da biblioteca, `RespostasSefazTest`.
+- **Sem resposta:** a venda fica com a original SEM_RESPOSTA e outra, de número seguinte, em CONTINGENCIA (tpEmis 9,
+  dhCont, xJust e o QR Code de 8 parâmetros); a venda seguinte do terminal já sai em contingência, sem tentar:
+  `semRespostaDeixaAOriginalSemRespostaEOutraEmContingenciaEAProximaVendaNemTenta`; pela tela, as duas vendas do PDV.
+- **A SEFAZ de volta:** o transmissor autoriza as de contingência e, pela consulta, cancela a original por substituição
+  (se ela tinha chegado) ou a inutiliza (se não consta):
+  `sefazDeVoltaAutorizaAsDeContingenciaECancelaAOriginalPorSubstituicaoSeElaChegou`,
+  `sefazDeVoltaInutilizaAOriginalQueNaoConsta`; também `transmissorComASefazForaDeixaEmContingenciaETentaDepois`,
+  `duplicidadeNaContingenciaContaComoAutorizadaPelaConsulta`, `pendenteLargadaHaMaisDeDoisMinutosViraContingencia…`,
+  `rejeitadaDeVendaCanceladaTemONumeroInutilizado`; pela tela, a auditoria (captura `01`) e o Diagnóstico (`02`).
+- **Duas transmissões ao mesmo tempo** não enviam a mesma nota duas vezes:
+  `duasTransmissoesAoMesmoTempoNaoEnviamAMesmaNotaDuasVezes` (a SEFAZ falsa recebe um envio só; a outra recebe "já está
+  sendo transmitida"), `travaVencidaPodeSerRetomada`.
+- **Produção é recusada:** `SefazHomologacaoTest.notaDeProducaoERecusadaAntesDeQualquerEnvio`,
+  `configuracaoDaBibliotecaSempreEmHomologacao`, além do CHECK `ck_nfce_ambiente` (`NfceIT`).
+- **Log:** só o cStat e o motivo: `SefazHomologacaoTest.falhaVaiParaOLogSoComOsNomesDasClasses`; pela tela, o log
+  capturado da sessão tem "cStat 100" e não tem o XML, a senha nem o caminho do certificado.
+
+Conferência pela tela: o `NfceParteBTelaIT` (sem teclado nem mouse do sistema, janelas fora da tela, `varesync_test` com
+a trava de URL, `target/ui-home`, configuração sem BOM). As vendas são feitas no PDV; a emissão, que só entra no PDV na
+parte C, roda pelo `DadosTela.emissaoNfce`, montada como no sistema mas com a SEFAZ falsa (nada vai à rede). Capturas
+em `target/telas/NfceParteBTelaIT`. Achado do roteiro: nos testes o logback só escreve no console, então a conferência
+do arquivo de log do `NfceTelaIT` (parte A) nunca rodava; os dois roteiros passaram a capturar o log (`LogCapturado`).
+Os bancos `varesync` e `varesync_demo` não foram abertos.
+
 **Fase 23 — NFC-e em homologação, parte A** concluída em 2026-11-16 (F23.1, F23.2 e F23.3). Nada é transmitido: a
 comunicação com a SEFAZ é a parte B. Migration nova **V24__nfce.sql** (Decisões):
 - **Java_NFe conferida no começo (F23.3):** a `br.com.swconsultoria:java-nfe` 4.3.0 compila e roda no Java 21
@@ -24,7 +77,7 @@ comunicação com a SEFAZ é a parte B. Migration nova **V24__nfce.sql** (Decis�
   `FOR UPDATE` por série. O `NfceService` reserva o número na transação de quem chama (a venda, na parte C) e prepara o
   XML; nenhuma tela emite nesta parte.
 
-`mvn -q verify` passa: 645 testes unitários e 574 de integração; `mvn -q -Pui verify`,
+`mvn -q verify` passa: 645 testes unitários e 567 de integração; `mvn -q -Pui verify`,
 com o `NfceTelaIT` novo, 8 testes de interface (a varredura: 90 telas, 0 cortes). Próxima: Fase 23,
 parte B (F23.4 comunicação com a SEFAZ e F23.5 emissão, contingência e transmissor).
 
@@ -970,7 +1023,8 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-12 | 11 — Engenharia de software, parte B (fase concluída) | **F11.3**: perfil `ui` no pom (só os `*TelaIT`, `-Duser.home=target/ui-home`, capturas em `target/telas`, JaCoCo em `target/site/jacoco-ui`) e `excludes` dos `*TelaIT` no `verify` comum; pacote de teste `tela` (`TelaBase`, `Cortes`, `PrimeiroAcessoTelaIT`, `VendaPdvTelaIT`, `InventarioTelaIT`, `RelatorioTelaIT`, `VarreduraCortesTelaIT`); `service.DadosTela`. Correções achadas pela varredura: `principal.fxml` (barra de status com 8 px), `clientes.fxml` (aba LGPD com rolagem), `Aparencia.reajustar`. **F11.5**: `config.ConexaoTestada`, `Banco.testarConexao` com a versão e o tempo, `Banco.versaoCurta`; `ConexaoController` e `conexao.fxml` ("Testar conexão"); README 5.1. **F11.8**: `ConcorrenciaIT` (7 situações); propriedade `concorrencia.repeticoes`; `IntegracaoBase.estoqueContinuaConsistente` protegido. **CI**: `-Pqualidade verify` numa rodada só e o passo `-Pui verify`, com dois artefatos novos. README (5.1, 10, 10.2, 10.3, 11). Sem migration nova. | Unitários: 574 (+2, `BancoTest`). Integração: 535 (+9: `ConcorrenciaIT` 7, `BancoIT` 2). Interface: 5 (`-Pui`). Todos verdes, também com `-Pqualidade`; `ConcorrenciaIT` verde com 20 repetições. |
 | 2026-11-14 | 22 — Tributos da venda, parte A | Migration V23 (`venda_item_tributo`, FCP e redução do IBS e da CBS no perfil, ST retido no produto, tabela `ibpt`, `forma_pagamento.tpag`, chaves `fiscal.*`); `CalculoTributos` (ICMS por CST e CSOSN, FCP, ST retido, PIS e COFINS com o Tema 69, IBS e CBS pela NT 2025.002-RTC v1.53, tributos aproximados) chamado na finalização da venda; importação da tabela IBPT na janela Cadastro fiscal; tPag em Configurações › Formas de pagamento; tributos em Configurações › Loja. | Unitários: 591 (+17: `CalculoTributosTest` 12, `TabelaIbptTest` 4, `ConfiguracoesTest` 1). Integração: 547 (+12: `TributosVendaIT`). Interface (`-Pui`): 6 (+1: `TributosTelaIT`). Todos verdes. |
 | 2026-11-14 | 22 — Tributos da venda, parte B (fase concluída) | Sem migration. IBS e CBS só nos CST 000 e 200 (correção da parte A); ST retido pela NF-e (ICMS60, ICMSSN500, ICMS10 e ICMS70, por unidade de venda, pelo diálogo dos dados fiscais); tributos aproximados no comprovante e na segunda via; R31 Impostos das vendas; regras 14 a 17 do R30; gerador com a tabela IBPT de demonstração e o ST retido. | Unitários: 604 (+13: `LeitorNfeStTest` 3, testes das regras 14 a 17 9, `CalculoTributosTest` 1). Integração: 554 (+7: `TributosParteBIT` 6, `GeradorDemoIT` 1). Interface (`-Pui`): 7 (+1: `TributosParteBTelaIT`). Todos verdes. |
-| 2026-11-16 | 23 — NFC-e em homologação, parte A | V24 (nfce_numeracao, nfce, nfce_evento, nfce_inutilizacao, venda.consumidor_documento, vw_nfce_inconsistente, configurações empresa.* e nfce.*); Java_NFe 4.3.0 conferida; XSD PL 010g v1.03; endereço do emitente em Loja; seção NFC-e com o certificado A1 do terminal (fora do banco); "Compras e estoque" numa seção; montagem, assinatura, validação pelo XSD, QR Code versão 3, chave e numeração; nada transmitido. | Unitários: 645 (+41). Integração: 574 (+20: `NfceIT` e a 8ª situação do `ConcorrenciaIT`, entre outros). Interface (`-Pui`): 8 (+1: `NfceTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
+| 2026-11-16 | 23 — NFC-e em homologação, parte A | V24 (nfce_numeracao, nfce, nfce_evento, nfce_inutilizacao, venda.consumidor_documento, vw_nfce_inconsistente, configurações empresa.* e nfce.*); Java_NFe 4.3.0 conferida; XSD PL 010g v1.03; endereço do emitente em Loja; seção NFC-e com o certificado A1 do terminal (fora do banco); "Compras e estoque" numa seção; montagem, assinatura, validação pelo XSD, QR Code versão 3, chave e numeração; nada transmitido. | Unitários: 645 (+41). Integração: 567 (+13: `NfceIT` 12 e a 8ª situação do `ConcorrenciaIT`). Interface (`-Pui`): 8 (+1: `NfceTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
+| 2026-11-16 | 23 — NFC-e em homologação, parte B | Sem migration. Interface `Sefaz` e `SefazHomologacao` (Java_NFe, só homologação, sem comunicação, log sem o XML); emissão com a trava, AUTORIZADA com o `nfeProc`, REJEITADA e DENEGADA; contingência off-line (SEM_RESPOSTA e outra NFC-e, modo contingência no terminal); transmissor (status 107, PENDENTE largada, contingência, 110112 ou inutilização, REJEITADA de venda cancelada) e o agendamento em segundo plano. | Unitários: 657 (+12: `RespostasSefazTest` 8, `SefazHomologacaoTest` 3, `TransmissorAgendadoTest` 1). Integração: 580 (+13: `EmissaoNfceIT`). Interface (`-Pui`): 9 (+1: `NfceParteBTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1475,9 +1529,44 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-16 | **Assinatura pela biblioteca** (`Assinar.assinaNfe`, sempre com `AmbienteEnum.HOMOLOGACAO`), sobre o lote de uma nota com indSinc 1, como a transmissão da parte B; o que fica gravado é só o elemento `NFe` assinado (com o infNFeSupl). As assinaturas passam por uma trava (`synchronized`), porque a classe da biblioteca guarda a chave em campos estáticos. | F23.3. Duas emissões ao mesmo tempo (a venda e o transmissor) não podem trocar de chave no meio. |
 | 2026-11-16 | **Detalhes da montagem** (`MontagemNfce`): dest só com o CPF ou o CNPJ e indIEDest 9; qCom e qTrib com 4 casas; vUnCom = bruto ÷ quantidade com 10 casas; vDesc do item = desconto + rateado, só quando há desconto; PIS e COFINS: CST 01 e 02 no grupo Aliq, 04 a 09 no NT, 49 a 99 no Outr; ICMS00 e ICMS20 com modBC 3 e o FCP só com alíquota; o ST retido só com os quatro campos; vTotTrib no item e no total quando houver; IBSCBS (e o IBSCBSTot) só no regime normal, com o subgrupo dos valores nos CST 000 e 200 e o gRed só no 200 com redução; recusa (REJEITADA local) o item sem tributos gravados, a situação fora das regras 14 e 17 e o normal sem CST do IBS e da CBS ou sem cClassTrib. Pagamentos: o primeiro em dinheiro leva o troco no vPag e o vTroco; venda de total zero sai com tPag 90. cNF pelo `SecureRandom`, diferente dos 8 últimos dígitos do número. | F23.3, F22.2 e a regra 17. O tPag 90 (sem pagamento) não é escolhido nas formas (F22.1), mas a venda com 100% de desconto não tem pagamento e o leiaute exige um detPag. |
 | 2026-11-16 | **Recusa local**: `NfceService.prepararXml` deixa a NFC-e REJEITADA, com o motivo (o que falta no cadastro ou os 3 primeiros erros do XSD) e sem cStat, quando a montagem recusa ou o XSD reprova; sem certificado (ou vencido), nada muda e a mensagem vai para quem chamou. | F23.3 ("erro de validação deixa a NFC-e REJEITADA, com a mensagem, sem ir à SEFAZ"). Sem o certificado a nota ainda pode ser emitida depois, por outro terminal ou com o certificado trocado. |
+| 2026-11-16 | **Parte B sem migration nova.** | A V24 já criou `transmitindo_ate`, `transmitindo_por`, `tentativas`, `substituta_id`, `autorizada_em`, `nfce_evento` e `nfce_inutilizacao` (F23.1: "a migration da parte A cria todas as tabelas e colunas da fase"). |
+| 2026-11-16 | **Sem comunicação** (`SemComunicacaoException`): qualquer falha da biblioteca durante a chamada (exceção de rede, tempo esgotado, erro HTTP, resposta que não se lê) e os cStat 108 e 109. O tempo de espera é o `nfce.timeout_segundos` (conexão e leitura). O log diz só o serviço e os nomes das classes das causas, porque as mensagens da biblioteca podem trazer o XML. | F23.4. Na dúvida, tratar como "pode ter chegado" é o lado seguro: a nota vai para a contingência e a consulta pela chave decide depois (110112 ou inutilização). |
+| 2026-11-16 | **Log da biblioteca desligado até WARNING** (`java.util.logging`, logger `br.com.swconsultoria`, com referência forte em `AssinaturaNfce`). | A Java_NFe registra em INFO o XML assinado, o de envio e o de retorno (F23.4: "nunca o XML inteiro"). |
+| 2026-11-16 | **Chamadas à SEFAZ pela mesma trava da assinatura** (`AssinaturaNfce.TRAVA`). | A biblioteca guarda o certificado e o socket SSL em campos estáticos: duas chamadas com certificados diferentes ao mesmo tempo poderiam trocar de certificado. |
+| 2026-11-16 | **Respostas** (`RespostaSefaz`): autorizada = 100 ou 150; denegada = 110, 301, 302 ou 303; evento registrado = 135, 136 ou 573 (duplicidade: o primeiro pedido chegou); inutilizada = 102; 217 = não consta. Na autorização vale o cStat do protNFe (o lote é 104); sem o protNFe, o do lote. Nos eventos, o do retEvento (o lote é 128). | F23.4 e F23.5. |
+| 2026-11-16 | **Duplicidade (204) na autorização**: a emissão consulta pela chave e, se a nota está autorizada, grava AUTORIZADA com o protocolo da consulta. | Uma de contingência que chegou numa tentativa sem resposta seria REJEITADA por duplicidade, e a venda ficaria sem nota válida. |
+| 2026-11-16 | **Trava da transmissão** num UPDATE só (`transmitindo_ate` = agora + 2 min, `transmitindo_por` = terminal + um código da tentativa, `tentativas` + 1), nas situações PENDENTE, CONTINGENCIA, SEM_RESPOSTA e REJEITADA, quando não há trava válida; solta no fim (só por quem pegou). Quem não pega recebe "A NFC-e nº N já está sendo transmitida." sem fazer nada. | F23.5 (passo 1). O UPDATE atômico no PostgreSQL garante que só um pega; o código da tentativa impede que um solte a trava do outro no mesmo terminal. |
+| 2026-11-16 | **nfeProc** = a NFe gravada + o protNFe da resposta, com a declaração XML e o namespace do leiaute; fica no lugar do XML assinado. Na SUBSTITUIDA, o protocolo e a data de autorização vêm da consulta (o `ck_nfce_autorizada` os exige). | F23.1 ("o assinado e, depois da autorização, o nfeProc"). |
+| 2026-11-16 | **Contingência** (passo 4): na mesma transação, a original vira SEM_RESPOSTA (antes de reservar a nova, por causa do índice de uma NFC-e vigente por venda), a nova é reservada com tpEmis 9 e dhEmi = dhCont = agora, e a original aponta para ela (`substituta_id`); a auditoria `NFCE_CONTINGENCIA_INICIADA` sai só quando o terminal entra no modo. **No modo**, a PENDENTE vira contingência no próprio número (chave nova com o tpEmis 9, mesmo cNF, dhEmi = agora, dhCont = o início do modo) e não é enviada. A de contingência só é enviada pelo transmissor. | F23.5. dhEmi = agora (e não o da reserva) garante dhCont ≤ dhEmi. |
+| 2026-11-16 | **PENDENTE largada no meio** (reservada há mais de 2 minutos e sem trava válida): o transmissor faz o passo 4 **sem** pôr o terminal no modo contingência. | F23.5 manda seguir o passo 4; o modo é para quando a SEFAZ não responde, e aqui quem caiu foi o sistema (o transmissor acabou de falar com a SEFAZ ou nem precisou). |
+| 2026-11-16 | **Ordem do transmissor**: no modo, primeiro o status (sem 107, para); depois as PENDENTE largadas, as de contingência (sem comunicação, para), as SEM_RESPOSTA com a substituta autorizada (consulta; 110112 ou inutilização) e as REJEITADA de venda cancelada (inutilização). Uma passada por vez por terminal (`synchronized`). Eventos e inutilizações do transmissor são gravados com `usuario_id` nulo; a auditoria leva o usuário logado e "(automático)". Justificativas fixas, sem acento, com mais de 15 caracteres. | F23.5 ("usa a sessão de quem está logado sem exigir permissão, e a auditoria diz automático"; o `nfce_evento.usuario_id` nulo é "o transmissor"). |
+| 2026-11-16 | **Transmissor agendado** (`TransmissorAgendado`): uma thread daemon confere a cada minuto se há alguém logado, se `nfce.ativa` e se já passou `nfce.retransmitir_minutos` desde a última passada; liga no login (depois do bloqueio por inatividade) e desliga no log off e ao fechar o `AppContext`. A sessão do `App` passou a `volatile`. | F23.5 ("roda em segundo plano em todo terminal com alguém logado, a cada nfce.retransmitir_minutos"). Conferir a configuração a cada minuto vale a mudança sem reiniciar. |
+| 2026-11-16 | **Roteiros de tela capturam o log** (`tela.LogCapturado`: um `ListAppender` no logback e um `Handler` no java.util.logging), no lugar de ler o arquivo. | Nos testes o `logback-test.xml` só escreve no console: o arquivo de `target/ui-home` não existe, e a conferência do `NfceTelaIT` (parte A) nunca rodava. |
 | 2026-11-16 | **Roteiro de tela da parte A** (`NfceTelaIT`): o XML da venda do PDV é preparado pelo `DadosTela.nfceDaVenda`, que monta o `NfceService` com o `config.properties` gravado pela tela. | Nenhuma tela emite NFC-e na parte A (o PDV é da parte C). Assim a tela confere o caminho do certificado gravado por ela até a nota assinada. |
 
 ## Pendências e riscos
+
+- **Fase 23, parte B (2026-11-16).**
+  - **Nada foi transmitido a uma SEFAZ de verdade.** A `SefazHomologacao` foi conferida só sem rede (recusa da
+    produção, tradução das respostas de exemplo, log): o envio pela biblioteca (Axis2, certificado no SSL), os
+    endereços da UF e as respostas reais ficam para o caso manual com um certificado A1 (parte C, "Testar
+    comunicação").
+  - **O envio reconstrói o lote pela biblioteca** (o XML gravado é lido para o objeto do lote e serializado de novo,
+    como no uso normal da Java_NFe). A SEFAZ falsa confere a assinatura do que gravamos, não do que a biblioteca
+    serializa; se a homologação acusar assinatura inválida (rejeição 297), o envio terá de mandar o texto gravado.
+  - **Sem comunicação inclui qualquer falha da biblioteca na chamada** (não só rede): na dúvida, a nota vai para a
+    contingência e a consulta resolve depois. Um defeito de configuração (endereço errado da UF) vira contingência em
+    todas as vendas até alguém olhar o log.
+  - **A trava da biblioteca serializa as chamadas** (assinatura e comunicação, uma por vez neste terminal): com a SEFAZ
+    lenta, a venda pode esperar o transmissor (até `nfce.timeout_segundos`).
+  - **O modo contingência fica na memória:** se o sistema reiniciar, o terminal volta a tentar a autorização na próxima
+    venda (a de contingência pendente continua com o transmissor).
+  - **A PENDENTE largada no meio** (o sistema caiu) vira contingência sem pôr o terminal no modo, porque quem caiu foi o
+    sistema, não a SEFAZ (Decisões).
+  - **Os XML dos eventos e das inutilizações** guardados são as respostas da SEFAZ (o retEnvEvento e o retInutNFe), e
+    não o procEventoNFe e o procInutNFe montados; o ZIP do contador (parte D) pode precisar deles.
+  - **A NFC-e ligada continua sem controle na tela** (parte C): o transmissor agendado só roda com `nfce.ativa` = true.
+  Falta a pessoa executar CT-F23-09 a CT-F23-11.
 
 - **Fase 23, parte A (2026-11-16).**
   - **Nada foi transmitido nem conferido por uma SEFAZ de verdade:** o XML passa no XSD oficial (PL 010g v1.03) e a
