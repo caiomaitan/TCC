@@ -48,7 +48,18 @@ import br.com.varesync.service.Senhas;
 import br.com.varesync.service.Sessao;
 import br.com.varesync.service.Transacao;
 import com.zaxxer.hikari.HikariDataSource;
+import br.com.varesync.dao.NfceDAO;
+import br.com.varesync.dao.NumeracaoNfceDAO;
+import br.com.varesync.dao.TributoVendaDAO;
+import br.com.varesync.service.CertificadoService;
+import br.com.varesync.service.NfceService;
+import br.com.varesync.service.nfce.AssinaturaNfce;
+import br.com.varesync.service.nfce.GeracaoNfce;
+import br.com.varesync.service.nfce.MontagemNfce;
+import br.com.varesync.service.nfce.ValidacaoXsd;
+import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.ZoneId;
 import javax.sql.DataSource;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +81,8 @@ public final class AppContext implements AutoCloseable {
     private final EtiquetasPdf etiquetasPdf = new EtiquetasPdf();
     private final RelatorioPdf relatorioPdf = new RelatorioPdf();
     private final FechamentoCaixaPdf fechamentoPdf = new FechamentoCaixaPdf();
+    private final CertificadoService certificados;
+    private final NfceService nfce;
 
     AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
         this.config = config;
@@ -82,6 +95,16 @@ public final class AppContext implements AutoCloseable {
                 new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()), ExecutorProcesso.sistema(),
                 conexaoBackup(config), AppConfig.pastaPadrao().resolve("backups"), BackupService.instalacoesPadrao(),
                 System.getenv("PATH"), clock);
+        // F23: o certificado é do terminal (config.properties); os XSD são copiados para ~/.varesync/schemas.
+        this.certificados = new CertificadoService(s.transacao(), new ConfiguracaoDAO(),
+                new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()),
+                new CertificadoNoArquivo(config.arquivo()), clock);
+        ZoneId fuso = ZoneId.systemDefault();
+        ValidacaoXsd validacao = new ValidacaoXsd(AppConfig.pastaPadrao().resolve("schemas"));
+        this.nfce = new NfceService(s.transacao(), new NfceDAO(), new NumeracaoNfceDAO(), new TributoVendaDAO(),
+                new ConfiguracaoDAO(), new GeracaoNfce(new MontagemNfce(fuso), new AssinaturaNfce(
+                        AppConfig.pastaPadrao().resolve("schemas").resolve(ValidacaoXsd.VERSAO_PACOTE), fuso),
+                        validacao), certificados, VersaoSistema.doBuild().versao(), new SecureRandom(), clock, fuso);
     }
 
     /** Banco do backup, pela URL da configuração local; URL fora do padrão deixa o backup indisponível (com aviso). */
@@ -177,7 +200,8 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    s.credito(), s.clientes(), s.contas(), geradorDemo, impressaoTermica, clock, sessao);
+                    s.credito(), s.clientes(), s.contas(), geradorDemo, impressaoTermica, certificados, nfce, clock,
+                    sessao);
         }
         if (tipo == FinanceiroController.class) {
             return new FinanceiroController(s.contas(), s.recebiveis(), s.contasPagar(), s.fluxoCaixa(), sessao);
@@ -233,6 +257,14 @@ public final class AppContext implements AutoCloseable {
 
     public PreferenciaService preferenciaService() {
         return s.preferencias();
+    }
+
+    public CertificadoService certificadoService() {
+        return certificados;
+    }
+
+    public NfceService nfceService() {
+        return nfce;
     }
 
     @Override

@@ -7,19 +7,19 @@ import br.com.varesync.IntegracaoBase;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 
-/** Com o banco vazio as migrations V1 a V23 rodam; rodar de novo não aplica nada. */
+/** Com o banco vazio as migrations V1 a V24 rodam; rodar de novo não aplica nada. */
 class MigracaoIT extends IntegracaoBase {
 
     @Test
-    void bancoVazioRecebeV1aV23() throws Exception {
-        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(23);
+    void bancoVazioRecebeV1aV24() throws Exception {
+        assertThat(BancoTeste.migrationsNaPreparacao()).isEqualTo(24);
 
         try (Connection con = dataSource.getConnection()) {
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM flyway_schema_history
                      WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
-                                                   '14', '15', '16', '17', '18', '19', '20', '21', '22', '23')
-                    """)).isEqualTo(23);
+                                                   '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24')
+                    """)).isEqualTo(24);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -27,8 +27,8 @@ class MigracaoIT extends IntegracaoBase {
                     """)).as("tabelas (24 da V1, cliente da V6, crédito da V7, devoluções da V8, crediário da V10 e "
                     + "devolucao_titulo da V11; 8 do financeiro da V12; produto_fornecedor da V13; pedido_compra e "
                     + "pedido_compra_item da V14; lote, lote_saldo, lote_movimento, lote_transferencia e "
-                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17; perfil_tributario, ncm e cest da V18; produto_preco_quantidade da V19; usuario_preferencia da V21; venda_item_tributo e ibpt da V23)")
-                    .isEqualTo(60);
+                    + "entrada_mercadoria_item_lote da V15; etiqueta_impressao da V16; carga_balanca e carga_balanca_item da V17; perfil_tributario, ncm e cest da V18; produto_preco_quantidade da V19; usuario_preferencia da V21; venda_item_tributo e ibpt da V23; nfce_numeracao, nfce, nfce_evento e nfce_inutilizacao da V24)")
+                    .isEqualTo(64);
             assertThat(BancoTeste.contar(con, """
                     SELECT count(*) FROM information_schema.views
                      WHERE table_schema = 'public'
@@ -36,9 +36,13 @@ class MigracaoIT extends IntegracaoBase {
                                           'vw_estoque_inconsistente', 'vw_caixa_resumo',
                                           'vw_cliente_credito_inconsistente', 'vw_resultado_item',
                                           'vw_abatimento_inconsistente', 'vw_conta_inconsistente',
-                                          'vw_lote_inconsistente')
+                                          'vw_lote_inconsistente', 'vw_nfce_inconsistente')
                     """)).as("views (vw_resultado_item da V9, vw_abatimento_inconsistente da V11, vw_conta_inconsistente da V12, "
-                    + "vw_lote_inconsistente da V15)").isEqualTo(9);
+                    + "vw_lote_inconsistente da V15, vw_nfce_inconsistente da V24)").isEqualTo(10);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM configuracao WHERE chave LIKE 'nfce.%'"))
+                    .as("configurações da NFC-e da V24").isEqualTo(15);
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = "
+                    + "'venda' AND column_name = 'consumidor_documento'")).as("documento na nota da V24").isEqualTo(1);
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM permissao"))
                     .as("permissões do V2 + CLIENTES da V6 + DEVOLUCAO da V8 + RECEBIMENTO e LIMITE_CREDITO da V10 + FINANCEIRO da V12 + FISCAL da V18")
                     .isEqualTo(16);

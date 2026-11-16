@@ -1534,7 +1534,7 @@ A migration da parte A cria todas as tabelas e colunas da fase.
 - **"NFC-e ligada"** (`nfce.ativa`, em Configurações › NFC-e): só liga com os dados do emitente completos e com o certificado deste terminal carregado e na validade.
 - **Com a NFC-e ligada:**
   - o PDV só começa uma venda com o certificado deste terminal carregado e na validade; sem isso, explica e pede o supervisor;
-  - o produto sem dados fiscais completos (NCM, origem, perfil ativo com a situação do ICMS e o CST do IBS e da CBS aceitos pelas regras 14 e 17 do R30, e CEST quando há ST) é recusado ao registrar, com o que falta;
+  - o produto sem dados fiscais completos é recusado ao registrar, com o que falta: NCM, origem, perfil ativo com a situação do ICMS aceita pela regra 14 do R30, CEST quando há ST e, no regime NORMAL, o CST do IBS e da CBS e o cClassTrib, aceitos pela regra 17. No regime NORMAL, o perfil sem CST do IBS e da CBS também é recusado, embora no R30 ele seja só um aviso (regra 12): sem esse grupo, a homologação recusa a nota de quem é do regime normal desde 01/07/2026;
   - no pagamento, o campo "CPF/CNPJ na nota" (opcional), já preenchido com o documento do cliente identificado (F11) e conferido pelo dígito. A partir de `nfce.valor_identificacao` ele é obrigatório; a partir de `nfce.valor_maximo`, a venda não fecha, porque exige NF-e, que o sistema não emite;
   - ao finalizar, na mesma transação da venda: os tributos (F22) e a reserva do número, com a NFC-e PENDENTE;
   - depois do commit, a emissão (F23.5) numa `Task`, com o aviso "Emitindo NFC-e…";

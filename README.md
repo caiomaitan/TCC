@@ -282,6 +282,11 @@ terminal.id=CAIXA-01
 - `terminal.id` identifica o computador no controle de caixa e **deve ser único por máquina**. Com dois caixas, troque
   no segundo para `CAIXA-02` (com o sistema fechado).
 - Com vários computadores, veja a seção 5.1.
+- NFC-e em homologação (em construção, Fase 23): o certificado digital A1 é **de cada terminal**. O supervisor o
+  escolhe em Configurações › NFC-e, e o sistema grava aqui `nfce.certificado` (o caminho do .pfx ou .p12) e
+  `nfce.certificado.senha`; se a variável de ambiente `VARESYNC_CERT_SENHA` existir, a senha dela vale no lugar da do
+  arquivo. O certificado e a senha nunca vão para o banco nem para o log. Os XSD da NFC-e são copiados para
+  `~/.varesync/schemas`.
 
 Logs: `~/.varesync/logs/varesync.log`, um arquivo por dia, mantidos 30 dias. Erros técnicos vão para o log; a tela
 mostra só a mensagem para o usuário.

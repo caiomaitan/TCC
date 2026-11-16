@@ -22,10 +22,24 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                             Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
                             Fidelidade fidelidade, int devolucaoPrazoDias, Crediario crediario,
                             boolean integrarCaixa, Compras compras, int validadeAlertaDias,
-                            Etiquetas etiquetas, Assistente assistente, Tributos tributos) {
+                            Etiquetas etiquetas, Assistente assistente, Tributos tributos, Emitente emitente,
+                            Nfce nfce) {
 
     public Configuracoes {
         tributos = tributos == null ? Tributos.PADRAO : tributos;
+        emitente = emitente == null ? Emitente.VAZIO : emitente;
+        nfce = nfce == null ? Nfce.PADRAO : nfce;
+    }
+
+    /** Sem o emitente e a NFC-e (F23): valem os da V24. */
+    public Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
+                         Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
+                         Fidelidade fidelidade, int devolucaoPrazoDias, Crediario crediario,
+                         boolean integrarCaixa, Compras compras, int validadeAlertaDias,
+                         Etiquetas etiquetas, Assistente assistente, Tributos tributos) {
+        this(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante, seguranca, fidelidade,
+                devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias, etiquetas, assistente,
+                tributos, Emitente.VAZIO, Nfce.PADRAO);
     }
 
     /** Sem os tributos da venda (F22): valem os da V23. */
@@ -88,6 +102,29 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public static final String FISCAL_ALIQUOTA_IBS_UF = "fiscal.aliquota_ibs_uf";
     public static final String FISCAL_ALIQUOTA_IBS_MUN = "fiscal.aliquota_ibs_mun";
     public static final String FISCAL_EXCLUIR_ICMS = "fiscal.excluir_icms_base_pis_cofins";
+    public static final String EMPRESA_RAZAO_SOCIAL = "empresa.razao_social";
+    public static final String EMPRESA_LOGRADOURO = "empresa.logradouro";
+    public static final String EMPRESA_NUMERO = "empresa.numero";
+    public static final String EMPRESA_COMPLEMENTO = "empresa.complemento";
+    public static final String EMPRESA_BAIRRO = "empresa.bairro";
+    public static final String EMPRESA_CEP = "empresa.cep";
+    public static final String EMPRESA_MUNICIPIO = "empresa.municipio";
+    public static final String EMPRESA_CODIGO_MUNICIPIO = "empresa.codigo_municipio";
+    public static final String NFCE_ATIVA = "nfce.ativa";
+    public static final String NFCE_SERIE = "nfce.serie";
+    public static final String NFCE_PRAZO_CANCELAMENTO = "nfce.prazo_cancelamento_minutos";
+    public static final String NFCE_TIMEOUT = "nfce.timeout_segundos";
+    public static final String NFCE_RETRANSMITIR = "nfce.retransmitir_minutos";
+    public static final String NFCE_VALOR_IDENTIFICACAO = "nfce.valor_identificacao";
+    public static final String NFCE_VALOR_MAXIMO = "nfce.valor_maximo";
+    public static final String NFCE_VIA_ESTABELECIMENTO = "nfce.via_estabelecimento";
+    public static final String NFCE_ALERTA_CERTIFICADO = "nfce.alerta_certificado_dias";
+    public static final String NFCE_URL_QRCODE = "nfce.url_qrcode";
+    public static final String NFCE_URL_CONSULTA = "nfce.url_consulta";
+    public static final String NFCE_RESP_CNPJ = "nfce.resp_tecnico_cnpj";
+    public static final String NFCE_RESP_CONTATO = "nfce.resp_tecnico_contato";
+    public static final String NFCE_RESP_EMAIL = "nfce.resp_tecnico_email";
+    public static final String NFCE_RESP_FONE = "nfce.resp_tecnico_fone";
 
     public static final int DIAS_SEM_GIRO_MAXIMO = 3650;
     /** Bloqueio por inatividade (F10.2): de 0 (desligado) a 8 horas. */
@@ -224,7 +261,88 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 BigDecimal.ZERO, true);
     }
 
-    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13, V15, V16, V17, V22 e V23). */
+    /**
+     * Endereço do emitente da NFC-e (F23.2, V24), em Configurações › Loja: razão social, logradouro, número,
+     * complemento, bairro, CEP (8 dígitos), município e código IBGE do município (7 dígitos, começando pelo código da
+     * UF). Vazios até a loja preencher; o nome da loja vira o nome fantasia.
+     */
+    public record Emitente(String razaoSocial, String logradouro, String numero, String complemento, String bairro,
+                           String cep, String municipio, String codigoMunicipio) {
+
+        public static final Emitente VAZIO = new Emitente("", "", "", "", "", "", "", "");
+
+        public Emitente {
+            razaoSocial = vazioSeNulo(razaoSocial);
+            logradouro = vazioSeNulo(logradouro);
+            numero = vazioSeNulo(numero);
+            complemento = vazioSeNulo(complemento);
+            bairro = vazioSeNulo(bairro);
+            cep = vazioSeNulo(cep);
+            municipio = vazioSeNulo(municipio);
+            codigoMunicipio = vazioSeNulo(codigoMunicipio);
+        }
+    }
+
+    /** Responsável técnico da NFC-e (F23.2): todos vazios = grupo omitido. */
+    public record RespTecnico(String cnpj, String contato, String email, String fone) {
+
+        public static final RespTecnico VAZIO = new RespTecnico("", "", "", "");
+
+        public RespTecnico {
+            cnpj = vazioSeNulo(cnpj);
+            contato = vazioSeNulo(contato);
+            email = vazioSeNulo(email);
+            fone = vazioSeNulo(fone);
+        }
+
+        public boolean informado() {
+            return !cnpj.isEmpty();
+        }
+    }
+
+    /**
+     * NFC-e (F23, V24): ligada (parte C), série, prazos, valores que pedem o CPF ou CNPJ e que exigem NF-e, via do
+     * estabelecimento em contingência, aviso do certificado, endereços do QR Code e da consulta (vazios = os da
+     * biblioteca) e o responsável técnico. O certificado é do terminal e não fica aqui (AppConfig).
+     */
+    public record Nfce(boolean ativa, int serie, int prazoCancelamentoMinutos, int timeoutSegundos,
+                       int retransmitirMinutos, BigDecimal valorIdentificacao, BigDecimal valorMaximo,
+                       boolean viaEstabelecimento, int alertaCertificadoDias, String urlQrCode, String urlConsulta,
+                       RespTecnico respTecnico) {
+
+        public static final int SERIE_MAXIMA = 889;
+        /** 30 minutos: o prazo nacional; a UF pode reduzir. */
+        public static final int PRAZO_CANCELAMENTO_MAXIMO = 30;
+        public static final int TIMEOUT_MAXIMO = 120;
+        public static final int RETRANSMITIR_MAXIMO = 1440;
+        public static final int ALERTA_CERTIFICADO_MAXIMO = 365;
+        public static final Nfce PADRAO = new Nfce(false, 1, 30, 10, 5, new BigDecimal("10000"),
+                new BigDecimal("200000"), true, 30, "", "", RespTecnico.VAZIO);
+
+        public Nfce {
+            urlQrCode = vazioSeNulo(urlQrCode);
+            urlConsulta = vazioSeNulo(urlConsulta);
+            respTecnico = respTecnico == null ? RespTecnico.VAZIO : respTecnico;
+        }
+    }
+
+    private static String vazioSeNulo(String valor) {
+        return valor == null ? "" : valor.strip();
+    }
+
+    public Configuracoes comEmitente(Emitente outro) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas, assistente, tributos, outro, nfce);
+    }
+
+    public Configuracoes comNfce(Nfce outra) {
+        return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
+                etiquetas, assistente, tributos, emitente, outra);
+    }
+
+    /** Valores da V2 (e da V4, V5, V7, V8, V10, V12, V13, V15, V16, V17, V22, V23 e V24). */
     public static final Configuracoes PADRAO = new Configuracoes(new Loja("Minha Loja", "", "", ""),
             ParametrosVenda.PADRAO, BigDecimal.valueOf(15), 30,
             new Balanca(false, 2, 5, TipoValorBalanca.PRECO), new Backup("", "", 15),
@@ -244,94 +362,94 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
     public Configuracoes comLoja(Loja outra) {
         return new Configuracoes(outra, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comVenda(ParametrosVenda outra) {
         return new Configuracoes(loja, outra, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comRelatorios(BigDecimal margem, int dias) {
         return new Configuracoes(loja, venda, margem, dias, balanca, backup, rodapeComprovante, seguranca,
                 fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comBalanca(Balanca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, outra, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comBackup(Backup outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, outro, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comRodape(String outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, outro, seguranca,
                 fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comSeguranca(Seguranca outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 outra, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comFidelidade(Fidelidade outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, outra, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comDevolucaoPrazo(int dias) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, dias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comCrediario(Crediario outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, outro, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, tributos);
+                etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comIntegrarCaixa(boolean integrar) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrar, compras, validadeAlertaDias, etiquetas, assistente, tributos);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrar, compras, validadeAlertaDias, etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comCompras(Compras outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias, etiquetas, assistente, tributos);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias, etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comValidadeAlertaDias(int dias) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, dias, etiquetas, assistente, tributos);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, dias, etiquetas, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comEtiquetas(Etiquetas outras) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                outras, assistente, tributos);
+                outras, assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comAssistente(Assistente outro) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, outro, tributos);
+                etiquetas, outro, tributos, emitente, nfce);
     }
 
     public Configuracoes comTributos(Tributos outros) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
                 seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, compras, validadeAlertaDias,
-                etiquetas, assistente, outros);
+                etiquetas, assistente, outros, emitente, nfce);
     }
 
     public Configuracoes comInatividade(int minutos) {
@@ -395,7 +513,31 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 new Tributos(percentual(valores, FISCAL_ALIQUOTA_CBS, true).orElse(Tributos.PADRAO.aliquotaCbs()),
                         percentual(valores, FISCAL_ALIQUOTA_IBS_UF, true).orElse(Tributos.PADRAO.aliquotaIbsUf()),
                         percentual(valores, FISCAL_ALIQUOTA_IBS_MUN, true).orElse(Tributos.PADRAO.aliquotaIbsMun()),
-                        logico(valores, FISCAL_EXCLUIR_ICMS, Tributos.PADRAO.excluirIcmsBasePisCofins())));
+                        logico(valores, FISCAL_EXCLUIR_ICMS, Tributos.PADRAO.excluirIcmsBasePisCofins())),
+                new Emitente(texto(valores, EMPRESA_RAZAO_SOCIAL, ""), texto(valores, EMPRESA_LOGRADOURO, ""),
+                        texto(valores, EMPRESA_NUMERO, ""), texto(valores, EMPRESA_COMPLEMENTO, ""),
+                        texto(valores, EMPRESA_BAIRRO, ""), texto(valores, EMPRESA_CEP, ""),
+                        texto(valores, EMPRESA_MUNICIPIO, ""), texto(valores, EMPRESA_CODIGO_MUNICIPIO, "")),
+                nfce(valores));
+    }
+
+    private static Nfce nfce(Map<String, String> valores) {
+        Nfce p = Nfce.PADRAO;
+        return new Nfce(logico(valores, NFCE_ATIVA, p.ativa()),
+                inteiro(valores, NFCE_SERIE, 0, Nfce.SERIE_MAXIMA).orElse(p.serie()),
+                inteiro(valores, NFCE_PRAZO_CANCELAMENTO, 1, Nfce.PRAZO_CANCELAMENTO_MAXIMO)
+                        .orElse(p.prazoCancelamentoMinutos()),
+                inteiro(valores, NFCE_TIMEOUT, 1, Nfce.TIMEOUT_MAXIMO).orElse(p.timeoutSegundos()),
+                inteiro(valores, NFCE_RETRANSMITIR, 1, Nfce.RETRANSMITIR_MAXIMO).orElse(p.retransmitirMinutos()),
+                naoNegativo(valores, NFCE_VALOR_IDENTIFICACAO).filter(v -> v.signum() > 0)
+                        .orElse(p.valorIdentificacao()),
+                naoNegativo(valores, NFCE_VALOR_MAXIMO).filter(v -> v.signum() > 0).orElse(p.valorMaximo()),
+                logico(valores, NFCE_VIA_ESTABELECIMENTO, p.viaEstabelecimento()),
+                inteiro(valores, NFCE_ALERTA_CERTIFICADO, 0, Nfce.ALERTA_CERTIFICADO_MAXIMO)
+                        .orElse(p.alertaCertificadoDias()),
+                texto(valores, NFCE_URL_QRCODE, ""), texto(valores, NFCE_URL_CONSULTA, ""),
+                new RespTecnico(texto(valores, NFCE_RESP_CNPJ, ""), texto(valores, NFCE_RESP_CONTATO, ""),
+                        texto(valores, NFCE_RESP_EMAIL, ""), texto(valores, NFCE_RESP_FONE, "")));
     }
 
     /** Chave → valor como fica na tabela (números com ponto decimal, lógicos {@code true}/{@code false}). */
@@ -450,6 +592,29 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         m.put(FISCAL_ALIQUOTA_IBS_UF, numero(tributos.aliquotaIbsUf()));
         m.put(FISCAL_ALIQUOTA_IBS_MUN, numero(tributos.aliquotaIbsMun()));
         m.put(FISCAL_EXCLUIR_ICMS, String.valueOf(tributos.excluirIcmsBasePisCofins()));
+        m.put(EMPRESA_RAZAO_SOCIAL, emitente.razaoSocial());
+        m.put(EMPRESA_LOGRADOURO, emitente.logradouro());
+        m.put(EMPRESA_NUMERO, emitente.numero());
+        m.put(EMPRESA_COMPLEMENTO, emitente.complemento());
+        m.put(EMPRESA_BAIRRO, emitente.bairro());
+        m.put(EMPRESA_CEP, emitente.cep());
+        m.put(EMPRESA_MUNICIPIO, emitente.municipio());
+        m.put(EMPRESA_CODIGO_MUNICIPIO, emitente.codigoMunicipio());
+        m.put(NFCE_ATIVA, String.valueOf(nfce.ativa()));
+        m.put(NFCE_SERIE, String.valueOf(nfce.serie()));
+        m.put(NFCE_PRAZO_CANCELAMENTO, String.valueOf(nfce.prazoCancelamentoMinutos()));
+        m.put(NFCE_TIMEOUT, String.valueOf(nfce.timeoutSegundos()));
+        m.put(NFCE_RETRANSMITIR, String.valueOf(nfce.retransmitirMinutos()));
+        m.put(NFCE_VALOR_IDENTIFICACAO, numero(nfce.valorIdentificacao()));
+        m.put(NFCE_VALOR_MAXIMO, numero(nfce.valorMaximo()));
+        m.put(NFCE_VIA_ESTABELECIMENTO, String.valueOf(nfce.viaEstabelecimento()));
+        m.put(NFCE_ALERTA_CERTIFICADO, String.valueOf(nfce.alertaCertificadoDias()));
+        m.put(NFCE_URL_QRCODE, nfce.urlQrCode());
+        m.put(NFCE_URL_CONSULTA, nfce.urlConsulta());
+        m.put(NFCE_RESP_CNPJ, nfce.respTecnico().cnpj());
+        m.put(NFCE_RESP_CONTATO, nfce.respTecnico().contato());
+        m.put(NFCE_RESP_EMAIL, nfce.respTecnico().email());
+        m.put(NFCE_RESP_FONE, nfce.respTecnico().fone());
         return m;
     }
 

@@ -7,6 +7,7 @@
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.ScrollPane?>
@@ -66,7 +67,33 @@
                     <TextField fx:id="campoIe" promptText="Só os dígitos, ou ISENTO" maxWidth="220" GridPane.rowIndex="7"
                                GridPane.columnIndex="1"/>
                 </GridPane>
-                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O regime, a UF e a IE preparam o cadastro fiscal (Produtos › Fiscal…): no Simples Nacional a situação do ICMS é o CSOSN; no regime normal, o CST. O sistema não emite documento fiscal."/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O regime, a UF e a IE preparam o cadastro fiscal (Produtos › Fiscal…): no Simples Nacional a situação do ICMS é o CSOSN; no regime normal, o CST. Para a NFC-e, o CNPJ e a IE são obrigatórios (não vale ISENTO)."/>
+                <Label text="Endereço para a NFC-e" styleClass="titulo-secao"/>
+                <Label wrapText="true" minHeight="-Infinity" text="O emitente da NFC-e (só em homologação). O nome da loja vira o nome fantasia; o endereço de cima continua no comprovante não fiscal."/>
+                <GridPane hgap="12" vgap="10" maxWidth="720">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="190"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="Razão social" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRazaoSocial" promptText="Como no CNPJ" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                    <Label text="Logradouro" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoLogradouro" promptText="Ex.: Rua das Flores" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                    <Label text="Número" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoNumero" maxWidth="120" promptText="Ou S/N" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                    <Label text="Complemento" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoComplemento" promptText="Opcional" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                    <Label text="Bairro" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoBairro" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+                    <Label text="CEP" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoCep" maxWidth="120" promptText="14010-100" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                    <Label text="Município" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoMunicipio" GridPane.rowIndex="6" GridPane.columnIndex="1"/>
+                    <Label text="Código IBGE do município" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoCodigoMunicipio" maxWidth="120" promptText="7 dígitos" GridPane.rowIndex="7"
+                               GridPane.columnIndex="1"/>
+                </GridPane>
+                <Label fx:id="situacaoEmitente" wrapText="true" minHeight="-Infinity"/>
                 <Label text="Tributos da venda" styleClass="titulo-secao"/>
                 <Label wrapText="true" minHeight="-Infinity" text="Ao finalizar a venda, o sistema calcula e guarda os tributos de cada item pelo perfil tributário do produto (Produtos › Fiscal…). O cálculo só registra: o valor da venda não muda."/>
                 <Label text="IBS e CBS (reforma tributária)" styleClass="titulo-secao"/>
@@ -221,9 +248,10 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Ligada, a abertura retira o fundo de troco de uma conta, a sangria entra numa conta, o suprimento sai de uma conta e o fechamento leva o dinheiro contado para uma conta. Ligue depois de lançar o saldo inicial das contas (menu Financeiro). Vale para os caixas abertos depois de ligar; um caixa continua como foi aberto até o fechamento."/>
             </VBox>
         </Tab>
-        <Tab fx:id="abaCompras" text="Compras">
+        <Tab fx:id="abaComprasEstoque" text="Compras e estoque">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label text="Sugestão de compra" styleClass="titulo-secao"/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Label text="Dias de venda na média diária" minWidth="230"/>
                     <TextField fx:id="campoDiasMedia" prefWidth="90" styleClass="campo-numero"/>
@@ -233,11 +261,7 @@
                     <TextField fx:id="campoCobertura" prefWidth="90" styleClass="campo-numero"/>
                 </HBox>
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="A sugestão de compra (tela Compras) usa a venda dos últimos dias, já sem as devoluções, para calcular a média por dia, e sugere o que falta para cobrir os dias de cobertura mais o prazo de entrega do fornecedor principal, sem ficar abaixo do estoque mínimo. O fornecedor principal, o prazo e o fator de cada produto ficam no cadastro do produto, aba Fornecedores."/>
-            </VBox>
-        </Tab>
-        <Tab fx:id="abaEstoque" text="Estoque">
-            <VBox spacing="10" styleClass="painel-formulario">
-                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label text="Validade dos lotes" styleClass="titulo-secao"/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Label text="Alerta de validade (dias antes)" minWidth="230"/>
                     <TextField fx:id="campoAlertaValidade" prefWidth="90" styleClass="campo-numero"/>
@@ -269,6 +293,85 @@
                 <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Variáveis: {NOME} (ou {NOME:30}, cortado em 30 caracteres), {PRECO}, {PRECO_DE} (preço normal, só na promoção), {UNIDADE}, {CODBARRAS}, {PLU}, {CODIGO}, {VALIDADE} (fim da promoção), {QTD_ATACADO} e {PRECO_ATACADO} (a faixa de atacado, vazias sem faixa). Os preços saem sem &quot;R$&quot; (12,90), o que não se aplica sai vazio, o texto vai sem acentos e &lt;STX&gt; vira o caractere STX do DPL. Uma etiqueta por unidade da quantidade. Os exemplos são um ponto de partida: confira-os na impressora da loja com &quot;Imprimir teste&quot;, que usa o modelo e a impressora como estão na tela."/>
                 <Label fx:id="mensagemEtiquetas" wrapText="true" minHeight="-Infinity"/>
             </VBox>
+        </Tab>
+        <Tab fx:id="abaNfce" text="NFC-e">
+            <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
+            <VBox spacing="10" styleClass="painel-formulario">
+                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                <Label wrapText="true" minHeight="-Infinity" text="Nota Fiscal de Consumidor Eletrônica (modelo 65), só no ambiente de homologação da SEFAZ, em que a nota não tem valor fiscal. Os dados do emitente ficam em Loja."/>
+                <Label text="Certificado digital deste terminal" styleClass="titulo-secao"/>
+                <Label fx:id="situacaoCertificado" wrapText="true" minHeight="-Infinity"/>
+                <GridPane hgap="12" vgap="10" maxWidth="760">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="190"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="Arquivo (.pfx ou .p12)" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <HBox spacing="8" alignment="CENTER_LEFT" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                        <TextField fx:id="campoCertificado" HBox.hgrow="ALWAYS" promptText="Escolha o arquivo do certificado A1"/>
+                        <Button text="Procurar…" onAction="#escolherCertificado"/>
+                    </HBox>
+                    <Label fx:id="rotuloSenhaCertificado" text="Senha do certificado" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <PasswordField fx:id="campoSenhaCertificado" maxWidth="260" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                </GridPane>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button text="Salvar certificado" onAction="#salvarCertificado" styleClass="botao-primario"/>
+                    <Button fx:id="botaoRemoverCertificado" text="Retirar certificado" onAction="#removerCertificado"/>
+                    <Label fx:id="mensagemCertificado" wrapText="true" HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O certificado é deste computador: o caminho e a senha ficam só no arquivo de configuração local, nunca no banco. Se a variável de ambiente VARESYNC_CERT_SENHA existir, a senha dela vale no lugar da senha do arquivo. Certificado A3 (cartão ou token) não é aceito."/>
+                <Label text="Numeração e prazos" styleClass="titulo-secao"/>
+                <GridPane hgap="12" vgap="10" maxWidth="760">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="300"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="Série" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoSerieNfce" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                    <Label text="Prazo de cancelamento (minutos)" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoPrazoCancelamento" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                    <Label text="Espera pela resposta da SEFAZ (segundos)" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoTimeoutNfce" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                    <Label text="Transmitir as pendentes a cada (minutos)" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRetransmitir" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                    <Label text="CPF ou CNPJ obrigatório a partir de (R$)" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoValorIdentificacao" maxWidth="140" styleClass="campo-numero" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+                    <Label text="Exige NF-e a partir de (R$)" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoValorMaximo" maxWidth="140" styleClass="campo-numero" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                    <Label text="Avisar o vencimento do certificado (dias antes)" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoAlertaCertificado" maxWidth="90" styleClass="campo-numero" GridPane.rowIndex="6" GridPane.columnIndex="1"/>
+                </GridPane>
+                <CheckBox fx:id="campoViaEstabelecimento" text="Em contingência, imprimir também a via do estabelecimento"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="O prazo nacional de cancelamento é de 30 minutos da autorização (a UF pode reduzir). A partir do valor do CPF ou CNPJ, a nota exige a identificação do consumidor; a partir do valor da NF-e, a venda não fecha, porque o sistema não emite NF-e."/>
+                <Label text="Endereços da SEFAZ" styleClass="titulo-secao"/>
+                <GridPane hgap="12" vgap="10" maxWidth="760">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="190"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="QR Code" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoUrlQrCode" promptText="Vazio = o endereço da UF da loja" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                    <Label text="Consulta pela chave" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoUrlConsulta" promptText="Vazio = o endereço da UF da loja" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                </GridPane>
+                <Label text="Responsável técnico" styleClass="titulo-secao"/>
+                <GridPane hgap="12" vgap="10" maxWidth="760">
+                    <columnConstraints>
+                        <ColumnConstraints minWidth="190"/>
+                        <ColumnConstraints hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <Label text="CNPJ" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRespCnpj" maxWidth="220" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                    <Label text="Contato" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRespContato" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                    <Label text="E-mail" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRespEmail" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                    <Label text="Telefone" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                    <TextField fx:id="campoRespFone" maxWidth="220" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                </GridPane>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Quem fez o sistema emissor. Vazio, o grupo sai da nota, mas algumas UFs o exigem."/>
+            </VBox>
+            </ScrollPane>
         </Tab>
         <Tab fx:id="abaFormas" text="Formas de pagamento">
             <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">
@@ -398,7 +501,7 @@
             <ScrollPane fitToWidth="true" styleClass="painel-formulario">
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque; o saldo de crédito de cada cliente, à soma do seu extrato; o abatido de cada título e de cada devolução, à soma dos abatimentos por parcela; e o saldo de cada lote, à soma do seu razão (e, nos produtos com controle de validade, a soma dos lotes, ao saldo do produto). O esperado é não haver nenhuma diferença: os saldos só mudam por movimento."/>
+                <Label wrapText="true" minHeight="-Infinity" text="Confere se o saldo de cada produto é igual à soma de todos os seus movimentos de estoque; o saldo de crédito de cada cliente, à soma do seu extrato; o abatido de cada título e de cada devolução, à soma dos abatimentos por parcela; e o saldo de cada lote, à soma do seu razão (e, nos produtos com controle de validade, a soma dos lotes, ao saldo do produto); e a situação de cada NFC-e, à da venda. O esperado é não haver nenhuma diferença: os saldos só mudam por movimento."/>
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Button fx:id="botaoVerificar" text="Verificar agora" onAction="#verificar"
                             styleClass="botao-primario"/>
@@ -466,6 +569,11 @@
                 <Label text="Lotes (validade)" styleClass="titulo-secao"/>
                 <Label fx:id="resultadoLotes" wrapText="true" minHeight="-Infinity"/>
                 <ListView fx:id="listaLotes" VBox.vgrow="ALWAYS" minHeight="70" prefHeight="90">
+                    <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
+                </ListView>
+                <Label text="NFC-e" styleClass="titulo-secao"/>
+                <Label fx:id="resultadoNfce" wrapText="true" minHeight="-Infinity"/>
+                <ListView fx:id="listaNfce" VBox.vgrow="ALWAYS" minHeight="70" prefHeight="90">
                     <placeholder><Label text="Nenhuma diferença encontrada."/></placeholder>
                 </ListView>
             </VBox>

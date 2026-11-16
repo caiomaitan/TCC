@@ -62,6 +62,25 @@ class ConfiguracoesTest {
         m.put("empresa.regime_tributario", "SIMPLES"); // V18 (F19.1)
         m.put("empresa.uf", "");
         m.put("empresa.ie", "");
+        for (String chave : java.util.List.of("razao_social", "logradouro", "numero", "complemento", "bairro", "cep",
+                "municipio", "codigo_municipio")) {
+            m.put("empresa." + chave, ""); // V24 (F23.2)
+        }
+        m.put("nfce.ativa", "false");
+        m.put("nfce.serie", "1");
+        m.put("nfce.prazo_cancelamento_minutos", "30");
+        m.put("nfce.timeout_segundos", "10");
+        m.put("nfce.retransmitir_minutos", "5");
+        m.put("nfce.valor_identificacao", "10000");
+        m.put("nfce.valor_maximo", "200000");
+        m.put("nfce.via_estabelecimento", "true");
+        m.put("nfce.alerta_certificado_dias", "30");
+        m.put("nfce.url_qrcode", "");
+        m.put("nfce.url_consulta", "");
+        m.put("nfce.resp_tecnico_cnpj", "");
+        m.put("nfce.resp_tecnico_contato", "");
+        m.put("nfce.resp_tecnico_email", "");
+        m.put("nfce.resp_tecnico_fone", "");
         return m;
     }
 

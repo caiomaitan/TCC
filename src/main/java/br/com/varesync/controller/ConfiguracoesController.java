@@ -17,7 +17,10 @@ import br.com.varesync.model.RegistroAuditoria;
 import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.report.ImpressaoTermica;
+import br.com.varesync.model.InfoCertificado;
 import br.com.varesync.service.BackupService;
+import br.com.varesync.service.CertificadoService;
+import br.com.varesync.service.NfceService;
 import br.com.varesync.service.ClienteService;
 import br.com.varesync.service.ContaFinanceiraService;
 import br.com.varesync.service.ConfiguracaoService;
@@ -58,6 +61,7 @@ import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tab;
@@ -176,8 +180,7 @@ public class ConfiguracoesController {
     @FXML private CheckBox campoFormasRevisadas;
     @FXML private CheckBox campoSoEuUso;
     @FXML private CheckBox campoSemBalanca;
-    @FXML private Tab abaCompras;
-    @FXML private Tab abaEstoque;
+    @FXML private Tab abaComprasEstoque;
     @FXML private TextField campoAlertaValidade;
     @FXML private Label resultadoLotes;
     @FXML private ListView<String> listaLotes;
@@ -242,13 +245,52 @@ public class ConfiguracoesController {
     @FXML private Button botaoImprimirTeste;
     @FXML private Label mensagemEtiquetas;
     @FXML private TextArea resultadoDemo;
+    // F23.2: endereço do emitente (Loja) e a seção NFC-e, com o certificado deste terminal
+    @FXML private TextField campoRazaoSocial;
+    @FXML private TextField campoLogradouro;
+    @FXML private TextField campoNumero;
+    @FXML private TextField campoComplemento;
+    @FXML private TextField campoBairro;
+    @FXML private TextField campoCep;
+    @FXML private TextField campoMunicipio;
+    @FXML private TextField campoCodigoMunicipio;
+    @FXML private Label situacaoEmitente;
+    @FXML private Tab abaNfce;
+    @FXML private TextField campoSerieNfce;
+    @FXML private TextField campoPrazoCancelamento;
+    @FXML private TextField campoTimeoutNfce;
+    @FXML private TextField campoRetransmitir;
+    @FXML private TextField campoValorIdentificacao;
+    @FXML private TextField campoValorMaximo;
+    @FXML private CheckBox campoViaEstabelecimento;
+    @FXML private TextField campoAlertaCertificado;
+    @FXML private TextField campoUrlQrCode;
+    @FXML private TextField campoUrlConsulta;
+    @FXML private TextField campoRespCnpj;
+    @FXML private TextField campoRespContato;
+    @FXML private TextField campoRespEmail;
+    @FXML private TextField campoRespFone;
+    @FXML private Label situacaoCertificado;
+    @FXML private TextField campoCertificado;
+    @FXML private PasswordField campoSenhaCertificado;
+    @FXML private Label rotuloSenhaCertificado;
+    @FXML private Button botaoRemoverCertificado;
+    @FXML private Label mensagemCertificado;
+    @FXML private Label resultadoNfce;
+    @FXML private ListView<String> listaNfce;
+
+    private final CertificadoService certificadoService;
+    private final NfceService nfceService;
 
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
                                    EstoqueService estoqueService, CreditoService creditoService,
                                    ClienteService clienteService, ContaFinanceiraService contaService,
-                                   GeradorDemo geradorDemo, ImpressaoTermica impressaoTermica, Clock clock,
+                                   GeradorDemo geradorDemo, ImpressaoTermica impressaoTermica,
+                                   CertificadoService certificadoService, NfceService nfceService, Clock clock,
                                    Sessao sessao) {
+        this.certificadoService = certificadoService;
+        this.nfceService = nfceService;
         this.impressaoTermica = impressaoTermica;
         this.clock = clock;
         this.contaService = contaService;
@@ -311,7 +353,7 @@ public class ConfiguracoesController {
                 Formatos.moeda(c.getValue().diferenca())));
 
         Set<Tab> parametros = Set.of(abaLoja, abaVenda, abaRelatorios, abaBalanca, abaSeguranca, abaFidelidade,
-                abaCrediario, abaFinanceiro, abaCompras, abaEstoque, abaEtiquetas, abaBackup, abaPrimeirosPassos);
+                abaCrediario, abaFinanceiro, abaComprasEstoque, abaEtiquetas, abaNfce, abaBackup, abaPrimeirosPassos);
         prepararSecoes();
         abas.getSelectionModel().selectedItemProperty().addListener((o, a, aba) -> {
             boolean visivel = parametros.contains(aba);
@@ -376,6 +418,7 @@ public class ConfiguracoesController {
         prepararTabelaBackups();
         prepararTabelaAuditoria();
         mostrar(configuracaoService.carregar(sessao));
+        mostrarCertificado();
         carregarFormas(null);
         verificar();
         javafx.application.Platform.runLater(secoes::requestFocus); // F21.5: foco inicial na lista de seções
@@ -434,7 +477,45 @@ public class ConfiguracoesController {
         campoAliquotaIbsUf.setText(Formatos.numero(c.tributos().aliquotaIbsUf(), Dinheiro.ESCALA_PERCENTUAL));
         campoAliquotaIbsMun.setText(Formatos.numero(c.tributos().aliquotaIbsMun(), Dinheiro.ESCALA_PERCENTUAL));
         campoExcluirIcms.setSelected(c.tributos().excluirIcmsBasePisCofins());
+        Configuracoes.Emitente e = c.emitente();
+        campoRazaoSocial.setText(e.razaoSocial());
+        campoLogradouro.setText(e.logradouro());
+        campoNumero.setText(e.numero());
+        campoComplemento.setText(e.complemento());
+        campoBairro.setText(e.bairro());
+        campoCep.setText(e.cep().length() == 8 ? e.cep().substring(0, 5) + "-" + e.cep().substring(5) : e.cep());
+        campoMunicipio.setText(e.municipio());
+        campoCodigoMunicipio.setText(e.codigoMunicipio());
+        Configuracoes.Nfce n = c.nfce();
+        campoSerieNfce.setText(String.valueOf(n.serie()));
+        campoPrazoCancelamento.setText(String.valueOf(n.prazoCancelamentoMinutos()));
+        campoTimeoutNfce.setText(String.valueOf(n.timeoutSegundos()));
+        campoRetransmitir.setText(String.valueOf(n.retransmitirMinutos()));
+        campoValorIdentificacao.setText(Formatos.numero(n.valorIdentificacao(), Dinheiro.ESCALA_DINHEIRO));
+        campoValorMaximo.setText(Formatos.numero(n.valorMaximo(), Dinheiro.ESCALA_DINHEIRO));
+        campoViaEstabelecimento.setSelected(n.viaEstabelecimento());
+        campoAlertaCertificado.setText(String.valueOf(n.alertaCertificadoDias()));
+        campoUrlQrCode.setText(n.urlQrCode());
+        campoUrlConsulta.setText(n.urlConsulta());
+        campoRespCnpj.setText(n.respTecnico().cnpj().isEmpty() ? "" : CpfCnpj.formatar(n.respTecnico().cnpj()));
+        campoRespContato.setText(n.respTecnico().contato());
+        campoRespEmail.setText(n.respTecnico().email());
+        campoRespFone.setText(n.respTecnico().fone().isEmpty() ? "" : Formatos.telefone(n.respTecnico().fone()));
+        mostrarSituacaoEmitente(c);
         atualizarBalanca();
+    }
+
+    /** F23.2: o que ainda falta na loja para a NFC-e (o bloco "Endereço para a NFC-e" e os dados de cima). */
+    private void mostrarSituacaoEmitente(Configuracoes c) {
+        List<String> falta = br.com.varesync.service.nfce.EmitenteNfce.pendencias(c);
+        situacaoEmitente.getStyleClass().removeAll("mensagem-erro", "mensagem-sucesso");
+        if (falta.isEmpty()) {
+            situacaoEmitente.setText("Os dados do emitente estão completos para a NFC-e.");
+            situacaoEmitente.getStyleClass().add("mensagem-sucesso");
+        } else {
+            situacaoEmitente.setText("Para a NFC-e, ainda falta: " + String.join(", ", falta) + ".");
+            situacaoEmitente.getStyleClass().add("mensagem-erro");
+        }
     }
 
     /** Lê os campos das seis abas de parâmetros; texto que não é número vira mensagem com o nome do campo. */
@@ -475,7 +556,100 @@ public class ConfiguracoesController {
                         campoSemBalanca.isSelected()),
                 new Configuracoes.Tributos(numero(campoAliquotaCbs, "Alíquota da CBS"),
                         numero(campoAliquotaIbsUf, "Alíquota do IBS da UF"),
-                        numero(campoAliquotaIbsMun, "Alíquota do IBS do município"), campoExcluirIcms.isSelected()));
+                        numero(campoAliquotaIbsMun, "Alíquota do IBS do município"), campoExcluirIcms.isSelected()),
+                new Configuracoes.Emitente(campoRazaoSocial.getText(), campoLogradouro.getText(),
+                        campoNumero.getText(), campoComplemento.getText(), campoBairro.getText(), campoCep.getText(),
+                        campoMunicipio.getText(), campoCodigoMunicipio.getText()),
+                // "NFC-e ligada" é da parte C da F23: aqui fica como está gravada
+                new Configuracoes.Nfce(gravadas == null ? false : gravadas.nfce().ativa(),
+                        inteiro(campoSerieNfce, "Série da NFC-e"),
+                        inteiro(campoPrazoCancelamento, "Prazo de cancelamento"),
+                        inteiro(campoTimeoutNfce, "Espera pela resposta da SEFAZ"),
+                        inteiro(campoRetransmitir, "Intervalo do transmissor"),
+                        numero(campoValorIdentificacao, "Valor que exige o CPF ou CNPJ na nota"),
+                        numero(campoValorMaximo, "Valor que exige NF-e"), campoViaEstabelecimento.isSelected(),
+                        inteiro(campoAlertaCertificado, "Aviso de vencimento do certificado"),
+                        campoUrlQrCode.getText(), campoUrlConsulta.getText(),
+                        new Configuracoes.RespTecnico(campoRespCnpj.getText(), campoRespContato.getText(),
+                                campoRespEmail.getText(), campoRespFone.getText())));
+    }
+
+    // ----- Certificado A1 deste terminal (F23.2) -----
+
+    /** Titular, CNPJ, vencimento e se a raiz do CNPJ bate com a da loja; nunca o caminho nem a senha. */
+    private void mostrarCertificado() {
+        boolean naVariavel = certificadoService.senhaNaVariavel();
+        campoSenhaCertificado.setDisable(naVariavel);
+        campoSenhaCertificado.setPromptText(naVariavel ? "vem da variável VARESYNC_CERT_SENHA" : "");
+        situacaoCertificado.getStyleClass().removeAll("mensagem-erro", "mensagem-sucesso");
+        try {
+            var atual = certificadoService.atual(sessao);
+            botaoRemoverCertificado.setDisable(atual.isEmpty());
+            if (atual.isEmpty()) {
+                situacaoCertificado.setText("Este terminal (" + sessao.terminal() + ") ainda não tem certificado. "
+                        + "Escolha o arquivo .pfx ou .p12 do certificado A1 da loja e informe a senha.");
+                return;
+            }
+            situacaoCertificado.setText(descreverCertificado(atual.get()));
+            situacaoCertificado.getStyleClass().add(atual.get().problema().isPresent() ? "mensagem-erro"
+                    : "mensagem-sucesso");
+        } catch (NegocioException e) {
+            botaoRemoverCertificado.setDisable(false);
+            situacaoCertificado.setText("O certificado deste terminal não pôde ser aberto: " + e.getMessage());
+            situacaoCertificado.getStyleClass().add("mensagem-erro");
+        }
+    }
+
+    static String descreverCertificado(InfoCertificado i) {
+        String validade = i.vencido() ? "vencido em " + Formatos.dataHora(i.validoAte())
+                : "válido até " + Formatos.dataHora(i.validoAte()) + " (" + i.diasParaVencer()
+                        + (i.diasParaVencer() == 1 ? " dia)" : " dias)");
+        return "Titular: " + i.titular() + " · CNPJ: " + (i.cnpj().isEmpty() ? "não informado no certificado"
+                : CpfCnpj.formatar(i.cnpj())) + " · " + validade + " · "
+                + (i.raizConfere() ? "a raiz do CNPJ é a da loja" : "a raiz do CNPJ NÃO é a da loja")
+                + i.problema().map(p -> ". " + p).orElse(".");
+    }
+
+    @FXML
+    private void escolherCertificado() {
+        FileChooser escolha = new FileChooser();
+        escolha.setTitle("Certificado A1 da loja");
+        escolha.getExtensionFilters().add(new FileChooser.ExtensionFilter("Certificado A1 (*.pfx, *.p12)", "*.pfx",
+                "*.p12"));
+        File arquivo = escolha.showOpenDialog(abas.getScene().getWindow());
+        if (arquivo != null) {
+            campoCertificado.setText(arquivo.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    void salvarCertificado() {
+        try {
+            InfoCertificado info = certificadoService.salvar(sessao, campoCertificado.getText(),
+                    campoSenhaCertificado.getText());
+            campoSenhaCertificado.clear();
+            campoCertificado.clear();
+            mostrarCertificado();
+            Mensagem.sucesso(mensagemCertificado, "Certificado deste terminal salvo: " + info.titular() + ".");
+        } catch (NegocioException e) {
+            Mensagem.erro(mensagemCertificado, e.getMessage());
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mostrar(e);
+        }
+    }
+
+    @FXML
+    private void removerCertificado() {
+        if (!Dialogos.confirmar("Retirar o certificado deste terminal? Sem ele, este terminal não emite NFC-e.")) {
+            return;
+        }
+        try {
+            certificadoService.remover(sessao);
+            mostrarCertificado();
+            Mensagem.sucesso(mensagemCertificado, "Certificado retirado deste terminal.");
+        } catch (RuntimeException e) {
+            TratadorExcecoes.mostrar(e);
+        }
     }
 
     private static BigDecimal numero(TextField campo, String rotulo) {
@@ -916,7 +1090,7 @@ public class ConfiguracoesController {
     /** Estoque (6.4) e crédito dos clientes (F12.3): as duas views de inconsistência precisam vir vazias. */
     private record Diagnostico(List<InconsistenciaEstoque> estoque, List<InconsistenciaCredito> credito,
                                List<InconsistenciaAbatimento> abatimento, List<InconsistenciaConta> conta,
-                               List<String> lotes) {
+                               List<String> lotes, List<String> nfce) {
     }
 
     @FXML
@@ -926,7 +1100,7 @@ public class ConfiguracoesController {
             protected Diagnostico call() {
                 return new Diagnostico(estoqueService.diagnostico(sessao), creditoService.diagnostico(sessao),
                         clienteService.diagnosticoAbatimentos(sessao), contaService.diagnostico(sessao),
-                        estoqueService.diagnosticoLotes(sessao));
+                        estoqueService.diagnosticoLotes(sessao), nfceService.diagnostico(sessao));
             }
         };
         botaoVerificar.setDisable(true);
@@ -936,8 +1110,18 @@ public class ConfiguracoesController {
         Mensagem.limpar(resultadoAbatimento);
         Mensagem.limpar(resultadoConta);
         Mensagem.limpar(resultadoLotes);
+        Mensagem.limpar(resultadoNfce);
         tarefa.setOnSucceeded(e -> {
             concluir();
+            List<String> nfce = tarefa.getValue().nfce();
+            listaNfce.getItems().setAll(nfce);
+            if (nfce.isEmpty()) {
+                Mensagem.sucesso(resultadoNfce, "Tudo certo: nenhuma NFC-e autorizada de venda cancelada nem NFC-e "
+                        + "cancelada de venda finalizada.");
+            } else {
+                Mensagem.erro(resultadoNfce, nfce.size() + " NFC-e com a situação diferente da venda. Anote as linhas "
+                        + "e procure o suporte.");
+            }
             List<String> lotes = tarefa.getValue().lotes();
             listaLotes.getItems().setAll(lotes);
             if (lotes.isEmpty()) {

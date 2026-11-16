@@ -182,6 +182,7 @@ final class AcessoTeste {
             st.executeUpdate("TRUNCATE usuario, fornecedor, conta_saldo CASCADE");
             // F19.3: as tabelas de apoio não dependem de usuário.
             st.executeUpdate("TRUNCATE ncm, cest, ibpt"); // F22.3: a tabela IBPT também
+            st.executeUpdate("TRUNCATE nfce_numeracao"); // F23.1: as NFC-e saem com as vendas (CASCADE de usuario)
             // F22.1: o tPag volta ao da V23 (o tipo; o Vale-alimentação da V2 é 10).
             st.executeUpdate("""
                     UPDATE forma_pagamento

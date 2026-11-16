@@ -43,6 +43,9 @@ public class ConfiguracaoService {
     static final int TAMANHO_MODELO = 10_000;
     /** Cabe em {@code carga_balanca.arquivo} (500) com o nome do arquivo. */
     static final int TAMANHO_PASTA_CARGA = 480;
+    /** Campos de texto do emitente e do responsável técnico na NFC-e: 60 caracteres no leiaute. */
+    static final int TAMANHO_CAMPO_NFCE = 60;
+    static final int TAMANHO_URL_NFCE = 200;
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
     private static final BigDecimal TAXA_MAXIMA = BigDecimal.valueOf(20);
     private static final int DIAS_RECEBIMENTO_MAXIMO = 60;
@@ -298,7 +301,115 @@ public class ConfiguracaoService {
                 new ParametrosVenda(venda.permitirEstoqueNegativo(), desconto, venda.cancelarItemExigeSupervisor()),
                 margem, c.diasSemGiro(), balanca, backup, rodape, c.seguranca(), fidelidade, c.devolucaoPrazoDias(),
                 crediario, c.integrarCaixa(), compras, c.validadeAlertaDias(), etiquetas(c.etiquetas()),
-                c.assistente() == null ? Configuracoes.Assistente.PADRAO : c.assistente(), tributos(c.tributos()));
+                c.assistente() == null ? Configuracoes.Assistente.PADRAO : c.assistente(), tributos(c.tributos()),
+                emitente(c.emitente(), uf), nfce(c.nfce()));
+    }
+
+    /**
+     * Endereço do emitente da NFC-e (F23.2): cada campo opcional aqui, até 60 caracteres (o leiaute); CEP com 8 dígitos;
+     * código IBGE do município com 7 dígitos, começando pelo código da UF da loja. A conferência de que está tudo
+     * preenchido é da NFC-e ({@code EmitenteNfce}), não desta tela.
+     */
+    static Configuracoes.Emitente emitente(Configuracoes.Emitente e, String uf) {
+        String cep = Textos.apenasDigitos(e.cep());
+        if (!cep.isEmpty() && cep.length() != 8) {
+            throw new NegocioException("O CEP tem 8 dígitos (ex.: 14010-100).");
+        }
+        String municipio = Textos.apenasDigitos(e.codigoMunicipio());
+        if (!municipio.isEmpty()) {
+            if (municipio.length() != 7) {
+                throw new NegocioException("O código IBGE do município tem 7 dígitos (ex.: 3543402).");
+            }
+            Integer codigoUf = br.com.varesync.util.CodigoUf.de(uf).orElseThrow(() -> new NegocioException(
+                    "Escolha a UF da loja: o código do município começa pelo código dela."));
+            if (!municipio.startsWith(String.valueOf(codigoUf))) {
+                throw new NegocioException("O código do município " + municipio + " não é de " + uf + ": os de " + uf
+                        + " começam por " + codigoUf + ".");
+            }
+        }
+        return new Configuracoes.Emitente(
+                limite(Textos.normalizarEspacos(e.razaoSocial()), TAMANHO_CAMPO_NFCE, "A razão social"),
+                limite(Textos.normalizarEspacos(e.logradouro()), TAMANHO_CAMPO_NFCE, "O logradouro"),
+                limite(Textos.normalizarEspacos(e.numero()), TAMANHO_CAMPO_NFCE, "O número do endereço"),
+                limite(Textos.normalizarEspacos(e.complemento()), TAMANHO_CAMPO_NFCE, "O complemento"),
+                limite(Textos.normalizarEspacos(e.bairro()), TAMANHO_CAMPO_NFCE, "O bairro"), cep,
+                limite(Textos.normalizarEspacos(e.municipio()), TAMANHO_CAMPO_NFCE, "O município"), municipio);
+    }
+
+    /**
+     * NFC-e (F23.2, seção 0.4): série de 0 a 889; prazo de cancelamento de 1 a 30 minutos; espera de 1 a 120 segundos;
+     * transmissor de 1 a 1440 minutos; valores maiores que zero, com a identificação até o máximo; aviso do certificado
+     * de 0 a 365 dias; endereços vazios ou http(s); responsável técnico todo vazio ou todo preenchido.
+     */
+    static Configuracoes.Nfce nfce(Configuracoes.Nfce n) {
+        Configuracoes.Nfce p = Configuracoes.Nfce.PADRAO;
+        faixa(n.serie(), 0, Configuracoes.Nfce.SERIE_MAXIMA, "A série da NFC-e", "");
+        faixa(n.prazoCancelamentoMinutos(), 1, Configuracoes.Nfce.PRAZO_CANCELAMENTO_MAXIMO,
+                "O prazo de cancelamento", " minutos (30 é o prazo nacional; a UF pode reduzir)");
+        faixa(n.timeoutSegundos(), 1, Configuracoes.Nfce.TIMEOUT_MAXIMO, "A espera pela resposta da SEFAZ",
+                " segundos");
+        faixa(n.retransmitirMinutos(), 1, Configuracoes.Nfce.RETRANSMITIR_MAXIMO,
+                "O intervalo do transmissor", " minutos");
+        faixa(n.alertaCertificadoDias(), 0, Configuracoes.Nfce.ALERTA_CERTIFICADO_MAXIMO,
+                "O aviso de vencimento do certificado", " dias");
+        BigDecimal identificacao = CaixaService.valor(n.valorIdentificacao() == null ? p.valorIdentificacao()
+                : n.valorIdentificacao(), "o valor que exige o CPF ou CNPJ na nota", false);
+        BigDecimal maximo = CaixaService.valor(n.valorMaximo() == null ? p.valorMaximo() : n.valorMaximo(),
+                "o valor que exige NF-e", false);
+        if (identificacao.compareTo(maximo) > 0) {
+            throw new NegocioException("O valor que exige o CPF ou CNPJ na nota não pode passar do valor que exige "
+                    + "NF-e.");
+        }
+        return new Configuracoes.Nfce(n.ativa(), n.serie(), n.prazoCancelamentoMinutos(), n.timeoutSegundos(),
+                n.retransmitirMinutos(), identificacao, maximo, n.viaEstabelecimento(), n.alertaCertificadoDias(),
+                endereco(n.urlQrCode(), "O endereço do QR Code"), endereco(n.urlConsulta(), "O endereço da consulta"),
+                respTecnico(n.respTecnico()));
+    }
+
+    private static void faixa(int valor, int minimo, int maximo, String rotulo, String unidade) {
+        if (valor < minimo || valor > maximo) {
+            throw new NegocioException(rotulo + " deve estar entre " + minimo + " e " + maximo + unidade + ".");
+        }
+    }
+
+    private static String endereco(String valor, String rotulo) {
+        String url = valor == null ? "" : valor.strip();
+        if (url.isEmpty()) {
+            return url;
+        }
+        limite(url, TAMANHO_URL_NFCE, rotulo);
+        String minusculo = url.toLowerCase(java.util.Locale.ROOT);
+        if (!(minusculo.startsWith("http://") || minusculo.startsWith("https://")) || url.contains(" ")) {
+            throw new NegocioException(rotulo + " começa por http:// ou https:// (deixe vazio para usar o da UF).");
+        }
+        return url;
+    }
+
+    /** Responsável técnico (grupo infRespTec): CNPJ válido, contato, e-mail e telefone com 6 a 14 dígitos. */
+    static Configuracoes.RespTecnico respTecnico(Configuracoes.RespTecnico r) {
+        String cnpj = br.com.varesync.util.CpfCnpj.normalizar(r.cnpj());
+        String contato = Textos.normalizarEspacos(r.contato());
+        String email = r.email() == null ? "" : r.email().strip();
+        String fone = Textos.apenasDigitos(r.fone());
+        if (cnpj.isEmpty() && contato.isEmpty() && email.isEmpty() && fone.isEmpty()) {
+            return Configuracoes.RespTecnico.VAZIO;
+        }
+        if (cnpj.length() != 14 || !br.com.varesync.util.CpfCnpj.cnpjValido(cnpj)) {
+            throw new NegocioException("O CNPJ do responsável técnico é inválido (ou deixe todos os campos dele "
+                    + "vazios).");
+        }
+        if (contato.length() < 2 || contato.length() > TAMANHO_CAMPO_NFCE) {
+            throw new NegocioException("Informe o nome do contato do responsável técnico (de 2 a "
+                    + TAMANHO_CAMPO_NFCE + " caracteres).");
+        }
+        if (email.length() < 6 || email.length() > TAMANHO_CAMPO_NFCE || email.contains(" ")
+                || email.indexOf('@') < 1 || email.indexOf('.', email.indexOf('@')) < 0) {
+            throw new NegocioException("O e-mail do responsável técnico é inválido.");
+        }
+        if (fone.length() < 6 || fone.length() > 14) {
+            throw new NegocioException("O telefone do responsável técnico tem de 6 a 14 dígitos, com o DDD.");
+        }
+        return new Configuracoes.RespTecnico(cnpj, contato, email, fone);
     }
 
     /** Tributos da venda (F22.2, seção 0.4): alíquotas do IBS e da CBS de 0 a 100%, com até 2 casas. */
@@ -549,6 +660,41 @@ public class ConfiguracaoService {
                 Formatos.percentual(n.tributos().aliquotaIbsMun()));
         comparar(m, "ICMS na base do PIS e da COFINS", a.tributos().excluirIcmsBasePisCofins() ? "excluído"
                 : "incluído", n.tributos().excluirIcmsBasePisCofins() ? "excluído" : "incluído");
+        Configuracoes.Emitente ea = a.emitente();
+        Configuracoes.Emitente en = n.emitente();
+        comparar(m, "razão social", texto(ea.razaoSocial()), texto(en.razaoSocial()));
+        comparar(m, "logradouro", texto(ea.logradouro()), texto(en.logradouro()));
+        comparar(m, "número do endereço", texto(ea.numero()), texto(en.numero()));
+        comparar(m, "complemento", texto(ea.complemento()), texto(en.complemento()));
+        comparar(m, "bairro", texto(ea.bairro()), texto(en.bairro()));
+        comparar(m, "CEP", texto(ea.cep()), texto(en.cep()));
+        comparar(m, "município", texto(ea.municipio()), texto(en.municipio()));
+        comparar(m, "código do município", texto(ea.codigoMunicipio()), texto(en.codigoMunicipio()));
+        Configuracoes.Nfce na = a.nfce();
+        Configuracoes.Nfce nn = n.nfce();
+        comparar(m, "NFC-e", na.ativa() ? "ligada" : "desligada", nn.ativa() ? "ligada" : "desligada");
+        comparar(m, "série da NFC-e", String.valueOf(na.serie()), String.valueOf(nn.serie()));
+        comparar(m, "prazo de cancelamento da NFC-e", na.prazoCancelamentoMinutos() + " min",
+                nn.prazoCancelamentoMinutos() + " min");
+        comparar(m, "espera pela SEFAZ", na.timeoutSegundos() + " s", nn.timeoutSegundos() + " s");
+        comparar(m, "intervalo do transmissor", na.retransmitirMinutos() + " min", nn.retransmitirMinutos() + " min");
+        comparar(m, "valor que exige o CPF ou CNPJ na nota", Formatos.moeda(na.valorIdentificacao()),
+                Formatos.moeda(nn.valorIdentificacao()));
+        comparar(m, "valor que exige NF-e", Formatos.moeda(na.valorMaximo()), Formatos.moeda(nn.valorMaximo()));
+        comparar(m, "via do estabelecimento em contingência", na.viaEstabelecimento() ? "impressa" : "não impressa",
+                nn.viaEstabelecimento() ? "impressa" : "não impressa");
+        comparar(m, "aviso de vencimento do certificado", na.alertaCertificadoDias() + " dias",
+                nn.alertaCertificadoDias() + " dias");
+        comparar(m, "endereço do QR Code", caminho(na.urlQrCode()), caminho(nn.urlQrCode()));
+        comparar(m, "endereço da consulta", caminho(na.urlConsulta()), caminho(nn.urlConsulta()));
+        comparar(m, "CNPJ do responsável técnico", documento(na.respTecnico().cnpj()),
+                documento(nn.respTecnico().cnpj()));
+        comparar(m, "contato do responsável técnico", texto(na.respTecnico().contato()),
+                texto(nn.respTecnico().contato()));
+        comparar(m, "e-mail do responsável técnico", texto(na.respTecnico().email()),
+                texto(nn.respTecnico().email()));
+        comparar(m, "telefone do responsável técnico", telefone(na.respTecnico().fone()),
+                telefone(nn.respTecnico().fone()));
         if (!a.etiquetas().modeloTermica().equals(n.etiquetas().modeloTermica())) {
             m.add(n.etiquetas().modeloTermica().isEmpty() ? "modelo da impressora térmica apagado"
                     : "modelo da impressora térmica alterado (" + n.etiquetas().modeloTermica().length()

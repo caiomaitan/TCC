@@ -140,7 +140,7 @@ class ConcorrenciaIT extends IntegracaoBase {
         }
     }
 
-    // ----- Os 7 cenários -----
+    // ----- Os 8 cenários (o 8º é da NFC-e, F23.3) -----
 
     /** Duas vendas com os mesmos produtos em ordens diferentes, em dois terminais: sem deadlock e saldos certos. */
     @Test
@@ -356,6 +356,33 @@ class ConcorrenciaIT extends IntegracaoBase {
                     + " AND status = 'QUITADO'")).as("repetição %d", i).isEqualTo(1);
             assertThat(t.contar("SELECT (sum(dinheiro_esperado) * 100)::bigint FROM vw_caixa_resumo WHERE caixa_sessao_id IN ("
                     + caixaA + ", " + caixaB + ")")).as("repetição %d: o dinheiro entrou uma vez", i).isEqualTo(21000);
+            estoqueContinuaConsistente();
+        }
+    }
+
+    /**
+     * 8º (F23.3): duas reservas de número de NFC-e ao mesmo tempo, em dois terminais, recebem números diferentes e
+     * seguidos. A primeira segura a trava da série um pouco antes do commit, para a segunda ter de esperar por ela.
+     */
+    @Test
+    void duasReservasDeNumeroDeNfceRecebemNumerosSeguidos() throws Exception {
+        br.com.varesync.dao.NumeracaoNfceDAO numeracao = new br.com.varesync.dao.NumeracaoNfceDAO();
+        Transacao transacao = new Transacao(dataSource);
+        for (int i = 1; i <= REPETICOES; i++) {
+            preparar();
+            Callable<Integer> reserva = () -> transacao.executar(con -> {
+                int numero = numeracao.reservar(con, 1);
+                Thread.sleep(50);
+                return numero;
+            });
+
+            List<Object> resultados = juntos(reserva, reserva);
+
+            semFalhas(resultados, i);
+            assertThat(resultados).as("repetição %d: números diferentes e seguidos", i)
+                    .containsExactlyInAnyOrder(1, 2);
+            assertThat(t.contar("SELECT proximo_numero FROM nfce_numeracao WHERE serie = 1"))
+                    .as("repetição %d", i).isEqualTo(3);
             estoqueContinuaConsistente();
         }
     }

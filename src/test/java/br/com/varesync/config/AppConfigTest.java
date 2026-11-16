@@ -61,4 +61,33 @@ class AppConfigTest {
         AppConfig config = new AppConfig(pasta.resolve("c.properties"), null, null, "segredo-123", null);
         assertThat(config.toString()).doesNotContain("segredo-123");
     }
+
+    /** F23.2: o certificado do terminal fica no arquivo e sobrevive à troca da conexão. */
+    @Test
+    void certificadoDoTerminalNoArquivo() throws Exception {
+        Path arquivo = pasta.resolve("config.properties");
+        AppConfig.carregar(arquivo).comCertificado("C:\\certs\\loja.pfx", "s3nh@-cert").salvar();
+        AppConfig.carregar(arquivo).comConexao("jdbc:postgresql://outro:5432/loja", "loja", "x").salvar();
+
+        AppConfig relida = AppConfig.carregar(arquivo);
+        assertThat(relida.certificado()).isEqualTo("C:\\certs\\loja.pfx");
+        assertThat(relida.senhaCertificadoDoArquivo()).isEqualTo("s3nh@-cert");
+        assertThat(relida.url()).isEqualTo("jdbc:postgresql://outro:5432/loja");
+        assertThat(relida.toString()).doesNotContain("s3nh@-cert").doesNotContain("loja.pfx");
+
+        AppConfig.carregar(arquivo).comCertificado("", "qualquer").salvar();
+        AppConfig sem = AppConfig.carregar(arquivo);
+        assertThat(sem.certificado()).isEmpty();
+        assertThat(sem.senhaCertificadoDoArquivo()).isEmpty();
+        assertThat(Files.readString(arquivo, StandardCharsets.UTF_8)).doesNotContain("nfce.certificado");
+    }
+
+    /** A variável VARESYNC_CERT_SENHA, se existir, vale no lugar da senha do arquivo. */
+    @Test
+    void senhaDoCertificadoPelaVariavelDeAmbiente() {
+        AppConfig config = new AppConfig(pasta.resolve("c.properties"), null, null, "", null, "C:\\a.pfx", "do-arquivo");
+        assertThat(config.senhaCertificado(java.util.Map.of())).isEqualTo("do-arquivo");
+        assertThat(config.senhaCertificado(java.util.Map.of(AppConfig.VARIAVEL_SENHA_CERTIFICADO, "da-variavel")))
+                .isEqualTo("da-variavel");
+    }
 }

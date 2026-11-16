@@ -38,6 +38,9 @@ public abstract class IntegracaoBase {
             assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_lote_inconsistente"))
                     .as("vw_lote_inconsistente deve estar vazia (F17.1)")
                     .isZero();
+            assertThat(BancoTeste.contar(con, "SELECT count(*) FROM vw_nfce_inconsistente"))
+                    .as("vw_nfce_inconsistente deve estar vazia (F23.1)")
+                    .isZero();
         }
     }
 }

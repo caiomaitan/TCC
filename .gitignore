@@ -44,3 +44,6 @@ desktop.ini
 config.properties
 *.env
 .env*
+# Certificado digital A1 da NFC-e (F23.2): o de teste é gerado pelo próprio teste
+*.pfx
+*.p12

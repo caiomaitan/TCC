@@ -115,6 +115,31 @@ public final class DadosTela {
         }
     }
 
+    /**
+     * NFC-e, parte A (F23.3): reserva o número da venda e monta, assina e valida o XML com o certificado que a tela
+     * gravou no {@code config.properties} temporário (o mesmo caminho do sistema). Nada é transmitido.
+     */
+    public br.com.varesync.model.NfceGravada nfceDaVenda(long vendaId) {
+        java.time.ZoneId fuso = java.time.ZoneId.systemDefault();
+        Clock relogio = Clock.systemDefaultZone();
+        Transacao transacao = new Transacao(dataSource);
+        CertificadoService certificados = new CertificadoService(transacao, new br.com.varesync.dao.ConfiguracaoDAO(),
+                new AuditoriaService(new br.com.varesync.dao.AuditoriaDAO(), relogio, TERMINAL),
+                new br.com.varesync.config.CertificadoNoArquivo(br.com.varesync.config.AppConfig.arquivoPadrao()),
+                relogio);
+        br.com.varesync.service.nfce.ValidacaoXsd validacao = new br.com.varesync.service.nfce.ValidacaoXsd(
+                br.com.varesync.config.AppConfig.pastaPadrao().resolve("schemas"));
+        NfceService nfce = new NfceService(transacao, new br.com.varesync.dao.NfceDAO(),
+                new br.com.varesync.dao.NumeracaoNfceDAO(), new br.com.varesync.dao.TributoVendaDAO(),
+                new br.com.varesync.dao.ConfiguracaoDAO(), new br.com.varesync.service.nfce.GeracaoNfce(
+                        new br.com.varesync.service.nfce.MontagemNfce(fuso),
+                        new br.com.varesync.service.nfce.AssinaturaNfce(validacao.pasta(), fuso), validacao),
+                certificados, "2.0.0-SNAPSHOT", new java.security.SecureRandom(), relogio, fuso);
+        long id = transacao.executar(con -> nfce.reservar(con, vendaId,
+                br.com.varesync.model.TipoEmissaoNfce.NORMAL, java.time.OffsetDateTime.now(relogio), null));
+        return nfce.prepararXml(id);
+    }
+
     public void configurar(String chave, String valor) throws SQLException {
         executar("UPDATE configuracao SET valor = ? WHERE chave = ?", valor, chave);
     }

@@ -58,7 +58,13 @@ public enum AcaoAuditoria {
     PERFIL_TRIBUTARIO_ALTERADO("Perfil tributário"),
     PERFIL_TRIBUTARIO_APLICADO("Perfil tributário aplicado em lote"),
     DADOS_FISCAIS_ALTERADOS("Dados fiscais do produto"),
-    TABELA_FISCAL_IMPORTADA("Tabela NCM ou CEST importada");
+    TABELA_FISCAL_IMPORTADA("Tabela NCM ou CEST importada"),
+    NFCE_CANCELADA("NFC-e cancelada"),
+    NFCE_INUTILIZADA("Números de NFC-e inutilizados"),
+    NFCE_REENVIADA("NFC-e corrigida e reenviada"),
+    NFCE_CONTINGENCIA_INICIADA("Contingência da NFC-e iniciada"),
+    NFCE_CONTINGENCIA_ENCERRADA("Contingência da NFC-e encerrada"),
+    NFCE_CERTIFICADO_ALTERADO("Certificado digital do terminal");
 
     private final String rotulo;
 

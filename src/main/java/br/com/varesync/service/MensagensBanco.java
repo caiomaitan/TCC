@@ -134,7 +134,17 @@ public final class MensagensBanco {
             Map.entry("ck_pt_aliquotas", "As alíquotas devem estar entre 0 e 100%"),
             Map.entry("ck_pt_reducao", "A redução da base do ICMS deve ser maior que 0 e menor que 100%"),
             Map.entry("ck_produto_origem", "A origem da mercadoria vai de 0 a 8"),
-            Map.entry("fk_produto_perfil_tributario", "Este perfil tributário está em uso e não pode ser excluído"));
+            Map.entry("fk_produto_perfil_tributario", "Este perfil tributário está em uso e não pode ser excluído"),
+            // NFC-e (F23)
+            Map.entry("ck_nfce_numeracao_numero", "A numeração da NFC-e desta série chegou ao fim: escolha outra série "
+                    + "em Configurações › NFC-e"),
+            Map.entry("uq_nfce_numero", "Este número de NFC-e já foi usado nesta série"),
+            Map.entry("uq_nfce_chave", "Esta chave de acesso já pertence a outra NFC-e"),
+            Map.entry("ux_nfce_venda_vigente", "Esta venda já tem uma NFC-e"),
+            Map.entry("ck_nfce_ambiente", "O sistema só emite NFC-e em homologação"),
+            Map.entry("ck_venda_consumidor_documento", "O CPF ou CNPJ na nota tem 11 ou 14 dígitos"),
+            Map.entry("ck_nfce_evento_justificativa", "A justificativa tem de 15 a 255 caracteres"),
+            Map.entry("ck_nfce_inut_justificativa", "A justificativa tem de 15 a 255 caracteres"));
 
     private MensagensBanco() {
     }

@@ -2,6 +2,64 @@
 
 ## Fase atual
 
+**Fase 23 — NFC-e em homologação, parte A** concluída em 2026-11-16 (F23.1, F23.2 e F23.3). Nada é transmitido: a
+comunicação com a SEFAZ é a parte B. Migration nova **V24__nfce.sql** (Decisões):
+- **Java_NFe conferida no começo (F23.3):** a `br.com.swconsultoria:java-nfe` 4.3.0 compila e roda no Java 21
+  (Temurin 21.0.12); o `mvn dependency:tree` resolve sem conflito com o JasperReports 7, o Jackson, o ZXing, o SLF4J e o
+  Logback, com duas exclusões (Xalan 2.7.0 e o Woodstox antigo) e três versões fixadas (commons-io, commons-codec e
+  jaxb-api); as dependências de impressão dela já vêm como `provided` e não entram. Os XSD do pacote **PL 010g v1.03**
+  (com o grupo IBSCBS) estão em `src/main/resources/nfe/schemas` e são copiados para `~/.varesync/schemas/PL_010g_v1.03`.
+- **F23.1 Banco:** `nfce_numeracao`, `nfce` (situações, resposta da SEFAZ, XML, QR Code, trava da transmissão; CHECK de
+  homologação; uma NFC-e vigente por venda), `nfce_evento`, `nfce_inutilizacao`, `venda.consumidor_documento`,
+  `vw_nfce_inconsistente` (no Diagnóstico e no fim de cada teste de integração), as 23 configurações da seção 0.4 e as
+  seis ações de auditoria da fase.
+- **F23.2 Emitente e certificado:** bloco "Endereço para a NFC-e" em Configurações › Loja, com o que ainda falta para
+  emitir; seção nova **NFC-e** (série, prazos, valores, via do estabelecimento, endereços da SEFAZ, responsável técnico e
+  o certificado A1 deste terminal: titular, CNPJ, vencimento e raiz do CNPJ). O caminho e a senha do certificado ficam
+  só no `config.properties` do terminal (ou a senha em `VARESYNC_CERT_SENHA`). As seções Compras e Estoque viraram uma
+  só ("Compras e estoque"), para a lista continuar com 17 seções.
+- **F23.3 XML:** `MontagemNfce` (sem banco) a partir da venda, dos tributos gravados na F22 e do emitente; chave de
+  acesso com o DV pelo módulo 11; assinatura pela biblioteca; validação pelo XSD oficial (com erro, a NFC-e fica
+  REJEITADA, sem ir à SEFAZ); QR Code versão 3 (normal e de contingência, assinado com o certificado); numeração com
+  `FOR UPDATE` por série. O `NfceService` reserva o número na transação de quem chama (a venda, na parte C) e prepara o
+  XML; nenhuma tela emite nesta parte.
+
+`mvn -q verify` passa: 645 testes unitários e 574 de integração; `mvn -q -Pui verify`,
+com o `NfceTelaIT` novo, 8 testes de interface (a varredura: 90 telas, 0 cortes). Próxima: Fase 23,
+parte B (F23.4 comunicação com a SEFAZ e F23.5 emissão, contingência e transmissor).
+
+Antes de começar (pedido do usuário): o `git status` tinha, além do `docs/ESPECIFICACAO_AMPLIACOES.md` (ajuste do usuário
+na F23.6, que entrou no commit), uma implementação da parte A começada numa sessão anterior e não commitada (17
+arquivos alterados e cerca de 160 novos). O usuário mandou revisar e continuar: ela foi conferida contra a F23 e
+completada (o `.gitignore` com `*.pfx` e `*.p12`, o roteiro de tela, as decisões e os documentos).
+
+Critérios de aceite da parte A (teste; tela = `NfceTelaIT`, números das capturas):
+- **Chave:** UF 35, 11/2026, CNPJ 12.345.678/0001-95, série 1, nº 123, tpEmis 1, cNF 87654321 →
+  35261112345678000195650010000001231876543214; nº 124 e tpEmis 9 → …1249876543217: `ChaveAcessoTest`.
+- **NFC-e de uma venda com desconto, item de balança, embalagem com preço próprio e dois pagamentos** (dinheiro com
+  troco e cartão): valida no XSD, a assinatura confere com a chave pública do certificado de teste, os totais batem com
+  a venda e vUnCom × quantidade bate com cada item: `NfceIT.vendaComDescontoBalancaEmbalagemEDoisPagamentosValidaNoXsd`,
+  `MontagemNfceTest.notaValidaNoXsdEAssinaturaConfereComOCertificado`,
+  `totaisBatemComAVendaEVUnComVezesQuantidadeBateComCadaItem`; pela tela, a venda do PDV com o certificado gravado pela
+  tela (status PENDENTE, XML assinado com tpAmb 2).
+- **1º item em homologação:** `MontagemNfceTest.emHomologacaoO1ItemSaiComADescricaoExigida`.
+- **QR Code:** o normal termina em `?p=<chave>|3|2` e o de contingência tem 8 parâmetros, com a assinatura conferida
+  pelo certificado: `MontagemNfceTest.qrCodeNormalTerminaNaChaveVersao3ETpAmb2`,
+  `contingenciaTemOitoParametrosEAssinaturaConfereComOCertificado`, `NfceIT.contingenciaComOCpfNaNota`; pela tela, o da
+  venda do PDV.
+- **Duas reservas ao mesmo tempo:** números diferentes e seguidos, a 8ª situação do
+  `ConcorrenciaIT.duasReservasDeNumeroDeNfceRecebemNumerosSeguidos`.
+- **Sigilo:** o certificado, a senha e a chave privada não aparecem no log nem em mensagem:
+  `SigiloCertificadoTest.nadaDoCertificadoNoLogNemNasMensagens`, `CertificadoA1Test`,
+  `NfceIT.certificadoDoTerminalComAuditoriaSemCaminhoNemSenha`; pela tela, a situação do certificado, o log da pasta
+  temporária, a auditoria e a tabela `configuracao` sem a senha nem o caminho (capturas `03` e `04`).
+
+Conferência pela tela: o `NfceTelaIT`, versionado no `-Pui` (sem teclado nem mouse do sistema, janelas fora da tela,
+banco `varesync_test` com a trava de URL, pasta `target/ui-home`, configuração sem BOM). O arquivo do certificado entra
+pelo campo (a janela "Procurar…" é nativa). Como nenhuma tela emite NFC-e na parte A, o XML da venda do PDV é preparado
+pelo `NfceService` montado no teste com o mesmo `config.properties` que a tela gravou. Capturas em
+`target/telas/NfceTelaIT`. Os bancos `varesync` e `varesync_demo` não foram abertos.
+
 **Fase 22 — Tributos da venda concluída** em 2026-11-14. Parte B (F22.4 e F22.5), sem migration nova (Decisões):
 - **Correção da parte A (F22.2, pedida pelo usuário):** o IBS e a CBS só calculam nos CST 000 e 200, com a redução só
   no 200; o 410, os outros CST e o perfil sem CST ficam sem valores.
@@ -912,6 +970,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-12 | 11 — Engenharia de software, parte B (fase concluída) | **F11.3**: perfil `ui` no pom (só os `*TelaIT`, `-Duser.home=target/ui-home`, capturas em `target/telas`, JaCoCo em `target/site/jacoco-ui`) e `excludes` dos `*TelaIT` no `verify` comum; pacote de teste `tela` (`TelaBase`, `Cortes`, `PrimeiroAcessoTelaIT`, `VendaPdvTelaIT`, `InventarioTelaIT`, `RelatorioTelaIT`, `VarreduraCortesTelaIT`); `service.DadosTela`. Correções achadas pela varredura: `principal.fxml` (barra de status com 8 px), `clientes.fxml` (aba LGPD com rolagem), `Aparencia.reajustar`. **F11.5**: `config.ConexaoTestada`, `Banco.testarConexao` com a versão e o tempo, `Banco.versaoCurta`; `ConexaoController` e `conexao.fxml` ("Testar conexão"); README 5.1. **F11.8**: `ConcorrenciaIT` (7 situações); propriedade `concorrencia.repeticoes`; `IntegracaoBase.estoqueContinuaConsistente` protegido. **CI**: `-Pqualidade verify` numa rodada só e o passo `-Pui verify`, com dois artefatos novos. README (5.1, 10, 10.2, 10.3, 11). Sem migration nova. | Unitários: 574 (+2, `BancoTest`). Integração: 535 (+9: `ConcorrenciaIT` 7, `BancoIT` 2). Interface: 5 (`-Pui`). Todos verdes, também com `-Pqualidade`; `ConcorrenciaIT` verde com 20 repetições. |
 | 2026-11-14 | 22 — Tributos da venda, parte A | Migration V23 (`venda_item_tributo`, FCP e redução do IBS e da CBS no perfil, ST retido no produto, tabela `ibpt`, `forma_pagamento.tpag`, chaves `fiscal.*`); `CalculoTributos` (ICMS por CST e CSOSN, FCP, ST retido, PIS e COFINS com o Tema 69, IBS e CBS pela NT 2025.002-RTC v1.53, tributos aproximados) chamado na finalização da venda; importação da tabela IBPT na janela Cadastro fiscal; tPag em Configurações › Formas de pagamento; tributos em Configurações › Loja. | Unitários: 591 (+17: `CalculoTributosTest` 12, `TabelaIbptTest` 4, `ConfiguracoesTest` 1). Integração: 547 (+12: `TributosVendaIT`). Interface (`-Pui`): 6 (+1: `TributosTelaIT`). Todos verdes. |
 | 2026-11-14 | 22 — Tributos da venda, parte B (fase concluída) | Sem migration. IBS e CBS só nos CST 000 e 200 (correção da parte A); ST retido pela NF-e (ICMS60, ICMSSN500, ICMS10 e ICMS70, por unidade de venda, pelo diálogo dos dados fiscais); tributos aproximados no comprovante e na segunda via; R31 Impostos das vendas; regras 14 a 17 do R30; gerador com a tabela IBPT de demonstração e o ST retido. | Unitários: 604 (+13: `LeitorNfeStTest` 3, testes das regras 14 a 17 9, `CalculoTributosTest` 1). Integração: 554 (+7: `TributosParteBIT` 6, `GeradorDemoIT` 1). Interface (`-Pui`): 7 (+1: `TributosParteBTelaIT`). Todos verdes. |
+| 2026-11-16 | 23 — NFC-e em homologação, parte A | V24 (nfce_numeracao, nfce, nfce_evento, nfce_inutilizacao, venda.consumidor_documento, vw_nfce_inconsistente, configurações empresa.* e nfce.*); Java_NFe 4.3.0 conferida; XSD PL 010g v1.03; endereço do emitente em Loja; seção NFC-e com o certificado A1 do terminal (fora do banco); "Compras e estoque" numa seção; montagem, assinatura, validação pelo XSD, QR Code versão 3, chave e numeração; nada transmitido. | Unitários: 645 (+41). Integração: 574 (+20: `NfceIT` e a 8ª situação do `ConcorrenciaIT`, entre outros). Interface (`-Pui`): 8 (+1: `NfceTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1406,8 +1465,39 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-14 | **R31 Impostos das vendas** (`RelImpostosVendas`): filtro de período; vendas `FINALIZADA` e itens não cancelados; grupos por CFOP, situação ("CST 00", "CSOSN 102") e alíquota do ICMS, com itens, valor líquido, base e valor do ICMS, FCP, PIS, COFINS, CBS, IBS (UF + município) e tributos aproximados (federal + estadual + municipal); a linha "Itens sem tributação calculada" (CFOP vazio) por último, só com itens e valor líquido. Pede RELATORIOS e FISCAL (`permissoesExtras`), como o R30. | F22.5 ("RELATORIOS ou FISCAL, como o R30"): o R30 pede as duas desde a F19; seguir o mesmo mecanismo evita uma regra de permissão nova na tela de relatórios. |
 | 2026-11-14 | **Regras 14 a 17 do R30**, com a tabela confirmada pelo usuário: 14 erro (CST fora de 00, 20, 40, 41 e 60; CSOSN fora de 102, 103, 300, 400 e 500); 15 aviso (NCM sem linha vigente hoje, `ex` vazio, só com a tabela IBPT importada e o NCM no formato); 16 aviso (CST 60 ou CSOSN 500 sem `st_icms_retido_unitario`); 17 só no normal: erro para CST fora de 000, 200 e 410 e para o 200 sem redução, aviso para a redução fora do 200; o perfil sem CST fica com a regra 12. `ContextoFiscal` ganhou `hoje` (pelo `Clock`: `parametros.hoje()` no R30 e `LocalDate.now(clock)` no painel); sem ele, a 15 não confere. `ItemFiscal` ganhou `ibptVigente` e `stRetido`; a consulta do R30 lê também o FCP e a redução do perfil. | F22.5 e a confirmação do usuário (sem CST = só a regra 12). |
 | 2026-11-14 | **Gerador (F22.5)**: na véspera, às 9h55, a tabela IBPT de demonstração (`FiscalDemo.tabelaIbpt`: os NCM do catálogo, fonte "Demonstração", versão "DEMO.1", vigente da véspera a um ano depois; capítulos 07, 08 e ovos a 4,20% federal e sem estadual; bebidas a 17,30% e 25%; alimentos a 7,85% e 18%; o resto a 13,45% e 18%; importados = nacional + 2; municipal zero), pelo `FiscalService.importarIbpt`; às 9h56, o ST retido dos refrigerantes e das águas (`FiscalDemo.stRetido`) pelo `preencherDaNota`, como viria da NF-e. A cerveja pilsen e o energético ficam sem o ST (regra 16). Sem semente nova (nada é sorteado). O R30 dos dados de demonstração passa a 12 linhas (as duas da regra 16); o painel continua com 6. | F22.5 ("uma tabela IBPT de demonstração só com os NCM do catálogo… e o ST retido em alguns produtos com ST"). |
+| 2026-11-16 | **Java_NFe 4.3.0** (`br.com.swconsultoria:java-nfe`, a 4.x mais nova no Maven Central), conferida no começo da parte A: compila e roda no Java 21; no `dependency:tree`, as versões que ela traz perdem para as do projeto (SLF4J 2.0.20, commons-logging 1.3.5 do Jasper, Jackson). **Exclusões:** `xalan:xalan` 2.7.0 (registra-se como `TransformerFactory` e tomaria o lugar do JDK, que o Jasper também usa) e `org.codehaus.woodstox:woodstox-core-asl` (as mesmas classes `com.ctc.wstx` do Woodstox 7 do Jasper). **Fixadas no `dependencyManagement`:** commons-io 2.17.0, commons-codec 1.17.1 e jaxb-api 2.3.1 (pela regra do "mais perto ganha", as versões antigas dela tomariam o lugar das que o Jasper 7 usa). As dependências de impressão (Jasper 6, Thymeleaf, openhtmltopdf) já vêm como `provided` no pom dela e não entram. | F23.3 e seção 0.6 (biblioteca autorizada, "sem as dependências de impressão"). |
+| 2026-11-16 | **Migration V24__nfce.sql** (próxima versão livre), com todas as tabelas e colunas da F23: `nfce_numeracao` (série 0 a 889, próximo número 1 a 999.999.999); `nfce` (`uq_nfce_chave`, `uq_nfce_numero` por série, `ck_nfce_ambiente` = 2, `ck_nfce_tipo_emissao` 1 ou 9, `ck_nfce_status` com as 9 situações, `ck_nfce_autorizada` = protocolo e data na AUTORIZADA, CANCELADA e SUBSTITUIDA, `ux_nfce_venda_vigente` parcial para PENDENTE, AUTORIZADA, CONTINGENCIA e REJEITADA, `fk_nfce_substituta`, trigger de `atualizado_em`); `nfce_evento` (CANCELAMENTO e CANCELAMENTO_SUBSTITUICAO, justificativa de 15 a 255); `nfce_inutilizacao` (faixa, ano com 2 dígitos); `venda.consumidor_documento` (11 ou 14 dígitos); `vw_nfce_inconsistente`; as 8 chaves `empresa.*` e as 15 `nfce.*` da seção 0.4. Coluna a mais: **`nfce.contingencia_em`** (dhCont), com `ck_nfce_contingencia` (só e sempre no tpEmis 9). | F23.1 ("a migration da parte A cria todas as tabelas e colunas da fase"). O dhCont vai no XML e no QR Code e precisa ser o mesmo a cada remontagem (a correção da contingência na F23.9 mantém a data): por isso fica gravado. |
+| 2026-11-16 | **Ações de auditoria da fase inteira já no enum** (`NFCE_CANCELADA`, `NFCE_INUTILIZADA`, `NFCE_REENVIADA`, `NFCE_CONTINGENCIA_INICIADA`, `NFCE_CONTINGENCIA_ENCERRADA` e `NFCE_CERTIFICADO_ALTERADO`); só a do certificado é gravada nesta parte. A descrição diz o titular, o CNPJ e a validade, nunca o caminho nem a senha. | F23.1 ("as configurações da seção 0.4 e as ações de auditoria novas"). A tabela `auditoria` não tem CHECK de ação: o enum é a lista. |
+| 2026-11-16 | **Certificado do terminal**: `AppConfig` ganhou `nfce.certificado` e `nfce.certificado.senha` (gravadas só quando há certificado; `toString` diz só "certificado=sim/não"); `CertificadoNoArquivo` relê o arquivo a cada uso (a troca na tela vale sem reiniciar). Com `VARESYNC_CERT_SENHA`, a tela não pede a senha e o arquivo fica sem ela. `CertificadoA1` lê o PKCS12 com mensagens fixas (senha que não confere, arquivo que não existe, arquivo que não é certificado, sem chave privada), sem o texto da exceção original. Titular e CNPJ saem do CN (antes e depois do último ":"). Só o supervisor vê e troca (`CertificadoService`); a emissão pega o certificado sem exigir permissão (tarefa do sistema, como o transmissor da F23.5). | F23.2 e RNF13 ("nunca no banco, no repositório, no log ou em mensagem de erro"). A exceção do `KeyStore` pode trazer o nome do arquivo. |
+| 2026-11-16 | **Configurações › "Compras e estoque"**: as seções Compras (dias da média e cobertura da sugestão de compra) e Estoque (alerta de validade dos lotes) viraram uma só, e a NFC-e entrou como seção nova; a lista continua com 17 seções e não rola a 130% em 1280×720. | F23.2 ("se não couber, junte seções afins ou reorganize a lista, com a decisão no PROGRESSO"). As duas seções tinham dois campos cada e tratam da reposição. |
+| 2026-11-16 | **Emitente para a NFC-e** (`EmitenteNfce`): CNPJ numérico válido (o CPF e o CNPJ com letras ficam fora), IE preenchida e diferente de ISENTO, UF, razão social, logradouro, número, bairro, CEP de 8 dígitos, município e o código IBGE de 7 dígitos começando pelo código da UF. O nome da loja vira o xFant, e o telefone da loja (6 a 14 dígitos) vai no endereço. A tela da Loja mostra o que ainda falta. | F23.2. O CNPJ alfanumérico está em "Fora desta fase". |
+| 2026-11-16 | **XSD pelo validador do JDK**, e não pelo `Validar` da biblioteca, com o lote (`enviNFe_v4.00.xsd`) em volta da nota assinada; o XSD é compilado uma vez por pasta e só lê arquivos locais (`ACCESS_EXTERNAL_SCHEMA=file`). Os 126 XSD do pacote ficam em `src/main/resources/nfe/schemas`, com a lista `schemas.lst` (conferida por teste) e a origem em `ORIGEM.md`. | O `Validar` da biblioteca ignora os erros de padrão, de enumeração, de tamanho e de tipo, justamente os de um CNPJ ou de um valor mal formatado. A biblioteca e o validador leem de uma pasta, e não de dentro do jar (F23.3: "copiados para uma pasta do usuário"). |
+| 2026-11-16 | **Assinatura pela biblioteca** (`Assinar.assinaNfe`, sempre com `AmbienteEnum.HOMOLOGACAO`), sobre o lote de uma nota com indSinc 1, como a transmissão da parte B; o que fica gravado é só o elemento `NFe` assinado (com o infNFeSupl). As assinaturas passam por uma trava (`synchronized`), porque a classe da biblioteca guarda a chave em campos estáticos. | F23.3. Duas emissões ao mesmo tempo (a venda e o transmissor) não podem trocar de chave no meio. |
+| 2026-11-16 | **Detalhes da montagem** (`MontagemNfce`): dest só com o CPF ou o CNPJ e indIEDest 9; qCom e qTrib com 4 casas; vUnCom = bruto ÷ quantidade com 10 casas; vDesc do item = desconto + rateado, só quando há desconto; PIS e COFINS: CST 01 e 02 no grupo Aliq, 04 a 09 no NT, 49 a 99 no Outr; ICMS00 e ICMS20 com modBC 3 e o FCP só com alíquota; o ST retido só com os quatro campos; vTotTrib no item e no total quando houver; IBSCBS (e o IBSCBSTot) só no regime normal, com o subgrupo dos valores nos CST 000 e 200 e o gRed só no 200 com redução; recusa (REJEITADA local) o item sem tributos gravados, a situação fora das regras 14 e 17 e o normal sem CST do IBS e da CBS ou sem cClassTrib. Pagamentos: o primeiro em dinheiro leva o troco no vPag e o vTroco; venda de total zero sai com tPag 90. cNF pelo `SecureRandom`, diferente dos 8 últimos dígitos do número. | F23.3, F22.2 e a regra 17. O tPag 90 (sem pagamento) não é escolhido nas formas (F22.1), mas a venda com 100% de desconto não tem pagamento e o leiaute exige um detPag. |
+| 2026-11-16 | **Recusa local**: `NfceService.prepararXml` deixa a NFC-e REJEITADA, com o motivo (o que falta no cadastro ou os 3 primeiros erros do XSD) e sem cStat, quando a montagem recusa ou o XSD reprova; sem certificado (ou vencido), nada muda e a mensagem vai para quem chamou. | F23.3 ("erro de validação deixa a NFC-e REJEITADA, com a mensagem, sem ir à SEFAZ"). Sem o certificado a nota ainda pode ser emitida depois, por outro terminal ou com o certificado trocado. |
+| 2026-11-16 | **Roteiro de tela da parte A** (`NfceTelaIT`): o XML da venda do PDV é preparado pelo `DadosTela.nfceDaVenda`, que monta o `NfceService` com o `config.properties` gravado pela tela. | Nenhuma tela emite NFC-e na parte A (o PDV é da parte C). Assim a tela confere o caminho do certificado gravado por ela até a nota assinada. |
 
 ## Pendências e riscos
+
+- **Fase 23, parte A (2026-11-16).**
+  - **Nada foi transmitido nem conferido por uma SEFAZ de verdade:** o XML passa no XSD oficial (PL 010g v1.03) e a
+    assinatura confere com o certificado de teste, mas as regras de negócio da SEFAZ (as rejeições que o XSD não pega,
+    como totais, cClassTrib inexistente ou município de outra UF) só aparecem na homologação, com um certificado A1 de
+    verdade (parte B e caso manual).
+  - **Os XSD são os da biblioteca** (commit de 2026-11-08, a 4.3.0), sem comparar arquivo a arquivo com o pacote do
+    Portal Nacional da NF-e. Quando sair uma NT nova, trocar os arquivos e a `ValidacaoXsd.VERSAO_PACOTE` (`ORIGEM.md`).
+  - **Endereços do QR Code e da consulta** vêm da tabela da biblioteca para a UF em homologação; não foram conferidos
+    com o portal de cada UF. Os campos de Configurações › NFC-e valem no lugar deles.
+  - **Responsável técnico:** omitido quando vazio; algumas UFs o exigem (a SEFAZ responde na parte B).
+  - **A biblioteca guarda a chave privada em campos estáticos** (`Assinar`): a trava evita a troca no meio, mas a chave
+    fica na memória do processo enquanto o sistema está aberto.
+  - **CNPJ alfanumérico, certificado A3, QR Code versão 2 e o grupo do Simples da NT 2026.005** ficam fora (Fora desta
+    fase).
+  - **"NFC-e ligada"** continua desligada e sem controle na tela até a parte C; a venda não reserva número nem gera
+    NFC-e ainda.
+  - A sessão anterior que começou a parte A não deixou registro no PROGRESSO: o que ela fez foi revisado nesta sessão
+    contra a F23, e as decisões dela estão em Decisões com a data de hoje.
+  Falta a pessoa executar CT-F23-01 a CT-F23-08.
 
 - **Fase 22, parte B (2026-11-14).** Resolvidas da parte A: o IBS e a CBS por CST (só 000 e 200 calculam), as
   descrições do tPag 23 e 24 (conferidas pelo usuário no Informe Técnico 2026.001), o comprovante e o R31 (os tributos
