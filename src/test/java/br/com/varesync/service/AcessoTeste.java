@@ -95,6 +95,16 @@ final class AcessoTeste {
     private final Transacao transacao;
     private final AuditoriaService auditoriaService;
 
+    /** A venda com a NFC-e (F23.6), montada como a do sistema, com os mesmos serviços deste conjunto. */
+    VendaService vendasCom(NfceDaVenda nfce) {
+        ProdutoDAO produtoDAO = new ProdutoDAO();
+        return new VendaService(new Transacao(dataSource), produtoDAO, new VendaDAO(), new FormaPagamentoDAO(),
+                new ConfiguracaoDAO(), new EstoqueDAO(), estoque, caixa, new PrecoService(new PromocaoDAO(), produtoDAO),
+                new AuditoriaService(new AuditoriaDAO(), relogio, TERMINAL), new ClienteDAO(), new CreditoClienteDAO(),
+                credito, new TituloReceberDAO(), recebiveis,
+                new TributosVendaService(new TributoVendaDAO(), new ConfiguracaoDAO()), nfce, relogio);
+    }
+
     AcessoTeste(DataSource dataSource) {
         this.dataSource = dataSource;
         Transacao transacao = new Transacao(dataSource);

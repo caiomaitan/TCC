@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Comprovante não fiscal (6.6), largura de bobina de 80 mm. Cada linha vem de Comprovante.linhas():
-     texto à esquerda, valor à direita e o estilo (NORMAL, NEGRITO, CENTRO, CENTRO_NEGRITO, SEPARADOR, TEXTO).
+     texto à esquerda, valor à direita e o estilo (NORMAL, NEGRITO, CENTRO, CENTRO_NEGRITO, SEPARADOR, TEXTO e,
+     no DANFE NFC-e da F23.7, QRCODE, que usa a segunda banda, com a imagem do QR Code).
      Formato JRXML do JasperReports 7. Sem paginação: o PDF cresce com o número de itens. -->
 <jasperReport name="comprovante" language="java" pageWidth="226" pageHeight="400" columnWidth="206"
               leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" whenNoDataType="AllSectionsNoDetail"
@@ -9,8 +10,10 @@
     <field name="estilo" class="java.lang.String"/>
     <field name="esquerda" class="java.lang.String"/>
     <field name="direita" class="java.lang.String"/>
+    <field name="imagem" class="java.awt.Image"/>
     <detail>
         <band height="11">
+            <printWhenExpression><![CDATA[!"QRCODE".equals($F{estilo})]]></printWhenExpression>
             <element kind="textField" x="0" y="0" width="118" height="11" textAdjust="StretchHeight">
                 <printWhenExpression><![CDATA["NORMAL".equals($F{estilo})]]></printWhenExpression>
                 <expression><![CDATA[$F{esquerda}]]></expression>
@@ -43,6 +46,13 @@
             <element kind="line" x="0" y="5" width="206" height="1">
                 <printWhenExpression><![CDATA["SEPARADOR".equals($F{estilo})]]></printWhenExpression>
                 <pen lineWidth="0.5" lineStyle="Dashed"/>
+            </element>
+        </band>
+        <band height="108">
+            <printWhenExpression><![CDATA["QRCODE".equals($F{estilo})]]></printWhenExpression>
+            <element kind="image" x="53" y="4" width="100" height="100" scaleImage="RetainShape" hImageAlign="Center"
+                     vImageAlign="Middle">
+                <expression><![CDATA[$F{imagem}]]></expression>
             </element>
         </band>
     </detail>

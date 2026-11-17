@@ -31,7 +31,7 @@
         <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/></columnResizePolicy>
     </TableView>
     <HBox alignment="CENTER_LEFT" spacing="10">
-        <Button fx:id="botaoComprovante" text="Ver comprovante (Enter)" onAction="#verComprovante"/>
+        <Button fx:id="botaoComprovante" text="Reimprimir (Enter)" onAction="#verComprovante"/>
         <Button fx:id="botaoCancelar" text="Cancelar venda… (Delete)" onAction="#cancelarVenda"/>
         <Button fx:id="botaoDevolver" text="Devolver itens… (Ctrl+D)" onAction="#devolver"/>
         <Region HBox.hgrow="ALWAYS"/>

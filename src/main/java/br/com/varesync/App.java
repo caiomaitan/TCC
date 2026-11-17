@@ -63,6 +63,18 @@ public class App extends Application implements Navegacao {
     /** Bloqueio por inatividade da janela principal e do PDV (F10.2); nulo fora da janela principal. */
     private BloqueioInatividade bloqueio;
 
+    /** Peças do roteiro de tela (F23.6); no sistema, nenhuma. */
+    private final AppContext.Ajustes ajustes;
+
+    public App() {
+        this(AppContext.Ajustes.NENHUM);
+    }
+
+    /** Só o roteiro de tela: a SEFAZ falsa e a impressora que não imprime. */
+    public App(AppContext.Ajustes ajustes) {
+        this.ajustes = ajustes;
+    }
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -258,7 +270,7 @@ public class App extends Application implements Navegacao {
             protected Boolean call() {
                 Banco.testarConexao(config);
                 updateMessage("Atualizando o banco de dados…");
-                contexto = AppContext.iniciar(config);
+                contexto = AppContext.iniciar(config, ajustes);
                 contexto.acessoService().observarAcesso(
                         nova -> Platform.runLater(() -> trocarSessao(nova)),
                         encerrada -> Platform.runLater(() -> encerrarSessao(encerrada)));

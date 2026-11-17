@@ -137,6 +137,43 @@ public class TributoVendaDAO {
     }
 
     /** Tributos gravados do item (segunda via, R31 e testes). */
+    /**
+     * O cadastro fiscal do produto para a conferência do PDV com a NFC-e ligada (F23.6): NCM, CEST, origem e o perfil
+     * (com a situação dele; nulo sem perfil). Vazio = produto que não existe.
+     */
+    public Optional<br.com.varesync.model.CadastroFiscalProduto> cadastroFiscal(Connection con,
+                                                                                         long produtoId)
+            throws SQLException {
+        String sql = """
+                SELECT p.nome AS produto, p.ncm, p.cest, p.origem,
+                       t.id AS perfil_id, t.nome, t.cfop, t.cst_icms, t.csosn, t.aliquota_icms, t.reducao_base_icms,
+                       t.cst_pis, t.aliquota_pis, t.cst_cofins, t.aliquota_cofins, t.codigo_beneficio, t.cst_ibs_cbs,
+                       t.cclass_trib, t.ativo, t.aliquota_fcp, t.reducao_aliquota_ibs_cbs
+                  FROM produto p
+                  LEFT JOIN perfil_tributario t ON t.id = p.perfil_tributario_id
+                 WHERE p.id = ?
+                """;
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, produtoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                PerfilTributario perfil = rs.getObject("perfil_id") == null ? null
+                        : new PerfilTributario(rs.getLong("perfil_id"), rs.getString("nome"), rs.getString("cfop"),
+                        rs.getString("cst_icms"), rs.getString("csosn"), rs.getBigDecimal("aliquota_icms"),
+                        rs.getBigDecimal("reducao_base_icms"), rs.getString("cst_pis"),
+                        rs.getBigDecimal("aliquota_pis"), rs.getString("cst_cofins"),
+                        rs.getBigDecimal("aliquota_cofins"), rs.getString("codigo_beneficio"),
+                        rs.getString("cst_ibs_cbs"), rs.getString("cclass_trib"), rs.getBoolean("ativo"), 0,
+                        rs.getBigDecimal("aliquota_fcp"), rs.getBigDecimal("reducao_aliquota_ibs_cbs"));
+                return Optional.of(new br.com.varesync.model.CadastroFiscalProduto(
+                        rs.getString("produto"), rs.getString("ncm"), rs.getString("cest"),
+                        rs.getObject("origem", Integer.class), perfil));
+            }
+        }
+    }
+
     public Optional<TributoItem> buscar(Connection con, long vendaItemId) throws SQLException {
         String sql = """
                 SELECT ncm, cest, origem, cfop, cst_icms, csosn, codigo_beneficio, cst_pis, cst_cofins, cst_ibs_cbs,

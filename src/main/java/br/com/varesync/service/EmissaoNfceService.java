@@ -144,19 +144,20 @@ public class EmissaoNfceService {
                 }
             }
         } catch (SemComunicacaoException e) {
+            String causa = e.causa();
             if (nota.status() == StatusNfce.CONTINGENCIA) {
                 transacao.executar(con -> {
-                    nfceDAO.responder(con, nota.id(), StatusNfce.CONTINGENCIA, null, SEM_COMUNICACAO,
+                    nfceDAO.responder(con, nota.id(), StatusNfce.CONTINGENCIA, null, semComunicacao(causa),
                             OffsetDateTime.now(clock));
                     return null;
                 });
-                LOG.info("NFC-e nº {} continua em contingência: SEFAZ sem resposta", nota.numero());
-                return new Resultado(buscar(nota.id()), true, "A SEFAZ não respondeu: a NFC-e continua em "
-                        + "contingência.");
+                LOG.info("NFC-e nº {} continua em contingência: SEFAZ sem resposta ({})", nota.numero(), causa);
+                return new Resultado(buscar(nota.id()), true, "A SEFAZ não respondeu (" + causa + "): a NFC-e "
+                        + "continua em contingência.");
             }
-            NfceGravada nova = contingencia(sessao, nota, true, automatico);
-            return new Resultado(nova, true, "A SEFAZ não respondeu: a NFC-e foi emitida em contingência (nº "
-                    + nova.numero() + ").");
+            NfceGravada nova = contingencia(sessao, nota, true, automatico, causa);
+            return new Resultado(nova, true, "A SEFAZ não respondeu (" + causa + "): a NFC-e foi emitida em "
+                    + "contingência (nº " + nova.numero() + ").");
         }
         return new Resultado(gravar(nota, resposta), false, resposta.autorizada() ? null : resposta.descricao());
     }
@@ -182,30 +183,53 @@ public class EmissaoNfceService {
      * Passo 4: a original fica SEM_RESPOSTA e a venda recebe outra NFC-e, com número novo, em contingência off-line
      * (dhEmi e dhCont = agora). Com {@code entrarNoModo}, o terminal entra no modo contingência (com auditoria).
      */
-    NfceGravada contingencia(Sessao sessao, NfceGravada original, boolean entrarNoModo, boolean automatico) {
+    NfceGravada contingencia(Sessao sessao, NfceGravada original, boolean entrarNoModo, boolean automatico,
+                             String causa) {
         OffsetDateTime agora = OffsetDateTime.now(clock);
         boolean iniciaModo = entrarNoModo && !modo.ativo();
+        // A nova nasce com a trava (F23.6, "Contingência à vista"): o transmissor não a pega entre o commit e a
+        // montagem do XML.
+        String dono = dono();
         long novaId = transacao.executar(con -> {
             NfceGravada atual = nfceDAO.buscar(con, original.id(), true).orElseThrow();
             if (atual.status() != StatusNfce.PENDENTE) {
                 throw new IllegalStateException("A NFC-e " + atual.id() + " não está pendente");
             }
-            nfceDAO.semResposta(con, atual.id(), SEM_COMUNICACAO, agora);
+            nfceDAO.semResposta(con, atual.id(), semComunicacao(causa), agora);
             long id = nfceService.reservar(con, atual.vendaId(), TipoEmissaoNfce.CONTINGENCIA_OFFLINE, agora, agora);
             nfceDAO.ligarSubstituta(con, atual.id(), id, agora);
+            nfceDAO.travar(con, id, dono, agora, agora.plus(DURACAO_TRAVA));
             if (iniciaModo) {
                 auditoria.registrar(con, sessao, AcaoAuditoria.NFCE_CONTINGENCIA_INICIADA, NfceService.ENTIDADE, id,
                         "Terminal " + terminal + " em contingência: a SEFAZ não respondeu à NFC-e nº "
-                                + atual.numero() + ", que ficou sem resposta; a venda nº " + atual.vendaId()
-                                + " recebeu a NFC-e nº " + numero(con, id) + " em contingência" + automatico(automatico));
+                                + atual.numero() + " (" + causa + "), que ficou sem resposta; a venda nº "
+                                + atual.vendaId() + " recebeu a NFC-e nº " + numero(con, id) + " em contingência"
+                                + automatico(automatico));
             }
             return id;
         });
         if (iniciaModo) {
             modo.entrar(agora);
         }
-        LOG.info("NFC-e nº {} sem resposta: a venda recebeu outra NFC-e em contingência", original.numero());
-        return nfceService.prepararXml(novaId);
+        LOG.info("NFC-e nº {} sem resposta ({}): a venda recebeu outra NFC-e em contingência", original.numero(),
+                causa);
+        try {
+            return nfceService.prepararXml(novaId);
+        } finally {
+            transacao.executar(con -> {
+                nfceDAO.soltar(con, novaId, dono, OffsetDateTime.now(clock));
+                return null;
+            });
+        }
+    }
+
+    /** O motivo gravado na NFC-e sem resposta (ou que continua em contingência), com a causa. */
+    static String semComunicacao(String causa) {
+        return causa == null || causa.isBlank() ? SEM_COMUNICACAO : SEM_COMUNICACAO + ": " + causa;
+    }
+
+    private String dono() {
+        return terminal + "#" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     private int numero(java.sql.Connection con, long id) throws java.sql.SQLException {
@@ -223,7 +247,7 @@ public class EmissaoNfceService {
      * está, com a mensagem, sem fazer nada.
      */
     Resultado comTrava(long nfceId, Function<NfceGravada, Resultado> acao) {
-        String dono = (terminal + "#" + UUID.randomUUID().toString().substring(0, 8));
+        String dono = dono();
         OffsetDateTime agora = OffsetDateTime.now(clock);
         Optional<NfceGravada> travada = transacao.executar(con -> nfceDAO.travar(con, nfceId, dono, agora,
                 agora.plus(DURACAO_TRAVA)));

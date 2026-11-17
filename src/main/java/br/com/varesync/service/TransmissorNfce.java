@@ -104,7 +104,8 @@ public class TransmissorNfce {
                 agora.minus(EmissaoNfceService.DURACAO_TRAVA), agora));
         for (long id : abandonadas) {
             EmissaoNfceService.Resultado r = emissao.comTrava(id, n -> new EmissaoNfceService.Resultado(
-                    emissao.contingencia(sessao, n, false, true), true, null));
+                    emissao.contingencia(sessao, n, false, true,
+                            "a emissão foi interrompida antes da resposta"), true, null));
             if (r.semComunicacao()) {
                 contingencia++;
             }

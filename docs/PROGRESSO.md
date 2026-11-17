@@ -2,6 +2,57 @@
 
 ## Fase atual
 
+**Fase 23 — NFC-e em homologação, parte C** concluída em 2026-11-16 (F23.6 e F23.7), **sem migration nova** (a V24 já
+tem `venda.consumidor_documento`, `nfce.ativa` e o resto; Decisões):
+- **F23.6 PDV:** "NFC-e ligada" em Configurações › NFC-e (só liga com o emitente completo e o certificado deste terminal
+  na validade); com ela, a venda só começa com o certificado (sem ele, explica e pede o supervisor), o produto sem os
+  dados fiscais completos é recusado ao registrar (NCM, origem, perfil ativo, regras 14 e 17, CEST com ST e, no normal,
+  o CST do IBS e da CBS e o cClassTrib), o pagamento tem o "CPF/CNPJ na nota" (já com o do cliente; conferido pelo
+  dígito; obrigatório a partir de `nfce.valor_identificacao`; a partir de `nfce.valor_maximo` a venda não fecha), e a
+  reserva do número (PENDENTE) é a última trava da transação da venda. Depois do commit, a emissão roda numa `Task`
+  ("Emitindo NFC-e…"): AUTORIZADA ou CONTINGENCIA imprimem o DANFE (em contingência, também a via do estabelecimento);
+  REJEITADA ou DENEGADA mostram o motivo e orientam a corrigir em Fiscal › Notas fiscais, e o comprovante não fiscal sai
+  só se o operador pedir. O "Reimprimir" do F9 mostra o DANFE. "Testar comunicação" consulta o status com o certificado
+  do terminal. Com a NFC-e desligada, nada muda.
+- **Contingência à vista (ajustes da parte B):** o aviso fixo "NFC-e em contingência desde hh:mm: as notas serão
+  transmitidas quando a SEFAZ voltar" no alto do PDV; a causa da falta de comunicação em linguagem simples
+  (`CausaSemComunicacao`: tempo esgotado, endereço não encontrado, conexão recusada, certificado recusado ou erro
+  inesperado com o tipo) no motivo da SEM_RESPOSTA, na auditoria da entrada na contingência e no "Testar comunicação";
+  a NFC-e de contingência nasce com a trava e é montada antes de soltá-la.
+- **F23.7 DANFE NFC-e:** `DanfeNfce` (80 mm, as divisões do manual, homologação, contingência e via do
+  estabelecimento), pelo mesmo caminho do comprovante (o `comprovante.jrxml` ganhou a banda da imagem do QR Code, e o
+  `ComprovantePdf` e a `ImpressaoComprovante` servem aos dois); QR Code pelo ZXing (correção M, UTF-8, cerca de 35 mm),
+  lido de volta da página gerada nos testes; na tela, o QR Code ao lado do texto.
+
+`mvn -q verify` passa: 671 testes unitários e 591 de integração; `mvn -q -Pui verify`, com o `NfceParteCTelaIT`
+novo, 10 testes de interface (a varredura: 90 telas, 0 cortes). Próxima: Fase 23, parte D (F23.8 cancelamento, F23.9 aba Notas
+fiscais e F23.10 painel, R32, gerador e README).
+
+Antes de começar (pedido do usuário): `git status` só com `COMO_CONTINUAR.md` e `docs/ESPECIFICACAO_AMPLIACOES.md`
+(ajustes do usuário para a F23: a "Contingência à vista" na F23.6 e o XML dos eventos na F23.9), que entraram no
+commit.
+
+Critérios de aceite da parte C (com a SEFAZ falsa; `NfcePdvIT`, salvo indicação; tela = `NfceParteCTelaIT`, números
+das capturas):
+- **Produto sem dados fiscais recusado no PDV:** `produtoSemDadosFiscaisERecusadoNoPdv`, `DadosFiscaisNfceTest`; pela
+  tela, a bala sem NCM (captura `02`).
+- **CPF inválido recusado:** `cpfInvalidoERecusadoENadaEGravado`, `NfceNaVendaTest`; pela tela, no pagamento (`03`).
+- **A venda de R$ 10.000,00 sem CPF não fecha:** `vendaDeDezMilSemCpfNaoFechaEComCpfFecha` (com o CPF, fecha e grava o
+  documento), `NfceNaVendaTest.aPartirDoValorDeIdentificacaoODocumentoEObrigatorio`.
+- **Venda autorizada imprime o DANFE com a chave, o protocolo, o QR Code (lido de volta) e o texto de homologação:**
+  `vendaReservaONumeroEAAutorizadaImprimeODanfeComOQrCodeLidoDeVolta` (o QR Code da página do Jasper = o do XML),
+  `DanfeNfceTest`; pela tela, a impressão (captura `05`, a página impressa) e a janela do DANFE (`06`).
+- **Em contingência, o DANFE sai com os textos de contingência, sem protocolo e com a via do estabelecimento:**
+  `emContingenciaODanfeSaiComOsTextosSemProtocoloEComAVia` (também a causa, a trava e o aviso),
+  `DanfeNfceTest.contingenciaSemProtocoloComOsTextosEmDestaqueEAViaDoEstabelecimento`; pela tela, as duas páginas
+  impressas (`08` e `09`), o aviso fixo (`10`) e o "Reimprimir" (`11`).
+
+Conferência pela tela: o `NfceParteCTelaIT`, versionado no `-Pui` (sem teclado nem mouse do sistema, janelas fora da
+tela, `varesync_test` com a trava de URL, `target/ui-home`, configuração sem BOM). O sistema abre com a SEFAZ falsa e
+uma impressora que não imprime (`AppContext.Ajustes`, só no roteiro): nada vai à rede nem ao papel; as páginas
+"impressas" são desenhadas pelo Jasper e gravadas como capturas. Capturas em `target/telas/NfceParteCTelaIT`. Os bancos
+`varesync` e `varesync_demo` não foram abertos.
+
 **Fase 23 — NFC-e em homologação, parte B** concluída em 2026-11-16 (F23.4 e F23.5), **sem migration nova** (a V24
 já tem a trava, as tentativas, a substituta, os eventos e as inutilizações; Decisões):
 - **F23.4 Comunicação:** interface `Sefaz` (status, autorização síncrona com indSinc 1, consulta pela chave, eventos
@@ -1025,6 +1076,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-14 | 22 — Tributos da venda, parte B (fase concluída) | Sem migration. IBS e CBS só nos CST 000 e 200 (correção da parte A); ST retido pela NF-e (ICMS60, ICMSSN500, ICMS10 e ICMS70, por unidade de venda, pelo diálogo dos dados fiscais); tributos aproximados no comprovante e na segunda via; R31 Impostos das vendas; regras 14 a 17 do R30; gerador com a tabela IBPT de demonstração e o ST retido. | Unitários: 604 (+13: `LeitorNfeStTest` 3, testes das regras 14 a 17 9, `CalculoTributosTest` 1). Integração: 554 (+7: `TributosParteBIT` 6, `GeradorDemoIT` 1). Interface (`-Pui`): 7 (+1: `TributosParteBTelaIT`). Todos verdes. |
 | 2026-11-16 | 23 — NFC-e em homologação, parte A | V24 (nfce_numeracao, nfce, nfce_evento, nfce_inutilizacao, venda.consumidor_documento, vw_nfce_inconsistente, configurações empresa.* e nfce.*); Java_NFe 4.3.0 conferida; XSD PL 010g v1.03; endereço do emitente em Loja; seção NFC-e com o certificado A1 do terminal (fora do banco); "Compras e estoque" numa seção; montagem, assinatura, validação pelo XSD, QR Code versão 3, chave e numeração; nada transmitido. | Unitários: 645 (+41). Integração: 567 (+13: `NfceIT` 12 e a 8ª situação do `ConcorrenciaIT`). Interface (`-Pui`): 8 (+1: `NfceTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 | 2026-11-16 | 23 — NFC-e em homologação, parte B | Sem migration. Interface `Sefaz` e `SefazHomologacao` (Java_NFe, só homologação, sem comunicação, log sem o XML); emissão com a trava, AUTORIZADA com o `nfeProc`, REJEITADA e DENEGADA; contingência off-line (SEM_RESPOSTA e outra NFC-e, modo contingência no terminal); transmissor (status 107, PENDENTE largada, contingência, 110112 ou inutilização, REJEITADA de venda cancelada) e o agendamento em segundo plano. | Unitários: 657 (+12: `RespostasSefazTest` 8, `SefazHomologacaoTest` 3, `TransmissorAgendadoTest` 1). Integração: 580 (+13: `EmissaoNfceIT`). Interface (`-Pui`): 9 (+1: `NfceParteBTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
+| 2026-11-16 | 23 — NFC-e em homologação, parte C | Sem migration. "NFC-e ligada" e "Testar comunicação" em Configurações › NFC-e; PDV com a NFC-e: certificado do terminal no começo da venda, dados fiscais do produto ao registrar (`DadosFiscaisNfce`), "CPF/CNPJ na nota" com os limites de valor, reserva do número na transação da venda (`NfceDaVenda`), emissão numa `Task` com o DANFE impresso (e a via do estabelecimento em contingência), rejeição com o motivo, "Reimprimir" do F9 com o DANFE; contingência à vista (aviso fixo, causa da falta de comunicação, nota de contingência travada até a montagem); DANFE NFC-e de 80 mm (`DanfeNfce`, `QrCodeImagem`, banda do QR Code no `comprovante.jrxml`). | Unitários: 671 (+14: `DanfeNfceTest` 3, `DadosFiscaisNfceTest` 5, `NfceNaVendaTest` 4, `CausaSemComunicacaoTest` 2). Integração: 591 (+11: `NfcePdvIT`). Interface (`-Pui`): 10 (+1: `NfceParteCTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1543,8 +1595,41 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-16 | **Transmissor agendado** (`TransmissorAgendado`): uma thread daemon confere a cada minuto se há alguém logado, se `nfce.ativa` e se já passou `nfce.retransmitir_minutos` desde a última passada; liga no login (depois do bloqueio por inatividade) e desliga no log off e ao fechar o `AppContext`. A sessão do `App` passou a `volatile`. | F23.5 ("roda em segundo plano em todo terminal com alguém logado, a cada nfce.retransmitir_minutos"). Conferir a configuração a cada minuto vale a mudança sem reiniciar. |
 | 2026-11-16 | **Roteiros de tela capturam o log** (`tela.LogCapturado`: um `ListAppender` no logback e um `Handler` no java.util.logging), no lugar de ler o arquivo. | Nos testes o `logback-test.xml` só escreve no console: o arquivo de `target/ui-home` não existe, e a conferência do `NfceTelaIT` (parte A) nunca rodava. |
 | 2026-11-16 | **Roteiro de tela da parte A** (`NfceTelaIT`): o XML da venda do PDV é preparado pelo `DadosTela.nfceDaVenda`, que monta o `NfceService` com o `config.properties` gravado pela tela. | Nenhuma tela emite NFC-e na parte A (o PDV é da parte C). Assim a tela confere o caminho do certificado gravado por ela até a nota assinada. |
+| 2026-11-16 | **Parte C sem migration nova.** | A V24 já criou `venda.consumidor_documento` (11 ou 14 dígitos) e a chave `nfce.ativa` (F23.1: "a migration da parte A cria todas as tabelas e colunas da fase"). |
+| 2026-11-16 | **A venda fala com a NFC-e por uma interface** (`NfceDaVenda`: ligada, certificado, dados fiscais, CPF/CNPJ e limites, reserva), passada ao `VendaService` pelo `Servicos.montar`; a real (`NfceNaVenda`) é montada no `AppContext` antes dos serviços, com o certificado do terminal e o `NfceService`. O gerador de demonstração e os testes antigos usam a `NfceDaVenda.DESLIGADA`. | O `NfceService` e o certificado dependem do `config.properties` do terminal e das pastas dos XSD, que só o `AppContext` conhece. O gerador "não emite nem cria NFC-e" (F23.10). |
+| 2026-11-16 | **Quando o PDV confere:** o certificado no 1º item da venda (carrinho vazio) e de novo no F10; os dados fiscais de cada produto ao registrar o item e de novo no F10 (podem ter mudado); o CPF/CNPJ e os limites no F10. A reserva do número é a última operação da transação, depois dos recebíveis. | F23.6 ("só começa uma venda com o certificado", "recusado ao registrar", "na mesma transação da venda"). Conferir de novo no F10 evita reservar um número para uma nota que a montagem recusaria. |
+| 2026-11-16 | **Dados fiscais para a NFC-e** (`DadosFiscaisNfce`): NCM; origem; perfil ativo; no Simples, o CSOSN da regra 14, e no normal, o CST da regra 14 (o regime da loja decide qual dos dois vale); CEST quando há ST (CST 60 ou CSOSN 500, como a regra 9); no normal, o CST do IBS e da CBS (000, 200 ou 410; o 200 com a redução) e o cClassTrib. A mensagem diz tudo o que falta de uma vez. | F23.6 e as regras 9, 14 e 17 do R30. Só os CST e CSOSN aceitos na NFC-e têm ST na 60 e na 500; os outros de ST já são recusados pela regra 14. |
+| 2026-11-16 | **CPF/CNPJ na nota:** opcional, conferido pelo `CpfCnpj.validar`; o CNPJ com letras é recusado ("ainda não é aceito na NFC-e"); "a partir de" vale para o valor igual (R$ 10.000,00 já exige o documento; R$ 200.000,00 já não fecha); o valor máximo é conferido antes do documento. Já vem preenchido com o documento do cliente identificado; com a NFC-e desligada, o campo não aparece e nada é gravado. | F23.6. A coluna da V24 aceita só dígitos, e o CNPJ alfanumérico está em "Fora desta fase". |
+| 2026-11-16 | **Emissão no PDV:** depois do commit, numa `Task`; os DANFE vão direto para a impressora padrão (como o F5 do comprovante), um por vez; a janela "Venda nº N finalizada" (troco) aparece depois da emissão, com a situação da NFC-e e o botão "Ver DANFE" (ou "Comprovante não fiscal", na rejeição e na denegação). Se a emissão falha sem resposta da SEFAZ (por exemplo, o certificado sumiu entre a venda e a emissão), a NFC-e fica PENDENTE e o transmissor a leva para a contingência depois de 2 minutos (F23.5). Sem impressora, a mensagem explica e o "Ver DANFE" deixa imprimir de novo ou salvar o PDF. | F23.6 ("imprime o DANFE"; "o comprovante não fiscal sai só se o operador pedir"). Mostrar o troco só depois da emissão evita duas janelas ao mesmo tempo; a SEFAZ falsa e a de homologação respondem em menos de `nfce.timeout_segundos`. |
+| 2026-11-16 | **DANFE pelo mesmo JRXML do comprovante:** a linha de estilo `QRCODE` (o conteúdo no texto) usa uma 2ª banda do `comprovante.jrxml`, com a imagem do QR Code (100 pt, cerca de 35 mm, acima dos 25 mm do manual); na tela, o texto mostra "[QR Code da consulta]" e a imagem fica ao lado. O título e o texto de homologação vão em duas linhas (não cabem nas 48 colunas); o endereço da consulta é quebrado na última "/" que cabe. O valor unitário sai com 2 casas (bruto ÷ quantidade), e o total do item é o valor bruto, como no XML. | F23.7 ("pelo mesmo caminho do comprovante"). Um JRXML só mantém a tela, o PDF e a impressão iguais (decisão da Fase 4). |
+| 2026-11-16 | **Contingência no DANFE** = NFC-e na situação CONTINGENCIA (pendente de autorização): "EMITIDA EM CONTINGÊNCIA" e "Pendente de autorização" em negrito, abaixo do título e abaixo da identificação, sem protocolo. Depois de autorizada pelo transmissor, a reimpressão sai com o protocolo. A via do estabelecimento é a mesma nota com "Via do Estabelecimento" ao lado da data. | F23.7. Depois da autorização a nota não está mais "pendente". |
+| 2026-11-16 | **"Reimprimir" do F9** (o botão "Ver comprovante" virou "Reimprimir (Enter)"): o DANFE da NFC-e vigente da venda (autorizada ou em contingência); sem ela (NFC-e desligada, rejeitada, denegada), o comprovante não fiscal. | F23.6 ("na janela do F9, Reimprimir imprime o DANFE"). |
+| 2026-11-16 | **Causa da falta de comunicação** (`CausaSemComunicacao`), pelos tipos da cadeia de exceções: tempo esgotado (`SocketTimeoutException`, classes com "timeout"), endereço não encontrado (`UnknownHostException`), conexão recusada (`ConnectException`, `NoRouteToHostException`), certificado recusado ou falha na conexão segura (`SSLException`, classes com "ssl", "certpath" ou "certificate"); o resto, "erro inesperado na comunicação (<classe>)". O motivo da SEM_RESPOSTA é "Sem resposta da SEFAZ: <causa>", e a auditoria da entrada no modo leva a causa entre parênteses. | F23.6, "Contingência à vista". As mensagens das exceções podem trazer o XML ou o caminho do certificado e nunca entram. |
+| 2026-11-16 | **A NFC-e de contingência nasce travada:** a trava (`transmitindo_ate` = agora + 2 min) é pega na mesma transação que a cria, e solta depois da montagem do XML. | F23.6 ("montada ainda com a trava dela, para o transmissor não pegá-la entre o commit e a montagem"). |
+| 2026-11-16 | **"NFC-e ligada" tem ação própria** (marcar ou desmarcar grava na hora, com `CONFIGURACAO_ALTERADA`), fora do "Salvar alterações" dos parâmetros, que continua gravando o valor como está. | A condição para ligar depende do certificado do terminal, que fica fora do banco; assim a recusa aparece junto da caixa, e um "Salvar alterações" com outros campos inválidos não liga nem desliga a NFC-e. |
+| 2026-11-16 | **"Testar comunicação"** confere antes, sem ir à SEFAZ, o certificado (sem certificado, senha errada, vencido) e a raiz do CNPJ do certificado contra a da loja; depois consulta o status (107 = em operação) e mostra "cStat N - motivo". Roda numa `Task`. | F23.6 ("o problema em linguagem simples: sem certificado, senha errada, certificado vencido, CNPJ diferente, sem internet"). |
+| 2026-11-16 | **Roteiro de tela com a SEFAZ falsa e uma impressora que não imprime:** `AppContext.Ajustes` (nulo = a do sistema) e o construtor `App(Ajustes)`, usados só pelo `TelaBase.abrirSistema(Ajustes)`. O sistema usa `new App()`, que monta a `SefazHomologacao` e a impressora padrão. | O PDV da parte C emite: sem a troca, o roteiro de tela falaria com a SEFAZ de verdade e mandaria o DANFE para a impressora do computador. |
+| 2026-11-16 | **O aviso fixo da contingência** é atualizado em cada atualização da tela do PDV e depois de cada emissão; quando o transmissor encerra o modo em segundo plano, o aviso sai na próxima atualização. | Sem uma tarefa só para isso; o operador mexe no PDV a cada venda. |
 
 ## Pendências e riscos
+
+- **Fase 23, parte C (2026-11-16).** Resolvidas da parte B: a NFC-e ligada tem controle na tela; um defeito de
+  configuração (endereço errado da UF) já não passa despercebido, porque a causa vai para o motivo, para a auditoria e
+  para o "Testar comunicação".
+  - **Nada foi transmitido a uma SEFAZ de verdade** e o DANFE não foi conferido por um fiscal nem lido por um app de
+    celular: o QR Code foi lido de volta pelo ZXing, da página desenhada pelo Jasper. A homologação real (CT-F23-20)
+    depende de um certificado A1.
+  - **A impressão vai direto para a impressora padrão** (sem diálogo, como o F5 do comprovante); não foi testada numa
+    térmica de 80 mm de verdade. Sem impressora, o DANFE fica na janela "Ver DANFE" (imprimir de novo ou salvar o PDF).
+  - **A orientação da rejeição aponta para Fiscal › Notas fiscais**, que é a parte D: até lá, a nota rejeitada só pode
+    ser vista no banco.
+  - **Se a emissão falhar sem resposta** (por exemplo, o certificado sumir entre a venda e a emissão), a NFC-e fica
+    PENDENTE até o transmissor (2 minutos) a levar para a contingência.
+  - **O aviso fixo da contingência** só é atualizado quando o PDV atualiza a tela (Decisões).
+  - **O "CPF/CNPJ na nota"** não tem máscara enquanto se digita; aceita com ou sem pontos. A venda de total zero
+    (100% de desconto) fecha sem a janela do pagamento e, por isso, sem o CPF (abaixo do valor de identificação).
+  - **O README** sobre ligar a NFC-e e testar na homologação é da parte D (F23.10).
+  Falta a pessoa executar CT-F23-12 a CT-F23-20 (o CT-F23-20 só com um certificado A1).
 
 - **Fase 23, parte B (2026-11-16).**
   - **Nada foi transmitido a uma SEFAZ de verdade.** A `SefazHomologacao` foi conferida só sem rede (recusa da
@@ -1565,7 +1650,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
     sistema, não a SEFAZ (Decisões).
   - **Os XML dos eventos e das inutilizações** guardados são as respostas da SEFAZ (o retEnvEvento e o retInutNFe), e
     não o procEventoNFe e o procInutNFe montados; o ZIP do contador (parte D) pode precisar deles.
-  - **A NFC-e ligada continua sem controle na tela** (parte C): o transmissor agendado só roda com `nfce.ativa` = true.
+  - ~~A NFC-e ligada continua sem controle na tela~~: resolvido na parte C.
   Falta a pessoa executar CT-F23-09 a CT-F23-11.
 
 - **Fase 23, parte A (2026-11-16).**

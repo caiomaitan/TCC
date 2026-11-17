@@ -49,6 +49,13 @@
     </HBox>
     <Label fx:id="previaCrediario" wrapText="true" minHeight="-Infinity" managed="false" visible="false"/>
 
+    <!-- F23.6: com a NFC-e ligada, o CPF ou CNPJ na nota (opcional; obrigatório a partir do valor configurado) -->
+    <HBox fx:id="linhaDocumento" alignment="CENTER_LEFT" spacing="10" managed="false" visible="false">
+        <Label text="CPF/CNPJ na nota"/>
+        <TextField fx:id="campoDocumento" prefWidth="200" promptText="opcional"/>
+        <Label fx:id="avisoDocumento" wrapText="true" minHeight="-Infinity" HBox.hgrow="ALWAYS"/>
+    </HBox>
+
     <TableView fx:id="tabelaParcelas" prefHeight="170">
         <placeholder><Label text="Nenhum pagamento informado."/></placeholder>
         <columns>

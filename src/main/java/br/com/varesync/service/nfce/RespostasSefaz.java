@@ -80,7 +80,7 @@ public final class RespostasSefaz {
 
     private static RespostaSefaz conferir(RespostaSefaz r) {
         if (r.cstat() == null || RespostaSefaz.PARALISADO.contains(r.cstat())) {
-            throw new SemComunicacaoException("Serviço da SEFAZ paralisado ou sem resposta (cStat " + r.cstat() + ")");
+            throw new SemComunicacaoException(CausaSemComunicacao.paralisado(r.cstat()));
         }
         return r;
     }

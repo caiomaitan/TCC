@@ -281,14 +281,20 @@ public class ConfiguracoesController {
 
     private final CertificadoService certificadoService;
     private final NfceService nfceService;
+    private final br.com.varesync.service.NfceTerminalService nfceTerminal;
+    @FXML private CheckBox campoNfceAtiva;
+    @FXML private Button botaoTestarNfce;
+    @FXML private Label mensagemNfceAtiva;
 
     public ConfiguracoesController(ConfiguracaoService configuracaoService, BackupService backupService,
                                    ConsultaAuditoriaService auditoriaService, UsuarioService usuarioService,
                                    EstoqueService estoqueService, CreditoService creditoService,
                                    ClienteService clienteService, ContaFinanceiraService contaService,
                                    GeradorDemo geradorDemo, ImpressaoTermica impressaoTermica,
-                                   CertificadoService certificadoService, NfceService nfceService, Clock clock,
+                                   CertificadoService certificadoService, NfceService nfceService,
+                                   br.com.varesync.service.NfceTerminalService nfceTerminal, Clock clock,
                                    Sessao sessao) {
+        this.nfceTerminal = nfceTerminal;
         this.certificadoService = certificadoService;
         this.nfceService = nfceService;
         this.impressaoTermica = impressaoTermica;
@@ -502,6 +508,7 @@ public class ConfiguracoesController {
         campoRespEmail.setText(n.respTecnico().email());
         campoRespFone.setText(n.respTecnico().fone().isEmpty() ? "" : Formatos.telefone(n.respTecnico().fone()));
         mostrarSituacaoEmitente(c);
+        campoNfceAtiva.setSelected(c.nfce().ativa());
         atualizarBalanca();
     }
 
@@ -560,7 +567,7 @@ public class ConfiguracoesController {
                 new Configuracoes.Emitente(campoRazaoSocial.getText(), campoLogradouro.getText(),
                         campoNumero.getText(), campoComplemento.getText(), campoBairro.getText(), campoCep.getText(),
                         campoMunicipio.getText(), campoCodigoMunicipio.getText()),
-                // "NFC-e ligada" é da parte C da F23: aqui fica como está gravada
+                // "NFC-e ligada" fica como está gravada: liga e desliga pelo campo próprio (alternarNfce, F23.6)
                 new Configuracoes.Nfce(gravadas == null ? false : gravadas.nfce().ativa(),
                         inteiro(campoSerieNfce, "Série da NFC-e"),
                         inteiro(campoPrazoCancelamento, "Prazo de cancelamento"),
@@ -572,6 +579,53 @@ public class ConfiguracoesController {
                         campoUrlQrCode.getText(), campoUrlConsulta.getText(),
                         new Configuracoes.RespTecnico(campoRespCnpj.getText(), campoRespContato.getText(),
                                 campoRespEmail.getText(), campoRespFone.getText())));
+    }
+
+    // ----- NFC-e ligada e Testar comunicação (F23.6) -----
+
+    /** "NFC-e ligada": só liga com o emitente completo e o certificado deste terminal na validade. */
+    @FXML
+    void alternarNfce() {
+        boolean ligar = campoNfceAtiva.isSelected();
+        try {
+            nfceTerminal.ligar(sessao, ligar);
+            gravadas = configuracaoService.carregar(sessao);
+            Mensagem.sucessoNoRotulo(mensagemNfceAtiva, ligar ? "NFC-e ligada: o PDV emite a NFC-e (homologação) em cada venda."
+                    : "NFC-e desligada: o PDV volta ao comprovante não fiscal.");
+        } catch (NegocioException e) {
+            campoNfceAtiva.setSelected(!ligar);
+            Mensagem.erro(mensagemNfceAtiva, e.getMessage());
+        } catch (RuntimeException e) {
+            campoNfceAtiva.setSelected(!ligar);
+            TratadorExcecoes.mostrar(e);
+        }
+    }
+
+    /** "Testar comunicação": o status do serviço com o certificado deste terminal, numa {@link Task}. */
+    @FXML
+    void testarComunicacao() {
+        Task<br.com.varesync.service.NfceTerminalService.TesteComunicacao> tarefa = new Task<>() {
+            @Override
+            protected br.com.varesync.service.NfceTerminalService.TesteComunicacao call() {
+                return nfceTerminal.testarComunicacao(sessao);
+            }
+        };
+        botaoTestarNfce.setDisable(true);
+        Mensagem.informar(mensagemNfceAtiva, "Consultando o status do serviço da SEFAZ…");
+        tarefa.setOnSucceeded(e -> {
+            botaoTestarNfce.setDisable(false);
+            var r = tarefa.getValue();
+            if (r.emOperacao()) {
+                Mensagem.sucessoNoRotulo(mensagemNfceAtiva, r.mensagem());
+            } else {
+                Mensagem.erro(mensagemNfceAtiva, r.mensagem());
+            }
+        });
+        tarefa.setOnFailed(e -> {
+            botaoTestarNfce.setDisable(false);
+            Mensagem.erro(mensagemNfceAtiva, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        Tarefas.executar("nfce-testar-comunicacao", tarefa);
     }
 
     // ----- Certificado A1 deste terminal (F23.2) -----

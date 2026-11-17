@@ -15,6 +15,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
@@ -124,10 +125,21 @@ public final class DialogosPdv {
      * @return true se a pessoa quer ver o comprovante
      */
     public static boolean vendaFinalizada(long vendaId, BigDecimal troco) {
+        return vendaFinalizada(vendaId, troco, null, false, "Ver comprovante");
+    }
+
+    /**
+     * Com a NFC-e (F23.6): o troco, a situação da nota ({@code aviso}, em vermelho com {@code erro}) e o botão que
+     * mostra o DANFE ou, com a nota recusada, o comprovante não fiscal.
+     *
+     * @return se a pessoa pediu o documento do botão
+     */
+    public static boolean vendaFinalizada(long vendaId, BigDecimal troco, String aviso, boolean erro,
+                                          String textoBotao) {
         Dialog<Boolean> dialogo = new Dialog<>();
         dialogo.setTitle(Dialogos.TITULO);
         dialogo.setHeaderText("Venda nº " + vendaId + " finalizada");
-        ButtonType comprovante = new ButtonType("Ver comprovante", ButtonBar.ButtonData.OTHER);
+        ButtonType comprovante = new ButtonType(textoBotao, ButtonBar.ButtonData.OTHER);
         ButtonType proxima = new ButtonType("Próxima venda", ButtonBar.ButtonData.OK_DONE);
         dialogo.getDialogPane().getButtonTypes().addAll(comprovante, proxima);
         Label rotulo = new Label(troco.signum() > 0 ? "Troco" : "Sem troco");
@@ -135,6 +147,15 @@ public final class DialogosPdv {
         Label valor = new Label(Formatos.moeda(troco));
         valor.getStyleClass().add("troco-destaque");
         VBox conteudo = new VBox(6, rotulo, valor);
+        if (aviso != null) {
+            Label situacao = new Label(aviso);
+            situacao.setWrapText(true);
+            situacao.setMinHeight(Region.USE_PREF_SIZE);
+            situacao.setMaxWidth(460);
+            situacao.getStyleClass().add(erro ? "mensagem-erro" : "mensagem-sucesso");
+            situacao.setId("situacaoNfce");
+            conteudo.getChildren().add(situacao);
+        }
         conteudo.setMinWidth(360);
         dialogo.getDialogPane().setContent(conteudo);
         dialogo.setResultConverter(tipo -> tipo == comprovante);

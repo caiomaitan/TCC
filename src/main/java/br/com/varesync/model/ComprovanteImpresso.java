@@ -17,6 +17,11 @@ public interface ComprovanteImpresso {
     /** Nome sugerido do PDF ("comprovante-venda-12.pdf"). */
     String nomeArquivo();
 
+    /** O conteúdo do QR Code, quando o comprovante tem um (o DANFE NFC-e, F23.7); a tela mostra a imagem. */
+    default java.util.Optional<String> qrCodeConteudo() {
+        return java.util.Optional.empty();
+    }
+
     /** Texto de largura fixa para a tela (fonte monoespaçada). */
     default String texto() {
         StringBuilder texto = new StringBuilder();

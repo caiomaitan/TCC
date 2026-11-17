@@ -12,7 +12,9 @@ public record LinhaComprovante(Estilo estilo, String esquerda, String direita) {
         CENTRO_NEGRITO,
         SEPARADOR,
         /** Texto em toda a largura, sem valor à direita (descrição do item, motivo). */
-        TEXTO
+        TEXTO,
+        /** QR Code do DANFE NFC-e (F23.7): o conteúdo vai em {@code esquerda}; no PDF e no papel, a imagem. */
+        QRCODE
     }
 
     public static LinhaComprovante normal(String esquerda, String direita) {
@@ -33,6 +35,10 @@ public record LinhaComprovante(Estilo estilo, String esquerda, String direita) {
 
     public static LinhaComprovante texto(String texto) {
         return new LinhaComprovante(Estilo.TEXTO, texto, "");
+    }
+
+    public static LinhaComprovante qrCode(String conteudo) {
+        return new LinhaComprovante(Estilo.QRCODE, conteudo, "");
     }
 
     public static LinhaComprovante separador() {

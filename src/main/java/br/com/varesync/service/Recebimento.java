@@ -30,6 +30,7 @@ public final class Recebimento {
     private final List<Parcela> parcelas = new ArrayList<>();
     private PlanoCrediario planoCrediario;
     private Liberacao liberacaoCrediario;
+    private String consumidorDocumento;
 
     /** Venda sem cliente identificado: não aceita o crédito do cliente. */
     public Recebimento(BigDecimal total) {
@@ -109,6 +110,15 @@ public final class Recebimento {
 
     public void liberarCrediario(Liberacao liberacao) {
         this.liberacaoCrediario = liberacao;
+    }
+
+    /** O CPF ou o CNPJ na nota (F23.6), como digitado; nulo ou vazio sem ele. Só vale com a NFC-e ligada. */
+    public String consumidorDocumento() {
+        return consumidorDocumento;
+    }
+
+    public void definirConsumidorDocumento(String documento) {
+        this.consumidorDocumento = documento;
     }
 
     public void remover(int indice) {

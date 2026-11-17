@@ -36,6 +36,7 @@ public class ComprovanteController {
 
     @FXML private VBox raiz;
     @FXML private TextArea texto;
+    @FXML private javafx.scene.image.ImageView qrCode;
     @FXML private Button botaoImprimir;
     @FXML private Button botaoPdf;
     @FXML private ProgressIndicator progresso;
@@ -78,6 +79,11 @@ public class ComprovanteController {
     public void mostrar(ComprovanteImpresso exibido) {
         this.comprovante = exibido;
         texto.setText(exibido.texto());
+        exibido.qrCodeConteudo().ifPresent(conteudo -> {
+            qrCode.setImage(imagem(br.com.varesync.report.QrCodeImagem.gerar(conteudo)));
+            qrCode.setVisible(true);
+            qrCode.setManaged(true);
+        });
         raiz.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.F5) {
                 e.consume();
@@ -85,6 +91,19 @@ public class ComprovanteController {
             }
         });
         Platform.runLater(botaoFechar::requestFocus);
+    }
+
+    /** A imagem do QR Code (ZXing, sem o módulo Swing do JavaFX). */
+    static javafx.scene.image.Image imagem(java.awt.image.BufferedImage origem) {
+        javafx.scene.image.WritableImage imagem = new javafx.scene.image.WritableImage(origem.getWidth(),
+                origem.getHeight());
+        javafx.scene.image.PixelWriter escrita = imagem.getPixelWriter();
+        for (int y = 0; y < origem.getHeight(); y++) {
+            for (int x = 0; x < origem.getWidth(); x++) {
+                escrita.setArgb(x, y, origem.getRGB(x, y));
+            }
+        }
+        return imagem;
     }
 
     /** Imprime na impressora padrão do Windows, em {@link Task}. */

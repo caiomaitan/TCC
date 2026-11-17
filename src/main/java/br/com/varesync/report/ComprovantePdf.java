@@ -76,6 +76,13 @@ public class ComprovantePdf {
     }
 
     private static Map<String, ?> campos(LinhaComprovante linha) {
-        return Map.of("estilo", linha.estilo().name(), "esquerda", linha.esquerda(), "direita", linha.direita());
+        Map<String, Object> campos = new HashMap<>();
+        campos.put("estilo", linha.estilo().name());
+        campos.put("esquerda", linha.esquerda());
+        campos.put("direita", linha.direita());
+        // DANFE NFC-e (F23.7): a linha do QR Code vira a imagem
+        campos.put("imagem", linha.estilo() == LinhaComprovante.Estilo.QRCODE
+                ? QrCodeImagem.gerar(linha.esquerda()) : null);
+        return campos;
     }
 }

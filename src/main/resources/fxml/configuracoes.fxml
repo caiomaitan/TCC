@@ -299,6 +299,13 @@
             <VBox spacing="10" styleClass="painel-formulario">
                 <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
                 <Label wrapText="true" minHeight="-Infinity" text="Nota Fiscal de Consumidor Eletrônica (modelo 65), só no ambiente de homologação da SEFAZ, em que a nota não tem valor fiscal. Os dados do emitente ficam em Loja."/>
+                <Label text="Emissão" styleClass="titulo-secao"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <CheckBox fx:id="campoNfceAtiva" text="NFC-e ligada (homologação)" onAction="#alternarNfce"/>
+                    <Button fx:id="botaoTestarNfce" text="Testar comunicação" onAction="#testarComunicacao"/>
+                </HBox>
+                <Label fx:id="mensagemNfceAtiva" wrapText="true" minHeight="-Infinity"/>
+                <Label wrapText="true" minHeight="-Infinity" styleClass="subtitulo" text="Com a NFC-e ligada, o PDV só vende com o certificado deste terminal na validade e com os dados fiscais completos de cada produto, pede o CPF ou CNPJ na nota e imprime o DANFE. Só liga com os dados do emitente completos (em Loja) e com o certificado abaixo."/>
                 <Label text="Certificado digital deste terminal" styleClass="titulo-secao"/>
                 <Label fx:id="situacaoCertificado" wrapText="true" minHeight="-Infinity"/>
                 <GridPane hgap="12" vgap="10" maxWidth="760">

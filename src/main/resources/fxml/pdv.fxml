@@ -19,6 +19,7 @@
             fx:controller="br.com.varesync.controller.PdvController" styleClass="pdv">
 
     <top>
+        <VBox>
         <HBox alignment="CENTER_LEFT" spacing="16" styleClass="pdv-cabecalho">
             <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
             <Label text="PDV" styleClass="pdv-marca"/>
@@ -28,6 +29,10 @@
             <Label fx:id="terminalInfo" styleClass="pdv-info"/>
             <Label fx:id="operadorInfo" styleClass="pdv-info"/>
         </HBox>
+        <!-- F23.6: aviso fixo enquanto o terminal está no modo contingência da NFC-e (vazio, não ocupa espaço) -->
+        <Label fx:id="avisoContingencia" styleClass="pdv-aviso-contingencia" wrapText="true" minHeight="-Infinity"
+               maxWidth="Infinity"/>
+        </VBox>
     </top>
 
     <center>

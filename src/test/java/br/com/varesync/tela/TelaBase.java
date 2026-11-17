@@ -169,11 +169,16 @@ abstract class TelaBase {
 
     /** Abre o sistema inteiro ({@code App.start}) numa janela fora da tela. */
     void abrirSistema() throws Exception {
+        abrirSistema(br.com.varesync.config.AppContext.Ajustes.NENHUM);
+    }
+
+    /** Com as peças do roteiro (F23.6): a SEFAZ falsa e a impressora que não imprime. */
+    void abrirSistema(br.com.varesync.config.AppContext.Ajustes ajustes) throws Exception {
         conferirTravaDaUrl();
         fx(() -> {
             palco = new Stage();
             esconder(palco);
-            app = new App();
+            app = new App(ajustes);
             app.start(palco);
             // Depois do start (o App instala o tratador dele): exceção na thread do JavaFX vira falha do teste.
             Thread.currentThread().setUncaughtExceptionHandler((th, e) -> {
@@ -188,6 +193,13 @@ abstract class TelaBase {
     Scene abrirEEntrar(String login, String senha) throws Exception {
         escreverConfiguracao(BancoTeste.credenciais().url());
         abrirSistema();
+        return entrar(esperarLogin(), login, senha);
+    }
+
+    Scene abrirEEntrar(String login, String senha, br.com.varesync.config.AppContext.Ajustes ajustes)
+            throws Exception {
+        escreverConfiguracao(BancoTeste.credenciais().url());
+        abrirSistema(ajustes);
         return entrar(esperarLogin(), login, senha);
     }
 
@@ -430,6 +442,15 @@ abstract class TelaBase {
         Path arquivo = pasta.resolve(String.format("%02d_%s.png", ++capturas, nome));
         ImageIO.write(saida, "png", arquivo.toFile());
         assertThat(w).as("captura %s com tamanho", nome).isGreaterThan(100);
+        return arquivo;
+    }
+
+    /** Grava uma imagem pronta (a página do DANFE desenhada pelo Jasper) junto das capturas. */
+    Path gravarImagem(BufferedImage imagem, String nome) throws Exception {
+        Path pasta = Path.of(System.getProperty("telas.saida", "target/telas"), getClass().getSimpleName());
+        Files.createDirectories(pasta);
+        Path arquivo = pasta.resolve(String.format("%02d_%s.png", ++capturas, nome));
+        ImageIO.write(imagem, "png", arquivo.toFile());
         return arquivo;
     }
 

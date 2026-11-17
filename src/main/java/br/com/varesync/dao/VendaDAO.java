@@ -63,10 +63,17 @@ public class VendaDAO {
      */
     public long inserir(Connection con, long caixaSessaoId, long usuarioId, OffsetDateTime dataHora, Totais t,
                         Long descontoLiberadoPor, Long clienteId) throws SQLException {
+        return inserir(con, caixaSessaoId, usuarioId, dataHora, t, descontoLiberadoPor, clienteId, null);
+    }
+
+    /** @param consumidorDocumento o CPF ou o CNPJ na NFC-e (F23.6), só dígitos; nulo sem ele */
+    public long inserir(Connection con, long caixaSessaoId, long usuarioId, OffsetDateTime dataHora, Totais t,
+                        Long descontoLiberadoPor, Long clienteId, String consumidorDocumento) throws SQLException {
         String sql = """
                 INSERT INTO venda (caixa_sessao_id, usuario_id, data_hora, status, valor_bruto, desconto_itens,
-                                   desconto_venda, valor_total, troco, desconto_liberado_por, cliente_id)
-                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?, ?, ?)
+                                   desconto_venda, valor_total, troco, desconto_liberado_por, cliente_id,
+                                   consumidor_documento)
+                VALUES (?, ?, ?, 'FINALIZADA', ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """;
         try (PreparedStatement ps = con.prepareStatement(sql)) {
@@ -80,6 +87,7 @@ public class VendaDAO {
             ps.setBigDecimal(8, t.troco());
             Jdbc.definirLong(ps, 9, descontoLiberadoPor);
             Jdbc.definirLong(ps, 10, clienteId);
+            ps.setString(11, consumidorDocumento);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);

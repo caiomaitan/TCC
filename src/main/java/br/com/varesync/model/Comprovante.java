@@ -222,11 +222,12 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
         linhas.add(LinhaComprovante.separador());
     }
 
-    static String formatar(LinhaComprovante linha, int colunas) {
+    public static String formatar(LinhaComprovante linha, int colunas) {
         return switch (linha.estilo()) {
             case SEPARADOR -> "-".repeat(colunas);
             case CENTRO, CENTRO_NEGRITO -> centralizar(linha.esquerda(), colunas);
             case NORMAL, NEGRITO, TEXTO -> lado(linha.esquerda(), linha.direita(), colunas);
+            case QRCODE -> centralizar("[QR Code da consulta]", colunas);
         };
     }
 
@@ -236,7 +237,7 @@ public record Comprovante(Loja loja, long vendaId, OffsetDateTime dataHora, Stri
     }
 
     /** O texto em linhas de até {@code colunas}, quebradas entre as palavras. */
-    static List<String> quebrar(String texto, int colunas) {
+    public static List<String> quebrar(String texto, int colunas) {
         List<String> linhas = new ArrayList<>();
         StringBuilder atual = new StringBuilder();
         for (String palavra : texto.split(" ")) {

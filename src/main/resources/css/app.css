@@ -23,6 +23,8 @@
     -vs-erro: #c62828;
     -vs-sucesso: #2e7d32;
     -vs-alerta: #9a5b00;
+    -vs-aviso-contingencia: #ffb74d;
+    -vs-aviso-contingencia-texto: #1a1a1a;
     -vs-linha-alerta: #fff4d6;
     -vs-linha-erro: #fde2e1;
     -vs-entrada-erro: #ffebee;
@@ -71,6 +73,8 @@
     -vs-erro: #ff8a80;
     -vs-sucesso: #7bc67e;
     -vs-alerta: #ffb74d;
+    -vs-aviso-contingencia: #ffb74d;
+    -vs-aviso-contingencia-texto: #1a1a1a;
     -vs-linha-alerta: #4d3d12;
     -vs-linha-erro: #5c2b2b;
     -vs-entrada-erro: #5c2b2b;
@@ -756,4 +760,13 @@
 
 .primeiros-passos .passo-titulo {
     -fx-font-weight: bold;
+}
+
+/* F23.6: aviso fixo do modo contingência da NFC-e no PDV (fundo laranja e texto escuro, iguais nos dois temas) */
+.pdv-aviso-contingencia {
+    -fx-background-color: -vs-aviso-contingencia;
+    -fx-text-fill: -vs-aviso-contingencia-texto;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-padding: 6 16 6 16;
 }

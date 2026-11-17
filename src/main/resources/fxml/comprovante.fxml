@@ -5,6 +5,7 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -15,8 +16,12 @@
       spacing="10" styleClass="tela-cadastro">
     <padding><Insets top="16" right="16" bottom="16" left="16"/></padding>
 
-    <TextArea fx:id="texto" editable="false" prefColumnCount="50" prefRowCount="30" styleClass="comprovante"
-              VBox.vgrow="ALWAYS"/>
+    <HBox spacing="12" VBox.vgrow="ALWAYS">
+        <TextArea fx:id="texto" editable="false" prefColumnCount="50" prefRowCount="30" styleClass="comprovante"
+                  HBox.hgrow="ALWAYS"/>
+        <!-- DANFE NFC-e (F23.7): o QR Code da consulta; vazio, não ocupa espaço -->
+        <ImageView fx:id="qrCode" fitWidth="180" fitHeight="180" preserveRatio="true" managed="false" visible="false"/>
+    </HBox>
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Button fx:id="botaoImprimir" text="Imprimir (F5)" onAction="#imprimir" styleClass="botao-primario"/>
         <Button fx:id="botaoPdf" text="Salvar PDF…" onAction="#salvarPdf"/>

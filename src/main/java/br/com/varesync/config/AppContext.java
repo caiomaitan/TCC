@@ -57,6 +57,9 @@ import br.com.varesync.service.EmissaoNfceService;
 import br.com.varesync.service.ModoContingencia;
 import br.com.varesync.service.TransmissorAgendado;
 import br.com.varesync.service.TransmissorNfce;
+import br.com.varesync.service.NfceNaVenda;
+import br.com.varesync.service.NfceTerminalService;
+import java.util.function.Function;
 import br.com.varesync.service.nfce.Sefaz;
 import br.com.varesync.service.nfce.SefazHomologacao;
 import br.com.varesync.service.nfce.AssinaturaNfce;
@@ -82,7 +85,7 @@ public final class AppContext implements AutoCloseable {
     private final GeradorDemo geradorDemo;
     private final BackupService backup;
     private final ComprovantePdf comprovantePdf = new ComprovantePdf();
-    private final ImpressaoComprovante impressaoComprovante = new ImpressaoComprovante(comprovantePdf);
+    private final ImpressaoComprovante impressaoComprovante;
     private final ImpressaoTermica impressaoTermica = new ImpressaoTermica();
     private final EtiquetasPdf etiquetasPdf = new EtiquetasPdf();
     private final RelatorioPdf relatorioPdf = new RelatorioPdf();
@@ -92,36 +95,53 @@ public final class AppContext implements AutoCloseable {
     private final EmissaoNfceService emissaoNfce;
     private final TransmissorNfce transmissorNfce;
     private final TransmissorAgendado transmissorAgendado;
+    private final NfceTerminalService nfceTerminal;
 
-    AppContext(AppConfig config, HikariDataSource dataSource, Clock clock) {
+    /**
+     * Peças trocadas só no roteiro de tela (F23.6): a SEFAZ falsa e a impressora que não imprime, para nada ir à rede
+     * nem ao papel. Nulo = a do sistema.
+     */
+    public record Ajustes(Sefaz sefaz, Function<ComprovantePdf, ImpressaoComprovante> impressao) {
+        public static final Ajustes NENHUM = new Ajustes(null, null);
+    }
+
+    AppContext(AppConfig config, HikariDataSource dataSource, Clock clock, Ajustes ajustes) {
         this.config = config;
         this.dataSource = dataSource;
         this.clock = clock;
+        this.impressaoComprovante = ajustes.impressao() == null ? new ImpressaoComprovante(comprovantePdf)
+                : ajustes.impressao().apply(comprovantePdf);
         Senhas senhas = new Senhas();
-        this.s = Servicos.montar(dataSource, clock, config.terminalId(), senhas);
-        this.geradorDemo = Servicos.geradorDemo(dataSource, clock, config.terminalId(), senhas);
-        this.backup = new BackupService(s.transacao(), new ConfiguracaoDAO(), new AuditoriaDAO(),
-                new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()), ExecutorProcesso.sistema(),
-                conexaoBackup(config), AppConfig.pastaPadrao().resolve("backups"), BackupService.instalacoesPadrao(),
-                System.getenv("PATH"), clock);
+        // F23: a NFC-e é montada antes dos serviços, porque a venda a usa (F23.6).
+        Transacao transacaoNfce = new Transacao(dataSource);
         // F23: o certificado é do terminal (config.properties); os XSD são copiados para ~/.varesync/schemas.
-        this.certificados = new CertificadoService(s.transacao(), new ConfiguracaoDAO(),
+        this.certificados = new CertificadoService(transacaoNfce, new ConfiguracaoDAO(),
                 new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()),
                 new CertificadoNoArquivo(config.arquivo()), clock);
         ZoneId fuso = ZoneId.systemDefault();
         ValidacaoXsd validacao = new ValidacaoXsd(AppConfig.pastaPadrao().resolve("schemas"));
         AssinaturaNfce assinatura = new AssinaturaNfce(
                 AppConfig.pastaPadrao().resolve("schemas").resolve(ValidacaoXsd.VERSAO_PACOTE), fuso);
-        this.nfce = new NfceService(s.transacao(), new NfceDAO(), new NumeracaoNfceDAO(), new TributoVendaDAO(),
+        this.nfce = new NfceService(transacaoNfce, new NfceDAO(), new NumeracaoNfceDAO(), new TributoVendaDAO(),
                 new ConfiguracaoDAO(), new GeracaoNfce(new MontagemNfce(fuso), assinatura, validacao), certificados,
                 VersaoSistema.doBuild().versao(), new SecureRandom(), clock, fuso);
+        this.s = Servicos.montar(dataSource, clock, config.terminalId(), senhas,
+                new NfceNaVenda(new ConfiguracaoDAO(), new TributoVendaDAO(), certificados, nfce));
+        this.geradorDemo = Servicos.geradorDemo(dataSource, clock, config.terminalId(), senhas);
+        this.backup = new BackupService(s.transacao(), new ConfiguracaoDAO(), new AuditoriaDAO(),
+                new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()), ExecutorProcesso.sistema(),
+                conexaoBackup(config), AppConfig.pastaPadrao().resolve("backups"), BackupService.instalacoesPadrao(),
+                System.getenv("PATH"), clock);
         // F23.4 e F23.5: a SEFAZ de homologação, o modo contingência deste terminal, a emissão e o transmissor.
         AuditoriaService auditoriaNfce = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
-        Sefaz sefaz = new SefazHomologacao(assinatura);
-        this.emissaoNfce = new EmissaoNfceService(s.transacao(), new NfceDAO(), nfce, certificados,
+        Sefaz sefaz = ajustes.sefaz() == null ? new SefazHomologacao(assinatura) : ajustes.sefaz();
+        this.emissaoNfce = new EmissaoNfceService(transacaoNfce, new NfceDAO(), nfce, certificados,
                 new ConfiguracaoDAO(), sefaz, new ModoContingencia(), auditoriaNfce, clock, fuso, config.terminalId());
-        this.transmissorNfce = new TransmissorNfce(s.transacao(), new NfceDAO(), emissaoNfce, certificados, sefaz,
+        this.transmissorNfce = new TransmissorNfce(transacaoNfce, new NfceDAO(), emissaoNfce, certificados, sefaz,
                 auditoriaNfce, clock, config.terminalId());
+        // F23.6 e F23.7: a NFC-e no PDV (emissão, DANFE, aviso da contingência) e em Configurações (ligar, testar).
+        this.nfceTerminal = new NfceTerminalService(transacaoNfce, new NfceDAO(), new ConfiguracaoDAO(),
+                new TributoVendaDAO(), emissaoNfce, certificados, sefaz, auditoriaNfce);
         ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
         this.transmissorAgendado = new TransmissorAgendado(
                 () -> s.transacao().executar(configuracaoDAO::carregar).nfce(), transmissorNfce::transmitir, clock);
@@ -139,6 +159,11 @@ public final class AppContext implements AutoCloseable {
 
     /** Abre o pool e aplica as migrations pendentes. */
     public static AppContext iniciar(AppConfig config) {
+        return iniciar(config, Ajustes.NENHUM);
+    }
+
+    /** @param ajustes as peças do roteiro de tela ({@link Ajustes#NENHUM} no sistema) */
+    public static AppContext iniciar(AppConfig config, Ajustes ajustes) {
         HikariDataSource dataSource = Banco.criarPool(config);
         try {
             new Migracao(dataSource).migrar();
@@ -146,7 +171,7 @@ public final class AppContext implements AutoCloseable {
             dataSource.close();
             throw e;
         }
-        return new AppContext(config, dataSource, Clock.systemDefaultZone());
+        return new AppContext(config, dataSource, Clock.systemDefaultZone(), ajustes);
     }
 
     /**
@@ -209,7 +234,7 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == PdvController.class) {
             return new PdvController(s.vendas(), s.clientes(), s.devolucoes(), s.caixa(), s.acesso(), comprovantePdf,
-                    impressaoComprovante, fechamentoPdf, s.recebimentos(), sessao);
+                    impressaoComprovante, fechamentoPdf, s.recebimentos(), nfceTerminal, sessao);
         }
         if (tipo == DevolucoesController.class) {
             return new DevolucoesController(s.devolucoes(), s.clientes(), s.acesso(), comprovantePdf,
@@ -220,7 +245,8 @@ public final class AppContext implements AutoCloseable {
         }
         if (tipo == ConfiguracoesController.class) {
             return new ConfiguracoesController(s.configuracoes(), backup, s.auditoria(), s.usuarios(), s.estoque(),
-                    s.credito(), s.clientes(), s.contas(), geradorDemo, impressaoTermica, certificados, nfce, clock,
+                    s.credito(), s.clientes(), s.contas(), geradorDemo, impressaoTermica, certificados, nfce,
+                    nfceTerminal, clock,
                     sessao);
         }
         if (tipo == FinanceiroController.class) {
@@ -294,6 +320,10 @@ public final class AppContext implements AutoCloseable {
     /** O transmissor em segundo plano (F23.5): o App liga no login e desliga no log off. */
     public TransmissorAgendado transmissorAgendado() {
         return transmissorAgendado;
+    }
+
+    public NfceTerminalService nfceTerminalService() {
+        return nfceTerminal;
     }
 
     public NfceService nfceService() {

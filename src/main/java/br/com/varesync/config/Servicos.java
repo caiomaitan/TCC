@@ -101,6 +101,12 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
                        PrimeirosPassosService primeirosPassos) {
 
     public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas) {
+        return montar(dataSource, clock, terminalId, senhas, br.com.varesync.service.NfceDaVenda.DESLIGADA);
+    }
+
+    /** @param nfce a NFC-e na venda (F23.6), montada no {@code AppContext} com o certificado do terminal */
+    public static Servicos montar(DataSource dataSource, Clock clock, String terminalId, Senhas senhas,
+                                  br.com.varesync.service.NfceDaVenda nfce) {
         Transacao transacao = new Transacao(dataSource);
         UsuarioDAO usuarioDAO = new UsuarioDAO();
         ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
@@ -133,7 +139,7 @@ public record Servicos(Clock clock, Transacao transacao, AcessoService acesso, U
         VendaService vendas = new VendaService(transacao, produtoDAO, new VendaDAO(), formaPagamentoDAO,
                 configuracaoDAO, estoqueDAO, estoque, caixa, new PrecoService(promocaoDAO, produtoDAO), auditoria, new ClienteDAO(),
                 creditoDAO, credito, tituloDAO, recebiveis,
-                new TributosVendaService(new TributoVendaDAO(), configuracaoDAO), clock);
+                new TributosVendaService(new TributoVendaDAO(), configuracaoDAO), nfce, clock);
         InventarioService inventarios = new InventarioService(transacao, new InventarioDAO(), produtoDAO,
                 categoriaDAO, estoqueDAO, estoque, auditoria, clock);
         FornecedorDAO fornecedorDAO = new FornecedorDAO();

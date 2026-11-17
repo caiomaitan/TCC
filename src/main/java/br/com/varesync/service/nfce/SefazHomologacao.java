@@ -61,7 +61,7 @@ public final class SefazHomologacao implements Sefaz {
                     throw n;
                 }
                 LOG.warn("SEFAZ sem comunicação em {}: {}", servico, causas(e));
-                throw new SemComunicacaoException("Sem comunicação com a SEFAZ (" + servico + ")");
+                throw new SemComunicacaoException(CausaSemComunicacao.descrever(e, contexto.timeoutSegundos()));
             }
         }
         LOG.info("SEFAZ {}: cStat {} - {}", servico, resposta.cstat(), resposta.motivo());

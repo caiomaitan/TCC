@@ -276,7 +276,7 @@ class EmissaoNfceIT extends IntegracaoBase {
         assertThat(resumo.semComunicacao()).isTrue();
         NfceGravada contingencia = daVenda(vendaId).get(1);
         assertThat(contingencia.status()).isEqualTo(StatusNfce.CONTINGENCIA);
-        assertThat(contingencia.motivo()).isEqualTo(EmissaoNfceService.SEM_COMUNICACAO);
+        assertThat(contingencia.motivo()).startsWith(EmissaoNfceService.SEM_COMUNICACAO);
         assertThat(daVenda(vendaId).get(0).status()).isEqualTo(StatusNfce.SEM_RESPOSTA);
     }
 

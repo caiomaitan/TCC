@@ -20,6 +20,7 @@ import br.com.varesync.service.ItemCarrinho;
 import br.com.varesync.service.Liberacao;
 import br.com.varesync.service.LimiteDescontoException;
 import br.com.varesync.service.NegocioException;
+import br.com.varesync.service.NfceTerminalService;
 import br.com.varesync.service.Recebimento;
 import br.com.varesync.service.RecebimentoService;
 import br.com.varesync.service.Sessao;
@@ -41,6 +42,8 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.concurrent.Task;
+import br.com.varesync.ui.Tarefas;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
@@ -79,6 +82,7 @@ public class PdvController {
     private final Sessao sessao;
     private final AcoesCaixa acoesCaixa;
     private final AcoesRecebimento acoesRecebimento;
+    private final NfceTerminalService nfceTerminal;
     private Carrinho carrinho = new Carrinho();
     private BigDecimal quantidadeProxima;
     private Stage janela;
@@ -107,11 +111,13 @@ public class PdvController {
     @FXML private Label proximaQuantidade;
     @FXML private Label mensagem;
     @FXML private TextField entrada;
+    @FXML private Label avisoContingencia;
 
     public PdvController(VendaService vendaService, ClienteService clienteService, DevolucaoService devolucaoService,
                          CaixaService caixaService, AcessoService acessoService, ComprovantePdf comprovantePdf,
                          ImpressaoComprovante impressao, FechamentoCaixaPdf fechamentoPdf,
-                         RecebimentoService recebimentoService, Sessao sessao) {
+                         RecebimentoService recebimentoService, NfceTerminalService nfceTerminal, Sessao sessao) {
+        this.nfceTerminal = nfceTerminal;
         this.acoesRecebimento = new AcoesRecebimento(recebimentoService, caixaService, acessoService, comprovantePdf,
                 impressao, sessao);
         this.vendaService = vendaService;
@@ -129,6 +135,8 @@ public class PdvController {
     private void initialize() {
         // Vazios, não ocupam espaço no painel (o total continua visível em 1280×720 com a fonte de 130%, F21.2).
         proximaQuantidade.managedProperty().bind(proximaQuantidade.textProperty().isNotEmpty());
+        avisoContingencia.managedProperty().bind(avisoContingencia.textProperty().isNotEmpty());
+        avisoContingencia.visibleProperty().bind(avisoContingencia.textProperty().isNotEmpty());
         mensagem.managedProperty().bind(mensagem.textProperty().isNotEmpty());
         colunaSequencia.setCellValueFactory(c -> texto(String.format("%03d", c.getValue().sequencia())));
         colunaCodigo.setCellValueFactory(c -> texto(c.getValue().produto().codigo()));
@@ -537,12 +545,110 @@ public class PdvController {
         carrinho = new Carrinho();
         quantidadeProxima = null;
         atualizarTela();
+        if (venda.nfceId() != null) {
+            emitirNfce(venda);
+            return;
+        }
         Mensagem.sucessoNoRotulo(mensagem, "Venda nº " + venda.vendaId() + " finalizada. Troco: "
                 + Formatos.moeda(venda.troco()) + "." + (venda.cashback().signum() > 0
                 ? " Cashback para o cliente: " + Formatos.moeda(venda.cashback()) + "." : ""));
         if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco())) {
             mostrarComprovante(venda.comprovante());
         }
+    }
+
+    // ----- NFC-e (F23.6) -----
+
+    /** O que a emissão e a impressão deram, para a tela. */
+    private record EmissaoImpressa(NfceTerminalService.Emissao emissao, String impressora, String erroImpressao) {
+    }
+
+    /**
+     * Depois do commit, a emissão numa {@link Task} ("Emitindo NFC-e…"): AUTORIZADA ou CONTINGENCIA imprimem o DANFE
+     * (em contingência, também a via do estabelecimento); REJEITADA ou DENEGADA mostram o motivo, e o comprovante não
+     * fiscal sai só se o operador pedir.
+     */
+    private void emitirNfce(VendaService.VendaFinalizada venda) {
+        Mensagem.informar(mensagem, "Venda nº " + venda.vendaId() + " finalizada. Emitindo NFC-e…");
+        Task<EmissaoImpressa> tarefa = new Task<>() {
+            @Override
+            protected EmissaoImpressa call() {
+                NfceTerminalService.Emissao emissao = nfceTerminal.emitir(sessao, venda.nfceId());
+                String impressora = null;
+                String erro = null;
+                for (ComprovanteImpresso danfe : emissao.danfes()) {
+                    try {
+                        impressora = impressao.imprimir(danfe);
+                    } catch (RuntimeException e) {
+                        erro = TratadorExcecoes.mensagem(e);
+                        break;
+                    }
+                }
+                return new EmissaoImpressa(emissao, impressora, erro);
+            }
+        };
+        tarefa.setOnSucceeded(e -> {
+            atualizarContingencia();
+            mostrarEmissao(venda, tarefa.getValue());
+            Platform.runLater(entrada::requestFocus);
+        });
+        tarefa.setOnFailed(e -> {
+            atualizarContingencia();
+            String motivo = TratadorExcecoes.mensagem(tarefa.getException());
+            String aviso = "A NFC-e não foi emitida agora: " + motivo + " A nota fica pendente, e o sistema tenta "
+                    + "de novo em segundo plano.";
+            Mensagem.erro(mensagem, aviso);
+            if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco(), aviso, true, "Comprovante não fiscal")) {
+                mostrarComprovante(venda.comprovante());
+            }
+            Platform.runLater(entrada::requestFocus);
+        });
+        Tarefas.executar("nfce-emissao", tarefa);
+    }
+
+    private void mostrarEmissao(VendaService.VendaFinalizada venda, EmissaoImpressa r) {
+        NfceTerminalService.Emissao emissao = r.emissao();
+        if (emissao.danfes().isEmpty()) {
+            // REJEITADA ou DENEGADA (ou com a trava de outro): a venda continua registrada.
+            String aviso = emissao.mensagem() == null ? "A NFC-e da venda ficou pendente." : emissao.mensagem();
+            Mensagem.erro(mensagem, aviso);
+            if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco(), aviso, true, "Comprovante não fiscal")) {
+                mostrarComprovante(venda.comprovante());
+            }
+            return;
+        }
+        int numero = emissao.nfce().numero();
+        StringBuilder aviso = new StringBuilder(emissao.autorizada()
+                ? "NFC-e nº " + numero + " autorizada (homologação)."
+                : "NFC-e nº " + numero + " emitida em contingência: será transmitida quando a SEFAZ voltar.");
+        if (r.erroImpressao() != null) {
+            aviso.append(" O DANFE não foi impresso: ").append(r.erroImpressao()).append(" Use \"Ver DANFE\" para ")
+                    .append("imprimir de novo ou salvar em PDF.");
+        } else {
+            aviso.append(emissao.danfes().size() > 1 ? " DANFE e via do estabelecimento impressos" : " DANFE impresso")
+                    .append(r.impressora() == null ? "." : " em " + r.impressora() + ".");
+        }
+        boolean erro = r.erroImpressao() != null;
+        if (erro) {
+            Mensagem.erro(mensagem, aviso.toString());
+        } else {
+            Mensagem.sucessoNoRotulo(mensagem, "Venda nº " + venda.vendaId() + " finalizada. " + aviso);
+        }
+        if (DialogosPdv.vendaFinalizada(venda.vendaId(), venda.troco(), aviso.toString(), erro, "Ver DANFE")) {
+            mostrarComprovante(emissao.danfes().get(0));
+        }
+    }
+
+    /** "Reimprimir" do F9: o DANFE da NFC-e da venda ou, sem ela, o comprovante não fiscal. */
+    private ComprovanteImpresso reimpressao(long vendaId) {
+        Optional<? extends ComprovanteImpresso> danfe = nfceTerminal.danfeDaVenda(sessao, vendaId);
+        return danfe.isPresent() ? danfe.get() : vendaService.comprovante(sessao, vendaId);
+    }
+
+    /** O aviso fixo enquanto o terminal está no modo contingência (F23.6). */
+    private void atualizarContingencia() {
+        avisoContingencia.setText(nfceTerminal.contingenciaDesde().map(NfceTerminalService::avisoContingencia)
+                .orElse(""));
     }
 
     private void mostrarComprovante(ComprovanteImpresso comprovante) {
@@ -552,7 +658,7 @@ public class PdvController {
     private void vendasDaSessao() {
         Janelas.abrirModal(janela, "/fxml/vendas-sessao.fxml", "Vendas da sessão",
                 tipo -> new VendasSessaoController(vendaService, acessoService, sessao, this::mostrarComprovante,
-                        this::devolverItens),
+                        this::devolverItens, this::reimpressao),
                 (VendasSessaoController c) -> { });
     }
 
@@ -627,6 +733,7 @@ public class PdvController {
     // ----- Tela -----
 
     private void atualizarTela() {
+        atualizarContingencia();
         cliente.setText(carrinho.cliente().map(c -> "Cliente: " + c.descricao() + " · crédito "
                 + Formatos.moeda(c.saldoCredito())).orElse("Sem cliente (F11)"));
         cliente.getStyleClass().remove("negativo");

@@ -44,6 +44,7 @@ public class VendasSessaoController {
     private final AcessoService acessoService;
     private final Sessao sessao;
     private final Consumer<ComprovanteImpresso> mostrarComprovante;
+    private final java.util.function.LongFunction<ComprovanteImpresso> reimpressao;
     private final Devolver devolverItens;
 
     /** Abre a devolução da venda sobre a janela dona; devolve a devolução feita, ou vazio. */
@@ -69,6 +70,17 @@ public class VendasSessaoController {
     public VendasSessaoController(VendaService vendaService, AcessoService acessoService, Sessao sessao,
                                   Consumer<ComprovanteImpresso> mostrarComprovante,
                                   Devolver devolverItens) {
+        this(vendaService, acessoService, sessao, mostrarComprovante, devolverItens, null);
+    }
+
+    /**
+     * @param reimpressao o que o "Reimprimir" mostra (F23.6: o DANFE da NFC-e da venda, ou o comprovante não fiscal
+     *                    sem NFC-e); nulo = o comprovante não fiscal
+     */
+    public VendasSessaoController(VendaService vendaService, AcessoService acessoService, Sessao sessao,
+                                  Consumer<ComprovanteImpresso> mostrarComprovante, Devolver devolverItens,
+                                  java.util.function.LongFunction<ComprovanteImpresso> reimpressao) {
+        this.reimpressao = reimpressao != null ? reimpressao : id -> vendaService.comprovante(sessao, id);
         this.vendaService = vendaService;
         this.acessoService = acessoService;
         this.sessao = sessao;
@@ -136,7 +148,7 @@ public class VendasSessaoController {
             return;
         }
         try {
-            mostrarComprovante.accept(vendaService.comprovante(sessao, venda.id()));
+            mostrarComprovante.accept(reimpressao.apply(venda.id()));
         } catch (RuntimeException e) {
             Mensagem.erro(mensagem, TratadorExcecoes.mensagem(e));
         }

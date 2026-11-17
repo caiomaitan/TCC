@@ -85,15 +85,24 @@ public class VendaService {
     private final TituloReceberDAO tituloDAO;
     private final RecebivelService recebivelService;
     private final TributosVendaService tributos;
+    private final NfceDaVenda nfce;
     private final Clock clock;
 
     /** Item incluído e, se houver, o aviso não bloqueante (estoque ficará negativo). */
     public record Inclusao(ItemCarrinho item, String aviso) {
     }
 
-    /** Resultado da finalização: número da venda, troco, cashback gerado (F12.5; zero sem ele) e o comprovante. */
+    /**
+     * Resultado da finalização: número da venda, troco, cashback gerado (F12.5; zero sem ele), o comprovante e, com a
+     * NFC-e ligada, a NFC-e reservada (PENDENTE) para a emissão depois do commit (F23.6); nulo com ela desligada.
+     */
     public record VendaFinalizada(long vendaId, BigDecimal total, BigDecimal troco, BigDecimal cashback,
-                                  Comprovante comprovante) {
+                                  Comprovante comprovante, Long nfceId) {
+
+        public VendaFinalizada(long vendaId, BigDecimal total, BigDecimal troco, BigDecimal cashback,
+                               Comprovante comprovante) {
+            this(vendaId, total, troco, cashback, comprovante, null);
+        }
     }
 
     /**
@@ -111,6 +120,19 @@ public class VendaService {
                         AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
                         CreditoService creditoService, TituloReceberDAO tituloDAO, RecebivelService recebivelService,
                         TributosVendaService tributos, Clock clock) {
+        this(transacao, produtoDAO, vendaDAO, formaPagamentoDAO, configuracaoDAO, estoqueDAO, estoqueService,
+                caixaService, precoService, auditoria, clienteDAO, creditoDAO, creditoService, tituloDAO,
+                recebivelService, tributos, NfceDaVenda.DESLIGADA, clock);
+    }
+
+    /** @param nfce a NFC-e na venda (F23.6); {@link NfceDaVenda#DESLIGADA} onde não há emissão (gerador) */
+    public VendaService(Transacao transacao, ProdutoDAO produtoDAO, VendaDAO vendaDAO,
+                        FormaPagamentoDAO formaPagamentoDAO, ConfiguracaoDAO configuracaoDAO, EstoqueDAO estoqueDAO,
+                        EstoqueService estoqueService, CaixaService caixaService, PrecoService precoService,
+                        AuditoriaService auditoria, ClienteDAO clienteDAO, CreditoClienteDAO creditoDAO,
+                        CreditoService creditoService, TituloReceberDAO tituloDAO, RecebivelService recebivelService,
+                        TributosVendaService tributos, NfceDaVenda nfce, Clock clock) {
+        this.nfce = nfce;
         this.tributos = tributos;
         this.recebivelService = recebivelService;
         this.tituloDAO = tituloDAO;
@@ -133,6 +155,21 @@ public class VendaService {
     public ParametrosVenda parametros(Sessao sessao) {
         sessao.exigir(Permissao.PDV);
         return transacao.executar(this::parametros);
+    }
+
+    // ----- NFC-e (F23.6) -----
+
+    /** Se a NFC-e está ligada (o pagamento mostra o "CPF/CNPJ na nota" e o PDV emite depois da venda). */
+    public boolean nfceLigada(Sessao sessao) {
+        sessao.exigir(Permissao.PDV);
+        return transacao.executar(nfce::ligada);
+    }
+
+    /** O "CPF/CNPJ na nota" já preenchido: o documento do cliente identificado (F11), com máscara; vazio sem ele. */
+    public String documentoNaNota(Sessao sessao, Carrinho carrinho) {
+        sessao.exigir(Permissao.PDV);
+        return carrinho.cliente().map(ClienteVenda::cpfCnpj).filter(d -> d != null && !d.isBlank())
+                .map(CpfCnpj::formatar).orElse("");
     }
 
     // ----- Leitura de produto -----
@@ -318,6 +355,13 @@ public class VendaService {
                     .orElseThrow(() -> new NegocioException("Produto não encontrado."))
                     .comCodigo(produto.codigo());
             validarVendavel(atual);
+            if (nfce.ligada(con)) {
+                // F23.6: a venda só começa com o certificado deste terminal; o produto precisa dos dados fiscais.
+                if (carrinho.vazio()) {
+                    nfce.exigirCertificado();
+                }
+                nfce.conferirProduto(con, atual.id());
+            }
             PrecoService.Preco preco = precoService.precoVigente(con, atual, LocalDate.now(clock));
             BigDecimal qtd = quantidade;
             BigDecimal valorFixo = null;
@@ -647,11 +691,22 @@ public class VendaService {
                 }
             }
 
+            // NFC-e (F23.6): certificado, dados fiscais dos produtos (podem ter mudado) e o CPF ou CNPJ na nota.
+            boolean comNfce = nfce.ligada(con);
+            String documento = null;
+            if (comNfce) {
+                nfce.exigirCertificado();
+                for (long id : vendidos) {
+                    nfce.conferirProduto(con, id);
+                }
+                documento = nfce.conferirConsumidor(con, total, recebimento.consumidorDocumento());
+            }
+
             Map<Integer, BigDecimal> rateio = carrinho.rateio();
             BigDecimal troco = recebimento.troco();
             long vendaId = vendaDAO.inserir(con, caixa.id(), sessao.usuarioId(), agora, new VendaDAO.Totais(
                     carrinho.valorBruto(), carrinho.descontoItens(), carrinho.descontoVenda(), total, troco),
-                    descontoLiberadoPor, clienteId);
+                    descontoLiberadoPor, clienteId, documento);
 
             record Vendido(ItemCarrinho item, long itemId) {
             }
@@ -717,7 +772,10 @@ public class VendaService {
                                 + (liberacaoDesconto == null ? "permissão de " + sessao.usuario().descricao()
                                 : liberacaoDesconto.descricao()) + ")");
             }
-            return new VendaFinalizada(vendaId, total, troco, cashback, montarComprovante(con, vendaId));
+            // A reserva do número da NFC-e é a última trava, depois dos recebíveis (F23.3); a emissão vem depois do
+            // commit, fora desta transação (F23.5).
+            Long nfceId = comNfce ? nfce.reservar(con, vendaId, agora) : null;
+            return new VendaFinalizada(vendaId, total, troco, cashback, montarComprovante(con, vendaId), nfceId);
         });
     }
 

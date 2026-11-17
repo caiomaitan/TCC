@@ -72,6 +72,9 @@ public class PagamentoController {
     @FXML private DatePicker campoVencimento;
     @FXML private Label limiteCrediario;
     @FXML private Label previaCrediario;
+    @FXML private HBox linhaDocumento;
+    @FXML private TextField campoDocumento;
+    @FXML private Label avisoDocumento;
 
     public PagamentoController(VendaService vendaService, AcessoService acessoService, Sessao sessao,
                                Carrinho carrinho) {
@@ -95,6 +98,7 @@ public class PagamentoController {
         forma.getSelectionModel().selectFirst();
         botaoRemover.disableProperty().bind(tabelaParcelas.getSelectionModel().selectedItemProperty().isNull());
         prepararCrediario();
+        prepararDocumento();
 
         raiz.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (e.getCode() == KeyCode.F10) {
@@ -108,6 +112,20 @@ public class PagamentoController {
         atualizar();
         recebimento.creditoDisponivel().ifPresent(saldo -> Mensagem.informar(mensagem,
                 "Crédito do cliente disponível: " + Formatos.moeda(saldo) + "."));
+    }
+
+    /**
+     * "CPF/CNPJ na nota" (F23.6), só com a NFC-e ligada: já preenchido com o documento do cliente identificado (F11);
+     * a finalização confere o dígito e os limites de valor.
+     */
+    private void prepararDocumento() {
+        boolean nfce = vendaService.nfceLigada(sessao);
+        linhaDocumento.setVisible(nfce);
+        linhaDocumento.setManaged(nfce);
+        if (nfce) {
+            campoDocumento.setText(vendaService.documentoNaNota(sessao, carrinho));
+            avisoDocumento.setText("NFC-e em homologação");
+        }
     }
 
     /** Parcelas, vencimento sugerido e limite disponível; a linha só aparece com a forma Crediário em uso (F14.2). */
@@ -187,6 +205,7 @@ public class PagamentoController {
         try {
             recebimento.definirPlanoCrediario(campoParcelas.getValue() == null ? null
                     : new PlanoCrediario(campoParcelas.getValue(), campoVencimento.getValue()));
+            recebimento.definirConsumidorDocumento(linhaDocumento.isVisible() ? campoDocumento.getText() : null);
             resultado = vendaService.finalizar(sessao, carrinho, recebimento);
             fechar();
         } catch (CrediarioLiberacaoException e) {
