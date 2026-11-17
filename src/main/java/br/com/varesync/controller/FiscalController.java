@@ -70,6 +70,9 @@ public class FiscalController {
     @FXML private Tab abaProdutos;
     @FXML private Tab abaPerfis;
     @FXML private Tab abaTabelas;
+    @FXML private Tab abaNotas;
+    @FXML private Node notas;
+    @FXML private NotasFiscaisController notasController;
     @FXML private Node perfis;
     @FXML private PerfisTributariosController perfisController;
     @FXML private TextField campoBusca;
@@ -124,7 +127,7 @@ public class FiscalController {
         String ie = loja.ie().isEmpty() ? "IE não informada" : "IE " + loja.ie();
         return "Empresa: " + loja.regime().rotulo() + " · " + uf + " · " + ie
                 + (loja.uf().isEmpty() || loja.ie().isEmpty() ? " (complete em Configurações › Loja)" : "")
-                + ". O sistema não emite documento fiscal: estes dados preparam uma emissão futura.";
+                + ". A NFC-e (só em homologação, sem valor fiscal) usa estes dados.";
     }
 
     @FXML
@@ -205,6 +208,12 @@ public class FiscalController {
     public void naJanelaPrincipal() {
         rotuloEsc.setVisible(false);
         rotuloEsc.setManaged(false);
+    }
+
+    /** Alertas da NFC-e no painel (F23.10): a aba Notas fiscais, sem período, filtrada nas situações. */
+    public void mostrarNotasFiscais(java.util.Set<br.com.varesync.model.StatusNfce> situacoes) {
+        abas.getSelectionModel().select(abaNotas);
+        notasController.mostrar(situacoes);
     }
 
     /**

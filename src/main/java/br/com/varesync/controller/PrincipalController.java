@@ -497,6 +497,18 @@ public class PrincipalController {
                     PrincipalController.this.abrir(ItemMenu.FISCAL);
                 }
             }
+
+            @Override
+            public void abrirNotasFiscais(java.util.Set<br.com.varesync.model.StatusNfce> situacoes) {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.FISCAL);
+                loader.<FiscalController>getController().mostrarNotasFiscais(situacoes);
+            }
+
+            @Override
+            public void abrirCertificadoNfce() {
+                FXMLLoader loader = abrirFiltrado(ItemMenu.CONFIGURACOES);
+                loader.<ConfiguracoesController>getController().mostrarSecao(ConfiguracoesController.Secao.NFCE);
+            }
         };
     }
 

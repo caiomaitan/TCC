@@ -22,7 +22,7 @@
 
 <!-- Cadastro fiscal (F19.2 e F19.3, permissão FISCAL), aberto pelo item Fiscal do menu (F19.5), pelo botão "Fiscal…" de
      Produtos e pelo "Abrir produto" do R30: dados fiscais de cada produto e aplicação do perfil em lote, perfis
-     tributários e as tabelas NCM e CEST. -->
+     tributários, as notas fiscais (NFC-e em homologação, F23.9) e as tabelas NCM, CEST e IBPT. -->
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="br.com.varesync.controller.FiscalController"
       spacing="10" styleClass="tela-cadastro" prefWidth="1180" prefHeight="700">
@@ -115,6 +115,9 @@
         </Tab>
         <Tab fx:id="abaPerfis" text="Perfis tributários">
             <fx:include fx:id="perfis" source="perfis-tributarios.fxml"/>
+        </Tab>
+        <Tab fx:id="abaNotas" text="Notas fiscais">
+            <fx:include fx:id="notas" source="notas-fiscais.fxml"/>
         </Tab>
         <Tab fx:id="abaTabelas" text="Tabelas NCM, CEST e IBPT">
             <ScrollPane fitToWidth="true" styleClass="rolagem-formulario">

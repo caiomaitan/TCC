@@ -778,7 +778,7 @@ public class ConfiguracoesController {
     }
 
     /** Seções para onde o assistente "Primeiros passos" (F21.4) leva. */
-    public enum Secao { LOJA, FORMAS, BALANCA, BACKUP }
+    public enum Secao { LOJA, FORMAS, BALANCA, BACKUP, NFCE }
 
     public void mostrarSecao(Secao secao) {
         abas.getSelectionModel().select(switch (secao) {
@@ -786,6 +786,7 @@ public class ConfiguracoesController {
             case FORMAS -> abaFormas;
             case BALANCA -> abaBalanca;
             case BACKUP -> abaBackup;
+            case NFCE -> abaNfce; // alerta do certificado no painel (F23.10)
         });
     }
 

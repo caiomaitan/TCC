@@ -17,6 +17,7 @@ import br.com.varesync.controller.ImportacaoProdutosController;
 import br.com.varesync.controller.InventarioController;
 import br.com.varesync.controller.LoginController;
 import br.com.varesync.controller.Navegacao;
+import br.com.varesync.controller.NotasFiscaisController;
 import br.com.varesync.controller.PainelController;
 import br.com.varesync.controller.PdvController;
 import br.com.varesync.controller.PrimeiroAcessoController;
@@ -51,6 +52,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import br.com.varesync.dao.NfceDAO;
 import br.com.varesync.dao.NumeracaoNfceDAO;
 import br.com.varesync.dao.TributoVendaDAO;
+import br.com.varesync.service.CancelamentoNfceService;
 import br.com.varesync.service.CertificadoService;
 import br.com.varesync.service.NfceService;
 import br.com.varesync.service.EmissaoNfceService;
@@ -59,6 +61,8 @@ import br.com.varesync.service.TransmissorAgendado;
 import br.com.varesync.service.TransmissorNfce;
 import br.com.varesync.service.NfceNaVenda;
 import br.com.varesync.service.NfceTerminalService;
+import br.com.varesync.service.NotasFiscaisService;
+import br.com.varesync.service.TributosVendaService;
 import java.util.function.Function;
 import br.com.varesync.service.nfce.Sefaz;
 import br.com.varesync.service.nfce.SefazHomologacao;
@@ -96,6 +100,7 @@ public final class AppContext implements AutoCloseable {
     private final TransmissorNfce transmissorNfce;
     private final TransmissorAgendado transmissorAgendado;
     private final NfceTerminalService nfceTerminal;
+    private final NotasFiscaisService notasFiscais;
 
     /**
      * Peças trocadas só no roteiro de tela (F23.6): a SEFAZ falsa e a impressora que não imprime, para nada ir à rede
@@ -125,23 +130,30 @@ public final class AppContext implements AutoCloseable {
         this.nfce = new NfceService(transacaoNfce, new NfceDAO(), new NumeracaoNfceDAO(), new TributoVendaDAO(),
                 new ConfiguracaoDAO(), new GeracaoNfce(new MontagemNfce(fuso), assinatura, validacao), certificados,
                 VersaoSistema.doBuild().versao(), new SecureRandom(), clock, fuso);
+        // F23.4 e F23.5: a SEFAZ de homologação, o modo contingência deste terminal, a emissão e o transmissor; antes
+        // dos serviços, porque o cancelamento da venda (F23.8) usa a SEFAZ.
+        AuditoriaService auditoriaNfce = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
+        Sefaz sefaz = ajustes.sefaz() == null ? new SefazHomologacao(assinatura) : ajustes.sefaz();
+        this.emissaoNfce = new EmissaoNfceService(transacaoNfce, new NfceDAO(), nfce, certificados,
+                new ConfiguracaoDAO(), sefaz, new ModoContingencia(), auditoriaNfce, clock, fuso, config.terminalId());
+        CancelamentoNfceService cancelamentoNfce = new CancelamentoNfceService(new NfceDAO(), new ConfiguracaoDAO(),
+                emissaoNfce, certificados, sefaz, auditoriaNfce, clock);
         this.s = Servicos.montar(dataSource, clock, config.terminalId(), senhas,
-                new NfceNaVenda(new ConfiguracaoDAO(), new TributoVendaDAO(), certificados, nfce));
+                new NfceNaVenda(new ConfiguracaoDAO(), new TributoVendaDAO(), certificados, nfce, cancelamentoNfce));
         this.geradorDemo = Servicos.geradorDemo(dataSource, clock, config.terminalId(), senhas);
         this.backup = new BackupService(s.transacao(), new ConfiguracaoDAO(), new AuditoriaDAO(),
                 new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId()), ExecutorProcesso.sistema(),
                 conexaoBackup(config), AppConfig.pastaPadrao().resolve("backups"), BackupService.instalacoesPadrao(),
                 System.getenv("PATH"), clock);
-        // F23.4 e F23.5: a SEFAZ de homologação, o modo contingência deste terminal, a emissão e o transmissor.
-        AuditoriaService auditoriaNfce = new AuditoriaService(new AuditoriaDAO(), clock, config.terminalId());
-        Sefaz sefaz = ajustes.sefaz() == null ? new SefazHomologacao(assinatura) : ajustes.sefaz();
-        this.emissaoNfce = new EmissaoNfceService(transacaoNfce, new NfceDAO(), nfce, certificados,
-                new ConfiguracaoDAO(), sefaz, new ModoContingencia(), auditoriaNfce, clock, fuso, config.terminalId());
         this.transmissorNfce = new TransmissorNfce(transacaoNfce, new NfceDAO(), emissaoNfce, certificados, sefaz,
                 auditoriaNfce, clock, config.terminalId());
         // F23.6 e F23.7: a NFC-e no PDV (emissão, DANFE, aviso da contingência) e em Configurações (ligar, testar).
         this.nfceTerminal = new NfceTerminalService(transacaoNfce, new NfceDAO(), new ConfiguracaoDAO(),
                 new TributoVendaDAO(), emissaoNfce, certificados, sefaz, auditoriaNfce);
+        // F23.9 e F23.10: a aba Notas fiscais e os alertas da NFC-e no painel.
+        this.notasFiscais = new NotasFiscaisService(transacaoNfce, new NfceDAO(), new NumeracaoNfceDAO(),
+                new ConfiguracaoDAO(), new TributosVendaService(new TributoVendaDAO(), new ConfiguracaoDAO()), emissaoNfce,
+                transmissorNfce, nfceTerminal, certificados, sefaz, auditoriaNfce, clock, fuso);
         ConfiguracaoDAO configuracaoDAO = new ConfiguracaoDAO();
         this.transmissorAgendado = new TransmissorAgendado(
                 () -> s.transacao().executar(configuracaoDAO::carregar).nfce(), transmissorNfce::transmitir, clock);
@@ -258,6 +270,9 @@ public final class AppContext implements AutoCloseable {
         if (tipo == FiscalController.class) {
             return new FiscalController(s.fiscal(), sessao);
         }
+        if (tipo == NotasFiscaisController.class) {
+            return new NotasFiscaisController(notasFiscais, sessao, comprovantePdf, impressaoComprovante, clock);
+        }
         if (tipo == PerfisTributariosController.class) {
             return new PerfisTributariosController(s.fiscal(), sessao);
         }
@@ -272,7 +287,7 @@ public final class AppContext implements AutoCloseable {
             return new ImportacaoProdutosController(s.importacao(), sessao);
         }
         if (tipo == PainelController.class) {
-            return new PainelController(s.painel(), s.primeirosPassos(), sessao);
+            return new PainelController(s.painel(), s.primeirosPassos(), notasFiscais, sessao);
         }
         if (tipo == RelatoriosController.class) {
             return new RelatoriosController(s.relatorios(), relatorioPdf, sessao,
@@ -324,6 +339,10 @@ public final class AppContext implements AutoCloseable {
 
     public NfceTerminalService nfceTerminalService() {
         return nfceTerminal;
+    }
+
+    public NotasFiscaisService notasFiscaisService() {
+        return notasFiscais;
     }
 
     public NfceService nfceService() {

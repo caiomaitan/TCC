@@ -246,6 +246,11 @@ public class PdvController {
                 e.consume();
             }
         });
+        // F23.9: o aviso de contingência some (ou aparece) assim que o modo muda, também pelo transmissor, que roda
+        // em segundo plano: sem esperar a próxima atualização da tela.
+        Runnable pararDeObservar = nfceTerminal.observarContingencia(desde -> Platform.runLater(
+                this::atualizarContingencia));
+        janelaPdv.addEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, e -> pararDeObservar.run());
         Platform.runLater(entrada::requestFocus);
     }
 

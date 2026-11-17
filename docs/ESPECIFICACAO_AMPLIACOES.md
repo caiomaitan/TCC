@@ -1587,6 +1587,7 @@ A migration da parte A cria todas as tabelas e colunas da fase.
     - Na de contingência, a lei manda manter número, série, data de emissão e valores (Ajuste SINIEF 19/16): só os códigos (NCM, CEST, CFOP, CST e CSOSN) são relidos. Se a correção mudar algum valor de imposto, o reenvio é recusado, com a explicação;
   - **Inutilizar números:** série, faixa e justificativa (de 15 a 255 caracteres), só para números sem NFC-e; o pedido vai até o dia 10 do mês seguinte;
   - **Exportar XML do mês:** um ZIP com as notas autorizadas e canceladas, os eventos e as inutilizações, para o contador.
+- **Aviso de contingência do PDV** (ajuste da parte C): some assim que o transmissor sai do modo contingência, sem esperar a próxima atualização da tela.
 - **XML dos eventos e das inutilizações:** o `xml` do evento é o procEventoNFe (o evento assinado com o retorno da SEFAZ), e o da inutilização, o procInutNFe (o pedido assinado com o retorno). Vale também para os que o transmissor grava (110112 e inutilização automática), que na parte B guardaram só a resposta. É o que a lei manda guardar e o que vai no ZIP.
 - **Auditoria:** cancelamento, inutilização, reenvio, contingência (entrada e saída) e troca do certificado.
 

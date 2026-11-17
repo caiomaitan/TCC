@@ -2,18 +2,17 @@ package br.com.varesync.service.nfce;
 
 import br.com.swconsultoria.nfe.Nfe;
 import br.com.swconsultoria.nfe.dom.ConfiguracoesNfe;
-import br.com.swconsultoria.nfe.dom.Evento;
 import br.com.swconsultoria.nfe.dom.enuns.AmbienteEnum;
 import br.com.swconsultoria.nfe.dom.enuns.DocumentoEnum;
+import br.com.swconsultoria.nfe.dom.enuns.ServicosEnum;
 import br.com.swconsultoria.nfe.exception.NfeException;
 import br.com.swconsultoria.nfe.schemas.TEnviNFe;
-import br.com.swconsultoria.nfe.util.CancelamentoSubstituicaoUtil;
-import br.com.swconsultoria.nfe.util.CancelamentoUtil;
-import br.com.swconsultoria.nfe.util.InutilizacaoUtil;
+import br.com.swconsultoria.nfe.schemas.TInutNFe;
+import br.com.swconsultoria.nfe.schemas_eventos.TRetEnvEventoCancelamento;
+import br.com.swconsultoria.nfe.schemas_eventos.TRetEnvEventoCancelamentoSubstituicao;
 import br.com.swconsultoria.nfe.util.XmlNfeUtil;
 import br.com.varesync.service.NegocioException;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -117,50 +116,59 @@ public final class SefazHomologacao implements Sefaz {
                 DocumentoEnum.NFCE)));
     }
 
+    /**
+     * Evento 110111. O pedido é assinado aqui ({@link PedidosNfce}) e enviado sem a biblioteca assinar de novo; com o
+     * evento registrado, o {@code xml} da resposta é o procEventoNFe (F23.9).
+     */
     @Override
     public RespostaSefaz cancelar(ContextoSefaz contexto, String chave, String protocolo, String justificativa,
                                   OffsetDateTime quando) {
         return chamar("cancelamento", contexto, c -> {
-            Evento evento = evento(contexto, chave, protocolo, justificativa, quando, c.getZoneId());
-            return RespostasSefaz.cancelamento(Nfe.cancelarNfe(c, CancelamentoUtil.montaCancelamento(evento, c),
-                    false, DocumentoEnum.NFCE));
+            String lote = PedidosNfce.cancelamento(c, contexto.cnpj(), chave, protocolo, justificativa, quando);
+            String retorno = Nfe.enviarEnventoManual(c, lote, ServicosEnum.CANCELAMENTO, false, false,
+                    DocumentoEnum.NFCE);
+            return comProc(RespostasSefaz.cancelamento(XmlNfeUtil.xmlToObject(retorno,
+                    TRetEnvEventoCancelamento.class)), lote, retorno);
         });
     }
 
+    /** Evento 110112, como o 110111. */
     @Override
     public RespostaSefaz cancelarPorSubstituicao(ContextoSefaz contexto, String chave, String protocolo,
                                                  String chaveSubstituta, String justificativa,
                                                  OffsetDateTime quando) {
         return chamar("cancelamento por substituição", contexto, c -> {
-            Evento evento = evento(contexto, chave, protocolo, justificativa, quando, c.getZoneId());
-            evento.setChaveSusbstituta(chaveSubstituta);
-            return RespostasSefaz.cancelamentoSubstituicao(Nfe.cancelarSubstituicaoNfe(c,
-                    CancelamentoSubstituicaoUtil.montaCancelamento(evento, c), false));
+            String lote = PedidosNfce.cancelamentoPorSubstituicao(c, contexto.cnpj(), chave, protocolo,
+                    chaveSubstituta, justificativa, quando);
+            String retorno = Nfe.enviarEnventoManual(c, lote, ServicosEnum.CANCELAMENTO_SUBSTITUICAO, false, false,
+                    DocumentoEnum.NFCE);
+            return comProc(RespostasSefaz.cancelamentoSubstituicao(XmlNfeUtil.xmlToObject(retorno,
+                    TRetEnvEventoCancelamentoSubstituicao.class)), lote, retorno);
         });
     }
 
+    /**
+     * Inutilização. A biblioteca sempre assina o pedido antes de enviar; a assinatura é determinística, então o
+     * {@code inutNFe} assinado aqui é o mesmo que vai à SEFAZ. Homologada, o {@code xml} da resposta é o procInutNFe.
+     */
     @Override
     public RespostaSefaz inutilizar(ContextoSefaz contexto, int serie, int numeroInicial, int numeroFinal,
                                    String justificativa, OffsetDateTime quando) {
-        return chamar("inutilização", contexto, c -> RespostasSefaz.inutilizacao(Nfe.inutilizacao(c,
-                InutilizacaoUtil.montaInutilizacao(DocumentoEnum.NFCE, contexto.cnpj(), serie, numeroInicial,
-                        numeroFinal, TextoNfe.limpar(justificativa, 255),
-                        quando.atZoneSameInstant(zona(c)).toLocalDateTime(), c),
-                DocumentoEnum.NFCE, false)));
+        return chamar("inutilização", contexto, c -> {
+            TInutNFe pedido = PedidosNfce.inutilizacao(c, contexto.cnpj(), serie, numeroInicial, numeroFinal,
+                    justificativa, quando);
+            String assinado = PedidosNfce.inutilizacaoAssinada(c, pedido);
+            RespostaSefaz r = RespostasSefaz.inutilizacao(Nfe.inutilizacao(c, pedido, DocumentoEnum.NFCE, false));
+            return r.inutilizada() && r.xml() != null ? comXml(r, PedidosNfce.procInutilizacao(assinado, r.xml()))
+                    : r;
+        });
     }
 
-    private static Evento evento(ContextoSefaz contexto, String chave, String protocolo, String justificativa,
-                                 OffsetDateTime quando, ZoneId zona) {
-        Evento evento = new Evento();
-        evento.setChave(chave);
-        evento.setProtocolo(protocolo);
-        evento.setMotivo(TextoNfe.limpar(justificativa, 255));
-        evento.setCnpj(contexto.cnpj());
-        evento.setDataEvento(quando.atZoneSameInstant(zona == null ? contexto.fuso() : zona).toLocalDateTime());
-        return evento;
+    private static RespostaSefaz comProc(RespostaSefaz r, String lote, String retorno) {
+        return r.eventoRegistrado() ? comXml(r, PedidosNfce.procEvento(lote, retorno)) : r;
     }
 
-    private static ZoneId zona(ConfiguracoesNfe c) {
-        return c.getZoneId() == null ? ZoneId.systemDefault() : c.getZoneId();
+    private static RespostaSefaz comXml(RespostaSefaz r, String xml) {
+        return new RespostaSefaz(r.cstat(), r.motivo(), r.protocolo(), r.recebidoEm(), xml);
     }
 }

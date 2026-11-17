@@ -48,4 +48,13 @@ public interface NavegacaoPainel {
 
     /** F19.5: R30 já gerado; sem a permissão RELATORIOS, o Cadastro fiscal. */
     void abrirInconsistenciasFiscais();
+
+    /**
+     * F23.10: Cadastro fiscal na aba Notas fiscais, filtrada nas situações (vazio = todas) e sem limite de período
+     * (os alertas da NFC-e).
+     */
+    void abrirNotasFiscais(java.util.Set<br.com.varesync.model.StatusNfce> situacoes);
+
+    /** F23.10: Configurações › NFC-e, onde o supervisor troca o certificado (alerta do vencimento). */
+    void abrirCertificadoNfce();
 }

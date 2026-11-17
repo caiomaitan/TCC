@@ -5,6 +5,7 @@ import br.com.varesync.dao.TributoVendaDAO;
 import br.com.varesync.model.Configuracoes;
 import br.com.varesync.model.TipoEmissaoNfce;
 import br.com.varesync.service.nfce.DadosFiscaisNfce;
+import br.com.varesync.service.nfce.RespostaSefaz;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Formatos;
 import br.com.varesync.util.Textos;
@@ -21,13 +22,16 @@ public class NfceNaVenda implements NfceDaVenda {
     private final TributoVendaDAO tributoDAO;
     private final CertificadoService certificados;
     private final NfceService nfce;
+    private final CancelamentoNfceService cancelamento;
 
+    /** @param cancelamento o cancelamento com a SEFAZ (F23.8) */
     public NfceNaVenda(ConfiguracaoDAO configuracaoDAO, TributoVendaDAO tributoDAO, CertificadoService certificados,
-                       NfceService nfce) {
+                       NfceService nfce, CancelamentoNfceService cancelamento) {
         this.configuracaoDAO = configuracaoDAO;
         this.tributoDAO = tributoDAO;
         this.certificados = certificados;
         this.nfce = nfce;
+        this.cancelamento = cancelamento;
     }
 
     @Override
@@ -89,5 +93,29 @@ public class NfceNaVenda implements NfceDaVenda {
     @Override
     public long reservar(Connection con, long vendaId, OffsetDateTime emitidaEm) throws SQLException {
         return nfce.reservar(con, vendaId, TipoEmissaoNfce.NORMAL, emitidaEm, null);
+    }
+
+    @Override
+    public Cancelamento conferirCancelamento(Connection con, long vendaId, String justificativa)
+            throws SQLException {
+        return cancelamento().conferir(con, vendaId, justificativa);
+    }
+
+    @Override
+    public RespostaSefaz cancelarNaSefaz(Cancelamento c) {
+        return cancelamento().cancelarNaSefaz(c);
+    }
+
+    @Override
+    public void registrarCancelamento(Connection con, Sessao sessao, Cancelamento c, RespostaSefaz evento)
+            throws SQLException {
+        cancelamento().registrar(con, sessao, c, evento);
+    }
+
+    private CancelamentoNfceService cancelamento() {
+        if (cancelamento == null) {
+            throw new IllegalStateException("Cancelamento da NFC-e não montado");
+        }
+        return cancelamento;
     }
 }

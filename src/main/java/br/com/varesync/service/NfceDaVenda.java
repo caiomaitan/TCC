@@ -1,5 +1,6 @@
 package br.com.varesync.service;
 
+import br.com.varesync.service.nfce.RespostaSefaz;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -32,6 +33,32 @@ public interface NfceDaVenda {
     /** Reserva o número da NFC-e da venda (PENDENTE), na transação da venda: a última trava, depois dos recebíveis. */
     long reservar(Connection con, long vendaId, OffsetDateTime emitidaEm) throws SQLException;
 
+    /**
+     * A NFC-e AUTORIZADA que o cancelamento da venda cancela pelo evento 110111 (F23.8).
+     *
+     * @param justificativa o motivo do cancelamento da venda (de 15 a 255 caracteres)
+     */
+    record Cancelamento(long nfceId, int numero, int serie, String chave, String protocolo, String justificativa) {
+    }
+
+    /**
+     * Confere a NFC-e da venda no cancelamento (F23.8), na transação de quem chama: nula quando não há o que cancelar
+     * na SEFAZ (sem NFC-e, REJEITADA, cujo número o transmissor inutiliza, ou DENEGADA, com o número já gasto). Recusa
+     * a PENDENTE, a de contingência ainda não autorizada, a sem resposta que o transmissor ainda resolve, a autorizada
+     * fora de {@code nfce.prazo_cancelamento_minutos} e a justificativa fora de 15 a 255 caracteres.
+     */
+    Cancelamento conferirCancelamento(Connection con, long vendaId, String justificativa) throws SQLException;
+
+    /**
+     * O evento 110111, fora da transação. Se a SEFAZ recusa ou não responde, a recusa explica, e a venda não é
+     * cancelada; a duplicidade de evento (573) conta como cancelada.
+     */
+    RespostaSefaz cancelarNaSefaz(Cancelamento cancelamento);
+
+    /** Na transação do cancelamento da venda: a NFC-e CANCELADA, o evento (procEventoNFe) e a auditoria. */
+    void registrarCancelamento(Connection con, Sessao sessao, Cancelamento cancelamento, RespostaSefaz evento)
+            throws SQLException;
+
     /** NFC-e desligada: nada muda na venda. */
     NfceDaVenda DESLIGADA = new NfceDaVenda() {
         @Override
@@ -54,6 +81,22 @@ public interface NfceDaVenda {
 
         @Override
         public long reservar(Connection con, long vendaId, OffsetDateTime emitidaEm) {
+            throw new IllegalStateException("NFC-e desligada");
+        }
+
+        @Override
+        public Cancelamento conferirCancelamento(Connection con, long vendaId, String justificativa) {
+            return null;
+        }
+
+        @Override
+        public RespostaSefaz cancelarNaSefaz(Cancelamento cancelamento) {
+            throw new IllegalStateException("NFC-e desligada");
+        }
+
+        @Override
+        public void registrarCancelamento(Connection con, Sessao sessao, Cancelamento cancelamento,
+                                          RespostaSefaz evento) {
             throw new IllegalStateException("NFC-e desligada");
         }
     };

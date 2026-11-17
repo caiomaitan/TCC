@@ -371,6 +371,11 @@
     -fx-border-color: transparent;
 }
 
+/* F23.10: NFC-e a transmitir de um dia anterior (prazo da contingência) e certificado vencido */
+.alerta-painel.alerta-urgente {
+    -fx-text-fill: -vs-erro;
+}
+
 /* Painel (7.5): cartões do dia, gráfico e atalhos */
 .painel-rolagem,
 .painel-rolagem > .viewport {

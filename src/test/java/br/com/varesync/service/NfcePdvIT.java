@@ -127,7 +127,9 @@ class NfcePdvIT extends IntegracaoBase {
                 new ModoContingencia(), auditoria, t.relogio, FUSO, AcessoTeste.TERMINAL);
         pdv = new NfceTerminalService(transacao, dao, new ConfiguracaoDAO(), new TributoVendaDAO(), emissao,
                 certificados, sefaz, auditoria);
-        vendas = t.vendasCom(new NfceNaVenda(new ConfiguracaoDAO(), new TributoVendaDAO(), certificados, nfce));
+        vendas = t.vendasCom(new NfceNaVenda(new ConfiguracaoDAO(), new TributoVendaDAO(), certificados, nfce,
+                new CancelamentoNfceService(dao, new ConfiguracaoDAO(), emissao, certificados, sefaz, auditoria,
+                        t.relogio)));
 
         Configuracoes c = t.configuracoes.carregar(admin);
         t.configuracoes.salvar(admin, c.comLoja(new Configuracoes.Loja("Mercado Bom Preço", CertificadoTeste.CNPJ,

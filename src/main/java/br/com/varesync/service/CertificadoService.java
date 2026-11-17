@@ -110,6 +110,24 @@ public class CertificadoService {
         return certificado;
     }
 
+    /**
+     * Para o alerta do painel (F23.10), sem exigir permissão e sem mostrar nada do certificado: os dias até o
+     * vencimento do certificado deste terminal (negativo = vencido), ou vazio sem certificado ou sem conseguir lê-lo
+     * (a recusa aparece na venda e em Configurações › NFC-e).
+     */
+    public java.util.OptionalLong diasParaVencer() {
+        if (terminal.caminho().isEmpty()) {
+            return java.util.OptionalLong.empty();
+        }
+        try {
+            CertificadoA1 certificado = ler(terminal.caminho(), terminal.senha());
+            return java.util.OptionalLong.of(certificado.vencido(clock) ? Math.min(-1, certificado.diasParaVencer(clock))
+                    : certificado.diasParaVencer(clock));
+        } catch (NegocioException e) {
+            return java.util.OptionalLong.empty();
+        }
+    }
+
     private String senhaInformada(String senha) {
         if (terminal.senhaNaVariavel()) {
             return terminal.senha();

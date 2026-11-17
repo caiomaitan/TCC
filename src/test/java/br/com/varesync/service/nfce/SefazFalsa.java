@@ -39,6 +39,9 @@ public final class SefazFalsa implements Sefaz {
     private final ValidacaoXsd validacao;
     private final PublicKey chavePublica;
     private final Deque<Object> roteiro = new ConcurrentLinkedDeque<>();
+    private final Deque<Object> roteiroEventos = new ConcurrentLinkedDeque<>();
+    private final java.util.Set<String> canceladas = ConcurrentHashMap.newKeySet();
+    private final AssinaturaNfce assinatura;
     private final Map<String, String> autorizadas = new ConcurrentHashMap<>();
     private final List<Envio> envios = Collections.synchronizedList(new ArrayList<>());
     private final List<String> eventos = Collections.synchronizedList(new ArrayList<>());
@@ -52,6 +55,7 @@ public final class SefazFalsa implements Sefaz {
         this.clock = clock;
         this.validacao = new ValidacaoXsd(pastaSchemas);
         this.chavePublica = XmlNfceTeste.certificadoDeTeste().getPublicKey();
+        this.assinatura = new AssinaturaNfce(validacao.pasta(), clock.getZone());
     }
 
     // ----- Roteiro -----
@@ -106,6 +110,10 @@ public final class SefazFalsa implements Sefaz {
         if (!"107".equals(statusServico)) {
             throw new SemComunicacaoException("SEFAZ falsa paralisada");
         }
+    }
+
+    private String dataXml() {
+        return agora().format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ssxxx"));
     }
 
     private OffsetDateTime agora() {
@@ -176,7 +184,7 @@ public final class SefazFalsa implements Sefaz {
 
     private String protNFe(String chave, String protocolo) {
         return "<protNFe versao=\"4.00\"><infProt><tpAmb>2</tpAmb><verAplic>SEFAZ-FALSA</verAplic><chNFe>" + chave
-                + "</chNFe><dhRecbto>" + agora() + "</dhRecbto><nProt>" + protocolo
+                + "</chNFe><dhRecbto>" + dataXml() + "</dhRecbto><nProt>" + protocolo
                 + "</nProt><digVal>AAAA</digVal><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo>"
                 + "</infProt></protNFe>";
     }
@@ -192,13 +200,38 @@ public final class SefazFalsa implements Sefaz {
         return new RespostaSefaz("100", "Autorizado o uso da NF-e", protocolo, agora(), protNFe(chave, protocolo));
     }
 
+    /**
+     * Evento 110111: monta e assina o pedido como a {@link SefazHomologacao} ({@link PedidosNfce}), confere o XSD e a
+     * assinatura e responde conforme o roteiro dos eventos (registra, recusa com um cStat, não responde, 573 quando já
+     * foi registrado). Registrado, devolve o procEventoNFe.
+     */
     @Override
     public RespostaSefaz cancelar(ContextoSefaz contexto, String chave, String protocolo, String justificativa,
                                   OffsetDateTime quando) {
         exigirComunicacao();
+        String lote = PedidosNfce.cancelamento(assinatura.configuracao(contexto.uf(), contexto.certificado()),
+                contexto.cnpj(), chave, protocolo, justificativa, quando);
+        conferirPedido(lote, "envEventoCancNFe_v1.00.xsd", "infEvento");
+        if (!protocolo.equals(autorizadas.get(chave))) {
+            return retEvento(chave, "110111", "494", "Rejeicao: Chave de Acesso inexistente", lote);
+        }
+        Object acao = roteiroEventos.isEmpty() ? null : roteiroEventos.poll();
+        if (acao == Acao.SEM_RESPOSTA) {
+            throw new SemComunicacaoException("SEFAZ falsa: tempo esgotado no evento");
+        }
+        if (acao == Acao.SEM_RESPOSTA_MAS_AUTORIZOU) {
+            canceladas.add(chave);
+            eventos.add("110111 " + chave);
+            throw new SemComunicacaoException("SEFAZ falsa: tempo esgotado no evento (mas registrou)");
+        }
+        if (acao instanceof String cstat) {
+            return retEvento(chave, "110111", cstat, "Rejeicao: Codigo de teste " + cstat, lote);
+        }
+        if (!canceladas.add(chave)) {
+            return retEvento(chave, "110111", "573", "Rejeicao: Duplicidade de evento", lote);
+        }
         eventos.add("110111 " + chave);
-        return new RespostaSefaz("135", "Evento registrado e vinculado a NF-e",
-                String.valueOf(protocolos.getAndIncrement()), agora(), "<retEnvEvento/>");
+        return retEvento(chave, "110111", "135", "Evento registrado e vinculado a NF-e", lote);
     }
 
     @Override
@@ -206,20 +239,70 @@ public final class SefazFalsa implements Sefaz {
                                                  String chaveSubstituta, String justificativa,
                                                  OffsetDateTime quando) {
         exigirComunicacao();
+        String lote = PedidosNfce.cancelamentoPorSubstituicao(assinatura.configuracao(contexto.uf(),
+                contexto.certificado()), contexto.cnpj(), chave, protocolo, chaveSubstituta, justificativa, quando);
+        conferirPedido(lote, "envEventoCancSubst_v1.00.xsd", "infEvento");
         if (!protocolo.equals(autorizadas.get(chave)) || !autorizadas.containsKey(chaveSubstituta)) {
-            return new RespostaSefaz("494", "Rejeicao: Chave de Acesso inexistente", null, agora(), null);
+            return retEvento(chave, "110112", "494", "Rejeicao: Chave de Acesso inexistente", lote);
         }
         eventos.add("110112 " + chave + " por " + chaveSubstituta);
-        return new RespostaSefaz("135", "Evento registrado e vinculado a NF-e",
-                String.valueOf(protocolos.getAndIncrement()), agora(), "<retEnvEvento/>");
+        canceladas.add(chave);
+        return retEvento(chave, "110112", "135", "Evento registrado e vinculado a NF-e", lote);
     }
 
     @Override
     public RespostaSefaz inutilizar(ContextoSefaz contexto, int serie, int numeroInicial, int numeroFinal,
                                    String justificativa, OffsetDateTime quando) {
         exigirComunicacao();
+        var config = assinatura.configuracao(contexto.uf(), contexto.certificado());
+        String assinado = PedidosNfce.inutilizacaoAssinada(config, PedidosNfce.inutilizacao(config, contexto.cnpj(),
+                serie, numeroInicial, numeroFinal, justificativa, quando));
+        conferirPedido(assinado, "inutNFe_v4.00.xsd", "infInut");
         inutilizacoes.add(serie + ":" + numeroInicial + "-" + numeroFinal);
-        return new RespostaSefaz("102", "Inutilizacao de numero homologado",
-                String.valueOf(protocolos.getAndIncrement()), agora(), "<retInutNFe/>");
+        String protocolo = String.valueOf(protocolos.getAndIncrement());
+        String retorno = "<retInutNFe xmlns=\"http://www.portalfiscal.inf.br/nfe\" versao=\"4.00\"><infInut>"
+                + "<tpAmb>2</tpAmb><verAplic>SEFAZ-FALSA</verAplic><cStat>102</cStat>"
+                + "<xMotivo>Inutilizacao de numero homologado</xMotivo><cUF>" + XmlNfceTeste.texto(assinado, "cUF")
+                + "</cUF><ano>" + XmlNfceTeste.texto(assinado, "ano") + "</ano><CNPJ>" + contexto.cnpj()
+                + "</CNPJ><mod>65</mod><serie>" + serie + "</serie><nNFIni>" + numeroInicial + "</nNFIni><nNFFin>"
+                + numeroFinal + "</nNFFin><dhRecbto>" + dataXml() + "</dhRecbto><nProt>" + protocolo
+                + "</nProt></infInut></retInutNFe>";
+        return new RespostaSefaz("102", "Inutilizacao de numero homologado", protocolo, agora(),
+                PedidosNfce.procInutilizacao(assinado, retorno));
+    }
+
+    /** O próximo evento 110111: {@link Acao#SEM_RESPOSTA}, {@link Acao#SEM_RESPOSTA_MAS_AUTORIZOU} ou um cStat. */
+    public SefazFalsa depoisNoEvento(Object... acoes) {
+        roteiroEventos.addAll(List.of(acoes));
+        return this;
+    }
+
+    private void conferirPedido(String xml, String xsd, String elementoAssinado) {
+        List<String> erros = validacao.erros(xml, xsd);
+        if (!erros.isEmpty()) {
+            throw new AssertionError("A SEFAZ falsa recebeu um pedido fora do XSD " + xsd + ": " + erros);
+        }
+        if (!XmlNfceTeste.assinaturaConfere(xml, chavePublica, elementoAssinado)) {
+            throw new AssertionError("A SEFAZ falsa recebeu um pedido com a assinatura que não confere");
+        }
+        if (!"2".equals(XmlNfceTeste.texto(xml, "tpAmb"))) {
+            throw new AssertionError("A SEFAZ falsa recebeu um pedido de produção");
+        }
+    }
+
+    /** A resposta de um evento; registrado (135 ou 573), com o procEventoNFe. */
+    private RespostaSefaz retEvento(String chave, String tipo, String cstat, String motivo, String lote) {
+        boolean registrado = "135".equals(cstat) || "573".equals(cstat);
+        String protocolo = "135".equals(cstat) ? String.valueOf(protocolos.getAndIncrement()) : null;
+        String retorno = "<retEnvEvento xmlns=\"http://www.portalfiscal.inf.br/nfe\" versao=\"1.00\"><idLote>1</idLote>"
+                + "<tpAmb>2</tpAmb><verAplic>SEFAZ-FALSA</verAplic><cOrgao>" + chave.substring(0, 2) + "</cOrgao>"
+                + "<cStat>128</cStat><xMotivo>Lote de Evento Processado</xMotivo><retEvento versao=\"1.00\">"
+                + "<infEvento><tpAmb>2</tpAmb><verAplic>SEFAZ-FALSA</verAplic><cOrgao>" + chave.substring(0, 2)
+                + "</cOrgao><cStat>" + cstat + "</cStat><xMotivo>" + motivo + "</xMotivo><chNFe>" + chave
+                + "</chNFe><tpEvento>" + tipo + "</tpEvento><nSeqEvento>1</nSeqEvento><dhRegEvento>" + dataXml()
+                + "</dhRegEvento>" + (protocolo == null ? "" : "<nProt>" + protocolo + "</nProt>")
+                + "</infEvento></retEvento></retEnvEvento>";
+        return new RespostaSefaz(cstat, motivo, protocolo, agora(),
+                registrado ? PedidosNfce.procEvento(lote, retorno) : retorno);
     }
 }

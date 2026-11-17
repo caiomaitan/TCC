@@ -72,6 +72,34 @@ public class TributoVendaDAO {
         return itens;
     }
 
+    /** Apaga os tributos gravados nos itens da venda (Corrigir e reenviar, F23.9, que os calcula de novo). */
+    public int apagarDaVenda(Connection con, long vendaId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                DELETE FROM venda_item_tributo
+                 WHERE venda_item_id IN (SELECT id FROM venda_item WHERE venda_id = ?)
+                """)) {
+            ps.setLong(1, vendaId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Os itens não cancelados da venda, na ordem: id e nome do produto (para as mensagens do reenvio). */
+    public java.util.Map<Long, String> itensDaVenda(Connection con, long vendaId) throws SQLException {
+        java.util.Map<Long, String> itens = new java.util.LinkedHashMap<>();
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT vi.id, vi.sequencia, p.nome FROM venda_item vi JOIN produto p ON p.id = vi.produto_id
+                 WHERE vi.venda_id = ? AND NOT vi.cancelado ORDER BY vi.sequencia
+                """)) {
+            ps.setLong(1, vendaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    itens.put(rs.getLong(1), "item " + rs.getInt(2) + " (" + rs.getString(3) + ")");
+                }
+            }
+        }
+        return itens;
+    }
+
     public void inserir(Connection con, long vendaItemId, TributoItem t) throws SQLException {
         String sql = """
                 INSERT INTO venda_item_tributo (venda_item_id, ncm, cest, origem, cfop, cst_icms, csosn,

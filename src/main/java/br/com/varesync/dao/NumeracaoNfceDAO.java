@@ -37,4 +37,39 @@ public class NumeracaoNfceDAO {
         }
         return numero;
     }
+
+    /**
+     * Inutilização de números ainda não usados (F23.9): trava a série (criada no primeiro uso, como na reserva) e leva o
+     * próximo número para depois de {@code ultimo}, se ainda não passou dele: a faixa não é mais reservada por venda.
+     *
+     * @return o próximo número antes da mudança
+     */
+    public int pularAte(Connection con, int serie, int ultimo) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("""
+                INSERT INTO nfce_numeracao (serie) VALUES (?) ON CONFLICT (serie) DO NOTHING
+                """)) {
+            ps.setInt(1, serie);
+            ps.executeUpdate();
+        }
+        int proximo;
+        try (PreparedStatement ps = con.prepareStatement("""
+                SELECT proximo_numero FROM nfce_numeracao WHERE serie = ? FOR UPDATE
+                """)) {
+            ps.setInt(1, serie);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                proximo = rs.getInt(1);
+            }
+        }
+        if (ultimo >= proximo) {
+            try (PreparedStatement ps = con.prepareStatement("""
+                    UPDATE nfce_numeracao SET proximo_numero = ? WHERE serie = ?
+                    """)) {
+                ps.setInt(1, ultimo + 1);
+                ps.setInt(2, serie);
+                ps.executeUpdate();
+            }
+        }
+        return proximo;
+    }
 }

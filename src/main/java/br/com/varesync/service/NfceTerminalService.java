@@ -148,6 +148,16 @@ public class NfceTerminalService {
         return emissao.modo().inicio();
     }
 
+    /**
+     * Avisa a cada entrada e saída do modo contingência deste terminal (F23.9: o aviso do PDV some assim que o
+     * transmissor sai do modo), na thread de quem mudou o modo.
+     *
+     * @return o que para de avisar
+     */
+    public Runnable observarContingencia(java.util.function.Consumer<Optional<OffsetDateTime>> observador) {
+        return emissao.modo().observar(observador);
+    }
+
     /** O DANFE de uma NFC-e montada (com o XML e o QR Code), a partir da venda e do emitente. */
     DanfeNfce danfe(Connection con, NfceGravada nota, Configuracoes config) throws SQLException {
         NfceDAO.VendaNfce venda = nfceDAO.venda(con, nota.vendaId());

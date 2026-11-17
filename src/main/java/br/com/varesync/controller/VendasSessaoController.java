@@ -12,12 +12,14 @@ import br.com.varesync.service.VendaService;
 import br.com.varesync.ui.DialogosPdv;
 import br.com.varesync.ui.LiberacaoSupervisorDialogo;
 import br.com.varesync.ui.Mensagem;
+import br.com.varesync.ui.Tarefas;
 import br.com.varesync.ui.TratadorExcecoes;
 import br.com.varesync.util.Formatos;
 import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -66,6 +68,9 @@ public class VendasSessaoController {
     @FXML private Button botaoCancelar;
     @FXML private Button botaoDevolver;
     @FXML private Label mensagem;
+    /** O cancelamento com a NFC-e está esperando a SEFAZ (F23.8). */
+    private final javafx.beans.property.BooleanProperty cancelando =
+            new javafx.beans.property.SimpleBooleanProperty(false);
 
     public VendasSessaoController(VendaService vendaService, AcessoService acessoService, Sessao sessao,
                                   Consumer<ComprovanteImpresso> mostrarComprovante,
@@ -115,8 +120,11 @@ public class VendasSessaoController {
             return linha;
         });
         botaoComprovante.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
-        botaoCancelar.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
-        botaoDevolver.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull());
+        // F23.8: desligados também enquanto o cancelamento espera a SEFAZ (a propriedade é ligada; não dá setDisable)
+        botaoCancelar.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull()
+                .or(cancelando));
+        botaoDevolver.disableProperty().bind(tabelaVendas.getSelectionModel().selectedItemProperty().isNull()
+                .or(cancelando));
         tabelaVendas.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (e.getCode() == KeyCode.ENTER) {
                 e.consume();
@@ -176,20 +184,59 @@ public class VendasSessaoController {
                 liberacao = concedida.get();
             }
             Liberacao liberada = liberacao;
-            Optional<Boolean> cancelada = DialogosPdv.motivoCancelamento("Cancelar a venda nº " + venda.id(),
+            // F23.8: o diálogo confere tudo (inclusive o prazo e a situação da NFC-e) sem mudar nada; com a NFC-e
+            // autorizada, o cancelamento espera a SEFAZ numa Task, fora da thread da tela.
+            String[] motivoEscolhido = new String[1];
+            Optional<Boolean> comNfce = DialogosPdv.motivoCancelamento("Cancelar a venda nº " + venda.id(),
                     "Venda de " + Formatos.moeda(venda.total()) + " às " + Formatos.hora(venda.dataHora())
                             + ". Os itens voltam ao estoque e a venda sai do caixa. Esta ação não pode ser desfeita.",
                     motivo -> {
-                        vendaService.cancelar(sessao, venda.id(), motivo, liberada);
-                        return Boolean.TRUE;
+                        boolean sefaz = vendaService.conferirCancelamento(sessao, venda.id(), motivo, liberada);
+                        motivoEscolhido[0] = motivo;
+                        if (!sefaz) {
+                            vendaService.cancelar(sessao, venda.id(), motivo, liberada);
+                        }
+                        return sefaz;
                     });
-            if (cancelada.isPresent()) {
+            if (comNfce.isEmpty()) {
+                return;
+            }
+            if (!comNfce.get()) {
                 carregar();
                 Mensagem.sucesso(mensagem, "Venda nº " + venda.id() + " cancelada.");
+                return;
             }
+            cancelarComNfce(venda.id(), motivoEscolhido[0], liberada);
         } catch (NegocioException e) {
             Mensagem.erro(mensagem, e.getMessage());
         }
+    }
+
+    /** Cancela a NFC-e na SEFAZ e depois a venda (F23.8), numa {@code Task}, com os botões desligados. */
+    private void cancelarComNfce(long vendaId, String motivo, Liberacao liberacao) {
+        Mensagem.informar(mensagem, "Cancelando a NFC-e da venda nº " + vendaId + " na SEFAZ…");
+        cancelando.set(true);
+        Task<Void> tarefa = new Task<>() {
+            @Override
+            protected Void call() {
+                vendaService.cancelar(sessao, vendaId, motivo, liberacao);
+                return null;
+            }
+        };
+        tarefa.setOnSucceeded(e -> {
+            reativarBotoes();
+            carregar();
+            Mensagem.sucesso(mensagem, "Venda nº " + vendaId + " cancelada, com a NFC-e.");
+        });
+        tarefa.setOnFailed(e -> {
+            reativarBotoes();
+            Mensagem.erro(mensagem, TratadorExcecoes.mensagem(tarefa.getException()));
+        });
+        Tarefas.executar("cancelamento-nfce", tarefa);
+    }
+
+    private void reativarBotoes() {
+        cancelando.set(false);
     }
 
     /** Devolver itens da venda selecionada (F13.4): mesma devolução da tela Devoluções. */

@@ -2,6 +2,59 @@
 
 ## Fase atual
 
+**Fase 23 — NFC-e em homologação, parte D** concluída em 2026-11-17 (F23.8, F23.9 e F23.10). **Fase 23 concluída.**
+**Sem migration nova** (a V24 já tem `nfce_evento`, `nfce_inutilizacao` e o resto; Decisões):
+- **F23.8 Cancelamento:** pelo F9, como antes. O diálogo do motivo confere tudo sem mudar nada (prazo, situação da
+  NFC-e, justificativa de 15 a 255 caracteres). Com a NFC-e AUTORIZADA, dentro de `nfce.prazo_cancelamento_minutos`
+  contados da autorização, o evento 110111 vai à SEFAZ fora da transação, numa `Task`; só com o evento registrado (ou
+  o cStat 573, duplicidade, num novo pedido) a NFC-e e a venda são canceladas, numa transação, com a auditoria
+  `NFCE_CANCELADA`. Fora do prazo: "registre uma devolução". PENDENTE, CONTINGENCIA e SEM_RESPOSTA ainda em resolução
+  são recusadas; REJEITADA e DENEGADA cancelam a venda sem evento (a rejeitada tem o número inutilizado pelo
+  transmissor).
+- **F23.9 Aba Notas fiscais** (Cadastro fiscal, FISCAL): lista com filtro por período, situação e número; Ver DANFE,
+  Salvar XML, Transmitir agora, Corrigir e reenviar (normal: no mesmo número, com a data de emissão de agora e os
+  tributos recalculados; contingência: número, série, data e valores mantidos, só os códigos relidos, recusa se um
+  valor de imposto mudaria), Inutilizar números (só sem NFC-e, prazo do dia 10 do mês seguinte) e Exportar XML do mês
+  (ZIP com `NFC-e/`, `Eventos/` e `Inutilizacoes/`). O XML do evento é o procEventoNFe e o da inutilização, o
+  procInutNFe, também os que o transmissor grava. Auditoria do reenvio e da inutilização.
+- **Aviso de contingência do PDV** (ajuste do usuário): `ModoContingencia.observar` avisa a entrada e a saída do modo,
+  e o PDV troca o aviso na hora (`Platform.runLater`), sem esperar a próxima atualização da tela.
+- **F23.10:** alertas do painel para quem tem FISCAL (a transmitir, em vermelho quando alguma é de um dia anterior;
+  rejeitadas a corrigir; vencimento do certificado), com o clique na aba já filtrada; **R32 NFC-e emitidas**
+  (RELATORIOS ou FISCAL, totais por situação); o gerador não cria NFC-e e a deixa desligada; README, seção 8, "NFC-e em
+  homologação".
+- **Defeito achado pelo roteiro de tela e corrigido:** no F9, o cancelamento com a NFC-e chamava `setDisable` nos
+  botões Cancelar e Devolver, que já estavam ligados (bind) à seleção da tabela, e caía com "A bound value cannot be
+  set" antes de ir à SEFAZ. Os botões passaram a ligar à seleção **ou** a um "cancelando".
+
+`mvn -q verify` passa: 677 testes unitários e 623 de integração; `mvn -q -Pui verify`, com o `NfceParteDTelaIT` novo,
+11 testes de interface (a varredura: 92 telas, 0 cortes). Próxima: definir com o usuário (a especificação das ampliações termina na F23).
+
+Antes de começar (pedido do usuário): `git status` com `COMO_CONTINUAR.md` e `docs/ESPECIFICACAO_AMPLIACOES.md`
+(ajuste do usuário: o aviso de contingência do PDV sumindo na hora, na F23.9) e com a parte D já em andamento, de uma
+sessão anterior (o usuário pediu para continuar); entrou tudo no commit desta parte.
+
+Critérios de aceite da parte D (com a SEFAZ falsa; `NfceParteDIT`, salvo indicação; tela = `NfceParteDTelaIT`,
+números das capturas):
+- **Cancelar aos 29 minutos da autorização cancela a NFC-e e depois a venda; aos 31, recusa:**
+  `cancelarAos29MinutosCancelaANfceEDepoisAVenda`, `aos31MinutosRecusaEOrientaADevolucao`; pela tela, `01` e `02`.
+- **A venda com nota em contingência não cancela:** `vendaComNotaEmContingenciaOuPendenteNaoCancela`; tela `03`.
+- **A rejeitada é corrigida e reenviada no mesmo número:** `rejeitadaDeEmissaoNormalCorrigidaEReenviadaNoMesmoNumero`,
+  `rejeitadaDeContingenciaMantemDataEValoresERecusaMudancaDeValor`; tela `06`.
+- **A inutilização de faixa funciona:** `inutilizacaoDeFaixaSemNfce`; tela `10`.
+- **O ZIP do mês tem os XML:** `zipDoMesTemAsNotasOsEventosEAsInutilizacoes` (os proc validados no XSD); tela `11`.
+- **O painel mostra os alertas:** `alertasDoPainel`, `semAPermissaoFiscalNaoVeAsNotasNemOsAlertas`; telas `12` e `13`.
+- **O R32 bate com a aba Notas fiscais:** `r32BateComAAbaNotasFiscais`; tela `14`.
+- **A `vw_nfce_inconsistente` fica vazia:** conferida no fim de cada teste de integração (`IntegracaoBase`).
+- **XML dos eventos e das inutilizações:** `PedidosNfceTest`, `transmissorGravaOProcEventoDaSubstituicao…`,
+  `rejeitadaCancelaAVendaEOTransmissorInutilizaONumeroComOProcInut`.
+- **Aviso de contingência:** `ModoContingenciaTest`; tela `04` (com o aviso) e `07` (sumiu com o "Transmitir agora").
+
+Conferência pela tela: o `NfceParteDTelaIT`, versionado no `-Pui` (sem teclado nem mouse do sistema, janelas fora da
+tela, banco `varesync_test` com a trava de URL, pasta `target/ui-home`, configuração sem BOM, SEFAZ falsa e impressora
+que não imprime). Capturas em `target/telas/NfceParteDTelaIT`. Os bancos `varesync` e `varesync_demo` não foram
+abertos.
+
 **Fase 23 — NFC-e em homologação, parte C** concluída em 2026-11-16 (F23.6 e F23.7), **sem migration nova** (a V24 já
 tem `venda.consumidor_documento`, `nfce.ativa` e o resto; Decisões):
 - **F23.6 PDV:** "NFC-e ligada" em Configurações › NFC-e (só liga com o emitente completo e o certificado deste terminal
@@ -1077,6 +1130,7 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-16 | 23 — NFC-e em homologação, parte A | V24 (nfce_numeracao, nfce, nfce_evento, nfce_inutilizacao, venda.consumidor_documento, vw_nfce_inconsistente, configurações empresa.* e nfce.*); Java_NFe 4.3.0 conferida; XSD PL 010g v1.03; endereço do emitente em Loja; seção NFC-e com o certificado A1 do terminal (fora do banco); "Compras e estoque" numa seção; montagem, assinatura, validação pelo XSD, QR Code versão 3, chave e numeração; nada transmitido. | Unitários: 645 (+41). Integração: 567 (+13: `NfceIT` 12 e a 8ª situação do `ConcorrenciaIT`). Interface (`-Pui`): 8 (+1: `NfceTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 | 2026-11-16 | 23 — NFC-e em homologação, parte B | Sem migration. Interface `Sefaz` e `SefazHomologacao` (Java_NFe, só homologação, sem comunicação, log sem o XML); emissão com a trava, AUTORIZADA com o `nfeProc`, REJEITADA e DENEGADA; contingência off-line (SEM_RESPOSTA e outra NFC-e, modo contingência no terminal); transmissor (status 107, PENDENTE largada, contingência, 110112 ou inutilização, REJEITADA de venda cancelada) e o agendamento em segundo plano. | Unitários: 657 (+12: `RespostasSefazTest` 8, `SefazHomologacaoTest` 3, `TransmissorAgendadoTest` 1). Integração: 580 (+13: `EmissaoNfceIT`). Interface (`-Pui`): 9 (+1: `NfceParteBTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
 | 2026-11-16 | 23 — NFC-e em homologação, parte C | Sem migration. "NFC-e ligada" e "Testar comunicação" em Configurações › NFC-e; PDV com a NFC-e: certificado do terminal no começo da venda, dados fiscais do produto ao registrar (`DadosFiscaisNfce`), "CPF/CNPJ na nota" com os limites de valor, reserva do número na transação da venda (`NfceDaVenda`), emissão numa `Task` com o DANFE impresso (e a via do estabelecimento em contingência), rejeição com o motivo, "Reimprimir" do F9 com o DANFE; contingência à vista (aviso fixo, causa da falta de comunicação, nota de contingência travada até a montagem); DANFE NFC-e de 80 mm (`DanfeNfce`, `QrCodeImagem`, banda do QR Code no `comprovante.jrxml`). | Unitários: 671 (+14: `DanfeNfceTest` 3, `DadosFiscaisNfceTest` 5, `NfceNaVendaTest` 4, `CausaSemComunicacaoTest` 2). Integração: 591 (+11: `NfcePdvIT`). Interface (`-Pui`): 10 (+1: `NfceParteCTelaIT`; varredura 90 telas, 0 cortes). Todos verdes. |
+| 2026-11-17 | 23 — NFC-e em homologação, parte D (fase concluída) | Sem migration. Cancelamento da venda com NFC-e pelo F9 (evento 110111 antes, prazo, 573, rejeitada e denegada sem evento); aba Notas fiscais (filtro, Ver DANFE, Salvar XML, Transmitir agora, Corrigir e reenviar, Inutilizar números, ZIP do mês); procEventoNFe e procInutNFe, também do transmissor; aviso de contingência do PDV na hora; alertas do painel; R32 NFC-e emitidas; README. Defeito do F9 (setDisable em botão ligado) achado pela tela e corrigido. | 677 unitários, 623 de integração (`NfceParteDIT`, 21), 11 de interface (`NfceParteDTelaIT`) |
 
 ## Decisões  (data · decisão · motivo)
 
@@ -1610,8 +1664,31 @@ Conferência pela tela: roteiro descartável (fora do repositório), sem teclado
 | 2026-11-16 | **"Testar comunicação"** confere antes, sem ir à SEFAZ, o certificado (sem certificado, senha errada, vencido) e a raiz do CNPJ do certificado contra a da loja; depois consulta o status (107 = em operação) e mostra "cStat N - motivo". Roda numa `Task`. | F23.6 ("o problema em linguagem simples: sem certificado, senha errada, certificado vencido, CNPJ diferente, sem internet"). |
 | 2026-11-16 | **Roteiro de tela com a SEFAZ falsa e uma impressora que não imprime:** `AppContext.Ajustes` (nulo = a do sistema) e o construtor `App(Ajustes)`, usados só pelo `TelaBase.abrirSistema(Ajustes)`. O sistema usa `new App()`, que monta a `SefazHomologacao` e a impressora padrão. | O PDV da parte C emite: sem a troca, o roteiro de tela falaria com a SEFAZ de verdade e mandaria o DANFE para a impressora do computador. |
 | 2026-11-16 | **O aviso fixo da contingência** é atualizado em cada atualização da tela do PDV e depois de cada emissão; quando o transmissor encerra o modo em segundo plano, o aviso sai na próxima atualização. | Sem uma tarefa só para isso; o operador mexe no PDV a cada venda. |
+| 2026-11-17 | **Sem migration na parte D.** A V24 já criou `nfce_evento`, `nfce_inutilizacao` e as colunas da trava; a parte D só as usa. | 0.1 ("a migration da parte A cria todas as tabelas e colunas da fase"). |
+| 2026-11-17 | **Cancelamento em dois tempos** (F23.8): o diálogo do F9 confere tudo sem mudar nada (`VendaService.conferirCancelamento`); com a NFC-e AUTORIZADA, o 110111 vai à SEFAZ fora da transação, numa `Task`, e só com o evento registrado a NFC-e e a venda são canceladas numa transação (`NfceDaVenda.registrarCancelamento`). O prazo conta da `autorizada_em`. A SEM_RESPOSTA ainda sem a de contingência resolvida é recusada como a PENDENTE. | F23.8 ("primeiro, fora da transação, o evento… depois, numa transação"). Com a SEFAZ demorando, a tela do caixa não trava. |
+| 2026-11-17 | **Corrigir e reenviar com a trava da transmissão** (`EmissaoNfceService.comTrava`): a normal ganha a chave refeita (mesmo cNF, mês da data nova) e os tributos recalculados (`TributosVendaService.recalcular`); a de contingência relê só os códigos e é recusada se `valoresQueMudariam` não vier vazio. Depois de reaberta (PENDENTE ou CONTINGENCIA), é montada e enviada na hora, como a emissão do PDV. | F23.9 e Ajuste SINIEF 19/16; o transmissor e o reenvio não enviam a mesma nota duas vezes. |
+| 2026-11-17 | **Inutilização** (F23.9): a numeração da série pula a faixa antes do pedido (`NumeracaoNfceDAO.pularAte`, com a trava da série), para uma venda ao mesmo tempo não pegar um número da faixa; recusa números com NFC-e e faixas já inutilizadas; o prazo é o dia 10 do mês seguinte ao da primeira NFC-e emitida depois da faixa (sem ela, ao mês atual). Só a homologada é gravada (procInutNFe). | F23.9 ("só para números sem NFC-e; o pedido vai até o dia 10 do mês seguinte"). |
+| 2026-11-17 | **XML dos eventos e das inutilizações** (`nfce.PedidosNfce`): o evento e o pedido são assinados pelo sistema e enviados sem a biblioteca assinar de novo; o `xml` gravado é o procEventoNFe e o procInutNFe, com o retorno da SEFAZ, também no 110112 e na inutilização do transmissor. | Ajuste do usuário na F23.9: é o que a lei manda guardar e o que vai no ZIP. |
+| 2026-11-17 | **Aviso de contingência do PDV na hora**: `ModoContingencia.observar` avisa a entrada e a saída, o PDV troca o aviso por `Platform.runLater` e para de observar ao fechar. Substitui a decisão da parte C ("o aviso sai na próxima atualização"). | Ajuste do usuário na F23.9. |
+| 2026-11-17 | **ZIP do mês**: as notas autorizadas, canceladas e substituídas **emitidas** no mês (o nfeProc), os eventos **registrados** no mês e as inutilizações **registradas** no mês, nas pastas `NFC-e/`, `Eventos/` e `Inutilizacoes/`. | F23.9; é o arquivamento que o contador recebe. |
+| 2026-11-17 | **Sucesso em notificação nos roteiros de tela**: o `NfceParteDTelaIT` lê o sucesso da notificação discreta da janela (F21.5), e não do rótulo, que fica vazio. | A primeira versão do roteiro esperava o texto no rótulo e esgotava o tempo. |
 
 ## Pendências e riscos
+
+- **Fase 23, parte D (2026-11-17). Fase 23 concluída.** Resolvidas da parte C: a rejeitada já é vista e corrigida em
+  Fiscal › Notas fiscais; o aviso de contingência sai na hora; o README explica como ligar e testar a NFC-e.
+  - **Nada foi transmitido a uma SEFAZ de verdade**: o cancelamento, a substituição e a inutilização foram conferidos
+    com a SEFAZ falsa (XSD e assinatura de cada pedido). A homologação real (CT-F23-20 e CT-F23-28) depende de um
+    certificado A1.
+  - **Prazos da UF:** o prazo de cancelamento é o configurado (30 por padrão); a UF que reduzir precisa da
+    configuração mudada à mão. O prazo da inutilização (dia 10) e o primeiro dia útil da contingência não conhecem os
+    feriados.
+  - **Corrigir e reenviar a de contingência** só aceita mudar os códigos: uma alíquota errada no perfil fica
+    rejeitada, e o caminho é o contador (cancelar a venda inutiliza o número).
+  - **A coluna Mensagem da aba Notas fiscais** é larga e rola de lado em 1280×720; o texto inteiro fica na dica.
+  - **O cancelamento com a NFC-e só pelo F9**, na sessão de caixa aberta, como o cancelamento de venda de antes; a
+    venda de outro dia, com a nota autorizada há mais de 30 minutos, vai para a devolução, sem documento fiscal.
+  Falta a pessoa executar CT-F23-21 a CT-F23-28 (o CT-F23-28 e o cancelamento do CT-F23-20 só com um certificado A1).
 
 - **Fase 23, parte C (2026-11-16).** Resolvidas da parte B: a NFC-e ligada tem controle na tela; um defeito de
   configuração (endereço errado da UF) já não passa despercebido, porque a causa vai para o motivo, para a auditoria e

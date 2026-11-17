@@ -10,8 +10,9 @@ import java.util.Set;
  * @param motivo     o xMotivo
  * @param protocolo  nProt, quando há
  * @param recebidoEm dhRecbto ou dhRegEvento, quando há
- * @param xml        na autorização, o {@code protNFe}; na consulta, o {@code protNFe} da nota autorizada; no evento e na
- *                   inutilização, a resposta inteira; nulo quando não há
+ * @param xml        na autorização, o {@code protNFe}; na consulta, o {@code protNFe} da nota autorizada; no evento
+ *                   registrado, o procEventoNFe, e na inutilização homologada, o procInutNFe (o pedido assinado com o
+ *                   retorno, F23.9); nas recusas, a resposta inteira; nulo quando não há
  */
 public record RespostaSefaz(String cstat, String motivo, String protocolo, OffsetDateTime recebidoEm, String xml) {
 

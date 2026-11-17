@@ -1,6 +1,8 @@
 package br.com.varesync.controller;
 
+import br.com.varesync.model.AlertasNfce;
 import br.com.varesync.model.AlertasPainel;
+import br.com.varesync.model.StatusNfce;
 import br.com.varesync.model.CaixaSessao;
 import br.com.varesync.model.ContaFinanceira;
 import br.com.varesync.model.Lote;
@@ -10,6 +12,7 @@ import br.com.varesync.model.IndicadoresDia;
 import br.com.varesync.model.Painel;
 import br.com.varesync.model.Permissao;
 import br.com.varesync.model.ProdutoPainel;
+import br.com.varesync.service.NotasFiscaisService;
 import br.com.varesync.service.PainelService;
 import br.com.varesync.service.PrimeirosPassosService;
 import br.com.varesync.model.PrimeirosPassos;
@@ -62,6 +65,8 @@ public class PainelController {
     private static final String POSITIVO = "positivo";
 
     private final PainelService painelService;
+    private final NotasFiscaisService notasFiscais;
+    private volatile AlertasNfce alertasNfce = AlertasNfce.NENHUM;
     private final Sessao sessao;
     private final PrimeirosPassosService passosService;
     private PrimeirosPassosPainel passos;
@@ -91,8 +96,15 @@ public class PainelController {
     @FXML private VBox secaoPassos;
 
     public PainelController(PainelService painelService, PrimeirosPassosService passosService, Sessao sessao) {
+        this(painelService, passosService, null, sessao);
+    }
+
+    /** @param notasFiscais os alertas da NFC-e (F23.10); nulo = sem eles */
+    public PainelController(PainelService painelService, PrimeirosPassosService passosService,
+                            NotasFiscaisService notasFiscais, Sessao sessao) {
         this.passosService = passosService;
         this.painelService = painelService;
+        this.notasFiscais = notasFiscais;
         this.sessao = sessao;
     }
 
@@ -195,7 +207,9 @@ public class PainelController {
         Task<Painel> tarefa = new Task<>() {
             @Override
             protected Painel call() {
-                return painelService.carregar(sessao);
+                Painel carregado = painelService.carregar(sessao);
+                alertasNfce = notasFiscais == null ? AlertasNfce.NENHUM : notasFiscais.alertas(sessao);
+                return carregado;
             }
         };
         progresso.setVisible(true);
@@ -456,6 +470,7 @@ public class PainelController {
             alerta("A conta " + c.nome() + " está com saldo negativo (" + Formatos.moeda(c.saldo())
                     + ") — ver no Financeiro", () -> navegacao.abrirContasFinanceiras());
         }
+        mostrarAlertasNfce(alertasNfce);
         if (alertas.getChildren().isEmpty()) {
             Label nenhum = new Label("Nenhum alerta no momento.");
             nenhum.getStyleClass().add("subtitulo");
@@ -468,6 +483,44 @@ public class PainelController {
         link.getStyleClass().add("alerta-painel");
         link.setOnAction(e -> acao.run());
         alertas.getChildren().add(link);
+    }
+
+    /**
+     * F23.10, só com FISCAL: as NFC-e a transmitir (em vermelho quando alguma é de um dia anterior: o prazo da
+     * contingência é o primeiro dia útil seguinte), as rejeitadas a corrigir e o certificado deste terminal. O clique
+     * abre a aba Notas fiscais já filtrada; o do certificado, Configurações › NFC-e para o supervisor.
+     */
+    private void mostrarAlertasNfce(AlertasNfce a) {
+        if (a == null || !a.algum()) {
+            return;
+        }
+        if (a.aTransmitir() > 0) {
+            alerta(plural(a.aTransmitir(), "NFC-e a transmitir", "NFC-e a transmitir")
+                            + " (em contingência ou sem resposta" + (a.aTransmitirAntiga() ? ", alguma de um dia anterior"
+                            : "") + ") — ver em Notas fiscais",
+                    () -> navegacao.abrirNotasFiscais(NotasFiscaisService.A_TRANSMITIR));
+            if (a.aTransmitirAntiga()) {
+                alertas.getChildren().get(alertas.getChildren().size() - 1).getStyleClass().add("alerta-urgente");
+            }
+        }
+        if (a.rejeitadas() > 0) {
+            alerta(plural(a.rejeitadas(), "NFC-e rejeitada a corrigir", "NFC-e rejeitadas a corrigir")
+                    + " — corrigir e reenviar em Notas fiscais",
+                    () -> navegacao.abrirNotasFiscais(java.util.EnumSet.of(StatusNfce.REJEITADA)));
+        }
+        if (a.diasCertificado() != null) {
+            String texto = a.certificadoVencido() ? "O certificado digital da NFC-e deste terminal está vencido"
+                    : "O certificado digital da NFC-e deste terminal vence em " + (a.diasCertificado() == 1 ? "1 dia"
+                    : a.diasCertificado() + " dias");
+            if (sessao.supervisor()) {
+                alerta(texto + " — trocar em Configurações › NFC-e", () -> navegacao.abrirCertificadoNfce());
+            } else {
+                alerta(texto + " — avise o supervisor", () -> navegacao.abrirNotasFiscais(java.util.Set.of()));
+            }
+            if (a.certificadoVencido()) {
+                alertas.getChildren().get(alertas.getChildren().size() - 1).getStyleClass().add("alerta-urgente");
+            }
+        }
     }
 
     private static String plural(int quantidade, String um, String varios) {

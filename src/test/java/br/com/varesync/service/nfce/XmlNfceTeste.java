@@ -60,9 +60,14 @@ public final class XmlNfceTeste {
 
     /** Se a assinatura XML do infNFe confere com a chave pública. */
     public static boolean assinaturaConfere(String xml, PublicKey chave) {
+        return assinaturaConfere(xml, chave, "infNFe");
+    }
+
+    /** Se a assinatura XML do elemento (infNFe, infEvento ou infInut) confere com a chave pública. */
+    public static boolean assinaturaConfere(String xml, PublicKey chave, String elementoAssinado) {
         try {
             Document doc = documento(xml);
-            Element inf = (Element) doc.getElementsByTagNameNS("*", "infNFe").item(0);
+            Element inf = (Element) doc.getElementsByTagNameNS("*", elementoAssinado).item(0);
             inf.setIdAttribute("Id", true);
             NodeList assinaturas = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
             if (assinaturas.getLength() != 1) {

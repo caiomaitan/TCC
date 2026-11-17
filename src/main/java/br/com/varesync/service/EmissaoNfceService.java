@@ -101,33 +101,45 @@ public class EmissaoNfceService {
 
     private Resultado processar(Sessao sessao, long nfceId, boolean automatico) {
         CertificadoA1 certificado = certificados.doTerminal();
-        return comTrava(nfceId, n -> {
-            NfceGravada nota = n;
-            if (nota.status() == StatusNfce.PENDENTE && modo.ativo()) {
-                OffsetDateTime inicio = modo.inicio().orElseGet(() -> OffsetDateTime.now(clock));
-                transacao.executar(con -> {
-                    nfceService.paraContingencia(con, nfceDAO.buscar(con, nfceId, true).orElseThrow(), inicio);
-                    return null;
-                });
-                nota = buscar(nfceId);
-                LOG.info("NFC-e nº {} em contingência (terminal no modo contingência)", nota.numero());
+        return comTrava(nfceId, n -> processarTravada(sessao, n, certificado, automatico, automatico));
+    }
+
+    /**
+     * Passos 2 a 4 com a trava já pega (pela emissão, pelo transmissor ou pelo "Corrigir e reenviar" da F23.9).
+     *
+     * @param enviarContingencia envia também a de contingência (o transmissor e o reenvio); na venda, ela só é montada
+     * @param automatico         a auditoria diz "automático"
+     */
+    Resultado processarTravada(Sessao sessao, NfceGravada n, CertificadoA1 certificado, boolean enviarContingencia,
+                               boolean automatico) {
+        long nfceId = n.id();
+        NfceGravada nota = n;
+        // No modo contingência, a venda nova sai em contingência sem tentar. O reenvio (enviarContingencia) não é venda
+        // nova: tenta a autorização, e sem resposta segue o passo 4.
+        if (nota.status() == StatusNfce.PENDENTE && modo.ativo() && !enviarContingencia) {
+            OffsetDateTime inicio = modo.inicio().orElseGet(() -> OffsetDateTime.now(clock));
+            transacao.executar(con -> {
+                nfceService.paraContingencia(con, nfceDAO.buscar(con, nfceId, true).orElseThrow(), inicio);
+                return null;
+            });
+            nota = buscar(nfceId);
+            LOG.info("NFC-e nº {} em contingência (terminal no modo contingência)", nota.numero());
+        }
+        if (nota.status() != StatusNfce.PENDENTE && nota.status() != StatusNfce.CONTINGENCIA) {
+            return new Resultado(nota, false, "A NFC-e nº " + nota.numero() + " está "
+                    + nota.status().rotulo().toLowerCase() + ".");
+        }
+        if (nota.xml() == null) {
+            nota = nfceService.prepararXml(nfceId);
+            if (nota.status() == StatusNfce.REJEITADA) {
+                return new Resultado(nota, false, nota.motivo());
             }
-            if (nota.status() != StatusNfce.PENDENTE && nota.status() != StatusNfce.CONTINGENCIA) {
-                return new Resultado(nota, false, "A NFC-e nº " + nota.numero() + " está "
-                        + nota.status().rotulo().toLowerCase() + ".");
-            }
-            if (nota.xml() == null) {
-                nota = nfceService.prepararXml(nfceId);
-                if (nota.status() == StatusNfce.REJEITADA) {
-                    return new Resultado(nota, false, nota.motivo());
-                }
-            }
-            if (nota.status() == StatusNfce.CONTINGENCIA && !automatico) {
-                return new Resultado(nota, false, "NFC-e emitida em contingência: será transmitida quando a SEFAZ "
-                        + "voltar a responder.");
-            }
-            return enviar(sessao, nota, certificado, automatico);
-        });
+        }
+        if (nota.status() == StatusNfce.CONTINGENCIA && !enviarContingencia) {
+            return new Resultado(nota, false, "NFC-e emitida em contingência: será transmitida quando a SEFAZ "
+                    + "voltar a responder.");
+        }
+        return enviar(sessao, nota, certificado, automatico);
     }
 
     /** Passos 3 e 4: envia e grava a resposta; sem comunicação, a contingência. */

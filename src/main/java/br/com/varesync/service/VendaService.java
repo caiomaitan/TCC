@@ -34,6 +34,7 @@ import br.com.varesync.model.TipoFormaPagamento;
 import br.com.varesync.model.TipoMovimento;
 import br.com.varesync.model.TipoValorBalanca;
 import br.com.varesync.model.VendaResumo;
+import br.com.varesync.service.nfce.RespostaSefaz;
 import br.com.varesync.util.CalculoCrediario;
 import br.com.varesync.util.CpfCnpj;
 import br.com.varesync.util.Dinheiro;
@@ -861,37 +862,27 @@ public class VendaService {
      * devolução (F13) não pode mais ser cancelada.
      */
     public void cancelar(Sessao sessao, long vendaId, String motivo, Liberacao liberacao) {
-        sessao.exigir(Permissao.PDV);
+        String motivoFinal = motivoDoCancelamento(sessao, motivo, liberacao);
         Liberacao liberou = sessao.exigirOuLiberado(Permissao.CANCELAR_VENDA, liberacao);
-        String motivoFinal = Textos.normalizarEspacos(motivo);
-        if (motivoFinal.isEmpty()) {
-            throw new NegocioException("Informe o motivo do cancelamento.");
-        }
-        if (motivoFinal.length() > CaixaService.TAMANHO_MAXIMO_MOTIVO) {
-            throw new NegocioException("O motivo pode ter no máximo " + CaixaService.TAMANHO_MAXIMO_MOTIVO
-                    + " caracteres.");
-        }
+        // F23.8: primeiro a conferência (a venda e a NFC-e); com a NFC-e autorizada, o evento 110111 fora da transação;
+        // só com o evento registrado a venda é cancelada.
+        NfceDaVenda.Cancelamento fiscal = transacao.executar(con -> {
+            conferirCancelavel(con, sessao, vendaId);
+            return nfce.conferirCancelamento(con, vendaId, motivoFinal);
+        });
+        RespostaSefaz evento = fiscal == null ? null : nfce.cancelarNaSefaz(fiscal);
         OffsetDateTime agora = OffsetDateTime.now(clock);
         transacao.executar(con -> {
-            CaixaSessao caixa = caixaService.travarAberta(con, sessao);
-            VendaDAO.VendaTravada venda = vendaDAO.travar(con, vendaId)
-                    .orElseThrow(() -> new NegocioException("Venda nº " + vendaId + " não encontrada."));
-            if (venda.caixaSessaoId() != caixa.id()) {
-                throw new NegocioException("Só é possível cancelar vendas do caixa aberto neste terminal (a venda nº "
-                        + vendaId + " é do caixa nº " + venda.caixaSessaoId() + ").");
-            }
-            if (venda.status() == StatusVenda.CANCELADA) {
-                throw new NegocioException("A venda nº " + vendaId + " já está cancelada.");
-            }
-            if (vendaDAO.temDevolucao(con, vendaId)) {
-                throw new NegocioException("A venda nº " + vendaId + " tem devolução e não pode mais ser cancelada. "
-                        + "Para desfazê-la por inteiro, devolva os itens que faltam (Devolver itens).");
-            }
-            // Crediário (F14.2): só sem pagamento em nenhuma parcela; os títulos são cancelados junto.
-            List<TituloReceber> titulos = tituloDAO.daVenda(con, vendaId, true);
-            if (titulos.stream().anyMatch(t -> t.valorPago().signum() > 0)) {
-                throw new NegocioException("A venda nº " + vendaId + " tem parcela do crediário com pagamento e não "
-                        + "pode ser cancelada.");
+            Cancelavel cancelavel = conferirCancelavel(con, sessao, vendaId);
+            CaixaSessao caixa = cancelavel.caixa();
+            VendaDAO.VendaTravada venda = cancelavel.venda();
+            List<TituloReceber> titulos = cancelavel.titulos();
+            if (fiscal != null) {
+                nfce.registrarCancelamento(con, sessao, fiscal, evento);
+            } else if (nfce.conferirCancelamento(con, vendaId, motivoFinal) != null) {
+                // A NFC-e foi autorizada entre a conferência e agora: o cancelamento precisa do evento.
+                throw new NegocioException("A NFC-e da venda nº " + vendaId + " acabou de ser autorizada. Tente "
+                        + "cancelar de novo.");
             }
             tituloDAO.cancelarDaVenda(con, vendaId, motivoFinal);
             long autorizou = liberou == null ? sessao.usuarioId() : liberou.usuarioId();
@@ -924,6 +915,62 @@ public class VendaService {
                             + (titulos.isEmpty() ? "" : ". " + titulos.size() + " título(s) do crediário cancelado(s)"));
             return null;
         });
+    }
+
+    /**
+     * A conferência do cancelamento antes de cancelar (F9, F23.8): as mesmas recusas do {@link #cancelar}, sem mudar
+     * nada e sem ir à SEFAZ, para a tela mostrar a recusa no próprio diálogo do motivo.
+     *
+     * @return se o cancelamento vai cancelar a NFC-e na SEFAZ (a tela avisa e espera a resposta numa {@code Task})
+     */
+    public boolean conferirCancelamento(Sessao sessao, long vendaId, String motivo, Liberacao liberacao) {
+        String motivoFinal = motivoDoCancelamento(sessao, motivo, liberacao);
+        return transacao.executar(con -> {
+            conferirCancelavel(con, sessao, vendaId);
+            return nfce.conferirCancelamento(con, vendaId, motivoFinal) != null;
+        });
+    }
+
+    private static String motivoDoCancelamento(Sessao sessao, String motivo, Liberacao liberacao) {
+        sessao.exigir(Permissao.PDV);
+        sessao.exigirOuLiberado(Permissao.CANCELAR_VENDA, liberacao);
+        String motivoFinal = Textos.normalizarEspacos(motivo);
+        if (motivoFinal.isEmpty()) {
+            throw new NegocioException("Informe o motivo do cancelamento.");
+        }
+        if (motivoFinal.length() > CaixaService.TAMANHO_MAXIMO_MOTIVO) {
+            throw new NegocioException("O motivo pode ter no máximo " + CaixaService.TAMANHO_MAXIMO_MOTIVO
+                    + " caracteres.");
+        }
+        return motivoFinal;
+    }
+
+    private record Cancelavel(CaixaSessao caixa, VendaDAO.VendaTravada venda, List<TituloReceber> titulos) {
+    }
+
+    /** As recusas do cancelamento (6.6, F13, F14.2), com a sessão de caixa e a venda travadas. */
+    private Cancelavel conferirCancelavel(Connection con, Sessao sessao, long vendaId) throws SQLException {
+        CaixaSessao caixa = caixaService.travarAberta(con, sessao);
+        VendaDAO.VendaTravada venda = vendaDAO.travar(con, vendaId)
+                .orElseThrow(() -> new NegocioException("Venda nº " + vendaId + " não encontrada."));
+        if (venda.caixaSessaoId() != caixa.id()) {
+            throw new NegocioException("Só é possível cancelar vendas do caixa aberto neste terminal (a venda nº "
+                    + vendaId + " é do caixa nº " + venda.caixaSessaoId() + ").");
+        }
+        if (venda.status() == StatusVenda.CANCELADA) {
+            throw new NegocioException("A venda nº " + vendaId + " já está cancelada.");
+        }
+        if (vendaDAO.temDevolucao(con, vendaId)) {
+            throw new NegocioException("A venda nº " + vendaId + " tem devolução e não pode mais ser cancelada. "
+                    + "Para desfazê-la por inteiro, devolva os itens que faltam (Devolver itens).");
+        }
+        // Crediário (F14.2): só sem pagamento em nenhuma parcela; os títulos são cancelados junto.
+        List<TituloReceber> titulos = tituloDAO.daVenda(con, vendaId, true);
+        if (titulos.stream().anyMatch(t -> t.valorPago().signum() > 0)) {
+            throw new NegocioException("A venda nº " + vendaId + " tem parcela do crediário com pagamento e não "
+                    + "pode ser cancelada.");
+        }
+        return new Cancelavel(caixa, venda, titulos);
     }
 
     /** Comprovante não fiscal de uma venda (reimpressão pelo F9). */

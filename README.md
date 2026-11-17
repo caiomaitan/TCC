@@ -282,7 +282,7 @@ terminal.id=CAIXA-01
 - `terminal.id` identifica o computador no controle de caixa e **deve ser único por máquina**. Com dois caixas, troque
   no segundo para `CAIXA-02` (com o sistema fechado).
 - Com vários computadores, veja a seção 5.1.
-- NFC-e em homologação (em construção, Fase 23): o certificado digital A1 é **de cada terminal**. O supervisor o
+- NFC-e em homologação (Fase 23, seção 8 › "NFC-e em homologação"): o certificado digital A1 é **de cada terminal**. O supervisor o
   escolhe em Configurações › NFC-e, e o sistema grava aqui `nfce.certificado` (o caminho do .pfx ou .p12) e
   `nfce.certificado.senha`; se a variável de ambiente `VARESYNC_CERT_SENHA` existir, a senha dela vale no lugar da do
   arquivo. O certificado e a senha nunca vão para o banco nem para o log. Os XSD da NFC-e são copiados para
@@ -496,8 +496,8 @@ dela no Windows), carregue o exemplo ZPL (Zebra) ou DPL (Datamax e Allegro), aju
 da loja e confira com **Imprimir teste** antes de usar: os exemplos são um ponto de partida e não foram testados em
 todas as impressoras.
 
-**Cadastro fiscal** (menu **Fiscal** ou Produtos › Fiscal…, com a permissão Cadastro fiscal, Fase 19): prepara uma emissão fiscal futura
-(o sistema **não emite** NFC-e nem NF-e). Em **Perfis tributários**, cadastre a tributação (CFOP, CST do ICMS no regime
+**Cadastro fiscal** (menu **Fiscal** ou Produtos › Fiscal…, com a permissão Cadastro fiscal, Fase 19): os dados
+fiscais que a NFC-e em homologação usa (abaixo); o sistema não emite NF-e nem NFC-e em produção. Em **Perfis tributários**, cadastre a tributação (CFOP, CST do ICMS no regime
 normal ou CSOSN no Simples, alíquota e redução de base, PIS, COFINS, código de benefício e, opcionais, o CST do IBS e
 da CBS e o cClassTrib); só o formato de cada campo é conferido. Na aba **Produtos**, informe NCM, CEST, origem e perfil
 de cada produto, ou aplique um perfil de uma vez aos selecionados, a uma categoria inteira ou a um NCM. Na aba
@@ -523,6 +523,48 @@ em Configurações › Loja ("Tributos da venda"), e o meio de pagamento da NFC-
 pagamento. O comprovante mostra "Tributos aproximados: Federal … · Estadual … · Municipal … (Fonte: IBPT)", e o
 relatório **R31 Impostos das vendas** (permissões Relatórios e Cadastro fiscal) soma os tributos por CFOP e situação do
 ICMS, com os itens sem tributação calculada à parte.
+
+**NFC-e em homologação** (Fase 23): o sistema emite a NFC-e (modelo 65) **só no ambiente de homologação** da SEFAZ,
+em que a nota **não tem valor fiscal**. A emissão em produção, a NF-e e o SAT ficam fora desta versão.
+
+*Como ligar*, em cada terminal que vende:
+
+1. Configurações › Loja: CNPJ da loja (`empresa.documento`), UF, inscrição estadual (não vale ISENTO), regime
+   tributário e o bloco "Endereço para a NFC-e" (razão social, endereço, CEP e o código IBGE do município). A tela diz
+   o que ainda falta.
+2. Configurações › NFC-e › certificado deste terminal: **Procurar…** o arquivo A1 (.pfx ou .p12) da loja, a senha (ou
+   a variável `VARESYNC_CERT_SENHA`) › **Salvar certificado**. O caminho e a senha ficam só no `config.properties`
+   deste computador (seção 5), nunca no banco. Certificado A3 (cartão ou token) não é aceito.
+3. Os produtos vendidos precisam dos dados fiscais completos (NCM, origem e um perfil com a situação do ICMS aceita;
+   o R30 aponta o que falta) e as formas de pagamento, do tPag.
+4. Marque **NFC-e ligada (homologação)**. Ela só liga com o emitente completo e o certificado na validade.
+   **Testar comunicação** consulta o status da SEFAZ da UF (cStat 107 = em operação) ou explica o problema.
+
+*No dia a dia*: o pagamento (F10) tem o campo "CPF/CNPJ na nota", obrigatório a partir de `nfce.valor_identificacao`.
+Depois de cada venda, o PDV emite a NFC-e e imprime o DANFE de 80 mm na impressora padrão. Sem resposta da SEFAZ, a
+nota sai em **contingência off-line**, com o aviso fixo no alto do PDV, e o transmissor, que roda em segundo plano a
+cada `nfce.retransmitir_minutos`, envia as notas quando a SEFAZ volta. O aviso some assim que ele sai da contingência.
+A nota de contingência precisa ser transmitida até o primeiro dia útil seguinte; o painel avisa.
+
+*Cancelar*: pelo F9, como antes. Com a NFC-e autorizada, o cancelamento vai primeiro à SEFAZ (evento 110111, com o
+motivo como justificativa, de 15 a 255 caracteres), e só então a venda é cancelada. Isso vale até
+`nfce.prazo_cancelamento_minutos` (30) da autorização; depois, registre uma devolução. A venda com a nota em
+contingência só cancela depois que ela for autorizada.
+
+*Fiscal › Notas fiscais* (permissão Cadastro fiscal): a lista das NFC-e com filtro por período, situação e número;
+**Ver DANFE**, **Salvar XML**, **Transmitir agora**, **Corrigir e reenviar** a rejeitada (no mesmo número) e
+**Inutilizar números** pulados (até o dia 10 do mês seguinte). **Exportar XML do mês** grava um ZIP com as notas
+autorizadas e canceladas, os eventos e as inutilizações, para o contador. Os XML ficam no banco e entram no backup:
+guarde-os por 5 anos. O painel mostra as NFC-e a transmitir (em vermelho quando alguma é de um dia anterior), as
+rejeitadas a corrigir e o vencimento do certificado. O relatório **R32 NFC-e emitidas** lista as notas do período, com
+os totais por situação. O gerador de demonstração não emite NFC-e e a deixa desligada.
+
+*Testar na homologação com um certificado A1 de verdade* (caso CT-F23-20 do `docs/ROTEIRO_TESTES.md`): use um banco
+de amostra (o `varesync_amostra`, nunca o banco da loja nem o `varesync_demo`), a loja com o CNPJ e a IE do titular do
+certificado e um produto com os dados fiscais completos. Faça os passos acima, **Testar comunicação** (107), uma venda
+pequena (DANFE com o protocolo), a consulta da chave no portal da NFC-e da UF e o cancelamento pelo F9 dentro de
+30 minutos. Os testes automáticos nunca falam com a SEFAZ: usam uma SEFAZ falsa e um certificado gerado pelo
+próprio teste.
 ## 9. Empacotamento (jpackage)
 
 Gera a pasta `VareSync` com `VareSync.exe` e o Java embutido (app-image do `jpackage`, sem instalador). Precisa do JDK

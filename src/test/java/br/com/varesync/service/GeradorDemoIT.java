@@ -753,9 +753,25 @@ class GeradorDemoIT extends IntegracaoBase {
             long ms = (System.nanoTime() - inicio) / 1_000_000;
             LOG.info("{}: {} linhas em {} ms", relatorio.codigo(), r.linhas().size(), ms);
             assertThat(ms).as(relatorio.titulo()).isLessThan(3000);
-            assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            if (relatorio instanceof br.com.varesync.report.RelNfceEmitidas) {
+                // F23.10: o gerador não emite nem cria NFC-e.
+                assertThat(r.linhas()).as(relatorio.titulo()).isEmpty();
+            } else {
+                assertThat(r.linhas()).as(relatorio.titulo()).isNotEmpty();
+            }
         }
         LOG.info("Geração dos dados de demonstração: {} s", segundosGeracao);
+    }
+
+    /** F23.10: o gerador não emite nem cria NFC-e e deixa a NFC-e desligada. */
+    @Test
+    void geradorNaoCriaNfceEDeixaANfceDesligada() throws Exception {
+        assertThat(contar("SELECT count(*) FROM nfce")).isZero();
+        assertThat(contar("SELECT count(*) FROM nfce_numeracao")).isZero();
+        assertThat(contar("SELECT count(*) FROM nfce_evento")).isZero();
+        assertThat(contar("SELECT count(*) FROM nfce_inutilizacao")).isZero();
+        assertThat(contar("SELECT count(*) FROM venda WHERE consumidor_documento IS NOT NULL")).isZero();
+        assertThat(t.configuracoes.carregar(admin).nfce().ativa()).isFalse();
     }
 
     /**
