@@ -325,7 +325,7 @@ public class GeradorDemo {
             if (vendasGravadas > 0) {
                 throw new NegocioException("Este banco já tem " + vendasGravadas + " venda(s). Os dados de "
                         + "demonstração só podem ser gerados num banco sem vendas: crie um banco separado "
-                        + "(ex.: varesync_demo, veja o README) e conecte o sistema a ele.");
+                        + "(ex.: varesync_amostra, veja o README) e conecte o sistema a ele.");
             }
             List<String> logins = demoDAO.loginsExistentes(con, USUARIOS.stream().map(UsuarioPlano::login).toList());
             if (!logins.isEmpty()) {

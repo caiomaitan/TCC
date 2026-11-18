@@ -649,3 +649,14 @@ Casos do roteiro manual: CT-F23-12 a CT-F23-20.
 | RNF13 / F23.10 README | README, seção 8, "NFC-e em homologação" (ligar, dia a dia, cancelar, Notas fiscais, teste com um certificado A1) | — |
 
 Casos do roteiro manual: CT-F23-21 a CT-F23-28 (o CT-F23-20 ganha o cancelamento na homologação).
+
+## Versão 2.0.0 — fechamento (sem regra de negócio nova)
+
+| Requisito | Telas e classes | Testes automatizados |
+|---|---|---|
+| Versão 2.0.0 | `pom.xml` (2.0.0, sem SNAPSHOT); `config.VersaoSistema`, tela Sobre (`ui.DialogoSobre`) e barra de status sem mudança | `VersaoBancaTelaIT` (captura `03`: "Versão: 2.0.0"; `04`: "v2.0.0" na barra de status) |
+| Proteção da banca (o `varesync_demo` não abre na 2.0) | `config.Banco.testarConexao` (recusa pelo nome no endereço, antes de conectar, e pelo `current_database()` depois), `Banco.BANCO_DA_BANCA`; tela de conexão (`ConexaoController`, `conexao.fxml`, mensagem sem corte) na abertura (`App.iniciar`), no "Testar conexão" e no "Salvar" | `BancoTest.bancoDaBancaERecusadoSemConectar`, `nomeDoBancoNoFimDoEndereco`; `VersaoBancaTelaIT` (capturas `01` e `02`; o Salvar recusado não grava) |
+| Novidades e pendências | `CHANGELOG.md`; README, "Novidades da 2.0" e seção 6 com o `varesync_amostra`; recusa do gerador citando o `varesync_amostra` (`GeradorDemo.conferir`) | `GeradorDemoIT.recusaBancoComVendasESoOSupervisorGera` |
+| Pacote com os XSD da NFC-e | perfil `empacotar` (`target/dist/VareSync`): o jar do sistema leva `nfe/schemas.lst` e `nfe/schemas/*.xsd` | conferência do pacote (PROGRESSO, Fase atual) |
+
+Casos do roteiro manual: CT-V2-01 a CT-V2-03.

@@ -477,7 +477,7 @@ class GeradorDemoIT extends IntegracaoBase {
     @Test
     void recusaBancoComVendasESoOSupervisorGera() {
         assertThatThrownBy(() -> gerador.conferir(admin)).isInstanceOf(NegocioException.class)
-                .hasMessageContaining("já tem").hasMessageContaining("varesync_demo");
+                .hasMessageContaining("já tem").hasMessageContaining("varesync_amostra");
         GeradorDemo.UsuarioDemo carlos = resultado.usuarios().get(2);
         Sessao gerente = t.acesso.entrar(carlos.login(), carlos.senha());
         assertThatThrownBy(() -> gerador.gerar(gerente, (f, total, m) -> { }))

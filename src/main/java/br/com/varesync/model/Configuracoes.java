@@ -426,7 +426,8 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
 
     public Configuracoes comCompras(Compras outra) {
         return new Configuracoes(loja, venda, margemMinimaPct, diasSemGiro, balanca, backup, rodapeComprovante,
-                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias, etiquetas, assistente, tributos, emitente, nfce);
+                seguranca, fidelidade, devolucaoPrazoDias, crediario, integrarCaixa, outra, validadeAlertaDias, etiquetas,
+                assistente, tributos, emitente, nfce);
     }
 
     public Configuracoes comValidadeAlertaDias(int dias) {

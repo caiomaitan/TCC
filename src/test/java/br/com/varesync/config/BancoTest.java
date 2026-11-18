@@ -36,6 +36,39 @@ class BancoTest {
                 .hasMessageStartingWith("Endereço inválido");
     }
 
+    /**
+     * Proteção da banca (2.0.0): o varesync_demo é recusado pelo nome, antes de conectar. O servidor é um nome
+     * {@code .invalid} (RFC 6761, nunca existe): se a recusa falhasse, a mensagem seria a de servidor fora do ar, e
+     * nenhum banco de verdade seria aberto.
+     */
+    @Test
+    void bancoDaBancaERecusadoSemConectar() {
+        for (String url : new String[] {
+                "jdbc:postgresql://banca.invalid:5432/varesync_demo",
+                "jdbc:postgresql://banca.invalid:5432/VARESYNC_DEMO",
+                "jdbc:postgresql://banca.invalid/varesync_demo?ApplicationName=x",
+                "jdbc:postgresql://banca.invalid:5432/varesync%5Fdemo"}) {
+            assertThatThrownBy(() -> Banco.testarConexao(url, "varesync", "x"))
+                    .as(url)
+                    .isInstanceOf(FalhaConexaoException.class)
+                    .hasMessage(Banco.MENSAGEM_BANCO_DA_BANCA)
+                    .hasNoCause();
+        }
+        assertThat(Banco.MENSAGEM_BANCO_DA_BANCA).contains("varesync_demo", "TCC", "Informe outro banco");
+    }
+
+    @Test
+    void nomeDoBancoNoFimDoEndereco() {
+        assertThat(Banco.nomeDoBanco("jdbc:postgresql://localhost:5432/varesync")).isEqualTo("varesync");
+        assertThat(Banco.nomeDoBanco("jdbc:postgresql://localhost/varesync_amostra?ssl=false"))
+                .isEqualTo("varesync_amostra");
+        assertThat(Banco.nomeDoBanco("jdbc:postgresql://localhost:5432")).isEmpty();
+        assertThat(Banco.ehOBancoDaBanca("varesync_demo")).isTrue();
+        assertThat(Banco.ehOBancoDaBanca("varesync_demo2")).isFalse();
+        assertThat(Banco.ehOBancoDaBanca("varesync_amostra")).isFalse();
+        assertThat(Banco.ehOBancoDaBanca(null)).isFalse();
+    }
+
     @Test
     void servidorInexistenteGeraFalhaAmigavel() {
         // Porta 1 em localhost: conexão recusada imediatamente, sem depender de banco instalado.

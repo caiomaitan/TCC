@@ -19,7 +19,7 @@
 
     <Label text="Conexão com o banco" styleClass="titulo"/>
     <Label text="Não foi possível conectar ao banco de dados. Confira os dados abaixo, teste e salve."
-           wrapText="true" styleClass="subtitulo"/>
+           wrapText="true" minHeight="-Infinity" styleClass="subtitulo"/>
 
     <GridPane hgap="12" vgap="10">
         <columnConstraints>
@@ -38,7 +38,8 @@
         <PasswordField fx:id="campoSenha" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
     </GridPane>
 
-    <Label fx:id="mensagem" wrapText="true" minHeight="40" styleClass="mensagem"/>
+    <!-- minHeight -Infinity = USE_PREF_SIZE: o texto longo (banco da banca) não encolhe nem sai com "…" -->
+    <Label fx:id="mensagem" wrapText="true" minHeight="-Infinity" styleClass="mensagem"/>
 
     <Region VBox.vgrow="ALWAYS"/>
 

@@ -159,10 +159,20 @@ abstract class TelaBase {
         conferirTravaDaUrl();
     }
 
-    /** Trava de URL: só abre o sistema se a configuração lida for a do {@code varesync_test}. */
+    /**
+     * Endereço do banco da banca num servidor que não existe (porta 1 do próprio computador, conexão recusada na hora):
+     * o único endereço fora do {@code varesync_test} que a trava aceita, para conferir que a 2.0 recusa o
+     * {@code varesync_demo}. Se a recusa falhasse, a conexão também falharia, e nenhum banco seria aberto.
+     */
+    static final String URL_BANCA_SEM_SERVIDOR = "jdbc:postgresql://127.0.0.1:1/varesync_demo";
+
+    /**
+     * Trava de URL: só abre o sistema se a configuração lida for a do {@code varesync_test} (ou exatamente a
+     * {@link #URL_BANCA_SEM_SERVIDOR}, que não chega a banco nenhum).
+     */
     static void conferirTravaDaUrl() {
         String url = AppConfig.carregar(AppConfig.arquivoPadrao()).url();
-        if (!url.endsWith("/varesync_test")) {
+        if (!url.endsWith("/varesync_test") && !url.equals(URL_BANCA_SEM_SERVIDOR)) {
             throw new IllegalStateException("A configuração não aponta para o varesync_test; nada foi aberto: " + url);
         }
     }

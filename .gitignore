@@ -32,7 +32,7 @@ nbbuild/
 nbdist/
 .nb-gradle/
 
-# VS Code / Cursor
+# VS Code
 .vscode/
 
 # Sistema operacional
