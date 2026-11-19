@@ -2,6 +2,7 @@ package br.com.varesync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import br.com.varesync.service.DadosTela;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,17 +11,27 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
  * Executa {@code scripts/teste_integridade_banco.sql} (15 cenários) no banco de teste (5.5).
  * O script controla a própria transação com BEGIN/ROLLBACK; aqui o bloco DO é executado dentro de uma
  * transação JDBC que termina em rollback, o mesmo efeito sem misturar os dois controles de transação.
+ *
+ * <p>O script parte do banco limpo (o terminal CAIXA-TESTE sem caixa aberto, por exemplo); como os outros testes de
+ * integração limpam o banco antes de cada teste, e não depois, este também limpa antes (2.0.1: na ordem aleatória do
+ * Failsafe, um caixa aberto deixado por outra classe fazia o cenário 6 falhar).
  */
 class IntegridadeBancoIT extends IntegracaoBase {
 
     private static final Path SCRIPT = Path.of("scripts", "teste_integridade_banco.sql");
     private static final int CENARIOS = 15;
+
+    @BeforeEach
+    void limparBanco() throws Exception {
+        new DadosTela(dataSource).limpar();
+    }
 
     @Test
     void scriptDeIntegridadePassaNosQuinzeCenarios() throws Exception {

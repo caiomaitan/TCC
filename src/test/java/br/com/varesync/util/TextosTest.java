@@ -65,4 +65,10 @@ class TextosTest {
         assertThat(Textos.apenasDigitos("11.222.333/0001-81")).isEqualTo("11222333000181");
         assertThat(Textos.apenasDigitos(null)).isEmpty();
     }
+
+    @Test
+    void vazioSeNuloSoAparaAsPontas() {
+        assertThat(Textos.vazioSeNulo(null)).isEmpty();
+        assertThat(Textos.vazioSeNulo("  Rua  das Flores ")).isEqualTo("Rua  das Flores");
+    }
 }

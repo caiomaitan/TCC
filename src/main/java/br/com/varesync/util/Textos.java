@@ -24,6 +24,11 @@ public final class Textos {
         return texto == null || texto.isBlank();
     }
 
+    /** Remove só os espaços das pontas. Nulo vira "". */
+    public static String vazioSeNulo(String texto) {
+        return texto == null ? "" : texto.strip();
+    }
+
     /** Remove espaços das pontas e troca sequências de espaços por um só. Nulo vira "". */
     public static String normalizarEspacos(String texto) {
         if (texto == null) {

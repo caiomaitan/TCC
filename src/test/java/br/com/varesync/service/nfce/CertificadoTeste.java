@@ -11,11 +11,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * Certificado A1 autoassinado dos testes (F23.2), gerado pelo {@code keytool} do JDK numa pasta temporária, com o CN
  * "EMPRESA TESTE LTDA:12345678000195". Nenhum arquivo de certificado vai para o repositório. Gerado uma vez por JVM.
+ * A senha vai ao keytool pelo ambiente do processo ({@code -storepass:env}), nunca na linha de comando: o JDK 21
+ * registra a linha de comando de todo {@code ProcessBuilder.start()} no log (nível DEBUG, logger
+ * {@code java.lang.ProcessBuilder}), e o {@link SigiloCertificadoTest} confere que a senha não aparece em log nenhum.
  */
 public final class CertificadoTeste {
 
     public static final String CNPJ = "12345678000195";
     public static final String SENHA = "senha-de-teste-123";
+    private static final String VARIAVEL_SENHA = "VARESYNC_SENHA_CERTIFICADO_TESTE";
     private static Path arquivo;
     private static Path vencido;
 
@@ -54,13 +58,15 @@ public final class CertificadoTeste {
             List<String> comando = new java.util.ArrayList<>(List.of(keytool, "-genkeypair", "-alias", alias,
                     "-keyalg", "RSA", "-keysize", "2048", "-sigalg", "SHA256withRSA", "-dname",
                     "CN=" + cn + ", OU=Testes, O=VareSync, C=BR", "-validity", String.valueOf(dias),
-                    "-storetype", "PKCS12", "-keystore", pfx.toString(), "-storepass", SENHA, "-keypass", SENHA,
-                    "-noprompt"));
+                    "-storetype", "PKCS12", "-keystore", pfx.toString(), "-storepass:env", VARIAVEL_SENHA,
+                    "-keypass:env", VARIAVEL_SENHA, "-noprompt"));
             if (inicio != null) {
                 comando.add("-startdate");
                 comando.add(inicio);
             }
-            Process p = new ProcessBuilder(comando).redirectErrorStream(true).start();
+            ProcessBuilder pb = new ProcessBuilder(comando).redirectErrorStream(true);
+            pb.environment().put(VARIAVEL_SENHA, SENHA);
+            Process p = pb.start();
             String saida = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (!p.waitFor(60, TimeUnit.SECONDS) || p.exitValue() != 0) {
                 throw new IllegalStateException("keytool falhou: " + saida);

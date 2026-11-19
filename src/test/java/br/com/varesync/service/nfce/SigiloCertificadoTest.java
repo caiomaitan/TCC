@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,6 +39,17 @@ class SigiloCertificadoTest {
     private final List<String> logBiblioteca = new ArrayList<>();
     private Handler capturaBiblioteca;
     private final List<String> mensagens = new ArrayList<>();
+
+    /**
+     * Os certificados de teste são gerados antes da captura, qualquer que seja a ordem das classes de teste: a geração
+     * é preparação do teste, e o JDK registra a linha de comando do keytool (com o caminho do .pfx) no log de DEBUG.
+     * O que se confere é o log do sistema e da biblioteca ao usar o certificado.
+     */
+    @BeforeAll
+    static void gerarCertificados() {
+        CertificadoTeste.arquivo();
+        CertificadoTeste.vencido();
+    }
 
     @BeforeEach
     void capturar() {

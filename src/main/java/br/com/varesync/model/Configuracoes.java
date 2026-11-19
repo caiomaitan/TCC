@@ -1,6 +1,7 @@
 package br.com.varesync.model;
 
 import br.com.varesync.util.Dinheiro;
+import br.com.varesync.util.Textos;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,6 +18,11 @@ import java.util.Optional;
  *
  * <p>Imutável: os services leem um retrato a cada operação ({@code ConfiguracaoDAO.carregar}), e a tela de
  * Configurações grava um novo retrato inteiro ({@code ConfiguracaoService.salvar}).
+ *
+ * <p>Regra de inicialização (2.0.1): os records aninhados não usam membros estáticos desta classe nos construtores
+ * nem nas constantes {@code PADRAO}/{@code VAZIO}. Se usassem, inicializar primeiro um deles (por exemplo
+ * {@code Emitente}) dispararia a desta classe no meio da dele, e o {@link #PADRAO} leria a constante do record ainda
+ * nula ({@code InicializacaoConfiguracoesTest}).
  */
 public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemMinimaPct, int diasSemGiro,
                             Balanca balanca, Backup backup, String rodapeComprovante, Seguranca seguranca,
@@ -272,14 +278,14 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         public static final Emitente VAZIO = new Emitente("", "", "", "", "", "", "", "");
 
         public Emitente {
-            razaoSocial = vazioSeNulo(razaoSocial);
-            logradouro = vazioSeNulo(logradouro);
-            numero = vazioSeNulo(numero);
-            complemento = vazioSeNulo(complemento);
-            bairro = vazioSeNulo(bairro);
-            cep = vazioSeNulo(cep);
-            municipio = vazioSeNulo(municipio);
-            codigoMunicipio = vazioSeNulo(codigoMunicipio);
+            razaoSocial = Textos.vazioSeNulo(razaoSocial);
+            logradouro = Textos.vazioSeNulo(logradouro);
+            numero = Textos.vazioSeNulo(numero);
+            complemento = Textos.vazioSeNulo(complemento);
+            bairro = Textos.vazioSeNulo(bairro);
+            cep = Textos.vazioSeNulo(cep);
+            municipio = Textos.vazioSeNulo(municipio);
+            codigoMunicipio = Textos.vazioSeNulo(codigoMunicipio);
         }
     }
 
@@ -289,10 +295,10 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
         public static final RespTecnico VAZIO = new RespTecnico("", "", "", "");
 
         public RespTecnico {
-            cnpj = vazioSeNulo(cnpj);
-            contato = vazioSeNulo(contato);
-            email = vazioSeNulo(email);
-            fone = vazioSeNulo(fone);
+            cnpj = Textos.vazioSeNulo(cnpj);
+            contato = Textos.vazioSeNulo(contato);
+            email = Textos.vazioSeNulo(email);
+            fone = Textos.vazioSeNulo(fone);
         }
 
         public boolean informado() {
@@ -320,14 +326,10 @@ public record Configuracoes(Loja loja, ParametrosVenda venda, BigDecimal margemM
                 new BigDecimal("200000"), true, 30, "", "", RespTecnico.VAZIO);
 
         public Nfce {
-            urlQrCode = vazioSeNulo(urlQrCode);
-            urlConsulta = vazioSeNulo(urlConsulta);
+            urlQrCode = Textos.vazioSeNulo(urlQrCode);
+            urlConsulta = Textos.vazioSeNulo(urlConsulta);
             respTecnico = respTecnico == null ? RespTecnico.VAZIO : respTecnico;
         }
-    }
-
-    private static String vazioSeNulo(String valor) {
-        return valor == null ? "" : valor.strip();
     }
 
     public Configuracoes comEmitente(Emitente outro) {

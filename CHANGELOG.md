@@ -1,5 +1,22 @@
 # Histórico de versões
 
+## 2.0.1 — 2026-11-19
+
+Correções encontradas pela integração contínua (GitHub Actions, Linux), na primeira vez que ela rodou. Nenhuma regra
+de negócio nova e nenhuma atualização do banco.
+
+- **Configurações com o emitente e a NFC-e em branco.** Dependendo da ordem em que o Java carregava as partes das
+  configurações, os valores padrão podiam ficar sem os dados do emitente e da NFC-e até o sistema ser fechado, e a
+  tela de NFC-e e o PDV com a NFC-e ligada davam erro. No uso normal o sistema carregava na ordem certa, por isso o
+  problema só apareceu nos testes do Linux. Agora a ordem não importa, e há um teste que confere todas as ordens.
+- **Senha do certificado de teste fora do log.** Os testes geram um certificado A1 de teste com o `keytool` do Java, e
+  a senha de teste ia na linha de comando, que o próprio Java registra no log de depuração. Agora a senha vai por uma
+  variável de ambiente do processo, como a do banco no backup. Só os testes usam o `keytool`; a senha do certificado
+  da loja nunca passou por linha de comando.
+- **Testes de integração que dependiam da ordem.** O teste das migrations passou a conferir o banco recém-criado num
+  schema próprio e vazio, e o teste do script de integridade limpa o banco antes de rodar. Antes, os dois só passavam
+  se rodassem antes dos testes que gravam dados.
+
 ## 2.0.0 — 2026-11-17
 
 A 2.0.0 é a primeira versão depois da que foi entregue e apresentada no TCC (tag `tcc-entrega`, versão 0.1.0). Ela

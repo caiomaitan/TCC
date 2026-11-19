@@ -75,8 +75,8 @@ class VersaoSistemaTest {
     void esteBuildTemAVersaoDoPomECommit() {
         // Os recursos de target/classes vêm do Maven: versao.properties filtrado e git.properties do git-commit-id.
         VersaoSistema v = VersaoSistema.doBuild();
-        assertThat(v.versao()).startsWith("2.0.0");
-        assertThat(v.versaoNumerica()).isEqualTo("2.0.0");
+        assertThat(v.versao()).startsWith("2.0.1");
+        assertThat(v.versaoNumerica()).isEqualTo("2.0.1");
         assertThat(v.dataBuild()).isPresent();
         if (getClass().getResource("/git.properties") != null) {
             assertThat(v.commit()).hasValueSatisfying(c -> assertThat(c).matches("[0-9a-f]{7,}"));
