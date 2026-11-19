@@ -19,6 +19,8 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TableView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,7 @@ class VarreduraCortesTelaIT extends TelaBase {
 
     @Test
     void todasAsTelasNoClaroA100ENoEscuroA130() throws Exception {
+        System.out.println(fx(VarreduraCortesTelaIT::fonteDoSistema));
         dados.criarSupervisor();
         dados.gerarDemonstracao();
         dados.abrirCaixa("100.00");
@@ -170,6 +173,29 @@ class VarreduraCortesTelaIT extends TelaBase {
         esperar(() -> fxr(() -> !r.lookup("#botaoGerar").isDisabled() && r.lookupAll(".table-view").stream()
                 .mapToInt(n -> ((TableView<?>) n).getItems().size()).max().orElse(0) > 0), "R01 gerado");
         Thread.sleep(500);
+    }
+
+    /**
+     * Para o log: a fonte padrão do JavaFX e a largura de um texto de referência na "System" (a do app.css) e nas
+     * famílias que interessam. O nome da "System" não diz qual fonte física o JavaFX usou; a largura igual à de uma
+     * família instalada diz. No Linux do CI, a "System" deve medir como a Segoe UI (a Selawik, instalada pelo ci.yml).
+     */
+    private static String fonteDoSistema() {
+        Font padrao = Font.getDefault();
+        String referencia = "Salvar alterações · Configurações · v2.0.1";
+        double px = 13.5 * 1.3; // tamanho da raiz no app.css, com a fonte em 130%
+        StringBuilder sb = new StringBuilder(String.format(Locale.ROOT,
+                "Fonte padrão do JavaFX: família \"%s\", nome \"%s\", tamanho %.1f; largura de \"%s\" a %.2f px:",
+                padrao.getFamily(), padrao.getName(), padrao.getSize(), referencia, px));
+        List<String> instaladas = Font.getFamilies();
+        for (String familia : List.of("System", "Segoe UI", "Selawik", "DejaVu Sans", "Liberation Sans")) {
+            boolean existe = familia.equals("System") || instaladas.contains(familia);
+            Text texto = new Text(referencia);
+            texto.setFont(Font.font(familia, px));
+            sb.append(String.format(Locale.ROOT, " %s=%s;", familia,
+                    existe ? String.format(Locale.ROOT, "%.1f", texto.getLayoutBounds().getWidth()) : "ausente"));
+        }
+        return sb.toString();
     }
 
     /** "Contas a pagar" → "contas_a_pagar". */

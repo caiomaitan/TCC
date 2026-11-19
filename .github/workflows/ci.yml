@@ -63,6 +63,40 @@ jobs:
       - name: Build, testes, cobertura e análise estática (mvn -Pqualidade verify)
         run: xvfb-run -a mvn -B -Pqualidade verify "-Dtestes.jvm=${TESTES_JVM}"
 
+      # A varredura de cortes mede as telas como no Windows da loja. No Linux, a fonte "System" do JavaFX é a sem serifa
+      # padrão do fontconfig (DejaVu Sans no Ubuntu), 14% a 18% mais larga que a Segoe UI (até 33% no negrito): com a
+      # fonte em 130%, Configurações e a barra de status passavam de 1280 px. A Selawik (Microsoft, licença OFL) tem as
+      # métricas da Segoe UI; vira a sem serifa padrão só no runner. Versão fixa, conferida pela soma SHA-256.
+      - name: Fonte com as métricas da Segoe UI (Selawik) para os testes de interface
+        env:
+          SELAWIK_URL: https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
+          SELAWIK_SHA256: 3f62c51e05e3b5a1e6241cf92a371f0be2ea1183aa87b30718bbd40832a8d423
+        run: |
+          set -euo pipefail
+          echo "Sem serifa antes: $(fc-match sans-serif)"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/selawik.zip" "$SELAWIK_URL"
+          echo "$SELAWIK_SHA256  $RUNNER_TEMP/selawik.zip" | sha256sum -c -
+          sudo mkdir -p /usr/local/share/fonts/selawik
+          # Só a regular e a negrito: as duas que a "System" do JavaFX usa (sem as variantes light e semibold)
+          sudo unzip -oj "$RUNNER_TEMP/selawik.zip" selawk.ttf selawkb.ttf -d /usr/local/share/fonts/selawik
+          sudo tee /etc/fonts/local.conf > /dev/null <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <alias binding="strong"><family>sans-serif</family><prefer><family>Selawik</family></prefer></alias>
+            <alias binding="strong"><family>sans</family><prefer><family>Selawik</family></prefer></alias>
+          </fontconfig>
+          EOF
+          sudo fc-cache -f
+          for padrao in sans-serif sans 'sans:bold' 'sans-serif:lang=pt'; do
+            achada="$(fc-match -f '%{family[0]}' "$padrao")"
+            echo "fc-match $padrao -> $(fc-match "$padrao")"
+            if [ "$achada" != "Selawik" ]; then
+              echo "::error::a sem serifa padrão ($padrao) deveria ser a Selawik, e é $achada"
+              exit 1
+            fi
+          done
+
       # Testes de interface (F11.3): só os *TelaIT, com a pasta de usuário temporária target/ui-home, janelas fora da
       # tela e sem o robô do sistema operacional. Sem "clean": reaproveita a compilação do passo anterior.
       - name: Testes de interface (mvn -Pui verify)

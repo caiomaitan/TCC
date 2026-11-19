@@ -16,6 +16,10 @@ de negócio nova e nenhuma atualização do banco.
 - **Testes de integração que dependiam da ordem.** O teste das migrations passou a conferir o banco recém-criado num
   schema próprio e vazio, e o teste do script de integridade limpa o banco antes de rodar. Antes, os dois só passavam
   se rodassem antes dos testes que gravam dados.
+- **Testes de interface do CI com uma fonte como a do Windows.** No Linux, a fonte padrão é mais larga que a Segoe UI
+  do Windows, e com a fonte em 130% a tela de Configurações e a barra de status passavam da borda da janela só nos
+  testes do CI. Agora o CI instala a Selawik, fonte livre da Microsoft com as mesmas medidas da Segoe UI, e os testes
+  medem as telas como no computador da loja. As telas do sistema não mudaram.
 
 ## 2.0.0 — 2026-11-17
 
