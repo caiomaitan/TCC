@@ -20,6 +20,10 @@ de negócio nova e nenhuma atualização do banco.
   do Windows, e com a fonte em 130% a tela de Configurações e a barra de status passavam da borda da janela só nos
   testes do CI. Agora o CI instala a Selawik, fonte livre da Microsoft com as mesmas medidas da Segoe UI, e os testes
   medem as telas como no computador da loja. As telas do sistema não mudaram.
+- **Avisos de duas linhas sem "…" em espaço apertado.** As mensagens e os avisos que quebram a linha (como o aviso da
+  aba Lotes do Estoque, quando o produto não controla validade) podiam encolher para uma linha só e terminar em "…"
+  quando faltava altura, como no detalhe do Estoque com a fonte em 130%. Agora eles guardam a altura do texto inteiro.
+  Enquanto o texto cabe numa linha, nada muda na tela.
 
 ## 2.0.0 — 2026-11-17
 

@@ -249,20 +249,33 @@ public final class Aparencia {
     /**
      * Com a folha já aplicada: botão, caixa de marcar e rótulo curto não encolhem abaixo do texto (a largura que ele
      * pede vira a mínima); rótulo longo (dica de atalhos, descrição) quebra a linha em vez de ser cortado. Rótulos com
-     * largura mínima dada pela tela, que já quebram a linha ou que fazem parte de um controle (título de coluna, célula,
-     * aba, caixa de escolha) ficam como estão.
+     * largura mínima dada pela tela ou que fazem parte de um controle (título de coluna, célula, aba, caixa de escolha)
+     * ficam como estão.
+     * <p>
+     * Rótulo que a tela já fez quebrar a linha (mensagem, aviso, orientação), mesmo ainda vazio, não encolhe abaixo da
+     * altura do texto: sem isso, a altura mínima do JavaFX é a de uma linha, e na tela apertada (o detalhe da tela
+     * dividida a 130%, que pode encolher até zero) a frase de duas linhas virava "…" no fim da primeira. Enquanto o
+     * texto cabe numa linha, a altura preferida é a mesma de antes.
      */
     private static void ajustarRotulos(Parent raiz) {
         raiz.applyCss();
         double limiteLongo = LARGURA_ROTULO_LONGO * escala();
         for (Node no : descendentes(raiz)) {
-            if (!(no instanceof Labeled rotulo) || no instanceof Cell<?> || rotulo.getText() == null
-                    || rotulo.getText().isBlank() || interno(no)) {
+            if (!(no instanceof Labeled rotulo) || no instanceof Cell<?> || interno(no)) {
                 continue;
             }
             boolean nosso = rotulo.getProperties().containsKey(ROTULO);
-            if (!nosso && (rotulo.isWrapText() || rotulo.getMinWidth() != Region.USE_COMPUTED_SIZE)) {
-                continue; // a tela já decidiu
+            if (!nosso && rotulo.isWrapText()) {
+                if (rotulo.getMinHeight() == Region.USE_COMPUTED_SIZE) {
+                    rotulo.setMinHeight(Region.USE_PREF_SIZE);
+                }
+                continue; // a tela já decidiu quebrar a linha
+            }
+            if (rotulo.getText() == null || rotulo.getText().isBlank()) {
+                continue;
+            }
+            if (!nosso && rotulo.getMinWidth() != Region.USE_COMPUTED_SIZE) {
+                continue; // a tela já decidiu a largura
             }
             if (nosso && rotulo.isWrapText()) {
                 continue; // já quebra a linha
