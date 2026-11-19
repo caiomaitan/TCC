@@ -24,6 +24,10 @@ de negócio nova e nenhuma atualização do banco.
   aba Lotes do Estoque, quando o produto não controla validade) podiam encolher para uma linha só e terminar em "…"
   quando faltava altura, como no detalhe do Estoque com a fonte em 130%. Agora eles guardam a altura do texto inteiro.
   Enquanto o texto cabe numa linha, nada muda na tela.
+- **Testes de interface fora do CI do Linux, por enquanto.** O sistema é só para Windows, e os testes de interface
+  continuam no projeto e sendo rodados no Windows, onde todos passam. No CI, que roda em Linux, eles ficam de fora até
+  irem para uma máquina com Windows: lá, um deles não conseguia ler o QR Code do DANFE de contingência, problema que
+  não acontece no Windows. Os testes unitários, os de integração e a análise estática continuam no CI.
 
 ## 2.0.0 — 2026-11-17
 
